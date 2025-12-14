@@ -9,19 +9,19 @@
 AdAway is an open source ad blocker for Android using the hosts file and local vpn.
 
 [<img src="metadata/en-US/phoneScreenshots/screenshot1.png"
-    alt="Home screen"
+    alt="Home screen (progress)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot1.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot2.png"
-    alt="Preferences screen"
+    alt="Hosts sources (categorized)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot2.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot3.png"
-    alt="Root based ad blocker screen"
+    alt="FilterLists import"
     height="256">](metadata/en-US/phoneScreenshots/screenshot3.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot4.png"
-    alt="Backup and restore screen"
+    alt="Schedule manager"
     height="256">](metadata/en-US/phoneScreenshots/screenshot4.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot5.png"
-    alt="Help screen"
+    alt="Subscribe-all running"
     height="256">](metadata/en-US/phoneScreenshots/screenshot5.png)
 
 For more information visit https://adaway.org
@@ -34,13 +34,21 @@ This fork adds an enhanced filter management experience:
 - **Catalog browsing**: A curated catalog with **Safe/Balanced/Aggressive/Custom** selection modes, search, and “already added” indicators.
 - **Custom lists**: Add your own list URL and choose a preferred list format (Hosts / Domains / Adblock rules best-effort / Allowlist / Redirect).
 - **Per-list update**: Update a single list from the sources screen when an update is available, or update all enabled sources.
-- **FilterLists.com integration**: Browse/import lists from FilterLists and run **Subscribe to all** in the background with progress and completion notifications.
-- **Progress on Home**: Live progress text + bar on the Home screen during long-running operations.
+- **FilterLists.com integration**: Browse/import lists from FilterLists and run **Subscribe to all** in the background.
+- **Background progress + notifications**: “Subscribe to all” runs in the background (foreground worker notification) and posts a completion notification; you can leave the screen/app and come back later.
+- **Progress on Home**: Live progress text + bar on the Home screen during long-running operations (subscribe-all + updates). Overall percentage is monotonic (won’t go backwards).
 - **Filter sets + scheduling**: Save/apply “filter sets” and schedule automatic updates for:
   - the current active set, or any saved set
   - individual sources
   - daily at a chosen time
   - weekly on a chosen day + time
+- **Schedule manager**: Manage global + filter-set + per-source schedules from **Hosts sources → menu → Manage schedules**, or from the **+** button sheet.
+- **Update performance improvements**:
+  - One conditional GET per source (uses `If-None-Match` / `If-Modified-Since`, relies on `304 Not Modified` to skip parsing)
+  - Parallel URL downloads with a cap, sequential parsing to avoid DB contention
+  - Larger OkHttp cache
+  - More aggressive batching for DB inserts (faster big imports)
+  - UI refresh throttling on very large lists to avoid ANRs
 
 ## Installing
 
