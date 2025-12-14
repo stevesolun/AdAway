@@ -36,16 +36,30 @@ import org.adaway.model.error.HostErrorException;
 import org.adaway.model.git.GitHostsSource;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
@@ -66,9 +80,10 @@ import timber.log.Timber;
  */
 public class SourceModel {
     /**
-     * The HTTP client cache size (100Mo).
+     * The HTTP client cache size.
      */
-    private static final long CACHE_SIZE = 100L * 1024L * 1024L;
+    private static final long CACHE_SIZE = 250L * 1024L * 1024L; // 250MB
+    private static final int MAX_PARALLEL_DOWNLOADS = 6;
     private static final String LAST_MODIFIED_HEADER = "Last-Modified";
     private static final String IF_NONE_MATCH_HEADER = "If-None-Match";
     private static final String IF_MODIFIED_SINCE_HEADER = "If-Modified-Since";
@@ -107,6 +122,11 @@ public class SourceModel {
      */
     private OkHttpClient cachedHttpClient;
 
+    // Ensure UI progress is monotonic (never goes backwards) even with parallel downloads.
+    // This avoids confusing "up/down" percent swings caused by in-flight bookkeeping timing.
+    private int lastProgressTotal = -1;
+    private int lastProgressBasisPoints = 0;
+
     /**
      * Constructor.
      *
@@ -118,10 +138,13 @@ public class SourceModel {
         this.hostsSourceDao = database.hostsSourceDao();
         this.hostListItemDao = database.hostsListItemDao();
         this.hostEntryDao = database.hostEntryDao();
-        this.state = new MutableLiveData<>("");
-        this.progress = new MutableLiveData<>(Progress.idle());
+        // Avoid setValue() here: SourceModel may be instantiated off the main thread (e.g. from WorkManager).
+        this.state = new MutableLiveData<>();
+        this.state.postValue("");
+        this.progress = new MutableLiveData<>();
+        this.progress.postValue(Progress.idle());
         this.updateAvailable = new MutableLiveData<>();
-        this.updateAvailable.setValue(false);
+        this.updateAvailable.postValue(false);
         SourceUpdateService.syncPreferences(context);
     }
 
@@ -327,74 +350,167 @@ public class SourceModel {
         }
         // Update state to downloading
         setState(R.string.status_retrieve);
-        // Init progress for enabled sources only.
-        int total = 0;
-        for (HostsSource s : this.hostsSourceDao.getAll()) {
-            if (s.isEnabled()) total++;
-        }
-        postProgress(0, total, null, total > 0 ? 0 : 0, 0);
-        // Initialize copy counters
-        int numberOfCopies = 0;
-        int numberOfFailedCopies = 0;
-        // Compute current date in UTC timezone
-        ZonedDateTime now = ZonedDateTime.now();
-        // Get each hosts source
-        int done = 0;
-        for (HostsSource source : this.hostsSourceDao.getAll()) {
-            int sourceId = source.getId();
-            // Clear disabled source
+
+        // Split sources:
+        // - Disabled: clear DB entries
+        // - Enabled FILE: read sequentially (no network)
+        // - Enabled URL: download in parallel (capped) + parse sequentially to avoid DB contention
+        List<HostsSource> all = this.hostsSourceDao.getAll();
+        List<HostsSource> enabledUrlSources = new ArrayList<>();
+        List<HostsSource> enabledFileSources = new ArrayList<>();
+
+        for (HostsSource source : all) {
             if (!source.isEnabled()) {
+                int sourceId = source.getId();
                 this.hostListItemDao.clearSourceHosts(sourceId);
                 this.hostsSourceDao.clearProperties(sourceId);
                 continue;
             }
-            // Progress update at the start of each enabled source.
+            switch (source.getType()) {
+                case URL:
+                    enabledUrlSources.add(source);
+                    break;
+                case FILE:
+                    enabledFileSources.add(source);
+                    break;
+                default:
+                    Timber.w("Hosts source type is not supported.");
+            }
+        }
+
+        final int total = enabledUrlSources.size() + enabledFileSources.size();
+        postProgress(0, total, null, total > 0 ? 0 : 0, 0);
+
+        int numberOfCopies = 0;
+        int numberOfFailedCopies = 0;
+        int done = 0;
+
+        // First handle FILE sources sequentially (they are usually quick and keep UX predictable).
+        ZonedDateTime now = ZonedDateTime.now();
+        for (HostsSource source : enabledFileSources) {
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-            // Get hosts source last update
-            ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
-            if (onlineModificationDate == null) {
-                onlineModificationDate = now;
-            }
-            // Check if update available
-            ZonedDateTime localModificationDate = source.getLocalModificationDate();
-            if (localModificationDate != null && localModificationDate.isAfter(onlineModificationDate)) {
-                Timber.i("Skip source %s: no update.", source.getLabel());
-                // Still count this source as processed so progress % moves forward.
-                done++;
-                postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-                continue;
-            }
-            // Increment number of copy
             numberOfCopies++;
             try {
-                // Check hosts source type
-                switch (source.getType()) {
-                    case URL:
-                        downloadHostSource(source);
-                        break;
-                    case FILE:
-                        readSourceFile(source);
-                        break;
-                    default:
-                        Timber.w("Hosts source type  is not supported.");
+                readSourceFile(source);
+                ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
+                if (onlineModificationDate == null) {
+                    onlineModificationDate = now;
                 }
-                // Update local and online modification dates to now
-                localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-                this.hostsSourceDao.updateModificationDates(sourceId, localModificationDate, onlineModificationDate);
-                // Update size
-                this.hostsSourceDao.updateSize(sourceId);
+                ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
+                this.hostsSourceDao.updateSize(source.getId());
             } catch (IOException e) {
                 Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
-                // Increment number of failed copy
                 numberOfFailedCopies++;
             }
             done++;
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
         }
-        // Check if all copies failed
+
+        // Then handle URL sources with a parallel download phase and a sequential parse phase.
+        if (!enabledUrlSources.isEmpty()) {
+            int parallelism = Math.min(MAX_PARALLEL_DOWNLOADS, enabledUrlSources.size());
+            ExecutorService pool = Executors.newFixedThreadPool(parallelism);
+            CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(pool);
+
+            // Track overall progress during parallel downloads.
+            final AtomicInteger completedDownloads = new AtomicInteger(0);
+            final Map<Integer, Double> inFlightWithin = new ConcurrentHashMap<>();
+            final AtomicReference<String> lastLabel = new AtomicReference<>(null);
+            final AtomicInteger lastWithinPercent = new AtomicInteger(0);
+            final int baseDone = done;
+
+            final int urlTotal = enabledUrlSources.size();
+            for (HostsSource source : enabledUrlSources) {
+                completion.submit(new DownloadCallable(source, (label, withinFraction) -> {
+                    inFlightWithin.put(source.getId(), withinFraction);
+                    lastLabel.set(label);
+                    lastWithinPercent.set((int) Math.floor(withinFraction * 100.0));
+
+                    // Overall = already-done (including FILE + finished URL downloads) + average in-flight within
+                    int doneSoFar = baseDone + completedDownloads.get();
+                    double sumWithin = 0d;
+                    if (!inFlightWithin.isEmpty()) {
+                        for (double v : inFlightWithin.values()) sumWithin += v;
+                    }
+                    // If multiple downloads are in-flight, sum their within-fractions so overall progresses faster
+                    // and better matches actual total bytes being downloaded.
+                    double overall = total > 0 ? (doneSoFar + sumWithin) / (double) total : 0d;
+                    int basisPoints = (int) Math.floor(Math.min(0.999d, Math.max(0d, overall)) * 10000.0);
+
+                    String labelForUi = lastLabel.get();
+                    if (labelForUi != null) {
+                        labelForUi = labelForUi + " (" + inFlightWithin.size() + " downloading)";
+                    }
+                    postProgress(doneSoFar, total, labelForUi, basisPoints, lastWithinPercent.get());
+                }));
+            }
+
+            int urlFailed = 0;
+            for (int i = 0; i < urlTotal; i++) {
+                try {
+                    DownloadResult result = completion.take().get();
+                    completedDownloads.incrementAndGet();
+                    inFlightWithin.remove(result.sourceId);
+
+                    HostsSource source = result.source;
+                    numberOfCopies++;
+
+                    if (result.success && result.notModified) {
+                        // Nothing to do (conditional GET returned 304). Still mark progress done.
+                        done++;
+                        postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                        continue;
+                    }
+
+                    if (!result.success) {
+                        urlFailed++;
+                        numberOfFailedCopies++;
+                        done++;
+                        postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                        continue;
+                    }
+
+                    // Parse sequentially from the downloaded temp file.
+                    setState(R.string.status_parse_source, source.getLabel());
+                    try (BufferedReader reader = result.openReader()) {
+                        parseSourceInputStream(source, reader);
+                    } finally {
+                        result.cleanup();
+                    }
+
+                    // Update cache headers in DB (etag/last-modified) based on response headers.
+                    if (result.entityTag != null) {
+                        this.hostsSourceDao.updateEntityTag(source.getId(), result.entityTag);
+                    }
+                    ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
+                    ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                    this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
+                    this.hostsSourceDao.updateSize(source.getId());
+
+                    done++;
+                    postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                } catch (Exception e) {
+                    Timber.w(e, "Failed to retrieve a URL host source.");
+                    urlFailed++;
+                    numberOfFailedCopies++;
+                    done++;
+                    postProgress(done, total, null, total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                }
+            }
+
+            pool.shutdownNow();
+            try {
+                pool.awaitTermination(2, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
         if (numberOfCopies == numberOfFailedCopies && numberOfCopies != 0) {
             throw new HostErrorException(DOWNLOAD_FAILED);
         }
+
         // Synchronize hosts entries
         syncHostEntries();
         // Mark no update available
@@ -430,27 +546,47 @@ public class SourceModel {
 
         // Compute current date in UTC timezone
         ZonedDateTime now = ZonedDateTime.now();
-        ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
-        if (onlineModificationDate == null) {
-            onlineModificationDate = now;
-        }
 
-        // Download/read + parse
+        // Download/read + parse (URL uses conditional GET; no HEAD pre-check)
         try {
             switch (source.getType()) {
                 case URL:
-                    downloadHostSource(source);
+                    DownloadResult result = downloadToTempFile(source, (label, withinFraction) -> {
+                        int withinPercent = (int) Math.floor(withinFraction * 100.0);
+                        int basisPoints = (int) Math.floor(Math.min(0.999d, Math.max(0d, withinFraction)) * 10000.0);
+                        postProgress(0, 1, label, basisPoints, withinPercent);
+                    });
+                    if (!result.success) {
+                        throw new IOException("Download failed");
+                    }
+                    if (!result.notModified) {
+                        try (BufferedReader reader = result.openReader()) {
+                            parseSourceInputStream(source, reader);
+                        }
+                    }
+                    if (result.entityTag != null) {
+                        this.hostsSourceDao.updateEntityTag(source.getId(), result.entityTag);
+                    }
+                    ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
+                    ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                    this.hostsSourceDao.updateModificationDates(sourceId, localModificationDate, onlineModificationDate);
+                    this.hostsSourceDao.updateSize(sourceId);
+                    result.cleanup();
                     break;
                 case FILE:
                     readSourceFile(source);
+                    ZonedDateTime onlineModificationDateFile = getHostsSourceLastUpdate(source);
+                    if (onlineModificationDateFile == null) {
+                        onlineModificationDateFile = now;
+                    }
+                    ZonedDateTime localModificationDateFile = onlineModificationDateFile.isAfter(now) ? onlineModificationDateFile : now;
+                    this.hostsSourceDao.updateModificationDates(sourceId, localModificationDateFile, onlineModificationDateFile);
+                    this.hostsSourceDao.updateSize(sourceId);
                     break;
                 default:
                     Timber.w("Hosts source type is not supported.");
                     return;
             }
-            ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-            this.hostsSourceDao.updateModificationDates(sourceId, localModificationDate, onlineModificationDate);
-            this.hostsSourceDao.updateSize(sourceId);
         } catch (IOException e) {
             Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
             throw new HostErrorException(DOWNLOAD_FAILED);
@@ -479,8 +615,9 @@ public class SourceModel {
     @NonNull
     private OkHttpClient getHttpClient() {
         if (this.cachedHttpClient == null) {
+            File cacheDir = new File(this.context.getCacheDir(), "okhttp");
             this.cachedHttpClient = new OkHttpClient.Builder()
-                    .cache(new Cache(this.context.getCacheDir(), CACHE_SIZE))
+                    .cache(new Cache(cacheDir, CACHE_SIZE))
                     .build();
         }
         return this.cachedHttpClient;
@@ -577,6 +714,161 @@ public class SourceModel {
             }
         } catch (IOException e) {
             throw new IOException("Exception while downloading hosts file from " + hostsFileUrl + ".", e);
+        }
+    }
+
+    /**
+     * Progress callback used during parallel download.
+     */
+    private interface DownloadProgress {
+        void onProgress(@NonNull String label, double withinFraction);
+    }
+
+    /**
+     * Download a URL source to a temp file using a single conditional GET.
+     * Returns 304/notModified when applicable (no temp file needed).
+     */
+    @NonNull
+    private DownloadResult downloadToTempFile(@NonNull HostsSource source, @NonNull DownloadProgress progress) {
+        String url = source.getUrl();
+        setState(R.string.status_download_source, url);
+
+        Request request = getRequestFor(source).build();
+        File tmp = null;
+        try (Response response = getHttpClient().newCall(request).execute()) {
+            if (response.code() == HTTP_NOT_MODIFIED) {
+                return DownloadResult.notModified(source);
+            }
+            ResponseBody body = response.body();
+            if (body == null) {
+                return DownloadResult.failed(source);
+            }
+
+            String entityTag = response.header(ENTITY_TAG_HEADER);
+            if (entityTag != null && entityTag.startsWith(WEAK_ENTITY_TAG_PREFIX)) {
+                entityTag = entityTag.substring(WEAK_ENTITY_TAG_PREFIX.length());
+            }
+
+            ZonedDateTime lastModified = null;
+            String lastModifiedHeader = response.header(LAST_MODIFIED_HEADER);
+            if (lastModifiedHeader != null) {
+                try {
+                    lastModified = ZonedDateTime.parse(lastModifiedHeader, RFC_1123_DATE_TIME);
+                } catch (DateTimeParseException ignored) {
+                    lastModified = null;
+                }
+            }
+
+            // Write response to temp file while reporting progress.
+            tmp = File.createTempFile("adaway-src-", ".txt", this.context.getCacheDir());
+            long contentLength = body.contentLength();
+            long bytesReadTotal = 0L;
+            progress.onProgress(source.getLabel(), 0d);
+
+            try (InputStream in = body.byteStream();
+                 OutputStream out = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[32 * 1024];
+                int read;
+                while ((read = in.read(buf)) != -1) {
+                    out.write(buf, 0, read);
+                    bytesReadTotal += read;
+                    double within;
+                    if (contentLength > 0L) {
+                        within = Math.min(0.999d, Math.max(0d, bytesReadTotal / (double) contentLength));
+                    } else {
+                        final double k = 750_000d;
+                        within = 1d - Math.exp(-(bytesReadTotal / k));
+                        within = Math.min(0.95d, Math.max(0d, within));
+                    }
+                    progress.onProgress(source.getLabel(), within);
+                }
+                out.flush();
+            }
+
+            return DownloadResult.success(source, tmp, entityTag, lastModified);
+        } catch (IOException e) {
+            Timber.w(e, "Download failed for %s", url);
+            if (tmp != null) {
+                //noinspection ResultOfMethodCallIgnored
+                tmp.delete();
+            }
+            return DownloadResult.failed(source);
+        }
+    }
+
+    /**
+     * Download result (URL source only).
+     */
+    private static final class DownloadResult {
+        final HostsSource source;
+        final int sourceId;
+        final boolean success;
+        final boolean notModified;
+        @Nullable
+        final File tmpFile;
+        @Nullable
+        final String entityTag;
+        @Nullable
+        final ZonedDateTime onlineModificationDate;
+
+        private DownloadResult(@NonNull HostsSource source,
+                               boolean success,
+                               boolean notModified,
+                               @Nullable File tmpFile,
+                               @Nullable String entityTag,
+                               @Nullable ZonedDateTime onlineModificationDate) {
+            this.source = source;
+            this.sourceId = source.getId();
+            this.success = success;
+            this.notModified = notModified;
+            this.tmpFile = tmpFile;
+            this.entityTag = entityTag;
+            this.onlineModificationDate = onlineModificationDate;
+        }
+
+        static DownloadResult notModified(@NonNull HostsSource source) {
+            return new DownloadResult(source, true, true, null, null, source.getOnlineModificationDate());
+        }
+
+        static DownloadResult failed(@NonNull HostsSource source) {
+            return new DownloadResult(source, false, false, null, null, null);
+        }
+
+        static DownloadResult success(@NonNull HostsSource source,
+                                      @NonNull File tmpFile,
+                                      @Nullable String entityTag,
+                                      @Nullable ZonedDateTime onlineModificationDate) {
+            return new DownloadResult(source, true, false, tmpFile, entityTag, onlineModificationDate);
+        }
+
+        BufferedReader openReader() throws IOException {
+            if (tmpFile == null) throw new IOException("No temp file");
+            return new BufferedReader(new InputStreamReader(new java.io.FileInputStream(tmpFile)));
+        }
+
+        void cleanup() {
+            if (tmpFile != null) {
+                //noinspection ResultOfMethodCallIgnored
+                tmpFile.delete();
+            }
+        }
+    }
+
+    /**
+     * Callable wrapper so we can parallelize downloads.
+     */
+    private final class DownloadCallable implements Callable<DownloadResult> {
+        private final HostsSource source;
+        private final DownloadProgress progress;
+
+        DownloadCallable(@NonNull HostsSource source, @NonNull DownloadProgress progress) {
+            this.source = source;
+            this.progress = progress;
+        }
+
+        @Override
+        public DownloadResult call() {
+            return downloadToTempFile(source, progress);
         }
     }
 
@@ -693,8 +985,26 @@ public class SourceModel {
         this.state.postValue(state);
     }
 
-    private void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
-        this.progress.postValue(new Progress(done, total, currentLabel, basisPoints, currentSourcePercent));
+    private synchronized void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
+        // Reset monotonic guard when a new run starts (total changes) or when idle.
+        if (total != lastProgressTotal || total <= 0 || done <= 0) {
+            lastProgressTotal = total;
+            lastProgressBasisPoints = 0;
+        }
+
+        int bp = basisPoints;
+        if (total > 0 && bp < 10000) {
+            // Never go backwards while active.
+            if (bp < lastProgressBasisPoints) {
+                bp = lastProgressBasisPoints;
+            } else {
+                lastProgressBasisPoints = bp;
+            }
+        } else if (bp >= 10000) {
+            lastProgressBasisPoints = 10000;
+        }
+
+        this.progress.postValue(new Progress(done, total, currentLabel, bp, currentSourcePercent));
     }
 
     /**

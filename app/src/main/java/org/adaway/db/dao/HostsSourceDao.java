@@ -25,6 +25,9 @@ public interface HostsSourceDao {
     @Insert(onConflict = IGNORE)
     void insert(HostsSource source);
 
+    @Insert(onConflict = IGNORE)
+    void insertAll(List<HostsSource> sources);
+
     @Update
     void update(HostsSource source);
 

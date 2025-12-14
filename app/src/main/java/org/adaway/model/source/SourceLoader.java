@@ -39,7 +39,8 @@ import timber.log.Timber;
 class SourceLoader {
     private static final String TAG = "SourceLoader";
     private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
-    private static final int INSERT_BATCH_SIZE = 100;
+    // Larger batch reduces Room/SQLite overhead during big imports.
+    private static final int INSERT_BATCH_SIZE = 500;
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");

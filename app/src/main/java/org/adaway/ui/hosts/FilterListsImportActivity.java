@@ -3,11 +3,14 @@ package org.adaway.ui.hosts;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -81,6 +84,26 @@ public class FilterListsImportActivity extends AppCompatActivity {
     private int currentDone = 0;
     private int currentTotal = 0;
 
+    // Avoid UI jank/ANR when many sources are inserted quickly (subscribe-all).
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean sourcesUiRefreshScheduled = false;
+    private final Runnable sourcesUiRefresh = () -> {
+        sourcesUiRefreshScheduled = false;
+        if (adapter != null) adapter.notifyDataSetChanged();
+    };
+
+    private long lastAdapterRefreshMs = 0L;
+    private void requestAdapterRefreshThrottled(long minIntervalMs) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        long waitMs = Math.max(0L, (lastAdapterRefreshMs + minIntervalMs) - now);
+        mainHandler.removeCallbacks(sourcesUiRefresh);
+        sourcesUiRefreshScheduled = true;
+        mainHandler.postDelayed(() -> {
+            lastAdapterRefreshMs = android.os.SystemClock.elapsedRealtime();
+            sourcesUiRefresh.run();
+        }, waitMs);
+    }
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -111,22 +134,30 @@ public class FilterListsImportActivity extends AppCompatActivity {
 
         // Live update of subscribed state while background job is running.
         hostsSourceDao.loadAll().observe(this, sources -> {
-            Set<String> urls = new HashSet<>();
-            if (sources != null) {
-                for (HostsSource s : sources) {
-                    urls.add(s.getUrl());
+            // This callback runs on the main thread. Building a large HashSet + refreshing the adapter
+            // too often can cause ANRs when thousands of sources are inserted quickly.
+            final List<HostsSource> snapshot = sources != null ? new ArrayList<>(sources) : null;
+            AppExecutors.getInstance().diskIO().execute(() -> {
+                Set<String> urls = new HashSet<>();
+                if (snapshot != null) {
+                    for (HostsSource s : snapshot) {
+                        urls.add(s.getUrl());
+                    }
                 }
-            }
-            existingUrls.clear();
-            existingUrls.addAll(urls);
-            adapter.notifyDataSetChanged();
+                AppExecutors.getInstance().mainThread().execute(() -> {
+                    existingUrls.clear();
+                    existingUrls.addAll(urls);
+                    // Refresh at most once per second while subscribe-all is hammering the DB.
+                    requestAdapterRefreshThrottled(1000);
+                });
+            });
         });
 
         // Observe background subscribe-all job to show in-app progress UI.
         WorkManager.getInstance(this)
                 .getWorkInfosForUniqueWorkLiveData(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME)
                 .observe(this, infos -> {
-                    WorkInfo info = (infos != null && !infos.isEmpty()) ? infos.get(0) : null;
+                    WorkInfo info = pickBestWorkInfo(infos);
                     boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING || info.getState() == WorkInfo.State.ENQUEUED);
 
                     if (running && info != null) {
@@ -141,8 +172,13 @@ public class FilterListsImportActivity extends AppCompatActivity {
                         currentWorkingName = currentName;
 
                         subscribeAllStatus.setVisibility(View.VISIBLE);
-                        int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
-                        String line = done + "/" + total + " (" + percent + "%)";
+                        String line;
+                        if (total <= 0) {
+                            line = "Preparing…";
+                        } else {
+                            int percent = (int) Math.floor(done * 100.0 / total);
+                            line = done + "/" + total + " (" + percent + "%)";
+                        }
                         if (currentName != null && !currentName.isEmpty()) line += " • " + currentName;
                         subscribeAllStatus.setText(line);
                     } else {
@@ -154,7 +190,8 @@ public class FilterListsImportActivity extends AppCompatActivity {
                     }
 
                     subscribeAllButton.setEnabled(!running);
-                    adapter.notifyDataSetChanged();
+                    // Throttle full-list refresh (it's expensive for very large lists).
+                    requestAdapterRefreshThrottled(running ? 1000 : 0);
                 });
 
         load();
@@ -241,12 +278,47 @@ public class FilterListsImportActivity extends AppCompatActivity {
     }
 
     private void subscribeAll() {
+        // Immediate UI feedback (even before WorkManager delivers progress).
+        subscribeAllStatus.setVisibility(View.VISIBLE);
+        subscribeAllStatus.setText("Preparing…");
+        subscribeAllButton.setEnabled(false);
+        currentDone = 0;
+        currentTotal = 0;
+        currentWorkingId = null;
+        currentWorkingName = "Preparing…";
+        adapter.notifyDataSetChanged();
+
+        // Hide keyboard so the user can see the status line.
+        try {
+            searchEditText.clearFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(searchEditText.getWindowToken(), 0);
+            }
+        } catch (Exception ignored) {
+            // best-effort
+        }
+
         // Run in background with notification progress; user can leave immediately.
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class).build();
         WorkManager wm = WorkManager.getInstance(this);
-        wm.enqueueUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request);
+        // Always start a fresh run when user taps the button.
+        wm.enqueueUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request);
 
         Snackbar.make(recyclerView, "We’ll notify you when finished. You can go back now.", Snackbar.LENGTH_LONG).show();
+    }
+
+    @Nullable
+    private static WorkInfo pickBestWorkInfo(@Nullable List<WorkInfo> infos) {
+        if (infos == null || infos.isEmpty()) return null;
+        // Prefer RUNNING, then ENQUEUED, otherwise the last one (most recent in practice).
+        for (WorkInfo i : infos) {
+            if (i.getState() == WorkInfo.State.RUNNING) return i;
+        }
+        for (WorkInfo i : infos) {
+            if (i.getState() == WorkInfo.State.ENQUEUED) return i;
+        }
+        return infos.get(infos.size() - 1);
     }
 
     @Nullable

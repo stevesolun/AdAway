@@ -16,12 +16,11 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
+import org.adaway.util.AppExecutors;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Simple "schedule manager" screen.
@@ -89,7 +88,7 @@ public class SchedulesActivity extends AppCompatActivity {
         }
 
         // Filter set schedules summary
-        Set<String> setNames = FilterSetStore.getSetNames(this);
+        java.util.Set<String> setNames = FilterSetStore.getSetNames(this);
         int scheduledSets = 0;
         for (String n : setNames) {
             if (FilterSetStore.getSchedule(this, n) != FilterSetStore.SCHEDULE_OFF) scheduledSets++;
@@ -99,17 +98,21 @@ public class SchedulesActivity extends AppCompatActivity {
                 : ("Scheduled sets: " + scheduledSets));
 
         // Source schedules summary
-        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-        HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
-        int scheduledSources = 0;
-        for (HostsSource s : dao.getAll()) {
-            if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
-            int schedule = prefs.getInt(KEY_SCHEDULE_PREFIX + s.getUrl(), SCHEDULE_OFF);
-            if (schedule != SCHEDULE_OFF) scheduledSources++;
-        }
-        sourceSummary.setText(scheduledSources == 0
-                ? getString(R.string.schedule_off)
-                : ("Scheduled sources: " + scheduledSources));
+        // Room queries must not run on the main thread.
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+            HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
+            int scheduledSources = 0;
+            for (HostsSource s : dao.getAll()) {
+                if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
+                int schedule = prefs.getInt(KEY_SCHEDULE_PREFIX + s.getUrl(), SCHEDULE_OFF);
+                if (schedule != SCHEDULE_OFF) scheduledSources++;
+            }
+            final int finalScheduledSources = scheduledSources;
+            AppExecutors.getInstance().mainThread().execute(() -> sourceSummary.setText(finalScheduledSources == 0
+                    ? getString(R.string.schedule_off)
+                    : ("Scheduled sources: " + finalScheduledSources)));
+        });
     }
 
     private void editGlobalSchedule() {
@@ -198,22 +201,25 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private void editSourceSchedules() {
-        HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
-        List<HostsSource> sources = dao.getAll();
-        List<HostsSource> pickable = new ArrayList<>();
-        for (HostsSource s : sources) {
-            if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
-            pickable.add(s);
-        }
-        if (pickable.isEmpty()) return;
-        String[] labels = new String[pickable.size()];
-        for (int i = 0; i < pickable.size(); i++) labels[i] = pickable.get(i).getLabel();
+        // Room query must not run on main thread.
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
+            List<HostsSource> sources = dao.getAll();
+            List<HostsSource> pickable = new ArrayList<>();
+            for (HostsSource s : sources) {
+                if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
+                pickable.add(s);
+            }
+            if (pickable.isEmpty()) return;
+            String[] labels = new String[pickable.size()];
+            for (int i = 0; i < pickable.size(); i++) labels[i] = pickable.get(i).getLabel();
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.source_edit_auto_update)
-                .setItems(labels, (d, which) -> promptScheduleForUrl(pickable.get(which).getUrl()))
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+            AppExecutors.getInstance().mainThread().execute(() -> new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.source_edit_auto_update)
+                    .setItems(labels, (d, which) -> promptScheduleForUrl(pickable.get(which).getUrl()))
+                    .setNegativeButton(R.string.button_cancel, null)
+                    .show());
+        });
     }
 
     private void promptScheduleForUrl(@NonNull String url) {

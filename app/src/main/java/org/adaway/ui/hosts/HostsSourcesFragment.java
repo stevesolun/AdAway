@@ -350,6 +350,13 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
             dialog.dismiss();
             startSourceEdition(null);
         });
+
+        // Manage schedules option
+        View schedulesOption = sheetView.findViewById(R.id.manageSchedulesOption);
+        schedulesOption.setOnClickListener(v -> {
+            dialog.dismiss();
+            startActivity(new Intent(requireContext(), SchedulesActivity.class));
+        });
         
         dialog.setContentView(sheetView);
         dialog.show();

@@ -10,6 +10,8 @@ import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.OneTimeWorkRequest;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.helper.NotificationHelper;
@@ -38,6 +40,10 @@ public final class SourceUpdateService {
      * The name of the periodic work.
      */
     private static final String WORK_NAME = "HostsUpdateWork";
+    /**
+     * One-time work name used for "update now" triggers.
+     */
+    public static final String WORK_NAME_NOW = "HostsUpdateWorkNow";
 
     /**
      * Private constructor.
@@ -64,6 +70,23 @@ public final class SourceUpdateService {
     public static void disable(Context context) {
         // Cancel previous work
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME);
+    }
+
+    /**
+     * Enqueue a one-time "update all enabled sources now" run.
+     * This is used after large subscribe/import operations.
+     */
+    public static void enqueueUpdateNow(@NonNull Context context) {
+        boolean wifiOnly = PreferenceHelper.getUpdateOnlyOnWifi(context);
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(wifiOnly ? NetworkType.UNMETERED : NetworkType.CONNECTED)
+                .setRequiresStorageNotLow(true)
+                .build();
+        OneTimeWorkRequest req = new OneTimeWorkRequest.Builder(HostsSourcesImmediateUpdateWorker.class)
+                .setConstraints(constraints)
+                .build();
+        WorkManager.getInstance(context)
+                .enqueueUniqueWork(WORK_NAME_NOW, ExistingWorkPolicy.REPLACE, req);
     }
 
     /**
@@ -170,6 +193,32 @@ public final class SourceUpdateService {
             } else {
                 // Display update notification
                 NotificationHelper.showUpdateHostsNotification(application);
+            }
+        }
+    }
+
+    /**
+     * One-time worker that always updates all enabled sources and applies immediately.
+     */
+    public static class HostsSourcesImmediateUpdateWorker extends Worker {
+        public HostsSourcesImmediateUpdateWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
+            super(context, workerParams);
+        }
+
+        @NonNull
+        @Override
+        public Result doWork() {
+            Timber.i("Starting immediate update-all worker");
+            AdAwayApplication application = (AdAwayApplication) getApplicationContext();
+            try {
+                SourceModel sourceModel = application.getSourceModel();
+                sourceModel.retrieveHostsSources();
+                AdBlockModel adBlockModel = application.getAdBlockModel();
+                adBlockModel.apply();
+                return success();
+            } catch (HostErrorException exception) {
+                Timber.e(exception, "Failed to update/apply during immediate update-all.");
+                return retry();
             }
         }
     }

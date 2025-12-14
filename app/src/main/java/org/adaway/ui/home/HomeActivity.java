@@ -169,9 +169,13 @@ public class HomeActivity extends AppCompatActivity {
                     int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
                     int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
                     String currentName = info.getProgress().getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
+                    String msg;
                     int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
-
-                    String msg = "FilterLists subscribing: " + done + "/" + total + " (" + percent + "%)";
+                    if (total <= 0) {
+                        msg = "FilterLists subscribing: Preparing…";
+                    } else {
+                        msg = "FilterLists subscribing: " + done + "/" + total + " (" + percent + "%)";
+                    }
                     if (currentName != null && !currentName.isEmpty()) {
                         msg += " • " + currentName;
                     }
