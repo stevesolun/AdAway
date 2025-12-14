@@ -24,4 +24,9 @@
         android:id="@+id/action_hosts_schedule_filter_set"
         android:title="@string/menu_schedule_filter_set"
         android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_hosts_manage_schedules"
+        android:title="@string/menu_manage_schedules"
+        android:showAsAction="never" />
 </menu>

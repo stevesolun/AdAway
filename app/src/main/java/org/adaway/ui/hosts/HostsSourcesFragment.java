@@ -23,6 +23,7 @@ package org.adaway.ui.hosts;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.format.DateFormat;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -157,8 +158,16 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         } else if (id == R.id.action_hosts_schedule_filter_set) {
             promptScheduleFilterSet();
             return true;
+        } else if (id == R.id.action_hosts_manage_schedules) {
+            startActivity(new Intent(requireContext(), SchedulesActivity.class));
+            return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void requestAddCustomSource() {
+        showAddSourceOptions();
     }
 
     private void promptSaveFilterSet() {
@@ -212,28 +221,13 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         waitSnackbar.show();
 
         AppExecutors.getInstance().diskIO().execute(() -> {
-            // Ensure all URLs in the set exist as sources (so custom blocks can include FilterLists URLs without manual steps).
-            for (String url : enabledUrls) {
-                HostsSource existing = dao.getByUrl(url).orElse(null);
-                if (existing == null) {
-                    HostsSource src = new HostsSource();
-                    src.setLabel(url);
-                    src.setUrl(url);
-                    src.setEnabled(true);
-                    src.setAllowEnabled(false);
-                    src.setRedirectEnabled(false);
-                    dao.insert(src);
-                }
-            }
-
             for (HostsSource s : lastSources) {
                 if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
-                boolean shouldEnable = enabledUrls != null && enabledUrls.contains(s.getUrl());
+                boolean shouldEnable = enabledUrls.contains(s.getUrl());
                 if (s.isEnabled() == shouldEnable) continue;
                 dao.setSourceEnabled(s.getId(), shouldEnable);
                 dao.setSourceItemsEnabled(s.getId(), shouldEnable);
             }
-            // Enable scheduled updates service if at least one set has a schedule.
             FilterSetUpdateService.enable(requireContext());
             AppExecutors.getInstance().mainThread().execute(() -> {
                 waitSnackbar.dismiss();
@@ -243,35 +237,93 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void promptScheduleFilterSet() {
-        Set<String> names = FilterSetStore.getSetNames(requireContext());
-        if (names.isEmpty()) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_none, Snackbar.LENGTH_SHORT).show();
-            return;
-        }
-        String[] arr = names.toArray(new String[0]);
+        // Let user schedule current selection or any saved set.
+        Set<String> names = new HashSet<>(FilterSetStore.getSetNames(requireContext()));
+        List<String> options = new ArrayList<>();
+        options.add(getString(R.string.filter_set_schedule_current_selection));
+        options.addAll(names);
+        String[] arr = options.toArray(new String[0]);
+
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_schedule_filter_set)
-                .setItems(arr, (d, which) -> promptScheduleForOne(arr[which]))
+                .setItems(arr, (d, which) -> {
+                    String choice = arr[which];
+                    if (choice.equals(getString(R.string.filter_set_schedule_current_selection))) {
+                        // Save current selection as a real set so it can be scheduled.
+                        String name = getString(R.string.filter_set_schedule_current_selection);
+                        saveFilterSet(name);
+                        promptScheduleForOne(name);
+                    } else {
+                        promptScheduleForOne(choice);
+                    }
+                })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
     }
 
     private void promptScheduleForOne(String name) {
-        CharSequence[] options = new CharSequence[] {
+        CharSequence[] scheduleOptions = new CharSequence[]{
                 getString(R.string.filter_set_schedule_off),
                 getString(R.string.filter_set_schedule_daily),
                 getString(R.string.filter_set_schedule_weekly)
         };
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(name)
-                .setItems(options, (d, which) -> {
-                    int schedule = which == 1 ? FilterSetStore.SCHEDULE_DAILY
-                            : which == 2 ? FilterSetStore.SCHEDULE_WEEKLY
-                            : FilterSetStore.SCHEDULE_OFF;
-                    FilterSetStore.setSchedule(requireContext(), name, schedule);
-                    FilterSetUpdateService.enable(requireContext());
-                    Snackbar.make(coordinatorLayout, "Scheduled: " + options[which], Snackbar.LENGTH_SHORT).show();
+                .setItems(scheduleOptions, (d, which) -> {
+                    if (which == 0) {
+                        FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_OFF);
+                        FilterSetUpdateService.enable(requireContext());
+                        Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (which == 1) {
+                        // Daily -> pick time
+                        pickTime((hour, minute) -> {
+                            FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
+                            FilterSetUpdateService.enable(requireContext());
+                            Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                        });
+                        return;
+                    }
+                    // Weekly -> pick day then time
+                    pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
+                        FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
+                        FilterSetUpdateService.enable(requireContext());
+                        Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                    }));
                 })
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private interface TimePicked {
+        void onPicked(int hour24, int minute);
+    }
+
+    private void pickTime(@NonNull TimePicked picked) {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        int hour = c.get(java.util.Calendar.HOUR_OF_DAY);
+        int minute = c.get(java.util.Calendar.MINUTE);
+        new android.app.TimePickerDialog(
+                requireContext(),
+                (view, hourOfDay, minuteOfHour) -> picked.onPicked(hourOfDay, minuteOfHour),
+                hour,
+                minute,
+                DateFormat.is24HourFormat(requireContext())
+        ).show();
+    }
+
+    private interface DayPicked {
+        void onPicked(int isoDay);
+    }
+
+    private void pickDayOfWeek(@NonNull DayPicked picked) {
+        String[] days = new String[]{
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+        };
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filter_set_schedule_pick_day)
+                .setItems(days, (d, which) -> picked.onPicked(which + 1))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
     }
@@ -321,11 +373,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     @Override
     public void updateAllSources() {
         runUpdateSources(null);
-    }
-
-    @Override
-    public void requestAddCustomSource() {
-        showAddSourceOptions();
     }
 
     private void startSourceEdition(@Nullable HostsSource source) {

@@ -1,9 +1,9 @@
 package org.adaway.ui.source;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.format.DateFormat;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -60,8 +60,14 @@ public class SourceEditActivity extends AppCompatActivity {
     private static final String ANY_MIME_TYPE = "*/*";
     private static final Executor DISK_IO_EXECUTOR = AppExecutors.getInstance().diskIO();
     private static final Executor MAIN_THREAD_EXECUTOR = AppExecutors.getInstance().mainThread();
+
     private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
+    private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
+    private static final String KEY_HOUR_PREFIX = "hour_url_";
+    private static final String KEY_MINUTE_PREFIX = "minute_url_";
+    private static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
+
     private static final int SCHEDULE_OFF = 0;
     private static final int SCHEDULE_DAILY = 1;
     private static final int SCHEDULE_WEEKLY = 2;
@@ -71,7 +77,6 @@ public class SourceEditActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> startActivityLauncher;
     private boolean editing;
     private HostsSource edited;
-    private boolean formatPromptShown = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -230,79 +235,98 @@ public class SourceEditActivity extends AppCompatActivity {
             return true;
         } else if (item.getItemId() == R.id.apply_action) {
             HostsSource source = validate();
-            if (source == null) return false;
-
-            // Ask for format on NEW sources so user prefers a format we \"eat\" easily.
-            if (!editing && !formatPromptShown) {
-                formatPromptShown = true;
-                promptFormatAndSave(source);
-                return true;
+            if (source == null) {
+                return false;
             }
-
-            saveSource(source);
+            DISK_IO_EXECUTOR.execute(() -> {
+                if (this.editing) {
+                    this.hostsSourceDao.delete(this.edited);
+                }
+                this.hostsSourceDao.insert(source);
+                finish();
+            });
             return true;
         } else if (item.getItemId() == R.id.auto_update_action) {
             HostsSource source = validate();
-            if (source == null) return false;
+            if (source == null) {
+                return false;
+            }
             promptAutoUpdateSchedule(source.getUrl());
             return true;
         }
         return false;
     }
 
-    private void saveSource(HostsSource source) {
-        DISK_IO_EXECUTOR.execute(() -> {
-            if (this.editing) {
-                this.hostsSourceDao.delete(this.edited);
-            }
-            this.hostsSourceDao.insert(source);
-            finish();
-        });
-    }
-
-    private void promptFormatAndSave(HostsSource source) {
-        CharSequence[] options = new CharSequence[]{
-                getString(R.string.source_edit_format_hosts),
-                getString(R.string.source_edit_format_domains),
-                getString(R.string.source_edit_format_adblock),
-                getString(R.string.source_edit_format_allow),
-                getString(R.string.source_edit_format_redirect)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.source_edit_format_prompt_title)
-                .setMessage(R.string.source_edit_format_prompt_message)
-                .setItems(options, (d, which) -> {
-                    // Default: block list (hosts/domains/adblock)
-                    boolean allow = false;
-                    boolean redirect = false;
-                    if (which == 3) { // allowlist
-                        allow = true;
-                    } else if (which == 4) { // redirect
-                        redirect = true;
-                    }
-                    source.setAllowEnabled(allow);
-                    source.setRedirectEnabled(!allow && redirect);
-                    saveSource(source);
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
-    }
-
     private void promptAutoUpdateSchedule(String url) {
-        CharSequence[] options = new CharSequence[]{
+        CharSequence[] scheduleOptions = new CharSequence[]{
                 getString(R.string.filter_set_schedule_off),
                 getString(R.string.filter_set_schedule_daily),
                 getString(R.string.filter_set_schedule_weekly)
         };
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.source_edit_auto_update)
-                .setItems(options, (d, which) -> {
-                    int schedule = which == 1 ? SCHEDULE_DAILY : which == 2 ? SCHEDULE_WEEKLY : SCHEDULE_OFF;
-                    SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-                    prefs.edit().putInt(KEY_SCHEDULE_PREFIX + url, schedule).apply();
-                    // Ensure periodic scheduler is active (uses same Wi-Fi only constraint as global settings).
-                    FilterSetUpdateService.enable(this);
+                .setItems(scheduleOptions, (d, which) -> {
+                    if (which == 0) {
+                        saveSchedule(url, SCHEDULE_OFF, 1, 3, 0);
+                        FilterSetUpdateService.enable(this);
+                        return;
+                    }
+                    if (which == 1) {
+                        pickTime((hour, minute) -> {
+                            saveSchedule(url, SCHEDULE_DAILY, 1, hour, minute);
+                            FilterSetUpdateService.enable(this);
+                        });
+                        return;
+                    }
+                    pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
+                        saveSchedule(url, SCHEDULE_WEEKLY, dowIso, hour, minute);
+                        FilterSetUpdateService.enable(this);
+                    }));
                 })
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private void saveSchedule(String url, int schedule, int weekdayIso, int hour24, int minute) {
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+        android.content.SharedPreferences.Editor e = prefs.edit();
+        e.putInt(KEY_SCHEDULE_PREFIX + url, schedule);
+        e.putInt(KEY_WEEKDAY_PREFIX + url, Math.max(1, Math.min(7, weekdayIso)));
+        e.putInt(KEY_HOUR_PREFIX + url, Math.max(0, Math.min(23, hour24)));
+        e.putInt(KEY_MINUTE_PREFIX + url, Math.max(0, Math.min(59, minute)));
+        // Reset last-run when schedule changes so it runs next occurrence.
+        e.remove(KEY_LAST_RUN_PREFIX + url);
+        e.apply();
+    }
+
+    private interface TimePicked {
+        void onPicked(int hour24, int minute);
+    }
+
+    private void pickTime(@NonNull TimePicked picked) {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        int hour = c.get(java.util.Calendar.HOUR_OF_DAY);
+        int minute = c.get(java.util.Calendar.MINUTE);
+        new android.app.TimePickerDialog(
+                this,
+                (view, hourOfDay, minuteOfHour) -> picked.onPicked(hourOfDay, minuteOfHour),
+                hour,
+                minute,
+                DateFormat.is24HourFormat(this)
+        ).show();
+    }
+
+    private interface DayPicked {
+        void onPicked(int isoDay);
+    }
+
+    private void pickDayOfWeek(@NonNull DayPicked picked) {
+        String[] days = new String[]{
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+        };
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.filter_set_schedule_pick_day)
+                .setItems(days, (d, which) -> picked.onPicked(which + 1))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
     }

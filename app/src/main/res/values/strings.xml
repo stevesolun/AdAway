@@ -37,7 +37,7 @@
     <string name="checkbox_list_context_edit">Edit</string>
     <string name="checkbox_list_context_delete">Delete</string>
 
-    <!-- Hosts sources (uBlock-style UI) -->
+    <!-- Hosts sources -->
     <string name="menu_check_updates">Check updates</string>
     <string name="menu_update_all">Update all</string>
     <string name="menu_save_filter_set">Save filter set</string>
@@ -50,6 +50,16 @@
     <string name="filter_set_schedule_off">Off</string>
     <string name="filter_set_schedule_daily">Daily</string>
     <string name="filter_set_schedule_weekly">Weekly</string>
+    <string name="filter_set_schedule_pick_time">Pick time</string>
+    <string name="filter_set_schedule_pick_day">Pick day</string>
+    <string name="filter_set_schedule_current_selection">Current selection</string>
+    <string name="menu_manage_schedules">Manage schedules</string>
+    <string name="schedule_global_title">Global updates</string>
+    <string name="schedule_global_desc">Automatically update all enabled sources</string>
+    <string name="schedule_edit">Edit schedule</string>
+    <string name="schedule_off">Off</string>
+    <string name="schedule_daily_at">Daily at %1$s</string>
+    <string name="schedule_weekly_at">Weekly on %1$s at %2$s</string>
 
     <!--Your lists-->
     <string name="import_dialog">Importing…</string>

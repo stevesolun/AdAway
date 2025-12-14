@@ -8,6 +8,8 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.update.UpdateModel;
+import org.adaway.ui.hosts.FilterSetStore;
+import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.log.ApplicationLog;
 
 /**
@@ -40,6 +42,12 @@ public class AdAwayApplication extends Application {
         // Create models
         this.sourceModel = new SourceModel(this);
         this.updateModel = new UpdateModel(this);
+
+        // Default: enable global daily update schedule for all enabled sources (configurable in UI).
+        FilterSetStore.ensureGlobalDefaults(this);
+        if (FilterSetStore.isGlobalScheduleEnabled(this)) {
+            FilterSetUpdateService.enable(this);
+        }
     }
 
     /**

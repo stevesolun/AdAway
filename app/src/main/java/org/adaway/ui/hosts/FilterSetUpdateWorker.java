@@ -15,6 +15,12 @@ import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Set;
 
 import timber.log.Timber;
@@ -25,10 +31,14 @@ import timber.log.Timber;
 public class FilterSetUpdateWorker extends Worker {
     private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
+    private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
+    private static final String KEY_HOUR_PREFIX = "hour_url_";
+    private static final String KEY_MINUTE_PREFIX = "minute_url_";
+    private static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
+
     private static final int SCHEDULE_OFF = 0;
     private static final int SCHEDULE_DAILY = 1;
     private static final int SCHEDULE_WEEKLY = 2;
-    private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
 
     public static final String PROGRESS_DONE = "done";
     public static final String PROGRESS_TOTAL = "total";
@@ -71,13 +81,32 @@ public class FilterSetUpdateWorker extends Worker {
             int schedule = prefs.getInt(KEY_SCHEDULE_PREFIX + url, SCHEDULE_OFF);
             if (schedule == SCHEDULE_OFF) continue;
             long last = prefs.getLong(KEY_LAST_RUN_PREFIX + url, 0L);
-            long age = now - last;
-            boolean due = last <= 0L
-                    || (schedule == SCHEDULE_DAILY && age >= 24L * 60L * 60L * 1000L)
-                    || (schedule == SCHEDULE_WEEKLY && age >= 7L * 24L * 60L * 60L * 1000L);
+            if (last <= 0L) {
+                anyScheduleDue = true;
+                dueSourceUrls.add(url);
+                continue;
+            }
+            int hour = prefs.getInt(KEY_HOUR_PREFIX + url, 3);
+            int minute = prefs.getInt(KEY_MINUTE_PREFIX + url, 0);
+            int weekdayIso = prefs.getInt(KEY_WEEKDAY_PREFIX + url, 1);
+            boolean due = FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour, minute);
             if (due) {
                 anyScheduleDue = true;
                 dueSourceUrls.add(url);
+            }
+        }
+
+        // Global schedule (default daily, configurable)
+        FilterSetStore.ensureGlobalDefaults(context);
+        if (FilterSetStore.isGlobalScheduleEnabled(context)) {
+            int schedule = FilterSetStore.getGlobalSchedule(context);
+            long last = FilterSetStore.getGlobalLastRun(context);
+            int hour = FilterSetStore.getGlobalHour(context);
+            int minute = FilterSetStore.getGlobalMinute(context);
+            int weekdayIso = FilterSetStore.getGlobalWeekdayIso(context);
+            boolean due = last <= 0L || FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour, minute);
+            if (due) {
+                anyScheduleDue = true;
             }
         }
 
@@ -112,6 +141,10 @@ public class FilterSetUpdateWorker extends Worker {
                 editor.putLong(KEY_LAST_RUN_PREFIX + url, now);
             }
             editor.apply();
+        }
+
+        if (FilterSetStore.isGlobalScheduleEnabled(context)) {
+            FilterSetStore.setGlobalLastRun(context, now);
         }
 
         setProgressAsync(new Data.Builder()

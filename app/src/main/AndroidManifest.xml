@@ -91,6 +91,12 @@
             android:parentActivityName=".ui.hosts.FilterCatalogActivity"
             android:theme="@style/Theme.AdAway" />
         <activity
+            android:name=".ui.hosts.SchedulesActivity"
+            android:exported="false"
+            android:label="@string/menu_manage_schedules"
+            android:parentActivityName=".ui.hosts.HostsSourcesActivity"
+            android:theme="@style/Theme.AdAway" />
+        <activity
             android:name=".ui.log.LogActivity"
             android:label="@string/shortcut_dns_requests"
             android:parentActivityName=".ui.home.HomeActivity" />

@@ -26,6 +26,22 @@ AdAway is an open source ad blocker for Android using the hosts file and local v
 
 For more information visit https://adaway.org
 
+## Filter management
+
+This fork adds an enhanced filter management experience:
+
+- **Categorized filter lists**: Sources are organized into expandable categories (Ads, Malware, Privacy, Social, Regional, Custom, etc.) with per-category enable/disable.
+- **Catalog browsing**: A curated catalog with **Safe/Balanced/Aggressive/Custom** selection modes, search, and “already added” indicators.
+- **Custom lists**: Add your own list URL and choose a preferred list format (Hosts / Domains / Adblock rules best-effort / Allowlist / Redirect).
+- **Per-list update**: Update a single list from the sources screen when an update is available, or update all enabled sources.
+- **FilterLists.com integration**: Browse/import lists from FilterLists and run **Subscribe to all** in the background with progress and completion notifications.
+- **Progress on Home**: Live progress text + bar on the Home screen during long-running operations.
+- **Filter sets + scheduling**: Save/apply “filter sets” and schedule automatic updates for:
+  - the current active set, or any saved set
+  - individual sources
+  - daily at a chosen time
+  - weekly on a chosen day + time
+
 ## Installing
 
 There are two kinds of release:
