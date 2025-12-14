@@ -52,6 +52,13 @@ This fork adds an enhanced filter management experience:
 
 ## Installing
 
+### Install this fork (download APK)
+
+- Download the latest APK from [Releases (latest)](https://github.com/stevesolun/AdAway/releases/latest).
+- On Android: open the downloaded APK and allow **Install unknown apps** when prompted.
+  - If you see an error like “App not installed” / “Signature conflict”, uninstall the previous `org.adaway` app first, then install the APK again.
+- Verify it installed: open AdAway and confirm the version shown on the Home screen (top-right).
+
 There are two kinds of release:
 * The preview builds: on the bleeding edge of development - for testers or adventurous
 * The stable builds: ready for every day usage - for end users
