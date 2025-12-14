@@ -18,4 +18,14 @@
     <string name="source_edit_format_allow_list">Allow</string>
     <string name="source_edit_redirected_hosts">Apply redirected hosts</string>
     <string name="source_edit_redirected_hosts_warning">Allowing redirected hosts may cause security issues. Only use this settings on a trusted source as it could redirect some sensitive traffic to whatever server it wants.</string>
+
+    <!-- Advanced -->
+    <string name="source_edit_auto_update">Auto update schedule</string>
+    <string name="source_edit_format_prompt_title">List format</string>
+    <string name="source_edit_format_prompt_message">What format is this list in? Hosts format is recommended (fastest + most reliable).</string>
+    <string name="source_edit_format_hosts">Hosts file (recommended)</string>
+    <string name="source_edit_format_domains">Domains list (one domain per line)</string>
+    <string name="source_edit_format_adblock">Adblock/uBlock rules (best-effort)</string>
+    <string name="source_edit_format_allow">Allowlist/Whitelist</string>
+    <string name="source_edit_format_redirect">Redirect list (IP + host)</string>
 </resources>

@@ -11,6 +11,18 @@
         <item name="colorSecondaryVariant">@color/primaryVariant</item>
         <item name="colorOnSecondary">@color/onPrimary</item>
 
+        <!--
+            Material 3 color tokens used by new filter-list UI.
+            The app theme is MaterialComponents, so provide safe fallbacks to
+            prevent InflateException when views resolve these attributes.
+        -->
+        <item name="colorSurfaceVariant">?attr/colorSurface</item>
+        <item name="colorOnSurfaceVariant">?attr/colorOnSurface</item>
+        <item name="colorOutlineVariant">?attr/colorOnSurface</item>
+        <item name="colorSecondaryContainer">?attr/colorSecondary</item>
+        <item name="colorOnSecondaryContainer">?attr/colorOnSecondary</item>
+        <item name="colorTertiary">?attr/colorPrimary</item>
+
         <!--Remap legacy AppCompat attributes to MaterialComponent attributes-->
         <item name="colorPrimaryDark">?colorPrimary</item>
     </style>
@@ -22,6 +34,14 @@
         <item name="colorSecondary">@color/primary</item>
         <item name="colorSecondaryVariant">@color/primaryVariant</item>
         <item name="colorOnSecondary">@color/onPrimary</item>
+
+        <!-- Same Material 3 token fallbacks as Base.AdAway -->
+        <item name="colorSurfaceVariant">?attr/colorSurface</item>
+        <item name="colorOnSurfaceVariant">?attr/colorOnSurface</item>
+        <item name="colorOutlineVariant">?attr/colorOnSurface</item>
+        <item name="colorSecondaryContainer">?attr/colorSecondary</item>
+        <item name="colorOnSecondaryContainer">?attr/colorOnSecondary</item>
+        <item name="colorTertiary">?attr/colorPrimary</item>
 
         <item name="android:statusBarColor">?colorPrimary</item>
     </style>

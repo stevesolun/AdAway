@@ -18,6 +18,8 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.HostEntry;
+import org.adaway.db.entity.ListType;
+import org.adaway.model.source.FilterListCatalog;
 import org.adaway.util.AppExecutors;
 
 import static org.adaway.db.Migrations.MIGRATION_1_2;
@@ -79,13 +81,16 @@ public abstract class AppDatabase extends RoomDatabase {
 
     /**
      * Initialize the database content.
+     * Sets up default filter sources and the Facebook whitelist.
      */
     private static void initialize(Context context, AppDatabase database) {
         // Check if there is no hosts source
         HostsSourceDao hostsSourceDao = database.hostsSourceDao();
+        HostListItemDao hostListItemDao = database.hostsListItemDao();
         if (!hostsSourceDao.getAll().isEmpty()) {
             return;
         }
+        
         // User list
         HostsSource userSource = new HostsSource();
         userSource.setLabel(context.getString(R.string.hosts_user_source));
@@ -94,21 +99,34 @@ public abstract class AppDatabase extends RoomDatabase {
         userSource.setAllowEnabled(true);
         userSource.setRedirectEnabled(true);
         hostsSourceDao.insert(userSource);
-        // AdAway official
-        HostsSource source1 = new HostsSource();
-        source1.setLabel(context.getString(R.string.hosts_adaway_source));
-        source1.setUrl("https://adaway.org/hosts.txt");
-        hostsSourceDao.insert(source1);
-        // StevenBlack
-        HostsSource source2 = new HostsSource();
-        source2.setLabel(context.getString(R.string.hosts_stevenblack_source));
-        source2.setUrl("https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts");
-        hostsSourceDao.insert(source2);
-        // Pete Lowe
-        HostsSource source3 = new HostsSource();
-        source3.setLabel(context.getString(R.string.hosts_peterlowe_source));
-        source3.setUrl("https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext");
-        hostsSourceDao.insert(source3);
+        
+        // Add default sources from catalog (Ads + Malware categories enabled by default)
+        for (FilterListCatalog.CatalogEntry entry : FilterListCatalog.getDefaults()) {
+            hostsSourceDao.insert(entry.toHostsSource());
+        }
+        
+        // Initialize Facebook whitelist - ensures Facebook always works
+        initializeFacebookWhitelist(context, hostListItemDao);
+    }
+    
+    /**
+     * Initialize the Facebook whitelist to ensure Facebook services always work.
+     * This adds Facebook, Instagram, WhatsApp, and Messenger domains to the user's allowlist.
+     */
+    private static void initializeFacebookWhitelist(Context context, HostListItemDao hostListItemDao) {
+        // Add each Facebook domain to the allowlist
+        for (String domain : FilterListCatalog.FACEBOOK_WHITELIST_DOMAINS) {
+            // Skip wildcard patterns (they would need special handling)
+            if (domain.startsWith("*")) {
+                continue;
+            }
+            HostListItem item = new HostListItem();
+            item.setType(ListType.ALLOWED);
+            item.setHost(domain);
+            item.setEnabled(true);
+            item.setSourceId(USER_SOURCE_ID);
+            hostListItemDao.insert(item);
+        }
     }
 
     /**

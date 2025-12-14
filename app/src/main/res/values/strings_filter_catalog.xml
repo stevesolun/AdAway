@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Filter List Categories (uBlock-style organization) -->
+    <string name="filter_category_user">My Lists</string>
+    <string name="filter_category_user_desc">Your personal blocked, allowed, and redirected hosts</string>
+
+    <string name="filter_category_ads">Ads</string>
+    <string name="filter_category_ads_desc">Block advertising networks and ad servers</string>
+
+    <string name="filter_category_youtube">YouTube</string>
+    <string name="filter_category_youtube_desc">Block YouTube ads (may not block 100%)</string>
+
+    <string name="filter_category_privacy">Privacy</string>
+    <string name="filter_category_privacy_desc">Block trackers and analytics</string>
+
+    <string name="filter_category_malware">Malware</string>
+    <string name="filter_category_malware_desc">Block malicious and phishing domains</string>
+
+    <string name="filter_category_crypto">Crypto Miners</string>
+    <string name="filter_category_crypto_desc">Block browser-based cryptocurrency miners</string>
+
+    <string name="filter_category_social">Social</string>
+    <string name="filter_category_social_desc">Block social media tracking ⚠️ May break Facebook!</string>
+
+    <string name="filter_category_device">Device Telemetry</string>
+    <string name="filter_category_device_desc">Block Samsung/Xiaomi telemetry ⚠️ May break OEM features!</string>
+
+    <string name="filter_category_service">Service-Specific</string>
+    <string name="filter_category_service_desc">Block ads in specific apps ⚠️ May break those apps!</string>
+
+    <string name="filter_category_annoyances">Annoyances</string>
+    <string name="filter_category_annoyances_desc">Block cookie notices, popups, and more</string>
+
+    <string name="filter_category_regional">Regional</string>
+    <string name="filter_category_regional_desc">Country-specific filter lists</string>
+
+    <string name="filter_category_custom">Custom</string>
+    <string name="filter_category_custom_desc">Your custom filter sources</string>
+
+    <!-- Facebook Whitelist -->
+    <string name="filter_facebook_whitelist">Facebook Services (Protected)</string>
+    <string name="filter_facebook_whitelist_desc">Ensures Facebook, Instagram, WhatsApp, and Messenger always work</string>
+
+    <!-- Filter List UI -->
+    <string name="filter_sources_title">Filter Lists</string>
+    <string name="filter_sources_subtitle">Manage what gets blocked</string>
+    <string name="filter_add_from_catalog">Browse catalog</string>
+    <string name="filter_add_custom">Add custom source</string>
+    <string name="filter_category_enable_all">Enable all</string>
+    <string name="filter_category_disable_all">Disable all</string>
+    <string name="filter_hosts_count">%s hosts</string>
+    <string name="filter_last_updated">Updated %s</string>
+    <string name="filter_never_updated">Never updated</string>
+    <string name="filter_update_available">Update available</string>
+    <string name="filter_enabled">Enabled</string>
+    <string name="filter_disabled">Disabled</string>
+
+    <!-- Catalog Dialog -->
+    <string name="filter_catalog_title">Filter List Catalog</string>
+    <string name="filter_catalog_subtitle">Select lists to add</string>
+    <string name="filter_catalog_add_selected">Add selected</string>
+    <string name="filter_catalog_count">%d filter lists available</string>
+    <string name="filter_search_hint">Search filter lists…</string>
+
+    <!-- Status Messages -->
+    <string name="filter_added_success">Filter list added</string>
+    <string name="filter_removed_success">Filter list removed</string>
+    <string name="filter_update_started">Updating filter lists…</string>
+    <string name="filter_update_complete">Filter lists updated</string>
+
+    <!-- Online directory -->
+    <string name="filterlists_import">Import from FilterLists.com</string>
+    <string name="filterlists_subscribe_all">Subscribe to all</string>
+
+    <!-- Category Summaries (shown in collapsed state) -->
+    <string name="filter_category_summary_enabled">%1$d of %2$d enabled • %3$s hosts</string>
+    <string name="filter_category_summary_disabled">All disabled</string>
+
+    <!-- Warnings -->
+    <string name="filter_warning_may_break">⚠️ These filters may break some apps or services</string>
+    <string name="filter_warning_facebook">⚠️ May break Facebook, Instagram, WhatsApp, Messenger</string>
+    <string name="filter_warning_device">⚠️ May break Samsung Pay, Xiaomi Cloud, OEM features</string>
+    <string name="filter_warning_service">⚠️ May break the targeted app</string>
+
+    <!-- Preset Modes -->
+    <string name="filter_preset_title">Quick Setup</string>
+    <string name="filter_preset_safe">Safe Mode</string>
+    <string name="filter_preset_safe_desc">Essential ad &amp; malware blocking. Won\'t break anything.</string>
+    <string name="filter_preset_balanced">Balanced Mode</string>
+    <string name="filter_preset_balanced_desc">Ads, malware, basic privacy, crypto miners.</string>
+    <string name="filter_preset_aggressive">Aggressive Mode</string>
+    <string name="filter_preset_aggressive_desc">Maximum blocking. May break some services.</string>
+    <string name="filter_preset_custom">Custom</string>
+    <string name="filter_preset_custom_desc">You control every list individually.</string>
+</resources>

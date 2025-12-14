@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_hosts_check_updates"
+        android:title="@string/menu_check_updates"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_hosts_update_all"
+        android:title="@string/menu_update_all"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_hosts_save_filter_set"
+        android:title="@string/menu_save_filter_set"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_hosts_apply_filter_set"
+        android:title="@string/menu_apply_filter_set"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_hosts_schedule_filter_set"
+        android:title="@string/menu_schedule_filter_set"
+        android:showAsAction="never" />
+</menu>

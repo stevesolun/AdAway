@@ -45,11 +45,18 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
+import okio.Buffer;
+import okio.BufferedSource;
+import okio.ForwardingSource;
+import okio.Okio;
+import okio.Source;
 import timber.log.Timber;
 
 /**
@@ -92,6 +99,10 @@ public class SourceModel {
      */
     private final MutableLiveData<String> state;
     /**
+     * The model progress (for in-app percentage display).
+     */
+    private final MutableLiveData<Progress> progress;
+    /**
      * The HTTP client to download hosts sources ({@code null} until initialized by {@link #getHttpClient()}).
      */
     private OkHttpClient cachedHttpClient;
@@ -108,6 +119,7 @@ public class SourceModel {
         this.hostListItemDao = database.hostsListItemDao();
         this.hostEntryDao = database.hostEntryDao();
         this.state = new MutableLiveData<>("");
+        this.progress = new MutableLiveData<>(Progress.idle());
         this.updateAvailable = new MutableLiveData<>();
         this.updateAvailable.setValue(false);
         SourceUpdateService.syncPreferences(context);
@@ -120,6 +132,13 @@ public class SourceModel {
      */
     public LiveData<String> getState() {
         return this.state;
+    }
+
+    /**
+     * Get current progress for long-running source operations.
+     */
+    public LiveData<Progress> getProgress() {
+        return this.progress;
     }
 
     /**
@@ -308,12 +327,19 @@ public class SourceModel {
         }
         // Update state to downloading
         setState(R.string.status_retrieve);
+        // Init progress for enabled sources only.
+        int total = 0;
+        for (HostsSource s : this.hostsSourceDao.getAll()) {
+            if (s.isEnabled()) total++;
+        }
+        postProgress(0, total, null, total > 0 ? 0 : 0, 0);
         // Initialize copy counters
         int numberOfCopies = 0;
         int numberOfFailedCopies = 0;
         // Compute current date in UTC timezone
         ZonedDateTime now = ZonedDateTime.now();
         // Get each hosts source
+        int done = 0;
         for (HostsSource source : this.hostsSourceDao.getAll()) {
             int sourceId = source.getId();
             // Clear disabled source
@@ -322,6 +348,8 @@ public class SourceModel {
                 this.hostsSourceDao.clearProperties(sourceId);
                 continue;
             }
+            // Progress update at the start of each enabled source.
+            postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
             // Get hosts source last update
             ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
             if (onlineModificationDate == null) {
@@ -331,6 +359,9 @@ public class SourceModel {
             ZonedDateTime localModificationDate = source.getLocalModificationDate();
             if (localModificationDate != null && localModificationDate.isAfter(onlineModificationDate)) {
                 Timber.i("Skip source %s: no update.", source.getLabel());
+                // Still count this source as processed so progress % moves forward.
+                done++;
+                postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
                 continue;
             }
             // Increment number of copy
@@ -357,6 +388,8 @@ public class SourceModel {
                 // Increment number of failed copy
                 numberOfFailedCopies++;
             }
+            done++;
+            postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
         }
         // Check if all copies failed
         if (numberOfCopies == numberOfFailedCopies && numberOfCopies != 0) {
@@ -366,6 +399,68 @@ public class SourceModel {
         syncHostEntries();
         // Mark no update available
         this.updateAvailable.postValue(false);
+        postProgress(total, total, null, 10000, 100);
+    }
+
+    /**
+     * Retrieve a single hosts source (download/read + parse) and synchronize entries.
+     * This is used for per-list "Update" actions in the UI.
+     *
+     * @param sourceId The source id to update.
+     * @throws HostErrorException If the hosts source could not be downloaded.
+     */
+    public void retrieveHostsSource(int sourceId) throws HostErrorException {
+        // Check connection status
+        if (isDeviceOffline()) {
+            throw new HostErrorException(NO_CONNECTION);
+        }
+        HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
+        if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) {
+            return;
+        }
+        postProgress(0, 1, source.getLabel(), 0, 0);
+        if (!source.isEnabled()) {
+            // Keep DB clean for disabled sources
+            this.hostListItemDao.clearSourceHosts(sourceId);
+            this.hostsSourceDao.clearProperties(sourceId);
+            syncHostEntries();
+            postProgress(1, 1, source.getLabel(), 10000, 100);
+            return;
+        }
+
+        // Compute current date in UTC timezone
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
+        if (onlineModificationDate == null) {
+            onlineModificationDate = now;
+        }
+
+        // Download/read + parse
+        try {
+            switch (source.getType()) {
+                case URL:
+                    downloadHostSource(source);
+                    break;
+                case FILE:
+                    readSourceFile(source);
+                    break;
+                default:
+                    Timber.w("Hosts source type is not supported.");
+                    return;
+            }
+            ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+            this.hostsSourceDao.updateModificationDates(sourceId, localModificationDate, onlineModificationDate);
+            this.hostsSourceDao.updateSize(sourceId);
+        } catch (IOException e) {
+            Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
+            throw new HostErrorException(DOWNLOAD_FAILED);
+        }
+
+        // Synchronize hosts entries
+        syncHostEntries();
+        // Mark no update available
+        this.updateAvailable.postValue(false);
+        postProgress(1, 1, source.getLabel(), 10000, 100);
     }
 
     /**
@@ -389,6 +484,15 @@ public class SourceModel {
                     .build();
         }
         return this.cachedHttpClient;
+    }
+
+    /**
+     * Expose the cached HTTP client for UI helpers.
+     * (Used by FilterLists.com directory importer.)
+     */
+    @NonNull
+    public OkHttpClient getHttpClientForUi() {
+        return getHttpClient();
     }
 
     /**
@@ -425,9 +529,8 @@ public class SourceModel {
         // Create request
         Request request = getRequestFor(source).build();
         // Request hosts file and open byte stream
-        try (Response response = getHttpClient().newCall(request).execute();
-             Reader reader = requireNonNull(response.body()).charStream();
-             BufferedReader bufferedReader = new BufferedReader(reader)) {
+        try (Response response = getHttpClient().newCall(request).execute()) {
+            ResponseBody rawBody = requireNonNull(response.body());
             // Skip source parsing if not modified
             if (response.code() == HTTP_NOT_MODIFIED) {
                 Timber.d("Source %s was not updated since last fetch.", source.getUrl());
@@ -441,10 +544,94 @@ public class SourceModel {
                 }
                 this.hostsSourceDao.updateEntityTag(source.getId(), entityTag);
             }
-            // Parse source
-            parseSourceInputStream(source, bufferedReader);
+            // Parse source (with progress updates while reading bytes).
+            ResponseBody body = new ProgressResponseBody(rawBody, (bytesRead, contentLength, done) -> {
+                // Best-effort "within current source" progress fraction.
+                double within;
+                if (contentLength > 0L) {
+                    within = Math.min(0.999d, Math.max(0d, bytesRead / (double) contentLength));
+                } else {
+                    // Unknown content-length: still advance smoothly as bytes are read.
+                    // 1 - exp(-x/k) grows quickly then slows down (bounded).
+                    final double k = 750_000d; // ~0.75MB
+                    within = 1d - Math.exp(-(bytesRead / k));
+                    within = Math.min(0.95d, Math.max(0d, within));
+                }
+                // Convert to overall percent using current "done/total sources" progress as base.
+                Progress p = this.progress.getValue();
+                int doneSources = p != null ? p.done : 0;
+                int totalSources = p != null ? p.total : 0;
+                if (totalSources <= 0) {
+                    return;
+                }
+                // doneSources is "completed so far"; while reading current source, we are between doneSources and doneSources+1.
+                double overall = (doneSources + within) / (double) totalSources;
+                int basisPoints = (int) Math.floor(overall * 10000.0);
+                int withinPercent = (int) Math.floor(within * 100.0);
+                // Re-post progress to force UI refresh even if done/total unchanged.
+                postProgress(doneSources, totalSources, source.getLabel(), basisPoints, withinPercent);
+            });
+            try (Reader reader = body.charStream();
+                 BufferedReader bufferedReader = new BufferedReader(reader)) {
+                parseSourceInputStream(source, bufferedReader);
+            }
         } catch (IOException e) {
             throw new IOException("Exception while downloading hosts file from " + hostsFileUrl + ".", e);
+        }
+    }
+
+    /**
+     * Listener for bytes read while downloading a URL source.
+     */
+    private interface ProgressListener {
+        void update(long bytesRead, long contentLength, boolean done);
+    }
+
+    /**
+     * Wraps an OkHttp ResponseBody to report incremental read progress.
+     */
+    private static final class ProgressResponseBody extends ResponseBody {
+        private final ResponseBody delegate;
+        private final ProgressListener listener;
+        private BufferedSource bufferedSource;
+
+        ProgressResponseBody(@NonNull ResponseBody delegate, @NonNull ProgressListener listener) {
+            this.delegate = delegate;
+            this.listener = listener;
+        }
+
+        @Override
+        public long contentLength() {
+            return delegate.contentLength();
+        }
+
+        @Override
+        public okhttp3.MediaType contentType() {
+            return delegate.contentType();
+        }
+
+        @Override
+        public BufferedSource source() {
+            if (bufferedSource == null) {
+                bufferedSource = Okio.buffer(wrapSource(delegate.source()));
+            }
+            return bufferedSource;
+        }
+
+        private Source wrapSource(Source source) {
+            return new ForwardingSource(source) {
+                long totalBytesRead = 0L;
+
+                @Override
+                public long read(@NonNull Buffer sink, long byteCount) throws IOException {
+                    long bytesRead = super.read(sink, byteCount);
+                    if (bytesRead > 0) {
+                        totalBytesRead += bytesRead;
+                    }
+                    listener.update(totalBytesRead, contentLength(), bytesRead == -1);
+                    return bytesRead;
+                }
+            };
         }
     }
 
@@ -504,5 +691,44 @@ public class SourceModel {
         String state = this.context.getString(stateResId, details);
         Timber.d("Source model state: %s.", state);
         this.state.postValue(state);
+    }
+
+    private void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
+        this.progress.postValue(new Progress(done, total, currentLabel, basisPoints, currentSourcePercent));
+    }
+
+    /**
+     * Simple progress value object for UI.
+     */
+    public static final class Progress {
+        public final int done;
+        public final int total;
+        @Nullable
+        public final String currentLabel;
+        /**
+         * Overall progress in basis points (0..10000 = 0.00%..100.00%).
+         * This can change even when done/total don't (e.g. while downloading current source).
+         */
+        public final int basisPoints;
+        /**
+         * Progress within the current source download (0..100), best-effort.
+         */
+        public final int currentSourcePercent;
+
+        public Progress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
+            this.done = Math.max(0, done);
+            this.total = Math.max(0, total);
+            this.currentLabel = currentLabel;
+            this.basisPoints = Math.max(0, Math.min(10000, basisPoints));
+            this.currentSourcePercent = Math.max(0, Math.min(100, currentSourcePercent));
+        }
+
+        public static Progress idle() {
+            return new Progress(0, 0, null, 0, 0);
+        }
+
+        public boolean isActive() {
+            return total > 0 && basisPoints < 10000;
+        }
     }
 }

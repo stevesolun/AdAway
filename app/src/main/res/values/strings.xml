@@ -37,6 +37,20 @@
     <string name="checkbox_list_context_edit">Edit</string>
     <string name="checkbox_list_context_delete">Delete</string>
 
+    <!-- Hosts sources (uBlock-style UI) -->
+    <string name="menu_check_updates">Check updates</string>
+    <string name="menu_update_all">Update all</string>
+    <string name="menu_save_filter_set">Save filter set</string>
+    <string name="menu_apply_filter_set">Apply filter set</string>
+    <string name="menu_schedule_filter_set">Schedule filter set updates</string>
+    <string name="filter_set_name_hint">Set name</string>
+    <string name="filter_set_saved">Filter set saved</string>
+    <string name="filter_set_applied">Filter set applied</string>
+    <string name="filter_set_none">No saved filter sets</string>
+    <string name="filter_set_schedule_off">Off</string>
+    <string name="filter_set_schedule_daily">Daily</string>
+    <string name="filter_set_schedule_weekly">Weekly</string>
+
     <!--Your lists-->
     <string name="import_dialog">Importing…</string>
     <string name="import_success">Backup successfully imported from your external storage.</string>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/sourceCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="32dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginBottom="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="?attr/colorSurface"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="1dp"
+    app:rippleColor="?attr/colorPrimary"
+    app:strokeColor="?attr/colorOutlineVariant"
+    app:strokeWidth="1dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
+
+        <!-- Enable/Disable Switch -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/sourceSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textOn=""
+            android:textOff=""
+            app:showText="false"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Source Label -->
+        <TextView
+            android:id="@+id/sourceLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
+            app:layout_constraintStart_toEndOf="@id/sourceSwitch"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="AdAway Official" />
+
+        <!-- Status Text (last updated, needs update, etc.) -->
+        <TextView
+            android:id="@+id/sourceStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="2dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
+            app:layout_constraintStart_toEndOf="@id/sourceSwitch"
+            app:layout_constraintTop_toBottomOf="@id/sourceLabel"
+            tools:text="Updated 2 days ago" />
+
+        <!-- Host Count Badge -->
+        <TextView
+            android:id="@+id/hostCountBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/badge_background"
+            android:backgroundTint="?attr/colorSecondaryContainer"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+            android:textColor="?attr/colorOnSecondaryContainer"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="125k" />
+
+        <!-- Update Available Indicator -->
+        <ImageView
+            android:id="@+id/updateIndicator"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:src="@drawable/ic_update_24"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/hostCountBadge"
+            app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
+            app:layout_constraintTop_toTopOf="@id/hostCountBadge"
+            app:tint="?attr/colorTertiary"
+            tools:visibility="visible" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>
+

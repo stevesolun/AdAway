@@ -8,6 +8,8 @@ import static org.adaway.util.Constants.LOCALHOST_HOSTNAME;
 import static org.adaway.util.Constants.LOCALHOST_IPV4;
 import static org.adaway.util.Constants.LOCALHOST_IPV6;
 
+import androidx.annotation.Nullable;
+
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
@@ -24,6 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import timber.log.Timber;
 
@@ -39,6 +42,9 @@ class SourceLoader {
     private static final int INSERT_BATCH_SIZE = 100;
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
+    private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
+    private static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
+    private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
 
     private final HostsSource source;
 
@@ -129,7 +135,7 @@ class SourceLoader {
                         endItem.setHost(line);
                         this.itemQueue.add(endItem);
                     } // Check comments
-                    else if (line.isEmpty() || line.charAt(0) == '#') {
+                    else if (line.isEmpty() || line.charAt(0) == '#' || line.charAt(0) == '!') {
                         Timber.d("Skip comment: %s.", line);
                     } else {
                         HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
@@ -148,8 +154,19 @@ class SourceLoader {
         private HostListItem parseHostListItem(String line) {
             Matcher matcher = HOSTS_PARSER_PATTERN.matcher(line);
             if (!matcher.matches()) {
-                Timber.d("Does not match: %s.", line);
-                return null;
+                // Best-effort: accept common \"filter syntax\" formats by extracting a hostname.
+                String extracted = extractHostnameFromNonHostsSyntax(line);
+                if (extracted == null) {
+                    Timber.d("Does not match: %s.", line);
+                    return null;
+                }
+                // Treat extracted domain as blocked (0.0.0.0 domain)
+                HostListItem item = new HostListItem();
+                item.setType(BLOCKED);
+                item.setHost(extracted);
+                item.setEnabled(true);
+                item.setSourceId(this.source.getId());
+                return item;
             }
             // Check IP address validity or while list entry (if allowed)
             String ip = matcher.group(1);
@@ -179,6 +196,97 @@ class SourceLoader {
             }
             item.setSourceId(this.source.getId());
             return item;
+        }
+
+        /**
+         * Extract a hostname from non-hosts syntaxes (ABP/uBO/AdGuard style lists, domain lists, dnsmasq, etc.).
+         * This intentionally ignores rule types that are not representable as a hosts entry.
+         */
+        @Nullable
+        private static String extractHostnameFromNonHostsSyntax(String rawLine) {
+            if (rawLine == null) return null;
+            String line = rawLine.trim();
+            if (line.isEmpty()) return null;
+
+            // Drop inline comments for common syntaxes
+            int hash = line.indexOf('#');
+            if (hash > 0) {
+                line = line.substring(0, hash).trim();
+            }
+            if (line.isEmpty()) return null;
+
+            // Skip cosmetic/scriptlet rules and section headers
+            if (line.startsWith("[") || line.contains("##") || line.contains("#@#") || line.contains("#$#") || line.contains("#?#")) {
+                return null;
+            }
+
+            // Skip exceptions
+            if (line.startsWith("@@")) {
+                return null;
+            }
+
+            // dnsmasq: address=/example.com/0.0.0.0
+            Matcher dnsmasq = DNSMASQ_ADDRESS.matcher(line);
+            if (dnsmasq.matches()) {
+                return sanitizeHostname(dnsmasq.group(1));
+            }
+
+            // Plain domain line: example.com
+            String plain = sanitizeHostname(line);
+            if (plain != null) {
+                return plain;
+            }
+
+            // uBO/ABP style: ||example.com^$third-party
+            Matcher dbl = ADBLOCK_DOUBLE_PIPE.matcher(line);
+            if (dbl.matches()) {
+                return sanitizeHostname(dbl.group(1));
+            }
+
+            // URL style: |https://example.com/path
+            Matcher url = URL_HOST.matcher(line);
+            if (url.matches()) {
+                return sanitizeHostname(url.group(1));
+            }
+
+            return null;
+        }
+
+        @Nullable
+        private static String sanitizeHostname(@Nullable String raw) {
+            if (raw == null) return null;
+            String h = raw.trim();
+            if (h.isEmpty()) return null;
+
+            // Remove leading separators used in some syntaxes
+            while (!h.isEmpty() && (h.charAt(0) == '.' || h.charAt(0) == '|')) {
+                h = h.substring(1);
+            }
+
+            // Truncate at common ABP/uBO delimiters
+            int cut = h.length();
+            int caret = h.indexOf('^');
+            if (caret >= 0) cut = Math.min(cut, caret);
+            int dollar = h.indexOf('$');
+            if (dollar >= 0) cut = Math.min(cut, dollar);
+            int slash = h.indexOf('/');
+            if (slash >= 0) cut = Math.min(cut, slash);
+            if (cut != h.length()) {
+                h = h.substring(0, cut);
+            }
+
+            h = h.trim();
+            if (h.isEmpty()) return null;
+
+            // Reject patterns/wildcards/regex-like tokens
+            if (h.indexOf('*') != -1 || h.indexOf('?') != -1 || h.indexOf('%') != -1) return null;
+            if (h.indexOf(' ') != -1 || h.indexOf('\t') != -1) return null;
+
+            // Reject IP addresses here (we only accept hostnames via this path)
+            if (RegexUtils.isValidIP(h)) return null;
+
+            // Basic hostname validation
+            return RegexUtils.isValidHostname(h) ? h : null;
         }
 
         private HostListItem parseAllowListItem(String line) {

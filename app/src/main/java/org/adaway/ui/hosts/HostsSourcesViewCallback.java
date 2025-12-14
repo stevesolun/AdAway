@@ -18,11 +18,27 @@ public interface HostsSourcesViewCallback {
     Context getContext();
 
     /**
-     * Toggle host source enable status.
+     * Set host source enable status.
      *
-     * @param source The hosts source to toggle status.
+     * @param source  The hosts source to update.
+     * @param enabled The desired enabled state.
      */
-    void toggleEnabled(HostsSource source);
+    void setEnabled(HostsSource source, boolean enabled);
+
+    /**
+     * Update (download + parse) a single hosts source.
+     */
+    void updateSource(HostsSource source);
+
+    /**
+     * Update (download + parse) all enabled hosts sources.
+     */
+    void updateAllSources();
+
+    /**
+     * Request to add a custom source (used by the "Custom" category when empty).
+     */
+    void requestAddCustomSource();
 
     /**
      * Start an action.

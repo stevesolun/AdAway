@@ -51,6 +51,9 @@ public interface HostsSourceDao {
     @Query("SELECT * FROM hosts_sources WHERE id = :id")
     Optional<HostsSource> getById(int id);
 
+    @Query("SELECT * FROM hosts_sources WHERE url = :url LIMIT 1")
+    Optional<HostsSource> getByUrl(String url);
+
     @Query("SELECT * FROM hosts_sources WHERE id != 1 ORDER BY label ASC")
     List<HostsSource> getAll();
 

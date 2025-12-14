@@ -10,4 +10,10 @@
     <!-- VPN notification -->
     <string name="notification_vpn_channel_name">VPN</string>
     <string name="notification_vpn_channel_description">VPN running notifications</string>
+
+    <!-- FilterLists notification -->
+    <string name="notification_filterlists_channel_name">FilterLists</string>
+    <string name="notification_filterlists_channel_description">FilterLists import progress</string>
+    <string name="notification_filterlists_subscribe_all_title">Subscribing to FilterLists</string>
+    <string name="notification_filterlists_subscribe_all_done_title">FilterLists subscription finished</string>
 </resources>

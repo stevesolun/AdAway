@@ -30,6 +30,10 @@ public final class NotificationHelper {
      */
     public static final String UPDATE_NOTIFICATION_CHANNEL = "UpdateChannel";
     /**
+     * The notification channel for FilterLists background work.
+     */
+    public static final String FILTERLISTS_NOTIFICATION_CHANNEL = "FilterListsChannel";
+    /**
      * The notification channel for VPN service.
      */
     public static final String VPN_SERVICE_NOTIFICATION_CHANNEL = "VpnServiceChannel";
@@ -70,6 +74,13 @@ public final class NotificationHelper {
                 NotificationManager.IMPORTANCE_LOW
         );
         updateChannel.setDescription(context.getString(R.string.notification_update_channel_description));
+        // Create FilterLists notification channel (default importance so completion is noticeable)
+        NotificationChannel filterListsChannel = new NotificationChannel(
+                FILTERLISTS_NOTIFICATION_CHANNEL,
+                context.getString(R.string.notification_filterlists_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT
+        );
+        filterListsChannel.setDescription(context.getString(R.string.notification_filterlists_channel_description));
         // Create VPN service notification channel
         NotificationChannel vpnServiceChannel = new NotificationChannel(
                 VPN_SERVICE_NOTIFICATION_CHANNEL,
@@ -81,6 +92,7 @@ public final class NotificationHelper {
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager != null) {
             notificationManager.createNotificationChannel(updateChannel);
+            notificationManager.createNotificationChannel(filterListsChannel);
             notificationManager.createNotificationChannel(vpnServiceChannel);
         }
     }

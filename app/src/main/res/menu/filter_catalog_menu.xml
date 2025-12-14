@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_filter_add_custom"
+        android:title="@string/filter_add_custom"
+        android:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_filterlists_import"
+        android:title="@string/filterlists_import"
+        android:showAsAction="never" />
+</menu>

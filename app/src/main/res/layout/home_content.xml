@@ -374,9 +374,11 @@
                 android:id="@+id/sourcesProgressBar"
                 android:layout_width="match_parent"
                 android:layout_height="2dp"
+                android:layout_marginTop="6dp"
                 android:indeterminate="true"
                 android:visibility="gone"
-                app:layout_constraintBottom_toTopOf="@+id/stateTextView"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/outdatedSourcesTextView"
                 tools:visibility="visible" />
 
@@ -384,14 +386,35 @@
                 android:id="@+id/stateTextView"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="#00F00909"
+                android:layout_marginTop="6dp"
                 android:visibility="gone"
-                app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/outdatedSourcesTextView"
+                app:layout_constraintTop_toBottomOf="@id/sourcesProgressBar"
                 tools:text="@string/status_check_source"
+                tools:visibility="visible" />
+
+            <TextView
+                android:id="@+id/filterListsSubscribeProgressTextView"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/stateTextView"
+                tools:text="FilterLists subscribing: 10/100 (10%)"
+                tools:visibility="visible" />
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/filterListsSubscribeProgressBar"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="3dp"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/filterListsSubscribeProgressTextView"
                 tools:visibility="visible" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>

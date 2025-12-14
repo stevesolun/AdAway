@@ -31,9 +31,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.Transformations;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.HomeActivityBinding;
@@ -44,6 +47,10 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.error.HostError;
 import org.adaway.ui.help.HelpActivity;
 import org.adaway.ui.hosts.HostsSourcesActivity;
+import org.adaway.ui.hosts.FilterListsImportActivity;
+import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
+import org.adaway.ui.hosts.FilterSetUpdateService;
+import org.adaway.ui.hosts.FilterSetUpdateWorker;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.prefs.PrefsActivity;
@@ -70,6 +77,10 @@ public class HomeActivity extends AppCompatActivity {
     private OnBackPressedCallback onBackPressedCallback;
     private HomeViewModel homeViewModel;
     private ActivityResultLauncher<Intent> prepareVpnLauncher;
+    private Snackbar filterListsProgressSnackbar;
+    private Snackbar scheduledUpdateSnackbar;
+    private boolean sourceModelProgressActive = false;
+    private boolean scheduledProgressActive = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -93,6 +104,9 @@ public class HomeActivity extends AppCompatActivity {
         bindClickListeners();
         setUpBottomDrawer();
         bindFab();
+        bindFilterListsSubscribeAllProgress();
+        bindScheduledUpdateProgress();
+        bindSourceModelProgress();
 
         this.binding.navigationView.setNavigationItemSelectedListener(item -> {
             if (showFragment(item.getItemId())) {
@@ -114,6 +128,168 @@ public class HomeActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         checkFirstStep();
+    }
+
+    private void bindFilterListsSubscribeAllProgress() {
+        WorkManager.getInstance(this)
+                .getWorkInfosForUniqueWorkLiveData(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME)
+                .observe(this, infos -> {
+                    WorkInfo info = null;
+                    if (infos != null) {
+                        // Pick the RUNNING one first; if none, pick ENQUEUED.
+                        for (WorkInfo wi : infos) {
+                            if (wi.getState() == WorkInfo.State.RUNNING) {
+                                info = wi;
+                                break;
+                            }
+                        }
+                        if (info == null) {
+                            for (WorkInfo wi : infos) {
+                                if (wi.getState() == WorkInfo.State.ENQUEUED) {
+                                    info = wi;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING || info.getState() == WorkInfo.State.ENQUEUED);
+                    if (!running || info == null) {
+                        if (filterListsProgressSnackbar != null) {
+                            filterListsProgressSnackbar.dismiss();
+                            filterListsProgressSnackbar = null;
+                        }
+                        // Only remove if nothing else is using the shared progress UI.
+                        if (!sourceModelProgressActive && !scheduledProgressActive) {
+                            removeView(this.binding.content.filterListsSubscribeProgressTextView);
+                            removeView(this.binding.content.filterListsSubscribeProgressBar);
+                        }
+                        return;
+                    }
+
+                    int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
+                    int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
+                    String currentName = info.getProgress().getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
+                    int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
+
+                    String msg = "FilterLists subscribing: " + done + "/" + total + " (" + percent + "%)";
+                    if (currentName != null && !currentName.isEmpty()) {
+                        msg += " • " + currentName;
+                    }
+
+                    // Persistent progress on the main screen
+                    this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
+                    this.binding.content.filterListsSubscribeProgressTextView.setOnClickListener(v ->
+                            startActivity(new Intent(this, FilterListsImportActivity.class))
+                    );
+                    showView(this.binding.content.filterListsSubscribeProgressTextView);
+
+                    this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
+                    if (total > 0) {
+                        this.binding.content.filterListsSubscribeProgressBar.setMax(100);
+                        this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
+                    }
+                    showView(this.binding.content.filterListsSubscribeProgressBar);
+
+                    if (filterListsProgressSnackbar == null) {
+                        filterListsProgressSnackbar = Snackbar.make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE)
+                                .setAction("View", v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
+                        filterListsProgressSnackbar.show();
+                    } else {
+                        filterListsProgressSnackbar.setText(msg);
+                    }
+                });
+    }
+
+    private void bindScheduledUpdateProgress() {
+        WorkManager.getInstance(this)
+                .getWorkInfosForUniqueWorkLiveData(FilterSetUpdateService.WORK_NAME)
+                .observe(this, infos -> {
+                    WorkInfo info = null;
+                    if (infos != null) {
+                        for (WorkInfo wi : infos) {
+                            if (wi.getState() == WorkInfo.State.RUNNING) {
+                                info = wi;
+                                break;
+                            }
+                        }
+                    }
+                    if (info == null || info.getState() != WorkInfo.State.RUNNING) {
+                        if (scheduledUpdateSnackbar != null) {
+                            scheduledUpdateSnackbar.dismiss();
+                            scheduledUpdateSnackbar = null;
+                        }
+                        scheduledProgressActive = false;
+                        return;
+                    }
+                    scheduledProgressActive = true;
+
+                    int done = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_DONE, 0);
+                    int total = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_TOTAL, 0);
+                    String current = info.getProgress().getString(FilterSetUpdateWorker.PROGRESS_CURRENT);
+                    int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
+
+                    String msg = "Scheduled update: " + done + "/" + total + " (" + percent + "%)";
+                    if (current != null && !current.isEmpty()) msg += " • " + current;
+
+                    // If subscribe-all is not running, reuse the main-screen percent UI.
+                    if (filterListsProgressSnackbar == null) {
+                        this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
+                        showView(this.binding.content.filterListsSubscribeProgressTextView);
+                        this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
+                        if (total > 0) {
+                            this.binding.content.filterListsSubscribeProgressBar.setMax(100);
+                            this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
+                        }
+                        showView(this.binding.content.filterListsSubscribeProgressBar);
+                    }
+
+                    if (scheduledUpdateSnackbar == null) {
+                        scheduledUpdateSnackbar = Snackbar.make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE);
+                        scheduledUpdateSnackbar.show();
+                    } else {
+                        scheduledUpdateSnackbar.setText(msg);
+                    }
+                });
+    }
+
+    private void bindSourceModelProgress() {
+        this.homeViewModel.getSourceProgress().observe(this, progress -> {
+            if (progress == null || !progress.isActive()) {
+                sourceModelProgressActive = false;
+                // Only hide if nothing else is currently showing in the shared progress UI.
+                if (filterListsProgressSnackbar == null && !scheduledProgressActive) {
+                    removeView(this.binding.content.filterListsSubscribeProgressTextView);
+                    removeView(this.binding.content.filterListsSubscribeProgressBar);
+                }
+                return;
+            }
+            sourceModelProgressActive = true;
+
+            int done = progress.done;
+            int total = progress.total;
+            double pct = progress.basisPoints / 100.0;
+            int percentForBar = (int) Math.floor(pct);
+            if (percentForBar <= 0 && progress.isActive()) percentForBar = 1; // ensure it doesn't look stuck at 0
+            String msg = "Updating sources: " + done + "/" + total + " (" + String.format(java.util.Locale.ROOT, "%.1f", pct) + "%)";
+            if (progress.currentLabel != null && !progress.currentLabel.isEmpty()) {
+                msg += " • " + progress.currentLabel;
+            }
+            if (progress.currentSourcePercent > 0 && progress.currentSourcePercent < 100) {
+                msg += " • " + progress.currentSourcePercent + "% of this list";
+            }
+
+            // If FilterLists subscribe-all is showing, don't fight it.
+            if (filterListsProgressSnackbar == null) {
+                this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
+                showView(this.binding.content.filterListsSubscribeProgressTextView);
+                this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
+                if (total > 0) {
+                    this.binding.content.filterListsSubscribeProgressBar.setMax(100);
+                    this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percentForBar, true);
+                }
+                showView(this.binding.content.filterListsSubscribeProgressBar);
+            }
+        });
     }
 
     @Override

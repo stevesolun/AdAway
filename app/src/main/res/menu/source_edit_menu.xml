@@ -11,4 +11,9 @@
         android:icon="@drawable/baseline_check_24"
         android:title="@string/checkbox_list_context_apply"
         app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/auto_update_action"
+        android:title="@string/source_edit_auto_update"
+        app:showAsAction="never" />
 </menu>

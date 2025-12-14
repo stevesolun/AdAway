@@ -79,6 +79,18 @@
             android:label="@string/source_edit_title"
             android:parentActivityName=".ui.hosts.HostsSourcesActivity" />
         <activity
+            android:name=".ui.hosts.FilterCatalogActivity"
+            android:exported="false"
+            android:label="@string/filter_catalog_title"
+            android:parentActivityName=".ui.hosts.HostsSourcesActivity"
+            android:theme="@style/Theme.AdAway" />
+        <activity
+            android:name=".ui.hosts.FilterListsImportActivity"
+            android:exported="false"
+            android:label="@string/filterlists_import"
+            android:parentActivityName=".ui.hosts.FilterCatalogActivity"
+            android:theme="@style/Theme.AdAway" />
+        <activity
             android:name=".ui.log.LogActivity"
             android:label="@string/shortcut_dns_requests"
             android:parentActivityName=".ui.home.HomeActivity" />

@@ -40,6 +40,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> pending;
     private final MediatorLiveData<String> state;
     private final MutableLiveData<HostError> error;
+    private final LiveData<SourceModel.Progress> sourceProgress;
 
     public HomeViewModel(@NonNull Application application) {
         super(application);
@@ -57,6 +58,7 @@ public class HomeViewModel extends AndroidViewModel {
         this.state.addSource(this.sourceModel.getState(), this.state::setValue);
         this.state.addSource(this.adBlockModel.getState(), this.state::setValue);
         this.error = new MutableLiveData<>();
+        this.sourceProgress = this.sourceModel.getProgress();
     }
 
     private static boolean isTrue(LiveData<Boolean> liveData) {
@@ -110,6 +112,10 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<HostError> getError() {
         return this.error;
+    }
+
+    public LiveData<SourceModel.Progress> getSourceProgress() {
+        return this.sourceProgress;
     }
 
     public void checkForAppUpdate() {

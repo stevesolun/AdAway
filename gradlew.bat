@@ -38,6 +38,14 @@ set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
+@rem Fallback: try common system JDK locations (useful on fresh Windows installs).
+for /d %%d in ("C:\Program Files\Microsoft\jdk-17.*-hotspot") do (
+  if exist "%%d\bin\java.exe" (
+    set "JAVA_HOME=%%d"
+    goto findJavaFromJavaHome
+  )
+)
+
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if "%ERRORLEVEL%" == "0" goto execute

@@ -1,6 +1,7 @@
 package org.adaway.ui.source;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Menu;
@@ -21,6 +22,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
+import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 
 import java.util.Optional;
@@ -46,17 +48,30 @@ public class SourceEditActivity extends AppCompatActivity {
      */
     public static final String SOURCE_ID = "sourceId";
     /**
+     * Optional extras to prefill fields when adding a new source.
+     */
+    public static final String EXTRA_INITIAL_LABEL = "initialLabel";
+    public static final String EXTRA_INITIAL_URL = "initialUrl";
+    public static final String EXTRA_INITIAL_ALLOW = "initialAllow";
+    public static final String EXTRA_INITIAL_REDIRECT = "initialRedirect";
+    /**
      * The any type mime type.
      */
     private static final String ANY_MIME_TYPE = "*/*";
     private static final Executor DISK_IO_EXECUTOR = AppExecutors.getInstance().diskIO();
     private static final Executor MAIN_THREAD_EXECUTOR = AppExecutors.getInstance().mainThread();
+    private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
+    private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
+    private static final int SCHEDULE_OFF = 0;
+    private static final int SCHEDULE_DAILY = 1;
+    private static final int SCHEDULE_WEEKLY = 2;
 
     private SourceEditActivityBinding binding;
     private HostsSourceDao hostsSourceDao;
     private ActivityResultLauncher<Intent> startActivityLauncher;
     private boolean editing;
     private HostsSource edited;
+    private boolean formatPromptShown = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -119,6 +134,21 @@ public class SourceEditActivity extends AppCompatActivity {
             });
         } else {
             setTitle(R.string.source_edit_add_title);
+            // Prefill from optional extras
+            String initialLabel = intent.getStringExtra(EXTRA_INITIAL_LABEL);
+            if (initialLabel != null) {
+                this.binding.labelEditText.setText(initialLabel);
+            }
+            String initialUrl = intent.getStringExtra(EXTRA_INITIAL_URL);
+            if (initialUrl != null) {
+                this.binding.typeButtonGroup.check(R.id.url_button);
+                this.binding.locationEditText.setText(initialUrl);
+            }
+            boolean initialAllow = intent.getBooleanExtra(EXTRA_INITIAL_ALLOW, false);
+            boolean initialRedirect = intent.getBooleanExtra(EXTRA_INITIAL_REDIRECT, false);
+            this.binding.blockFormatButton.setChecked(!initialAllow);
+            this.binding.allowFormatButton.setChecked(initialAllow);
+            this.binding.redirectedHostsCheckbox.setChecked(!initialAllow && initialRedirect);
             bindLocation();
             bindFormats();
         }
@@ -200,19 +230,81 @@ public class SourceEditActivity extends AppCompatActivity {
             return true;
         } else if (item.getItemId() == R.id.apply_action) {
             HostsSource source = validate();
-            if (source == null) {
-                return false;
+            if (source == null) return false;
+
+            // Ask for format on NEW sources so user prefers a format we \"eat\" easily.
+            if (!editing && !formatPromptShown) {
+                formatPromptShown = true;
+                promptFormatAndSave(source);
+                return true;
             }
-            DISK_IO_EXECUTOR.execute(() -> {
-                if (this.editing) {
-                    this.hostsSourceDao.delete(this.edited);
-                }
-                this.hostsSourceDao.insert(source);
-                finish();
-            });
+
+            saveSource(source);
+            return true;
+        } else if (item.getItemId() == R.id.auto_update_action) {
+            HostsSource source = validate();
+            if (source == null) return false;
+            promptAutoUpdateSchedule(source.getUrl());
             return true;
         }
         return false;
+    }
+
+    private void saveSource(HostsSource source) {
+        DISK_IO_EXECUTOR.execute(() -> {
+            if (this.editing) {
+                this.hostsSourceDao.delete(this.edited);
+            }
+            this.hostsSourceDao.insert(source);
+            finish();
+        });
+    }
+
+    private void promptFormatAndSave(HostsSource source) {
+        CharSequence[] options = new CharSequence[]{
+                getString(R.string.source_edit_format_hosts),
+                getString(R.string.source_edit_format_domains),
+                getString(R.string.source_edit_format_adblock),
+                getString(R.string.source_edit_format_allow),
+                getString(R.string.source_edit_format_redirect)
+        };
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.source_edit_format_prompt_title)
+                .setMessage(R.string.source_edit_format_prompt_message)
+                .setItems(options, (d, which) -> {
+                    // Default: block list (hosts/domains/adblock)
+                    boolean allow = false;
+                    boolean redirect = false;
+                    if (which == 3) { // allowlist
+                        allow = true;
+                    } else if (which == 4) { // redirect
+                        redirect = true;
+                    }
+                    source.setAllowEnabled(allow);
+                    source.setRedirectEnabled(!allow && redirect);
+                    saveSource(source);
+                })
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private void promptAutoUpdateSchedule(String url) {
+        CharSequence[] options = new CharSequence[]{
+                getString(R.string.filter_set_schedule_off),
+                getString(R.string.filter_set_schedule_daily),
+                getString(R.string.filter_set_schedule_weekly)
+        };
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.source_edit_auto_update)
+                .setItems(options, (d, which) -> {
+                    int schedule = which == 1 ? SCHEDULE_DAILY : which == 2 ? SCHEDULE_WEEKLY : SCHEDULE_OFF;
+                    SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+                    prefs.edit().putInt(KEY_SCHEDULE_PREFIX + url, schedule).apply();
+                    // Ensure periodic scheduler is active (uses same Wi-Fi only constraint as global settings).
+                    FilterSetUpdateService.enable(this);
+                })
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
     }
 
     private HostsSource validate() {
