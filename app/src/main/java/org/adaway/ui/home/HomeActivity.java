@@ -1,5 +1,6 @@
 package org.adaway.ui.home;
 
+import static android.app.Activity.RESULT_OK;
 import static com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED;
 import static com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN;
 import static org.adaway.model.adblocking.AdBlockMethod.UNDEFINED;
@@ -116,7 +117,25 @@ public class HomeActivity extends AppCompatActivity {
         });
 
         this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
-
+            if (result.getResultCode() == RESULT_OK) {
+                // Permission granted: only start ad-blocking if VPN is still the selected method.
+                if (PreferenceHelper.getAdBlockMethod(this) == VPN) {
+                    Boolean isBlocked = this.homeViewModel.isAdBlocked().getValue();
+                    if (isBlocked == null || !isBlocked) {
+                        // Use the model toggle so UI state stays consistent via LiveData.
+                        this.homeViewModel.toggleAdBlocking();
+                    }
+                }
+            } else {
+                // Permission denied/canceled: revert to UNDEFINED so we don't keep prompting on every resume.
+                PreferenceHelper.setAbBlockMethod(this, UNDEFINED);
+                new MaterialAlertDialogBuilder(this)
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .setTitle(R.string.welcome_vpn_method_title)
+                        .setMessage(R.string.welcome_vpn_alwayson_blocked_description)
+                        .setPositiveButton(R.string.button_close, (d, which) -> d.dismiss())
+                        .show();
+            }
         });
 
         if (savedInstanceState == null) {

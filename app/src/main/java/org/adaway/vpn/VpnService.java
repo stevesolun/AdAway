@@ -53,7 +53,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.adaway.R;
 import org.adaway.broadcast.Command;
@@ -82,8 +81,6 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class VpnService extends android.net.VpnService implements Handler.Callback {
-    public static final String VPN_UPDATE_STATUS_INTENT = "org.jak_linux.dns66.VPN_UPDATE_STATUS";
-    public static final String VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS";
     /*
      * Notification intent related.
      */
@@ -214,11 +211,8 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
                 }
         }
 
-        // TODO BUG - Nobody is listening to this intent
-        // TODO BUG - VpnModel can lister to it to update the MainActivity according its current state
-        Intent intent = new Intent(VPN_UPDATE_STATUS_INTENT);
-        intent.putExtra(VPN_UPDATE_STATUS_EXTRA, status);
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+        // Persist status for UI/state checks (source of truth is PreferenceHelper).
+        // UI should observe AdBlockModel.isApplied() / VpnServiceControls.isRunning() rather than local broadcasts.
     }
 
     private Notification getNotification(VpnStatus status) {

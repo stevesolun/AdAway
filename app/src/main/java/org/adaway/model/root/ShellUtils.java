@@ -33,19 +33,24 @@ public final class ShellUtils {
     }
 
     public static boolean isBundledExecutableRunning(String executable) {
-        return Shell.cmd("ps -A | grep " + EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX).exec().isSuccess();
+        // Use escaped string to avoid shell metachar issues.
+        String needle = escapedString(EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX);
+        return Shell.cmd("ps -A | grep " + needle).exec().isSuccess();
     }
 
     public static boolean runBundledExecutable(Context context, String executable, String parameters) {
         String nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-        String command = "LD_LIBRARY_PATH=" + nativeLibraryDir + " " +
-                nativeLibraryDir + File.separator + EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX + " " +
+        String escapedNativeDir = escapedString(nativeLibraryDir);
+        String execPath = nativeLibraryDir + File.separator + EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX;
+        String escapedExecPath = escapedString(execPath);
+        String command = "LD_LIBRARY_PATH=" + escapedNativeDir + " " +
+                escapedExecPath + " " +
                 parameters + " &";
         return Shell.cmd(command).exec().isSuccess();
     }
 
     public static void killBundledExecutable(String executable) {
-        Shell.cmd("killall " + EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX).exec();
+        Shell.cmd("killall " + escapedString(EXECUTABLE_PREFIX + executable + EXECUTABLE_SUFFIX)).exec();
     }
 
 
@@ -54,13 +59,14 @@ public final class ShellUtils {
      * Check if a path is writable.
      *
      * @param file The file to check.
-     * @return <code>true</code> if the path is writable, <code>false</code> otherwise.
+     * @return {@code true} if the path is writable, {@code false} otherwise.
      */
     public static boolean isWritable(File file) {
         // Check first if file can be written without privileges
         if (file.canWrite()) {
             return true;
         }
+        // Use escaped path to avoid shell metacharacter issues
         return Shell.cmd("test -w " + escapedString(file.getAbsolutePath()))
                 .exec()
                 .isSuccess();
@@ -72,7 +78,7 @@ public final class ShellUtils {
             return false;
         }
         String partition = partitionOptional.get();
-        Shell.Result result = Shell.cmd("mount -o " + type.getOption() + ",remount " + partition).exec();
+        Shell.Result result = Shell.cmd("mount -o " + type.getOption() + ",remount " + escapedString(partition)).exec();
         boolean success = result.isSuccess();
         if (!success) {
             Timber.w("Failed to remount partition %s as %s: %s.", partition, type.getOption(), mergeAllLines(result.getErr()));

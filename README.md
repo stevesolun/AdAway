@@ -148,3 +148,21 @@ AdAway requires the following permissions:
 AdAway is licensed under the GPLv3+.  
 The file LICENSE includes the full license text.
 For more details, check [the license notes](LICENSE.md).
+
+## Building from source (developer notes)
+
+### JDK / Gradle
+
+- **This project requires JDK 21** (matches the GitHub Actions workflows).
+
+If you have newer JDKs installed (e.g. Java 25), keep them — but **run Gradle with JDK 21** to avoid build-tool incompatibilities (e.g. “Unsupported class file major version 69”).
+
+### Windows + NDK builds
+
+This project includes native modules (`:tcpdump`, `:webserver`). On Windows, `ndk-build` can fail when the project path contains spaces.
+
+- **Recommended**: build from a path without spaces (e.g. copy/clone to `C:\AdAwayBuild\`), then run:
+
+```bash
+gradlew assembleDebug
+```

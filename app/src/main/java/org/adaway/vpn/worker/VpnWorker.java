@@ -43,10 +43,12 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -91,6 +93,10 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
      */
     private final AtomicReference<ExecutorService> executor;
     /**
+     * Whether the worker is started (prevents double-start races).
+     */
+    private final AtomicBoolean started;
+    /**
      * The VPN network interface, (<code>null</code> if not established).
      */
     private final AtomicReference<ParcelFileDescriptor> vpnNetworkInterface;
@@ -102,7 +108,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
      */
     public VpnWorker(VpnService vpnService) {
         this.vpnService = vpnService;
-        this.deviceWrites = new LinkedList<>();
+        this.deviceWrites = new ConcurrentLinkedQueue<>();
         this.dnsQueryQueue = new DnsQueryQueue();
         this.dnsServerMapper = new DnsServerMapper();
         this.dnsPacketProxy = new DnsPacketProxy(this, this.dnsServerMapper);
@@ -111,18 +117,24 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         this.vpnWatchDog = new VpnWatchdog();
         this.executor = new AtomicReference<>(null);
         this.vpnNetworkInterface = new AtomicReference<>(null);
+        this.started = new AtomicBoolean(false);
     }
 
     /**
      * Start the VPN worker.
-     * Kill the current worker and restart it if already running.
+     * If already running, restart it.
      */
     public void start() {
+        if (this.started.get()) {
+            Timber.d("VPN worker already started; restarting.");
+            stop();
+        }
+        this.started.set(true);
         Timber.d("Starting VPN thread…");
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        executor.submit(this::work);
-        executor.submit(this.connectionMonitor::monitor);
-        setExecutor(executor);
+        ExecutorService exec = Executors.newFixedThreadPool(2);
+        setExecutor(exec);
+        exec.submit(this::work);
+        exec.submit(this.connectionMonitor::monitor);
         Timber.i("VPN thread started.");
     }
 
@@ -133,6 +145,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         Timber.d("Stopping VPN thread.");
         this.connectionMonitor.reset();
         forceCloseTunnel();
+        this.started.set(false);
         setExecutor(null);
         Timber.i("VPN thread stopped.");
     }
@@ -148,6 +161,13 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         if (oldExecutor != null) {
             Timber.d("Shutting down VPN executor…");
             oldExecutor.shutdownNow();
+            try {
+                if (!oldExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+                    Timber.d("VPN executor did not terminate quickly.");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             Timber.d("VPN executor shut down.");
         }
     }
@@ -173,7 +193,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         // Initialize the watchdog
         this.vpnWatchDog.initialize(PreferenceHelper.getVpnWatchdogEnabled(this.vpnService));
         // Try connecting the vpn continuously
-        while (true) {
+        while (!Thread.currentThread().isInterrupted() && this.started.get()) {
             try {
                 this.connectionThrottler.throttle();
                 this.vpnService.notifyVpnStatus(STARTING);

@@ -414,11 +414,15 @@ public class SourceModel {
             CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(pool);
 
             // Track overall progress during parallel downloads.
-            final AtomicInteger completedDownloads = new AtomicInteger(0);
+            // We intentionally count "done" as fully processed sources (parsed/skipped), not just "download finished",
+            // to avoid confusing jumps (e.g. 21 -> 30) when several downloads finish close together.
+            final AtomicInteger completedFully = new AtomicInteger(done);
+            // Within-fraction for sources currently in the pipeline:
+            // - 0..1 while downloading
+            // - 1.0 once download completed (kept until parse finishes) so overall % never drops on handoff
             final Map<Integer, Double> inFlightWithin = new ConcurrentHashMap<>();
             final AtomicReference<String> lastLabel = new AtomicReference<>(null);
             final AtomicInteger lastWithinPercent = new AtomicInteger(0);
-            final int baseDone = done;
 
             final int urlTotal = enabledUrlSources.size();
             for (HostsSource source : enabledUrlSources) {
@@ -427,11 +431,15 @@ public class SourceModel {
                     lastLabel.set(label);
                     lastWithinPercent.set((int) Math.floor(withinFraction * 100.0));
 
-                    // Overall = already-done (including FILE + finished URL downloads) + average in-flight within
-                    int doneSoFar = baseDone + completedDownloads.get();
+                    // Overall = already-done (fully processed) + sum of within-fractions in-flight
+                    int doneSoFar = completedFully.get();
                     double sumWithin = 0d;
+                    int activeDownloads = 0;
                     if (!inFlightWithin.isEmpty()) {
-                        for (double v : inFlightWithin.values()) sumWithin += v;
+                        for (double v : inFlightWithin.values()) {
+                            sumWithin += v;
+                            if (v < 0.999d) activeDownloads++;
+                        }
                     }
                     // If multiple downloads are in-flight, sum their within-fractions so overall progresses faster
                     // and better matches actual total bytes being downloaded.
@@ -440,7 +448,7 @@ public class SourceModel {
 
                     String labelForUi = lastLabel.get();
                     if (labelForUi != null) {
-                        labelForUi = labelForUi + " (" + inFlightWithin.size() + " downloading)";
+                        labelForUi = labelForUi + " (" + activeDownloads + " downloading)";
                     }
                     postProgress(doneSoFar, total, labelForUi, basisPoints, lastWithinPercent.get());
                 }));
@@ -450,8 +458,9 @@ public class SourceModel {
             for (int i = 0; i < urlTotal; i++) {
                 try {
                     DownloadResult result = completion.take().get();
-                    completedDownloads.incrementAndGet();
-                    inFlightWithin.remove(result.sourceId);
+                    // Mark "download done" as within=1.0 and keep it until parsing finishes.
+                    // This prevents overall progress from dropping when a download completes and parsing begins.
+                    inFlightWithin.put(result.sourceId, 1.0d);
 
                     HostsSource source = result.source;
                     numberOfCopies++;
@@ -459,7 +468,9 @@ public class SourceModel {
                     if (result.success && result.notModified) {
                         // Nothing to do (conditional GET returned 304). Still mark progress done.
                         done++;
+                        completedFully.set(done);
                         postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                        inFlightWithin.remove(result.sourceId);
                         continue;
                     }
 
@@ -467,7 +478,9 @@ public class SourceModel {
                         urlFailed++;
                         numberOfFailedCopies++;
                         done++;
+                        completedFully.set(done);
                         postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                        inFlightWithin.remove(result.sourceId);
                         continue;
                     }
 
@@ -489,12 +502,15 @@ public class SourceModel {
                     this.hostsSourceDao.updateSize(source.getId());
 
                     done++;
+                    completedFully.set(done);
                     postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                    inFlightWithin.remove(result.sourceId);
                 } catch (Exception e) {
                     Timber.w(e, "Failed to retrieve a URL host source.");
                     urlFailed++;
                     numberOfFailedCopies++;
                     done++;
+                    completedFully.set(done);
                     postProgress(done, total, null, total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
                 }
             }

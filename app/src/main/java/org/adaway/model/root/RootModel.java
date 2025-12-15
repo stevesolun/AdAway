@@ -143,7 +143,7 @@ public class RootModel extends AdBlockModel {
     private void checkApplied() {
         boolean applied = false;
 
-        Shell.Result result = Shell.cmd("head -n 1 " + ANDROID_SYSTEM_ETC_HOSTS).exec();
+        Shell.Result result = Shell.cmd("head -n 1 " + com.topjohnwu.superuser.ShellUtils.escapedString(ANDROID_SYSTEM_ETC_HOSTS)).exec();
         if (!result.isSuccess()) {
             Timber.e("Failed to read first line of hosts file. Error code: %s", result.getCode());
         } else {
@@ -289,10 +289,12 @@ public class RootModel extends AdBlockModel {
                 }
             }
             // Copy hosts file then set owner and permissions
+            String escapedPrivateFile = com.topjohnwu.superuser.ShellUtils.escapedString(privateFile);
+            String escapedTarget = com.topjohnwu.superuser.ShellUtils.escapedString(target);
             Shell.Result result = Shell.cmd(
-                    "dd if=" + privateFile + " of=" + target,
-                    COMMAND_CHOWN + " " + target,
-                    COMMAND_CHMOD_644 + " " + target
+                    "dd if=" + escapedPrivateFile + " of=" + escapedTarget,
+                    COMMAND_CHOWN + " " + escapedTarget,
+                    COMMAND_CHMOD_644 + " " + escapedTarget
             ).exec();
             if (!result.isSuccess()) {
                 throw new CommandException("Failed to copy hosts file: " + mergeAllLines(result.getErr()));

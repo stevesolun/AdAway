@@ -22,6 +22,8 @@ import org.adaway.model.update.UpdateModel;
 import org.adaway.ui.adware.AdwareViewModel;
 import org.adaway.util.AppExecutors;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executor;
 
 import timber.log.Timber;
@@ -33,13 +35,16 @@ import timber.log.Timber;
  */
 public class UpdateViewModel extends AdwareViewModel {
     private static final Executor NETWORK_IO = AppExecutors.getInstance().networkIO();
+    private static final long TRACKING_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(15);
     private final UpdateModel updateModel;
     private final MutableLiveData<DownloadStatus> downloadProgress;
+    private final AtomicBoolean tracking;
 
     public UpdateViewModel(@NonNull Application application) {
         super(application);
         this.updateModel = ((AdAwayApplication) application).getUpdateModel();
         this.downloadProgress = new MutableLiveData<>();
+        this.tracking = new AtomicBoolean(false);
     }
 
     public LiveData<Manifest> getAppManifest() {
@@ -48,7 +53,11 @@ public class UpdateViewModel extends AdwareViewModel {
 
     public void update() {
         long downloadId = this.updateModel.update();
-        NETWORK_IO.execute(() -> trackProgress(downloadId));
+        if (downloadId != -1) {
+            NETWORK_IO.execute(() -> trackProgress(downloadId));
+        } else {
+            this.downloadProgress.postValue(null);
+        }
     }
 
     public MutableLiveData<DownloadStatus> getDownloadProgress() {
@@ -56,50 +65,76 @@ public class UpdateViewModel extends AdwareViewModel {
     }
 
     private void trackProgress(long downloadId) {
+        // Ensure we don't run multiple progress loops concurrently.
+        if (!this.tracking.compareAndSet(false, true)) {
+            return;
+        }
         DownloadManager downloadManager = getApplication().getSystemService(DownloadManager.class);
         DownloadManager.Query query = new DownloadManager.Query().setFilterById(downloadId);
-        boolean finishDownload = false;
-        while (!finishDownload) {
-            // Add wait before querying download manager
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Timber.d(e, "Failed to wait before querying download manager.");
-                Thread.currentThread().interrupt();
-                this.downloadProgress.postValue(null);
-                return;
-            }
-            // Query download manager
-            try (Cursor cursor = downloadManager.query(query)) {
-                if (!cursor.moveToFirst()) {
-                    Timber.d("Download item was not found");
-                    continue;
+        long startedAt = System.currentTimeMillis();
+        int missingCount = 0;
+        try {
+            boolean finishDownload = false;
+            while (!finishDownload) {
+                // Hard timeout: avoid infinite background loops.
+                if (System.currentTimeMillis() - startedAt > TRACKING_TIMEOUT_MS) {
+                    Timber.w("Stopping download progress tracking (timeout).");
+                    this.downloadProgress.postValue(null);
+                    return;
                 }
-                // Check download status
-                int statusColumnIndex = cursor.getColumnIndex(COLUMN_STATUS);
-                int status = cursor.getInt(statusColumnIndex);
-                switch (status) {
-                    case STATUS_FAILED:
-                        finishDownload = true;
-                        this.downloadProgress.postValue(null);
-                        break;
-                    case STATUS_RUNNING:
-                        int totalSizeColumnIndex = cursor.getColumnIndex(COLUMN_TOTAL_SIZE_BYTES);
-                        long total = cursor.getLong(totalSizeColumnIndex);
-                        if (total > 0) {
-                            int bytesDownloadedColumnIndex = cursor.getColumnIndex(COLUMN_BYTES_DOWNLOADED_SO_FAR);
-                            long downloaded = cursor.getLong(bytesDownloadedColumnIndex);
-                            this.downloadProgress.postValue(new PendingDownloadStatus(downloaded, total));
+
+                // Add wait before querying download manager
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Timber.d(e, "Failed to wait before querying download manager.");
+                    Thread.currentThread().interrupt();
+                    this.downloadProgress.postValue(null);
+                    return;
+                }
+
+                // Query download manager
+                try (Cursor cursor = downloadManager.query(query)) {
+                    if (!cursor.moveToFirst()) {
+                        // Download entry may not be immediately available; don't spin forever if it never shows up.
+                        missingCount++;
+                        if (missingCount > 20) { // ~10s with 500ms sleep
+                            Timber.w("Download item was not found after repeated queries; stopping tracking.");
+                            this.downloadProgress.postValue(null);
+                            return;
                         }
-                        break;
-                    case STATUS_SUCCESSFUL:
-                        this.downloadProgress.postValue(new CompleteDownloadStatus());
-                        finishDownload = true;
-                        break;
-                    default:
-                        break;
+                        continue;
+                    }
+                    missingCount = 0;
+
+                    // Check download status
+                    int statusColumnIndex = cursor.getColumnIndex(COLUMN_STATUS);
+                    int status = cursor.getInt(statusColumnIndex);
+                    switch (status) {
+                        case STATUS_FAILED:
+                            finishDownload = true;
+                            this.downloadProgress.postValue(null);
+                            break;
+                        case STATUS_RUNNING:
+                            int totalSizeColumnIndex = cursor.getColumnIndex(COLUMN_TOTAL_SIZE_BYTES);
+                            long total = cursor.getLong(totalSizeColumnIndex);
+                            if (total > 0) {
+                                int bytesDownloadedColumnIndex = cursor.getColumnIndex(COLUMN_BYTES_DOWNLOADED_SO_FAR);
+                                long downloaded = cursor.getLong(bytesDownloadedColumnIndex);
+                                this.downloadProgress.postValue(new PendingDownloadStatus(downloaded, total));
+                            }
+                            break;
+                        case STATUS_SUCCESSFUL:
+                            this.downloadProgress.postValue(new CompleteDownloadStatus());
+                            finishDownload = true;
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
+        } finally {
+            this.tracking.set(false);
         }
     }
 }

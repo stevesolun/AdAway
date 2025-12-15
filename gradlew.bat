@@ -32,40 +32,62 @@ set APP_HOME=%DIRNAME%
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
+@rem ---------------------------------------------------------------------------
+@rem Workaround: Windows NDK + spaces in project path
+@rem
+@rem ndk-build ultimately feeds paths into (GNU) make, which does not reliably
+@rem handle spaces even when arguments are quoted. If the project path contains
+@rem spaces, map it to a temporary drive letter with SUBST and run Gradle from
+@rem there so all paths are space-free.
+@rem ---------------------------------------------------------------------------
+set "SUBST_DRIVE="
+if not "%APP_HOME: =%"=="%APP_HOME%" (
+  for %%L in (Z Y X W V U T) do call :trySubstDrive %%L
+)
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
-@rem Find java.exe
-if defined JAVA_HOME goto findJavaFromJavaHome
+@rem ---------------------------------------------------------------------------
+@rem Find Java
+@rem ---------------------------------------------------------------------------
+set "JAVA_EXE="
 
-@rem Fallback: try common system JDK locations (useful on fresh Windows installs).
-for /d %%d in ("C:\Program Files\Microsoft\jdk-17.*-hotspot") do (
-  if exist "%%d\bin\java.exe" (
-    set "JAVA_HOME=%%d"
-    goto findJavaFromJavaHome
+@rem If JAVA_HOME is set but invalid, ignore it (common when pointing to a JRE/JDK stub).
+if defined JAVA_HOME (
+  set "JAVA_HOME=%JAVA_HOME:"=%"
+  if "%JAVA_HOME:~-1%"=="\" set "JAVA_HOME=%JAVA_HOME:~0,-1%"
+  if "%JAVA_HOME:~-1%"=="/" set "JAVA_HOME=%JAVA_HOME:~0,-1%"
+  if exist "%JAVA_HOME%\bin\java.exe" (
+    set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+    goto execute
+  ) else (
+    echo WARNING: JAVA_HOME is set but "%JAVA_HOME%\bin\java.exe" was not found. Ignoring JAVA_HOME.
+    set "JAVA_HOME="
   )
 )
 
-set JAVA_EXE=java.exe
+@rem Fallback: try common system JDK 21 locations (useful on fresh Windows installs).
+for /d %%d in ("C:\Program Files\Microsoft\jdk-21.*-hotspot") do (
+  if exist "%%d\bin\java.exe" (
+    set "JAVA_EXE=%%d\bin\java.exe"
+    goto execute
+  )
+)
+for /d %%d in ("C:\Program Files\Java\jdk-21*") do (
+  if exist "%%d\bin\java.exe" (
+    set "JAVA_EXE=%%d\bin\java.exe"
+    goto execute
+  )
+)
+
+@rem Fallback: use java.exe from PATH
+set "JAVA_EXE=java.exe"
 %JAVA_EXE% -version >NUL 2>&1
 if "%ERRORLEVEL%" == "0" goto execute
 
 echo.
-echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-echo.
-echo Please set the JAVA_HOME variable in your environment to match the
-echo location of your Java installation.
-
-goto fail
-
-:findJavaFromJavaHome
-set JAVA_HOME=%JAVA_HOME:"=%
-set JAVA_EXE=%JAVA_HOME%/bin/java.exe
-
-if exist "%JAVA_EXE%" goto execute
-
-echo.
-echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME%
+echo ERROR: JAVA_HOME is not set (or invalid) and no 'java' command could be found in your PATH.
 echo.
 echo Please set the JAVA_HOME variable in your environment to match the
 echo location of your Java installation.
@@ -74,14 +96,21 @@ goto fail
 
 :execute
 @rem Setup the command line
-
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
 
-
 @rem Execute Gradle
+if defined SUBST_DRIVE (
+  pushd "%SUBST_DRIVE%\" >NUL
+)
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
+set "GRADLE_EXIT_CODE=%ERRORLEVEL%"
+if defined SUBST_DRIVE (
+  popd >NUL
+  subst %SUBST_DRIVE% /d >NUL 2>&1
+)
+if "%GRADLE_EXIT_CODE%"=="0" goto mainEnd
+exit /b %GRADLE_EXIT_CODE%
 
-:end
 @rem End local scope for the variables with windows NT shell
 if "%ERRORLEVEL%"=="0" goto mainEnd
 
@@ -95,3 +124,13 @@ exit /b 1
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
+
+:trySubstDrive
+if defined SUBST_DRIVE exit /b 0
+if exist "%~1:\NUL" exit /b 0
+subst %~1: "%APP_HOME%" >NUL 2>&1
+if not "%ERRORLEVEL%"=="0" exit /b 0
+set "SUBST_DRIVE=%~1:"
+set "APP_HOME=%~1:\"
+set "DIRNAME=%APP_HOME%"
+exit /b 0

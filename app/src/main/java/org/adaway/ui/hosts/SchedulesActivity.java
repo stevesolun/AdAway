@@ -315,4 +315,3 @@ public class SchedulesActivity extends AppCompatActivity {
         return String.format(Locale.ROOT, "%02d:%02d", hour24, minute);
     }
 }
-
