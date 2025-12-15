@@ -125,6 +125,7 @@ public class SourceModel {
     // Ensure UI progress is monotonic (never goes backwards) even with parallel downloads.
     // This avoids confusing "up/down" percent swings caused by in-flight bookkeeping timing.
     private int lastProgressTotal = -1;
+    private int lastProgressDone = 0;
     private int lastProgressBasisPoints = 0;
 
     /**
@@ -1003,14 +1004,23 @@ public class SourceModel {
 
     private synchronized void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
         // Reset monotonic guard when a new run starts (total changes) or when idle.
-        if (total != lastProgressTotal || total <= 0 || done <= 0) {
+        if (total != lastProgressTotal || total <= 0) {
             lastProgressTotal = total;
+            lastProgressDone = 0;
             lastProgressBasisPoints = 0;
         }
 
+        // Enforce monotonic done (never go backwards)
+        int d = done;
+        if (total > 0 && d < lastProgressDone) {
+            d = lastProgressDone;
+        } else {
+            lastProgressDone = d;
+        }
+
+        // Enforce monotonic basisPoints (never go backwards)
         int bp = basisPoints;
         if (total > 0 && bp < 10000) {
-            // Never go backwards while active.
             if (bp < lastProgressBasisPoints) {
                 bp = lastProgressBasisPoints;
             } else {
@@ -1020,7 +1030,7 @@ public class SourceModel {
             lastProgressBasisPoints = 10000;
         }
 
-        this.progress.postValue(new Progress(done, total, currentLabel, bp, currentSourcePercent));
+        this.progress.postValue(new Progress(d, total, currentLabel, bp, currentSourcePercent));
     }
 
     /**
