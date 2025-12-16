@@ -83,6 +83,10 @@ public class FilterListsImportActivity extends AppCompatActivity {
     private String currentWorkingName = null;
     private int currentDone = 0;
     private int currentTotal = 0;
+    
+    // UI-side monotonic guard for WorkManager's async progress delivery
+    private int monotonicLastDone = -1;
+    private int monotonicLastTotal = -1;
 
     // Avoid UI jank/ANR when many sources are inserted quickly (subscribe-all).
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -166,6 +170,16 @@ public class FilterListsImportActivity extends AppCompatActivity {
                         int currentId = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_ID, -1);
                         String currentName = info.getProgress().getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
 
+                        // UI-side monotonic guard: WorkManager delivers async, can be out-of-order
+                        if (total != monotonicLastTotal) {
+                            monotonicLastTotal = total;
+                            monotonicLastDone = -1;
+                        }
+                        if (done < monotonicLastDone) {
+                            return; // Stale/out-of-order update, ignore
+                        }
+                        monotonicLastDone = done;
+
                         currentDone = done;
                         currentTotal = total;
                         currentWorkingId = currentId >= 0 ? currentId : null;
@@ -182,6 +196,9 @@ public class FilterListsImportActivity extends AppCompatActivity {
                         if (currentName != null && !currentName.isEmpty()) line += " • " + currentName;
                         subscribeAllStatus.setText(line);
                     } else {
+                        // Reset monotonic guards when job finishes
+                        monotonicLastDone = -1;
+                        monotonicLastTotal = -1;
                         currentDone = 0;
                         currentTotal = 0;
                         currentWorkingId = null;

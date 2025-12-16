@@ -82,6 +82,12 @@ public class HomeActivity extends AppCompatActivity {
     private Snackbar scheduledUpdateSnackbar;
     private boolean sourceModelProgressActive = false;
     private boolean scheduledProgressActive = false;
+    
+    // UI-side monotonic guards: WorkManager delivers progress async and out-of-order
+    private int filterListsLastDone = -1;
+    private int filterListsLastTotal = -1;
+    private int scheduledLastDone = -1;
+    private int scheduledLastTotal = -1;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -177,6 +183,9 @@ public class HomeActivity extends AppCompatActivity {
                             filterListsProgressSnackbar.dismiss();
                             filterListsProgressSnackbar = null;
                         }
+                        // Reset monotonic guards when job finishes
+                        filterListsLastDone = -1;
+                        filterListsLastTotal = -1;
                         if (!sourceModelProgressActive && !scheduledProgressActive) {
                             removeView(this.binding.content.filterListsSubscribeProgressTextView);
                             removeView(this.binding.content.filterListsSubscribeProgressBar);
@@ -186,6 +195,17 @@ public class HomeActivity extends AppCompatActivity {
 
                     int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
                     int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
+                    
+                    // UI-side monotonic guard: WorkManager delivers async, can be out-of-order
+                    // Reset if total changes (new job); otherwise only accept if done >= last seen
+                    if (total != filterListsLastTotal) {
+                        filterListsLastTotal = total;
+                        filterListsLastDone = -1;
+                    }
+                    if (done < filterListsLastDone) {
+                        return; // Stale/out-of-order update, ignore
+                    }
+                    filterListsLastDone = done;
                     String currentName = info.getProgress().getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
                     int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
                     String msg;
@@ -240,6 +260,9 @@ public class HomeActivity extends AppCompatActivity {
                             scheduledUpdateSnackbar.dismiss();
                             scheduledUpdateSnackbar = null;
                         }
+                        // Reset monotonic guards when job finishes
+                        scheduledLastDone = -1;
+                        scheduledLastTotal = -1;
                         scheduledProgressActive = false;
                         return;
                     }
@@ -247,6 +270,16 @@ public class HomeActivity extends AppCompatActivity {
 
                     int done = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_DONE, 0);
                     int total = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_TOTAL, 0);
+                    
+                    // UI-side monotonic guard: WorkManager delivers async, can be out-of-order
+                    if (total != scheduledLastTotal) {
+                        scheduledLastTotal = total;
+                        scheduledLastDone = -1;
+                    }
+                    if (done < scheduledLastDone) {
+                        return; // Stale/out-of-order update, ignore
+                    }
+                    scheduledLastDone = done;
                     String current = info.getProgress().getString(FilterSetUpdateWorker.PROGRESS_CURRENT);
                     int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
 
