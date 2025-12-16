@@ -44,9 +44,13 @@ jobs:
       #     path: app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Analyze project
-        if: ${{ secrets.SONAR_TOKEN != '' }}
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew -Dorg.gradle.jvmargs=-XX:MaxMetaspaceSize=512m sonarqube
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            ./gradlew -Dorg.gradle.jvmargs=-XX:MaxMetaspaceSize=512m sonarqube
+          else
+            echo "SONAR_TOKEN not set, skipping analysis"
+          fi
