@@ -40,7 +40,9 @@ class SourceLoader {
     private static final String TAG = "SourceLoader";
     private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
     // Larger batch reduces Room/SQLite overhead during big imports.
-    private static final int INSERT_BATCH_SIZE = 500;
+    private static final int INSERT_BATCH_SIZE = 2000;
+    // Use more parser threads for faster processing
+    private static final int PARSER_COUNT = Math.max(4, Runtime.getRuntime().availableProcessors());
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
@@ -56,18 +58,17 @@ class SourceLoader {
     void parse(BufferedReader reader, HostListItemDao hostListItemDao) {
         // Clear current hosts
         hostListItemDao.clearSourceHosts(this.source.getId());
-        // Create batch
-        int parserCount = 3;
-        LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>();
-        LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>();
-        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, parserCount);
-        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, parserCount);
+        // Create batch with higher capacity queues for better throughput
+        LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(50000);
+        LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(50000);
+        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT);
+        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, PARSER_COUNT);
         ExecutorService executorService = Executors.newFixedThreadPool(
-                parserCount + 2,
+                PARSER_COUNT + 2,
                 r -> new Thread(r, TAG)
         );
         executorService.execute(sourceReader);
-        for (int i = 0; i < parserCount; i++) {
+        for (int i = 0; i < PARSER_COUNT; i++) {
             executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue));
         }
         Future<Integer> inserterFuture = executorService.submit(inserter);
@@ -97,13 +98,20 @@ class SourceLoader {
         @Override
         public void run() {
             try {
-                this.reader.lines().forEach(this.queue::add);
+                String line;
+                while ((line = this.reader.readLine()) != null) {
+                    this.queue.put(line);  // put() blocks if queue is full, preventing OOM
+                }
             } catch (Throwable t) {
                 Timber.w(t, "Failed to read hosts source.");
             } finally {
                 // Send end of queue marker to parsers
                 for (int i = 0; i < this.parserCount; i++) {
-                    this.queue.add(END_OF_QUEUE_MARKER);
+                    try {
+                        this.queue.put(END_OF_QUEUE_MARKER);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
         }
@@ -135,9 +143,9 @@ class SourceLoader {
                         HostListItem endItem = new HostListItem();
                         endItem.setHost(line);
                         this.itemQueue.add(endItem);
-                    } // Check comments
+                    } // Skip comments and empty lines (no logging - too slow for millions of lines)
                     else if (line.isEmpty() || line.charAt(0) == '#' || line.charAt(0) == '!') {
-                        Timber.d("Skip comment: %s.", line);
+                        // skip
                     } else {
                         HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
                         if (item != null && isRedirectionValid(item) && isHostValid(item)) {
@@ -155,11 +163,10 @@ class SourceLoader {
         private HostListItem parseHostListItem(String line) {
             Matcher matcher = HOSTS_PARSER_PATTERN.matcher(line);
             if (!matcher.matches()) {
-                // Best-effort: accept common \"filter syntax\" formats by extracting a hostname.
+                // Best-effort: accept common "filter syntax" formats by extracting a hostname.
                 String extracted = extractHostnameFromNonHostsSyntax(line);
                 if (extracted == null) {
-                    Timber.d("Does not match: %s.", line);
-                    return null;
+                    return null;  // Skip non-matching lines silently for performance
                 }
                 // Treat extracted domain as blocked (0.0.0.0 domain)
                 HostListItem item = new HostListItem();

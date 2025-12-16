@@ -45,10 +45,10 @@ This fork adds an enhanced filter management experience:
 - **Schedule manager**: Manage global + filter-set + per-source schedules from **Hosts sources → menu → Manage schedules**, or from the **+** button sheet.
 - **Update performance improvements**:
   - One conditional GET per source (uses `If-None-Match` / `If-Modified-Since`, relies on `304 Not Modified` to skip parsing)
-  - Parallel URL downloads with a cap, sequential parsing to avoid DB contention
+  - Parallel URL downloads (6 concurrent) + parallel parsing (uses all CPU cores)
   - Larger OkHttp cache
-  - More aggressive batching for DB inserts (faster big imports)
-  - UI refresh throttling on very large lists to avoid ANRs
+  - Aggressive batching for DB inserts (2000 entries per batch)
+  - Progress updates instantly when downloads complete (parsing runs in background)
 
 ## Installing
 

@@ -61,8 +61,28 @@ public class FilterListsSubscribeAllWorker extends Worker {
     public static final String PROGRESS_CURRENT_ID = "currentId";
     public static final String PROGRESS_CURRENT_NAME = "currentName";
 
+    // Track last emitted progress to ensure monotonic delivery.
+    // WorkManager's setProgressAsync is async and doesn't guarantee order.
+    private int lastEmittedDone = -1;
+
     public FilterListsSubscribeAllWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
+    }
+
+    /**
+     * Emit progress only if done > lastEmittedDone (monotonic guarantee).
+     * This prevents out-of-order async deliveries from confusing the UI.
+     */
+    private void emitProgress(int done, int total, int currentId, String currentName) {
+        if (done > lastEmittedDone) {
+            lastEmittedDone = done;
+            setProgressAsync(new Data.Builder()
+                    .putInt(PROGRESS_DONE, done)
+                    .putInt(PROGRESS_TOTAL, total)
+                    .putInt(PROGRESS_CURRENT_ID, currentId)
+                    .putString(PROGRESS_CURRENT_NAME, currentName)
+                    .build());
+        }
     }
 
     @NonNull
@@ -107,12 +127,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
             int already = 0;
 
             // Publish initial progress now that we know total.
-            setProgressAsync(new Data.Builder()
-                    .putInt(PROGRESS_DONE, 0)
-                    .putInt(PROGRESS_TOTAL, total)
-                    .putInt(PROGRESS_CURRENT_ID, -1)
-                    .putString(PROGRESS_CURRENT_NAME, null)
-                    .build());
+            // Reset monotonic guard for new run.
+            lastEmittedDone = -1;
+            emitProgress(0, total, -1, null);
             notificationManager.notify(
                     NOTIFICATION_ID,
                     buildProgressNotification(context, 0, total, null)
@@ -175,12 +192,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
                 done++;
                 if (done == 1 || done % PROGRESS_EVERY == 0 || done == total) {
-                    setProgressAsync(new Data.Builder()
-                            .putInt(PROGRESS_DONE, done)
-                            .putInt(PROGRESS_TOTAL, total)
-                            .putInt(PROGRESS_CURRENT_ID, s.id)
-                            .putString(PROGRESS_CURRENT_NAME, s.name)
-                            .build());
+                    emitProgress(done, total, s.id, s.name);
                 }
                 notificationManager.notify(
                         NOTIFICATION_ID,
@@ -203,12 +215,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     pending--;
                     done++;
                     if (done == 1 || done % 5 == 0 || done == total) {
-                        setProgressAsync(new Data.Builder()
-                                .putInt(PROGRESS_DONE, done)
-                                .putInt(PROGRESS_TOTAL, total)
-                                .putInt(PROGRESS_CURRENT_ID, -1)
-                                .putString(PROGRESS_CURRENT_NAME, "Resolving…")
-                                .build());
+                        emitProgress(done, total, -1, "Resolving…");
                     }
                     notificationManager.notify(
                             NOTIFICATION_ID,
@@ -249,12 +256,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
                 done++;
                 if (done == 1 || done % PROGRESS_EVERY == 0 || done == total) {
-                    setProgressAsync(new Data.Builder()
-                            .putInt(PROGRESS_DONE, done)
-                            .putInt(PROGRESS_TOTAL, total)
-                            .putInt(PROGRESS_CURRENT_ID, r.id)
-                            .putString(PROGRESS_CURRENT_NAME, r.name)
-                            .build());
+                    emitProgress(done, total, r.id, r.name);
                 }
                 notificationManager.notify(
                         NOTIFICATION_ID,

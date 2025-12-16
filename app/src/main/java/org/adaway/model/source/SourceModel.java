@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,12 +122,6 @@ public class SourceModel {
      * The HTTP client to download hosts sources ({@code null} until initialized by {@link #getHttpClient()}).
      */
     private OkHttpClient cachedHttpClient;
-
-    // Ensure UI progress is monotonic (never goes backwards) even with parallel downloads.
-    // This avoids confusing "up/down" percent swings caused by in-flight bookkeeping timing.
-    private int lastProgressTotal = -1;
-    private int lastProgressDone = 0;
-    private int lastProgressBasisPoints = 0;
 
     /**
      * Constructor.
@@ -408,117 +403,84 @@ public class SourceModel {
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
         }
 
-        // Then handle URL sources with a parallel download phase and a sequential parse phase.
+        // Then handle URL sources with parallel downloads AND parallel parsing.
         if (!enabledUrlSources.isEmpty()) {
-            int parallelism = Math.min(MAX_PARALLEL_DOWNLOADS, enabledUrlSources.size());
-            ExecutorService pool = Executors.newFixedThreadPool(parallelism);
-            CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(pool);
+            int downloadParallelism = Math.min(MAX_PARALLEL_DOWNLOADS, enabledUrlSources.size());
+            int parseParallelism = Math.max(4, Runtime.getRuntime().availableProcessors());
+            
+            ExecutorService downloadPool = Executors.newFixedThreadPool(downloadParallelism);
+            ExecutorService parsePool = Executors.newFixedThreadPool(parseParallelism);
+            CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(downloadPool);
 
-            // Track overall progress during parallel downloads.
-            // We intentionally count "done" as fully processed sources (parsed/skipped), not just "download finished",
-            // to avoid confusing jumps (e.g. 21 -> 30) when several downloads finish close together.
-            final AtomicInteger completedFully = new AtomicInteger(done);
-            // Within-fraction for sources currently in the pipeline:
-            // - 0..1 while downloading
-            // - 1.0 once download completed (kept until parse finishes) so overall % never drops on handoff
-            final Map<Integer, Double> inFlightWithin = new ConcurrentHashMap<>();
-            final AtomicReference<String> lastLabel = new AtomicReference<>(null);
-            final AtomicInteger lastWithinPercent = new AtomicInteger(0);
-
-            final int urlTotal = enabledUrlSources.size();
+            // Submit all downloads
             for (HostsSource source : enabledUrlSources) {
-                completion.submit(new DownloadCallable(source, (label, withinFraction) -> {
-                    inFlightWithin.put(source.getId(), withinFraction);
-                    lastLabel.set(label);
-                    lastWithinPercent.set((int) Math.floor(withinFraction * 100.0));
-
-                    // Overall = already-done (fully processed) + sum of within-fractions in-flight
-                    int doneSoFar = completedFully.get();
-                    double sumWithin = 0d;
-                    int activeDownloads = 0;
-                    if (!inFlightWithin.isEmpty()) {
-                        for (double v : inFlightWithin.values()) {
-                            sumWithin += v;
-                            if (v < 0.999d) activeDownloads++;
-                        }
-                    }
-                    // If multiple downloads are in-flight, sum their within-fractions so overall progresses faster
-                    // and better matches actual total bytes being downloaded.
-                    double overall = total > 0 ? (doneSoFar + sumWithin) / (double) total : 0d;
-                    int basisPoints = (int) Math.floor(Math.min(0.999d, Math.max(0d, overall)) * 10000.0);
-
-                    String labelForUi = lastLabel.get();
-                    if (labelForUi != null) {
-                        labelForUi = labelForUi + " (" + activeDownloads + " downloading)";
-                    }
-                    postProgress(doneSoFar, total, labelForUi, basisPoints, lastWithinPercent.get());
-                }));
+                completion.submit(new DownloadCallable(source, null));
             }
 
-            int urlFailed = 0;
+            // Collect parse futures to wait for them at the end
+            List<Future<?>> parseFutures = new ArrayList<>();
+            final AtomicInteger failedCount = new AtomicInteger(0);
+            final ZonedDateTime nowFinal = now;
+
+            // Process download results as they complete - parsing goes to background
+            int urlTotal = enabledUrlSources.size();
             for (int i = 0; i < urlTotal; i++) {
                 try {
                     DownloadResult result = completion.take().get();
-                    // Mark "download done" as within=1.0 and keep it until parsing finishes.
-                    // This prevents overall progress from dropping when a download completes and parsing begins.
-                    inFlightWithin.put(result.sourceId, 1.0d);
-
                     HostsSource source = result.source;
                     numberOfCopies++;
 
-                    if (result.success && result.notModified) {
-                        // Nothing to do (conditional GET returned 304). Still mark progress done.
-                        done++;
-                        completedFully.set(done);
-                        postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-                        inFlightWithin.remove(result.sourceId);
-                        continue;
-                    }
+                    // Download finished = done++ (immediate progress update)
+                    done++;
+                    postProgress(done, total, source.getLabel(), done * 10000 / Math.max(1, total), 0);
 
                     if (!result.success) {
-                        urlFailed++;
-                        numberOfFailedCopies++;
-                        done++;
-                        completedFully.set(done);
-                        postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-                        inFlightWithin.remove(result.sourceId);
-                        continue;
+                        failedCount.incrementAndGet();
+                    } else if (!result.notModified) {
+                        // Queue parsing in background - don't block!
+                        final DownloadResult finalResult = result;
+                        parseFutures.add(parsePool.submit(() -> {
+                            try (BufferedReader reader = finalResult.openReader()) {
+                                parseSourceInputStream(finalResult.source, reader);
+                            } catch (IOException e) {
+                                Timber.w(e, "Failed to parse %s", finalResult.source.getUrl());
+                            } finally {
+                                finalResult.cleanup();
+                            }
+                            // Update DB
+                            if (finalResult.entityTag != null) {
+                                hostsSourceDao.updateEntityTag(finalResult.source.getId(), finalResult.entityTag);
+                            }
+                            ZonedDateTime onlineMod = finalResult.onlineModificationDate != null ? finalResult.onlineModificationDate : nowFinal;
+                            ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
+                            hostsSourceDao.updateModificationDates(finalResult.source.getId(), localMod, onlineMod);
+                            hostsSourceDao.updateSize(finalResult.source.getId());
+                        }));
                     }
 
-                    // Parse sequentially from the downloaded temp file.
-                    setState(R.string.status_parse_source, source.getLabel());
-                    try (BufferedReader reader = result.openReader()) {
-                        parseSourceInputStream(source, reader);
-                    } finally {
-                        result.cleanup();
-                    }
-
-                    // Update cache headers in DB (etag/last-modified) based on response headers.
-                    if (result.entityTag != null) {
-                        this.hostsSourceDao.updateEntityTag(source.getId(), result.entityTag);
-                    }
-                    ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
-                    ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-                    this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
-                    this.hostsSourceDao.updateSize(source.getId());
-
-                    done++;
-                    completedFully.set(done);
-                    postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-                    inFlightWithin.remove(result.sourceId);
                 } catch (Exception e) {
                     Timber.w(e, "Failed to retrieve a URL host source.");
-                    urlFailed++;
-                    numberOfFailedCopies++;
+                    failedCount.incrementAndGet();
                     done++;
-                    completedFully.set(done);
-                    postProgress(done, total, null, total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
+                    postProgress(done, total, null, done * 10000 / Math.max(1, total), 0);
                 }
             }
 
-            pool.shutdownNow();
+            numberOfFailedCopies += failedCount.get();
+            downloadPool.shutdown();
+
+            // Wait for all parsing to complete
+            setState(R.string.status_parse_source, "Finishing parsing...");
+            for (Future<?> f : parseFutures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    Timber.w(e, "Parse task failed");
+                }
+            }
+            parsePool.shutdown();
             try {
-                pool.awaitTermination(2, TimeUnit.SECONDS);
+                parsePool.awaitTermination(5, TimeUnit.MINUTES);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
@@ -746,7 +708,7 @@ public class SourceModel {
      * Returns 304/notModified when applicable (no temp file needed).
      */
     @NonNull
-    private DownloadResult downloadToTempFile(@NonNull HostsSource source, @NonNull DownloadProgress progress) {
+    private DownloadResult downloadToTempFile(@NonNull HostsSource source, @Nullable DownloadProgress progress) {
         String url = source.getUrl();
         setState(R.string.status_download_source, url);
 
@@ -776,28 +738,14 @@ public class SourceModel {
                 }
             }
 
-            // Write response to temp file while reporting progress.
+            // Write response to temp file
             tmp = File.createTempFile("adaway-src-", ".txt", this.context.getCacheDir());
-            long contentLength = body.contentLength();
-            long bytesReadTotal = 0L;
-            progress.onProgress(source.getLabel(), 0d);
-
             try (InputStream in = body.byteStream();
                  OutputStream out = new FileOutputStream(tmp)) {
                 byte[] buf = new byte[32 * 1024];
                 int read;
                 while ((read = in.read(buf)) != -1) {
                     out.write(buf, 0, read);
-                    bytesReadTotal += read;
-                    double within;
-                    if (contentLength > 0L) {
-                        within = Math.min(0.999d, Math.max(0d, bytesReadTotal / (double) contentLength));
-                    } else {
-                        final double k = 750_000d;
-                        within = 1d - Math.exp(-(bytesReadTotal / k));
-                        within = Math.min(0.95d, Math.max(0d, within));
-                    }
-                    progress.onProgress(source.getLabel(), within);
                 }
                 out.flush();
             }
@@ -876,16 +824,14 @@ public class SourceModel {
      */
     private final class DownloadCallable implements Callable<DownloadResult> {
         private final HostsSource source;
-        private final DownloadProgress progress;
 
-        DownloadCallable(@NonNull HostsSource source, @NonNull DownloadProgress progress) {
+        DownloadCallable(@NonNull HostsSource source, @Nullable DownloadProgress ignored) {
             this.source = source;
-            this.progress = progress;
         }
 
         @Override
         public DownloadResult call() {
-            return downloadToTempFile(source, progress);
+            return downloadToTempFile(source, null);
         }
     }
 
@@ -1002,35 +948,8 @@ public class SourceModel {
         this.state.postValue(state);
     }
 
-    private synchronized void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
-        // Reset monotonic guard when a new run starts (total changes) or when idle.
-        if (total != lastProgressTotal || total <= 0) {
-            lastProgressTotal = total;
-            lastProgressDone = 0;
-            lastProgressBasisPoints = 0;
-        }
-
-        // Enforce monotonic done (never go backwards)
-        int d = done;
-        if (total > 0 && d < lastProgressDone) {
-            d = lastProgressDone;
-        } else {
-            lastProgressDone = d;
-        }
-
-        // Enforce monotonic basisPoints (never go backwards)
-        int bp = basisPoints;
-        if (total > 0 && bp < 10000) {
-            if (bp < lastProgressBasisPoints) {
-                bp = lastProgressBasisPoints;
-            } else {
-                lastProgressBasisPoints = bp;
-            }
-        } else if (bp >= 10000) {
-            lastProgressBasisPoints = 10000;
-        }
-
-        this.progress.postValue(new Progress(d, total, currentLabel, bp, currentSourcePercent));
+    private void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
+        this.progress.postValue(new Progress(done, total, currentLabel, basisPoints, currentSourcePercent));
     }
 
     /**
