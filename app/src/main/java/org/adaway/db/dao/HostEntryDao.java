@@ -4,11 +4,13 @@ import androidx.annotation.Nullable;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.Query;
+import androidx.room.Transaction;
 
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.ListType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -44,22 +46,41 @@ public interface HostEntryDao {
     void redirectHost(HostEntry redirection);
 
     /**
-     * Synchronize the host entries based on the current hosts lists table records.
+     * Batch insert redirect entries.
      */
+    @Insert(onConflict = REPLACE)
+    void insertAll(List<HostEntry> entries);
+
+    /**
+     * Synchronize the host entries based on the current hosts lists table records.
+     * Wrapped in @Transaction to ensure all operations commit atomically,
+     * dramatically reducing disk I/O overhead.
+     */
+    @Transaction
     default void sync() {
         clear();
         importBlocked();
+
+        // Process allowed hosts - LIKE patterns can't be batched, but transaction wrapping
+        // ensures all deletes commit together (the main performance win)
         for (String allowedHost : getEnabledAllowedHosts()) {
-            allowedHost = ANY_CHAR_PATTERN.matcher(allowedHost).replaceAll("%");
-            allowedHost = A_CHAR_PATTERN.matcher(allowedHost).replaceAll("_");
-            allowHost(allowedHost);
+            String pattern = ANY_CHAR_PATTERN.matcher(allowedHost).replaceAll("%");
+            pattern = A_CHAR_PATTERN.matcher(pattern).replaceAll("_");
+            allowHost(pattern);
         }
-        for (HostListItem redirectedHost : getEnabledRedirectedHosts()) {
-            HostEntry entry = new HostEntry();
-            entry.setHost(redirectedHost.getHost());
-            entry.setType(REDIRECTED);
-            entry.setRedirection(redirectedHost.getRedirection());
-            redirectHost(entry);
+
+        // Batch insert all redirect entries at once instead of one-by-one
+        List<HostListItem> redirectedHosts = getEnabledRedirectedHosts();
+        if (!redirectedHosts.isEmpty()) {
+            List<HostEntry> entries = new ArrayList<>(redirectedHosts.size());
+            for (HostListItem item : redirectedHosts) {
+                HostEntry entry = new HostEntry();
+                entry.setHost(item.getHost());
+                entry.setType(REDIRECTED);
+                entry.setRedirection(item.getRedirection());
+                entries.add(entry);
+            }
+            insertAll(entries);
         }
     }
 

@@ -58,7 +58,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             context.getApplicationContext(),
                             AppDatabase.class,
                             "app.db"
-                    ).addCallback(new Callback() {
+                    ).setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
+                    .addCallback(new Callback() {
                         @Override
                         public void onCreate(@NonNull SupportSQLiteDatabase db) {
                             AppExecutors.getInstance().diskIO().execute(
