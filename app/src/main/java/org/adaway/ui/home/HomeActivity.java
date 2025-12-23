@@ -378,10 +378,11 @@ public class HomeActivity extends AppCompatActivity {
 
             showView(this.binding.content.multiPhaseProgressContainer);
 
-            // Update overall progress bar and bird position
-            int overallPercent = progress.getOverallPercent();
+            // Update overall progress bar and bird position with x.y% format
+            double overallPercentDouble = progress.getOverallPercentDouble();
+            int overallPercent = (int) overallPercentDouble;
             this.binding.content.overallProgressBar.setProgressCompat(overallPercent, true);
-            this.binding.content.overallProgressText.setText(getString(R.string.progress_complete, overallPercent));
+            this.binding.content.overallProgressText.setText(String.format(java.util.Locale.ROOT, "%.1f%% Complete", overallPercentDouble));
 
             // Animate bird icon position along the progress bar
             // Capture values in local variables to avoid memory leak from capturing 'this.binding' in post()
@@ -402,18 +403,18 @@ public class HomeActivity extends AppCompatActivity {
                 birdIcon.setTranslationX(birdX);
             });
 
-            // Update individual phase progress bars
-            int checkPercent = progress.getCheckPercent();
-            this.binding.content.checkProgressBar.setProgressCompat(checkPercent, true);
-            this.binding.content.checkPhasePercent.setText(checkPercent + "%");
+            // Update individual phase progress bars with x.y% format
+            double checkPercent = progress.getCheckPercentDouble();
+            this.binding.content.checkProgressBar.setProgressCompat((int) checkPercent, true);
+            this.binding.content.checkPhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", checkPercent));
 
-            int downloadPercent = progress.getDownloadPercent();
-            this.binding.content.downloadProgressBar.setProgressCompat(downloadPercent, true);
-            this.binding.content.downloadPhasePercent.setText(downloadPercent + "%");
+            double downloadPercent = progress.getDownloadPercentDouble();
+            this.binding.content.downloadProgressBar.setProgressCompat((int) downloadPercent, true);
+            this.binding.content.downloadPhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", downloadPercent));
 
-            int parsePercent = progress.getParsePercent();
-            this.binding.content.parseProgressBar.setProgressCompat(parsePercent, true);
-            this.binding.content.parsePhasePercent.setText(parsePercent + "%");
+            double parsePercent = progress.getParsePercentDouble();
+            this.binding.content.parseProgressBar.setProgressCompat((int) parsePercent, true);
+            this.binding.content.parsePhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
 
             // Show scheduler task info if present
             if (progress.schedulerTaskName != null && !progress.schedulerTaskName.isEmpty()) {
