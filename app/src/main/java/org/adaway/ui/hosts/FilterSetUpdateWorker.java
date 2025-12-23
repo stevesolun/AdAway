@@ -123,8 +123,11 @@ public class FilterSetUpdateWorker extends Worker {
 
         Timber.i("Scheduled update due (sets=%d, sources=%d): updating ALL enabled sources", dueSetNames.size(), dueSourceUrls.size());
         try {
-            // Update all enabled sources, then apply config.
-            sourceModel.retrieveHostsSources();
+            // Set scheduler task name for UI display
+            String taskName = dueSetNames.isEmpty() ? "Scheduled Update" : String.join(", ", dueSetNames);
+            sourceModel.setSchedulerTaskName(taskName);
+            // Update all enabled sources with adaptive batching, then apply config.
+            sourceModel.checkAndRetrieveHostsSources();
             adBlockModel.apply();
         } catch (HostErrorException e) {
             Timber.w(e, "Failed scheduled update-all");
@@ -156,4 +159,5 @@ public class FilterSetUpdateWorker extends Worker {
         return Result.success();
     }
 }
+
 

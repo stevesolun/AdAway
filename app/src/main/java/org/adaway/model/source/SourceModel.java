@@ -214,6 +214,14 @@ public class SourceModel {
     }
 
     /**
+     * Set the scheduler task name for display in the UI.
+     * @param name The scheduler task name.
+     */
+    public void setSchedulerTaskName(String name) {
+        this.progressBuilder.setSchedulerTaskName(name);
+    }
+
+    /**
      * Get the update available status.
      *
      * @return {@code true} if source update is available, {@code false} otherwise.
@@ -1286,7 +1294,11 @@ public class SourceModel {
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader) {
         setState(R.string.status_parse_source, hostsSource.getLabel());
         long startTime = System.currentTimeMillis();
-        new SourceLoader(hostsSource).parse(reader, this.hostListItemDao);
+        // Pass callback to update live blocked count in UI
+        new SourceLoader(hostsSource).parse(reader, this.hostListItemDao, count -> {
+            progressBuilder.addParsedHosts(count);
+            postMultiPhaseProgress(progressBuilder.build());
+        });
         long endTime = System.currentTimeMillis();
         Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");
     }
@@ -1368,6 +1380,7 @@ public class SourceModel {
         public final int parsedCount;
         public final int totalToParse;
         public final int parseQueued;      // Waiting to parse
+        public final long parsedHostCount; // Live count of blocked hosts parsed
 
         // Scheduler info
         @Nullable
@@ -1383,6 +1396,7 @@ public class SourceModel {
                 int checkedCount, int totalToCheck,
                 int downloadedCount, int totalToDownload, int downloadQueued,
                 int parsedCount, int totalToParse, int parseQueued,
+                long parsedHostCount,
                 @Nullable String schedulerTaskName, boolean isPaused, boolean isStopped,
                 @Nullable String currentLabel) {
             this.checkedCount = checkedCount;
@@ -1393,6 +1407,7 @@ public class SourceModel {
             this.parsedCount = parsedCount;
             this.totalToParse = totalToParse;
             this.parseQueued = parseQueued;
+            this.parsedHostCount = parsedHostCount;
             this.schedulerTaskName = schedulerTaskName;
             this.isPaused = isPaused;
             this.isStopped = isStopped;
@@ -1400,7 +1415,7 @@ public class SourceModel {
         }
 
         public static MultiPhaseProgress idle() {
-            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null);
+            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null);
         }
 
         public boolean isActive() {
@@ -1464,6 +1479,7 @@ public class SourceModel {
         private final AtomicInteger parsedCount = new AtomicInteger(0);
         private final AtomicInteger totalToParse = new AtomicInteger(0);
         private final AtomicInteger parseQueued = new AtomicInteger(0);
+        private final java.util.concurrent.atomic.AtomicLong parsedHostCount = new java.util.concurrent.atomic.AtomicLong(0);
         private volatile String schedulerTaskName;
         private volatile boolean isPaused;
         private volatile boolean isStopped;
@@ -1475,6 +1491,8 @@ public class SourceModel {
         public int incrementDownloaded() { downloadQueued.decrementAndGet(); return downloadedCount.incrementAndGet(); }
         public void incrementTotalToParse() { totalToParse.incrementAndGet(); parseQueued.incrementAndGet(); }
         public int incrementParsed() { parseQueued.decrementAndGet(); return parsedCount.incrementAndGet(); }
+        public void addParsedHosts(long count) { parsedHostCount.addAndGet(count); }
+        public long getParsedHostCount() { return parsedHostCount.get(); }
         public void setSchedulerTaskName(String name) { schedulerTaskName = name; }
         public void setPaused(boolean paused) { isPaused = paused; }
         public void setStopped(boolean stopped) { isStopped = stopped; }
@@ -1487,6 +1505,7 @@ public class SourceModel {
                     checkedCount.get(), totalToCheck.get(),
                     downloadedCount.get(), totalToDownload.get(), downloadQueued.get(),
                     parsedCount.get(), totalToParse.get(), parseQueued.get(),
+                    parsedHostCount.get(),
                     schedulerTaskName, isPaused, isStopped, currentLabel
             );
         }
@@ -1500,6 +1519,7 @@ public class SourceModel {
             parsedCount.set(0);
             totalToParse.set(0);
             parseQueued.set(0);
+            parsedHostCount.set(0);
             schedulerTaskName = null;
             isPaused = false;
             isStopped = false;

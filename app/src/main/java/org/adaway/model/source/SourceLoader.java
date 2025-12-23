@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -41,8 +42,11 @@ class SourceLoader {
     private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
     // Larger batch reduces Room/SQLite overhead during big imports.
     private static final int INSERT_BATCH_SIZE = 2000;
-    // Use more parser threads for faster processing
-    private static final int PARSER_COUNT = Math.max(4, Runtime.getRuntime().availableProcessors());
+    // Queue capacity - balances throughput vs memory usage.
+    // 10,000 is plenty for flow control; 50,000 was causing OOM with parallel parsing.
+    private static final int QUEUE_CAPACITY = 10000;
+    // Parser thread count - keep moderate to avoid thread explosion when multiple sources parse
+    private static final int PARSER_COUNT = Math.min(4, Runtime.getRuntime().availableProcessors());
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
@@ -56,13 +60,23 @@ class SourceLoader {
     }
 
     void parse(BufferedReader reader, HostListItemDao hostListItemDao) {
+        parse(reader, hostListItemDao, null);
+    }
+
+    /**
+     * Parse hosts source and insert into database.
+     * @param reader The source reader.
+     * @param hostListItemDao The DAO for inserting items.
+     * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
+     */
+    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
         // Clear current hosts
         hostListItemDao.clearSourceHosts(this.source.getId());
-        // Create batch with higher capacity queues for better throughput
-        LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(50000);
-        LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(50000);
+        // Create queues with bounded capacity to prevent OOM during parallel parsing
+        LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+        LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT);
-        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, PARSER_COUNT);
+        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, PARSER_COUNT, onBatchInserted);
         ExecutorService executorService = Executors.newFixedThreadPool(
                 PARSER_COUNT + 2,
                 r -> new Thread(r, TAG)
@@ -142,14 +156,14 @@ class SourceLoader {
                         // Send end of queue marker to inserter
                         HostListItem endItem = new HostListItem();
                         endItem.setHost(line);
-                        this.itemQueue.add(endItem);
+                        this.itemQueue.put(endItem);  // put() blocks if full, add() throws!
                     } // Skip comments and empty lines (no logging - too slow for millions of lines)
                     else if (line.isEmpty() || line.charAt(0) == '#' || line.charAt(0) == '!') {
                         // skip
                     } else {
                         HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
                         if (item != null && isRedirectionValid(item) && isHostValid(item)) {
-                            this.itemQueue.add(item);
+                            this.itemQueue.put(item);  // put() blocks if full, add() throws!
                         }
                     }
                 } catch (InterruptedException e) {
@@ -333,11 +347,15 @@ class SourceLoader {
         private final BlockingQueue<HostListItem> hostListItemQueue;
         private final HostListItemDao hostListItemDao;
         private final int parserCount;
+        @Nullable
+        private final LongConsumer onBatchInserted;
 
-        private ItemInserter(BlockingQueue<HostListItem> itemQueue, HostListItemDao hostListItemDao, int parserCount) {
+        private ItemInserter(BlockingQueue<HostListItem> itemQueue, HostListItemDao hostListItemDao,
+                             int parserCount, @Nullable LongConsumer onBatchInserted) {
             this.hostListItemQueue = itemQueue;
             this.hostListItemDao = hostListItemDao;
             this.parserCount = parserCount;
+            this.onBatchInserted = onBatchInserted;
         }
 
         @Override
@@ -362,6 +380,10 @@ class SourceLoader {
                         if (cacheSize >= batch.length) {
                             this.hostListItemDao.insert(batch);
                             inserted += cacheSize;
+                            // Notify callback of batch insert for live UI updates
+                            if (this.onBatchInserted != null) {
+                                this.onBatchInserted.accept(cacheSize);
+                            }
                             cacheSize = 0;
                         }
                     }
@@ -376,6 +398,10 @@ class SourceLoader {
             System.arraycopy(batch, 0, remaining, 0, remaining.length);
             this.hostListItemDao.insert(remaining);
             inserted += cacheSize;
+            // Notify callback of final batch
+            if (cacheSize > 0 && this.onBatchInserted != null) {
+                this.onBatchInserted.accept(cacheSize);
+            }
             // Return number of inserted items
             return inserted;
         }

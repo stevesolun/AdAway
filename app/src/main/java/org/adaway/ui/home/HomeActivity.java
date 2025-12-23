@@ -382,7 +382,15 @@ public class HomeActivity extends AppCompatActivity {
             double overallPercentDouble = progress.getOverallPercentDouble();
             int overallPercent = (int) overallPercentDouble;
             this.binding.content.overallProgressBar.setProgressCompat(overallPercent, true);
-            this.binding.content.overallProgressText.setText(String.format(java.util.Locale.ROOT, "%.1f%% Complete", overallPercentDouble));
+            // Show live blocked count during update
+            String progressText;
+            if (progress.parsedHostCount > 0) {
+                progressText = String.format(java.util.Locale.ROOT, "%.1f%% Complete • %,d blocked",
+                        overallPercentDouble, progress.parsedHostCount);
+            } else {
+                progressText = String.format(java.util.Locale.ROOT, "%.1f%% Complete", overallPercentDouble);
+            }
+            this.binding.content.overallProgressText.setText(progressText);
 
             // Animate bird icon position along the progress bar
             // Capture values in local variables to avoid memory leak from capturing 'this.binding' in post()
