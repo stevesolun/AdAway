@@ -58,6 +58,7 @@ import org.adaway.ui.prefs.PrefsActivity;
 import org.adaway.ui.support.SupportActivity;
 import org.adaway.ui.update.UpdateActivity;
 import org.adaway.ui.welcome.WelcomeActivity;
+import org.adaway.model.source.SourceModel.MultiPhaseProgress;
 
 import kotlin.jvm.functions.Function1;
 import timber.log.Timber;
@@ -114,6 +115,7 @@ public class HomeActivity extends AppCompatActivity {
         bindFilterListsSubscribeAllProgress();
         bindScheduledUpdateProgress();
         bindSourceModelProgress();
+        bindMultiPhaseProgress();
 
         this.binding.navigationView.setNavigationItemSelectedListener(item -> {
             if (showFragment(item.getItemId())) {
@@ -343,6 +345,91 @@ public class HomeActivity extends AppCompatActivity {
                     this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percentForBar, true);
                 }
                 showView(this.binding.content.filterListsSubscribeProgressBar);
+            }
+        });
+    }
+
+    private void bindMultiPhaseProgress() {
+        // Bind pause/resume and stop buttons with null check
+        this.binding.content.pauseResumeButton.setOnClickListener(v -> {
+            MultiPhaseProgress progress = this.homeViewModel.getMultiPhaseProgress().getValue();
+            if (progress == null) {
+                return; // No progress to pause/resume
+            }
+            if (progress.isPaused) {
+                this.homeViewModel.resumeUpdate();
+                this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_pause_24dp);
+                this.binding.content.pauseResumeButton.setContentDescription(getString(R.string.pause_update));
+            } else {
+                this.homeViewModel.pauseUpdate();
+                this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_play_24dp);
+                this.binding.content.pauseResumeButton.setContentDescription(getString(R.string.resume_update));
+            }
+        });
+
+        this.binding.content.stopButton.setOnClickListener(v -> this.homeViewModel.stopUpdate());
+
+        // Observe multi-phase progress
+        this.homeViewModel.getMultiPhaseProgress().observe(this, progress -> {
+            if (progress == null || !progress.isActive()) {
+                removeView(this.binding.content.multiPhaseProgressContainer);
+                return;
+            }
+
+            showView(this.binding.content.multiPhaseProgressContainer);
+
+            // Update overall progress bar and bird position
+            int overallPercent = progress.getOverallPercent();
+            this.binding.content.overallProgressBar.setProgressCompat(overallPercent, true);
+            this.binding.content.overallProgressText.setText(getString(R.string.progress_complete, overallPercent));
+
+            // Animate bird icon position along the progress bar
+            // Capture values in local variables to avoid memory leak from capturing 'this.binding' in post()
+            View progressFrame = this.binding.content.overallProgressFrame;
+            View progressBar = this.binding.content.overallProgressBar;
+            View birdIcon = this.binding.content.birdProgressIcon;
+            float density = getResources().getDisplayMetrics().density;
+            int marginStart = 20;
+            int marginStartPx = (int) (marginStart * density);
+            int capturedPercent = overallPercent;
+
+            progressFrame.post(() -> {
+                int barWidth = progressBar.getWidth();
+                int birdWidth = birdIcon.getWidth();
+                // Calculate bird position: from left edge to right edge minus bird width
+                int maxTravel = barWidth - birdWidth;
+                int birdX = marginStartPx + (int) (maxTravel * capturedPercent / 100.0f);
+                birdIcon.setTranslationX(birdX);
+            });
+
+            // Update individual phase progress bars
+            int checkPercent = progress.getCheckPercent();
+            this.binding.content.checkProgressBar.setProgressCompat(checkPercent, true);
+            this.binding.content.checkPhasePercent.setText(checkPercent + "%");
+
+            int downloadPercent = progress.getDownloadPercent();
+            this.binding.content.downloadProgressBar.setProgressCompat(downloadPercent, true);
+            this.binding.content.downloadPhasePercent.setText(downloadPercent + "%");
+
+            int parsePercent = progress.getParsePercent();
+            this.binding.content.parseProgressBar.setProgressCompat(parsePercent, true);
+            this.binding.content.parsePhasePercent.setText(parsePercent + "%");
+
+            // Show scheduler task info if present
+            if (progress.schedulerTaskName != null && !progress.schedulerTaskName.isEmpty()) {
+                this.binding.content.schedulerTaskContainer.setVisibility(View.VISIBLE);
+                this.binding.content.schedulerTaskName.setText("Scheduled: " + progress.schedulerTaskName);
+            } else {
+                this.binding.content.schedulerTaskContainer.setVisibility(View.GONE);
+            }
+
+            // Update pause/resume button state
+            if (progress.isPaused) {
+                this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_play_24dp);
+                this.binding.content.pauseResumeButton.setContentDescription(getString(R.string.resume_update));
+            } else {
+                this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_pause_24dp);
+                this.binding.content.pauseResumeButton.setContentDescription(getString(R.string.pause_update));
             }
         });
     }

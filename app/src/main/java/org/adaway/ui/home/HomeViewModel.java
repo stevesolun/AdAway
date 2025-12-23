@@ -41,6 +41,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final MediatorLiveData<String> state;
     private final MutableLiveData<HostError> error;
     private final LiveData<SourceModel.Progress> sourceProgress;
+    private final LiveData<SourceModel.MultiPhaseProgress> multiPhaseProgress;
 
     public HomeViewModel(@NonNull Application application) {
         super(application);
@@ -59,6 +60,7 @@ public class HomeViewModel extends AndroidViewModel {
         this.state.addSource(this.adBlockModel.getState(), this.state::setValue);
         this.error = new MutableLiveData<>();
         this.sourceProgress = this.sourceModel.getProgress();
+        this.multiPhaseProgress = this.sourceModel.getMultiPhaseProgress();
     }
 
     private static boolean isTrue(LiveData<Boolean> liveData) {
@@ -118,6 +120,22 @@ public class HomeViewModel extends AndroidViewModel {
         return this.sourceProgress;
     }
 
+    public LiveData<SourceModel.MultiPhaseProgress> getMultiPhaseProgress() {
+        return this.multiPhaseProgress;
+    }
+
+    public void pauseUpdate() {
+        this.sourceModel.requestPause();
+    }
+
+    public void resumeUpdate() {
+        this.sourceModel.requestResume();
+    }
+
+    public void stopUpdate() {
+        this.sourceModel.requestStop();
+    }
+
     public void checkForAppUpdate() {
         EXECUTORS.networkIO().execute(this.updateModel::checkForUpdate);
     }
@@ -150,7 +168,9 @@ public class HomeViewModel extends AndroidViewModel {
         EXECUTORS.networkIO().execute(() -> {
             try {
                 this.pending.postValue(true);
-                this.sourceModel.checkForUpdate();
+                // Use adaptive pipeline: check + download in one pass
+                this.sourceModel.checkAndRetrieveHostsSources();
+                this.adBlockModel.apply();
             } catch (HostErrorException exception) {
                 Timber.w(exception, "Failed to update.");
                 this.error.postValue(exception.getError());
@@ -167,7 +187,7 @@ public class HomeViewModel extends AndroidViewModel {
         EXECUTORS.networkIO().execute(() -> {
             try {
                 this.pending.postValue(true);
-                this.sourceModel.retrieveHostsSources();
+                this.sourceModel.checkAndRetrieveHostsSources();
                 this.adBlockModel.apply();
             } catch (HostErrorException exception) {
                 Timber.w(exception, "Failed to sync.");

@@ -10,6 +10,15 @@
     <string name="button_save">Save</string>
     <string name="button_help">Help</string>
 
+    <!--Progress phases-->
+    <string name="phase_check">Check</string>
+    <string name="phase_download">Download</string>
+    <string name="phase_parse">Parse</string>
+    <string name="pause_update">Pause update</string>
+    <string name="resume_update">Resume update</string>
+    <string name="stop_update">Stop update</string>
+    <string name="progress_complete">%d%% Complete</string>
+
     <!--Home-->
     <string name="header_help">Welcome!</string>
     <string name="text_help">AdAway is a free and open-source software design to block advertising. It fetches advertising network addresses to block them on your device.\nWant to know more? Check the help below!</string>

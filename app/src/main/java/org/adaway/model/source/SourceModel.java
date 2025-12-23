@@ -58,6 +58,7 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -84,7 +85,19 @@ public class SourceModel {
      * The HTTP client cache size.
      */
     private static final long CACHE_SIZE = 250L * 1024L * 1024L; // 250MB
-    private static final int MAX_PARALLEL_DOWNLOADS = 6;
+    private static final int MAX_PARALLEL_DOWNLOADS = 10;
+    /**
+     * Maximum concurrent source parsing operations.
+     * Each parse creates internal threads and queues - too many in parallel causes OOM.
+     * 2-3 is a safe balance between speed and memory on mobile devices.
+     */
+    private static final int MAX_PARALLEL_PARSES = 2;
+    /**
+     * Adaptive batch sizing for check+download pipeline.
+     */
+    private static final int INITIAL_CHECK_BATCH = 10;
+    private static final int MIN_CHECK_BATCH = 5;
+    private static final int MAX_CHECK_BATCH = 30;
     private static final String LAST_MODIFIED_HEADER = "Last-Modified";
     private static final String IF_NONE_MATCH_HEADER = "If-None-Match";
     private static final String IF_MODIFIED_SINCE_HEADER = "If-Modified-Since";
@@ -119,6 +132,14 @@ public class SourceModel {
      */
     private final MutableLiveData<Progress> progress;
     /**
+     * Multi-phase progress for detailed UI (Check/Download/Parse bars).
+     */
+    private final MutableLiveData<MultiPhaseProgress> multiPhaseProgress;
+    /**
+     * Builder for multi-phase progress updates.
+     */
+    private final MultiPhaseProgressBuilder progressBuilder;
+    /**
      * The HTTP client to download hosts sources ({@code null} until initialized by {@link #getHttpClient()}).
      */
     private OkHttpClient cachedHttpClient;
@@ -139,6 +160,9 @@ public class SourceModel {
         this.state.postValue("");
         this.progress = new MutableLiveData<>();
         this.progress.postValue(Progress.idle());
+        this.multiPhaseProgress = new MutableLiveData<>();
+        this.multiPhaseProgress.postValue(MultiPhaseProgress.idle());
+        this.progressBuilder = new MultiPhaseProgressBuilder();
         this.updateAvailable = new MutableLiveData<>();
         this.updateAvailable.postValue(false);
         SourceUpdateService.syncPreferences(context);
@@ -158,6 +182,34 @@ public class SourceModel {
      */
     public LiveData<Progress> getProgress() {
         return this.progress;
+    }
+
+    /**
+     * Get detailed multi-phase progress (Check/Download/Parse).
+     */
+    public LiveData<MultiPhaseProgress> getMultiPhaseProgress() {
+        return this.multiPhaseProgress;
+    }
+
+    /**
+     * Request pause of the current update operation.
+     */
+    public void requestPause() {
+        this.progressBuilder.setPaused(true);
+    }
+
+    /**
+     * Resume a paused update operation.
+     */
+    public void requestResume() {
+        this.progressBuilder.setPaused(false);
+    }
+
+    /**
+     * Request stop of the current update operation.
+     */
+    public void requestStop() {
+        this.progressBuilder.setStopped(true);
     }
 
     /**
@@ -403,14 +455,20 @@ public class SourceModel {
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
         }
 
-        // Then handle URL sources with parallel downloads AND parallel parsing.
+        // Then handle URL sources with parallel downloads but bounded parallel parsing.
+        // Downloads are network-bound (safe to parallelize), but parsing is memory-intensive.
+        // We use a semaphore to limit concurrent parsing to MAX_PARALLEL_PARSES to avoid OOM.
         if (!enabledUrlSources.isEmpty()) {
             int downloadParallelism = Math.min(MAX_PARALLEL_DOWNLOADS, enabledUrlSources.size());
-            int parseParallelism = Math.max(4, Runtime.getRuntime().availableProcessors());
-            
+            // Parse pool can have more threads, but semaphore limits actual concurrent parsing
+            int parsePoolSize = Math.max(MAX_PARALLEL_PARSES, Math.min(4, Runtime.getRuntime().availableProcessors()));
+
             ExecutorService downloadPool = Executors.newFixedThreadPool(downloadParallelism);
-            ExecutorService parsePool = Executors.newFixedThreadPool(parseParallelism);
+            ExecutorService parsePool = Executors.newFixedThreadPool(parsePoolSize);
             CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(downloadPool);
+
+            // Semaphore limits concurrent SourceLoader.parse() calls to prevent OOM
+            final Semaphore parseSemaphore = new Semaphore(MAX_PARALLEL_PARSES);
 
             // Submit all downloads
             for (HostsSource source : enabledUrlSources) {
@@ -437,11 +495,20 @@ public class SourceModel {
                     if (!result.success) {
                         failedCount.incrementAndGet();
                     } else if (!result.notModified) {
-                        // Queue parsing in background - don't block!
+                        // Queue parsing in background with semaphore-bounded concurrency
                         final DownloadResult finalResult = result;
                         parseFutures.add(parsePool.submit(() -> {
-                            try (BufferedReader reader = finalResult.openReader()) {
-                                parseSourceInputStream(finalResult.source, reader);
+                            try {
+                                // Acquire permit before parsing - blocks if MAX_PARALLEL_PARSES already running
+                                parseSemaphore.acquire();
+                                try (BufferedReader reader = finalResult.openReader()) {
+                                    parseSourceInputStream(finalResult.source, reader);
+                                } finally {
+                                    parseSemaphore.release();
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                Timber.w(e, "Parse interrupted for %s", finalResult.source.getUrl());
                             } catch (IOException e) {
                                 Timber.w(e, "Failed to parse %s", finalResult.source.getUrl());
                             } finally {
@@ -480,7 +547,7 @@ public class SourceModel {
             }
             parsePool.shutdown();
             try {
-                parsePool.awaitTermination(5, TimeUnit.MINUTES);
+                parsePool.awaitTermination(10, TimeUnit.MINUTES);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
@@ -495,6 +562,279 @@ public class SourceModel {
         // Mark no update available
         this.updateAvailable.postValue(false);
         postProgress(total, total, null, 10000, 100);
+    }
+
+    /**
+     * Check and retrieve hosts sources using adaptive batching.
+     * Instead of checking ALL sources first then downloading, this method:
+     * 1. Checks sources in adaptive batches
+     * 2. Immediately starts downloading sources that need updates
+     * 3. Adjusts batch size based on update hit rate
+     *
+     * This significantly reduces total time when many sources need updating.
+     *
+     * @throws HostErrorException If the hosts sources could not be downloaded.
+     */
+    public void checkAndRetrieveHostsSources() throws HostErrorException {
+        if (isDeviceOffline()) {
+            throw new HostErrorException(NO_CONNECTION);
+        }
+
+        // Reset progress builder for this operation
+        progressBuilder.reset();
+
+        // Get all sources and categorize
+        List<HostsSource> all = this.hostsSourceDao.getAll();
+        List<HostsSource> enabledUrlSources = new ArrayList<>();
+        List<HostsSource> enabledFileSources = new ArrayList<>();
+
+        for (HostsSource source : all) {
+            if (!source.isEnabled()) {
+                int sourceId = source.getId();
+                this.hostListItemDao.clearSourceHosts(sourceId);
+                this.hostsSourceDao.clearProperties(sourceId);
+                continue;
+            }
+            switch (source.getType()) {
+                case URL:
+                    enabledUrlSources.add(source);
+                    break;
+                case FILE:
+                    enabledFileSources.add(source);
+                    break;
+                default:
+                    Timber.w("Hosts source type is not supported.");
+            }
+        }
+
+        final int totalSources = enabledUrlSources.size() + enabledFileSources.size();
+        if (totalSources == 0) {
+            this.updateAvailable.postValue(false);
+            return;
+        }
+
+        // Initialize progress tracking
+        progressBuilder.setTotalToCheck(totalSources);
+        setState(R.string.status_check);
+        postMultiPhaseProgress(progressBuilder.build());
+
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime lastWeek = now.minus(1, WEEKS);
+        final AtomicInteger failedCount = new AtomicInteger(0);
+
+        // Handle FILE sources first (quick, no network) - count as check+download+parse in one
+        for (HostsSource source : enabledFileSources) {
+            // Check for stop request
+            if (progressBuilder.isStopped()) {
+                Timber.i("Update stopped by user");
+                return;
+            }
+            // Handle pause
+            while (progressBuilder.isPaused()) {
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+
+            progressBuilder.setCurrentLabel(source.getLabel());
+            progressBuilder.incrementChecked();
+            progressBuilder.incrementTotalToDownload();
+            progressBuilder.incrementTotalToParse();
+            postMultiPhaseProgress(progressBuilder.build());
+
+            try {
+                readSourceFile(source);
+                ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
+                if (onlineModificationDate == null) {
+                    onlineModificationDate = now;
+                }
+                ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
+                this.hostsSourceDao.updateSize(source.getId());
+                progressBuilder.incrementDownloaded();
+                progressBuilder.incrementParsed();
+            } catch (IOException e) {
+                Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
+                failedCount.incrementAndGet();
+                progressBuilder.incrementDownloaded(); // Count as attempted
+                progressBuilder.incrementParsed();
+            }
+            postMultiPhaseProgress(progressBuilder.build());
+        }
+
+        // Adaptive pipeline for URL sources: check in batches, download immediately when needed
+        if (!enabledUrlSources.isEmpty()) {
+            ExecutorService downloadPool = Executors.newFixedThreadPool(MAX_PARALLEL_DOWNLOADS);
+            ExecutorService parsePool = Executors.newFixedThreadPool(Math.max(MAX_PARALLEL_PARSES, 2));
+            Semaphore parseSemaphore = new Semaphore(MAX_PARALLEL_PARSES);
+            List<Future<?>> allFutures = new ArrayList<>();
+
+            int batchSize = INITIAL_CHECK_BATCH;
+            int sourcesChecked = 0;
+            int sourcesNeedingUpdate = 0;
+
+            while (sourcesChecked < enabledUrlSources.size()) {
+                // Check for stop request
+                if (progressBuilder.isStopped()) {
+                    Timber.i("Update stopped by user");
+                    downloadPool.shutdownNow();
+                    parsePool.shutdownNow();
+                    return;
+                }
+                // Handle pause
+                while (progressBuilder.isPaused()) {
+                    postMultiPhaseProgress(progressBuilder.build());
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+
+                // Get next batch
+                int batchEnd = Math.min(sourcesChecked + batchSize, enabledUrlSources.size());
+                List<HostsSource> batch = enabledUrlSources.subList(sourcesChecked, batchEnd);
+
+                // Check batch and queue downloads immediately
+                for (HostsSource source : batch) {
+                    if (progressBuilder.isStopped()) break;
+
+                    progressBuilder.setCurrentLabel(source.getLabel());
+                    progressBuilder.incrementChecked();
+                    setState(R.string.status_check_source, source.getLabel());
+                    postMultiPhaseProgress(progressBuilder.build());
+
+                    ZonedDateTime lastModifiedLocal = source.getLocalModificationDate();
+                    ZonedDateTime lastModifiedOnline = getHostsSourceLastUpdate(source);
+                    this.hostsSourceDao.updateOnlineModificationDate(source.getId(), lastModifiedOnline);
+
+                    boolean needsUpdate = false;
+                    if (lastModifiedOnline == null) {
+                        if (lastModifiedLocal == null || lastModifiedLocal.isBefore(lastWeek)) {
+                            needsUpdate = true;
+                        }
+                    } else {
+                        if (lastModifiedLocal == null || lastModifiedOnline.isAfter(lastModifiedLocal)) {
+                            needsUpdate = true;
+                        }
+                    }
+
+                    if (needsUpdate) {
+                        sourcesNeedingUpdate++;
+                        progressBuilder.incrementTotalToDownload();
+                        progressBuilder.incrementTotalToParse();
+                        postMultiPhaseProgress(progressBuilder.build());
+
+                        // Queue download immediately
+                        final HostsSource src = source;
+                        final ZonedDateTime nowFinal = now;
+                        allFutures.add(downloadPool.submit(() -> {
+                            // Check for stop inside task
+                            if (progressBuilder.isStopped()) return;
+
+                            try {
+                                DownloadResult result = downloadToTempFile(src, null);
+                                progressBuilder.incrementDownloaded();
+                                postMultiPhaseProgress(progressBuilder.build());
+
+                                if (result.success && !result.notModified) {
+                                    // Check for stop before parsing
+                                    if (progressBuilder.isStopped()) {
+                                        result.cleanup();
+                                        return;
+                                    }
+                                    try {
+                                        parseSemaphore.acquire();
+                                        // Handle pause inside parse
+                                        while (progressBuilder.isPaused() && !progressBuilder.isStopped()) {
+                                            Thread.sleep(200);
+                                        }
+                                        if (!progressBuilder.isStopped()) {
+                                            try (BufferedReader reader = result.openReader()) {
+                                                parseSourceInputStream(src, reader);
+                                            }
+                                        }
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                    } finally {
+                                        parseSemaphore.release();
+                                    }
+                                    if (result.entityTag != null) {
+                                        hostsSourceDao.updateEntityTag(src.getId(), result.entityTag);
+                                    }
+                                    ZonedDateTime onlineMod = result.onlineModificationDate != null ? result.onlineModificationDate : nowFinal;
+                                    ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
+                                    hostsSourceDao.updateModificationDates(src.getId(), localMod, onlineMod);
+                                    hostsSourceDao.updateSize(src.getId());
+                                } else if (!result.success) {
+                                    failedCount.incrementAndGet();
+                                }
+                                progressBuilder.incrementParsed();
+                                postMultiPhaseProgress(progressBuilder.build());
+                                result.cleanup();
+                            } catch (Exception e) {
+                                Timber.w(e, "Failed to download/parse %s", src.getUrl());
+                                failedCount.incrementAndGet();
+                                progressBuilder.incrementParsed(); // Count as attempted
+                                postMultiPhaseProgress(progressBuilder.build());
+                            }
+                        }));
+                    }
+                }
+
+                sourcesChecked = batchEnd;
+
+                // Adapt batch size based on hit rate
+                if (sourcesChecked > 0) {
+                    double hitRate = (double) sourcesNeedingUpdate / sourcesChecked;
+                    if (hitRate > 0.5) {
+                        // Many need updates - use smaller batches to start downloads sooner
+                        batchSize = Math.max(MIN_CHECK_BATCH, batchSize - 2);
+                    } else if (hitRate < 0.2) {
+                        // Few need updates - use larger batches to check faster
+                        batchSize = Math.min(MAX_CHECK_BATCH, batchSize + 5);
+                    }
+                    Timber.d("Adaptive batch: checked=%d, needsUpdate=%d, hitRate=%.2f, newBatchSize=%d",
+                            sourcesChecked, sourcesNeedingUpdate, hitRate, batchSize);
+                }
+            }
+
+            // Wait for all downloads/parses to complete
+            setState(R.string.status_parse_source, "Finishing...");
+            for (Future<?> f : allFutures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    Timber.w(e, "Download/parse task failed");
+                }
+            }
+
+            downloadPool.shutdown();
+            parsePool.shutdown();
+            try {
+                parsePool.awaitTermination(10, TimeUnit.MINUTES);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        int totalFailed = failedCount.get();
+        MultiPhaseProgress finalProgress = progressBuilder.build();
+        int totalDownloaded = finalProgress.downloadedCount;
+
+        if (totalDownloaded == 0 && totalFailed > 0) {
+            throw new HostErrorException(DOWNLOAD_FAILED);
+        }
+
+        // Synchronize hosts entries
+        syncHostEntries();
+        this.updateAvailable.postValue(false);
+        postProgress(totalSources, totalSources, null, 10000, 100);
+        Timber.i("Adaptive update complete: %d downloaded, %d failed", totalDownloaded, totalFailed);
     }
 
     /**
@@ -949,25 +1289,24 @@ public class SourceModel {
     }
 
     private void postProgress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
+        // Legacy single-bar progress - still used for backward compatibility
         this.progress.postValue(new Progress(done, total, currentLabel, basisPoints, currentSourcePercent));
     }
 
+    private void postMultiPhaseProgress(MultiPhaseProgress mp) {
+        this.progress.postValue(mp.toLegacyProgress());
+        this.multiPhaseProgress.postValue(mp);
+    }
+
     /**
-     * Simple progress value object for UI.
+     * Simple progress value object for UI (legacy single-bar).
      */
     public static final class Progress {
         public final int done;
         public final int total;
         @Nullable
         public final String currentLabel;
-        /**
-         * Overall progress in basis points (0..10000 = 0.00%..100.00%).
-         * This can change even when done/total don't (e.g. while downloading current source).
-         */
         public final int basisPoints;
-        /**
-         * Progress within the current source download (0..100), best-effort.
-         */
         public final int currentSourcePercent;
 
         public Progress(int done, int total, @Nullable String currentLabel, int basisPoints, int currentSourcePercent) {
@@ -984,6 +1323,144 @@ public class SourceModel {
 
         public boolean isActive() {
             return total > 0 && basisPoints < 10000;
+        }
+    }
+
+    /**
+     * Multi-phase progress for detailed UI with separate bars for Check/Download/Parse.
+     */
+    public static final class MultiPhaseProgress {
+        // Check phase
+        public final int checkedCount;
+        public final int totalToCheck;
+
+        // Download phase
+        public final int downloadedCount;
+        public final int totalToDownload;  // Only sources needing update
+        public final int downloadQueued;   // Waiting to download
+
+        // Parse phase
+        public final int parsedCount;
+        public final int totalToParse;
+        public final int parseQueued;      // Waiting to parse
+
+        // Scheduler info
+        @Nullable
+        public final String schedulerTaskName;
+        public final boolean isPaused;
+        public final boolean isStopped;
+
+        // Current activity
+        @Nullable
+        public final String currentLabel;
+
+        public MultiPhaseProgress(
+                int checkedCount, int totalToCheck,
+                int downloadedCount, int totalToDownload, int downloadQueued,
+                int parsedCount, int totalToParse, int parseQueued,
+                @Nullable String schedulerTaskName, boolean isPaused, boolean isStopped,
+                @Nullable String currentLabel) {
+            this.checkedCount = checkedCount;
+            this.totalToCheck = totalToCheck;
+            this.downloadedCount = downloadedCount;
+            this.totalToDownload = totalToDownload;
+            this.downloadQueued = downloadQueued;
+            this.parsedCount = parsedCount;
+            this.totalToParse = totalToParse;
+            this.parseQueued = parseQueued;
+            this.schedulerTaskName = schedulerTaskName;
+            this.isPaused = isPaused;
+            this.isStopped = isStopped;
+            this.currentLabel = currentLabel;
+        }
+
+        public static MultiPhaseProgress idle() {
+            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null);
+        }
+
+        public boolean isActive() {
+            return totalToCheck > 0 && (checkedCount < totalToCheck || parsedCount < totalToParse);
+        }
+
+        public int getCheckPercent() {
+            return totalToCheck > 0 ? (checkedCount * 100 / totalToCheck) : 0;
+        }
+
+        public int getDownloadPercent() {
+            return totalToDownload > 0 ? (downloadedCount * 100 / totalToDownload) : 0;
+        }
+
+        public int getParsePercent() {
+            return totalToParse > 0 ? (parsedCount * 100 / totalToParse) : 0;
+        }
+
+        public int getOverallPercent() {
+            int total = totalToCheck + totalToDownload + totalToParse;
+            int done = checkedCount + downloadedCount + parsedCount;
+            return total > 0 ? (done * 100 / total) : 0;
+        }
+
+        /** Convert to legacy Progress for backward compatibility. */
+        public Progress toLegacyProgress() {
+            int total = Math.max(1, totalToCheck);
+            int done = checkedCount;
+            int basisPoints = total > 0 ? (done * 10000 / total) : 0;
+            return new Progress(done, total, currentLabel, basisPoints, getDownloadPercent());
+        }
+    }
+
+    /**
+     * Builder for updating MultiPhaseProgress atomically.
+     */
+    public static final class MultiPhaseProgressBuilder {
+        private final AtomicInteger checkedCount = new AtomicInteger(0);
+        private final AtomicInteger totalToCheck = new AtomicInteger(0);
+        private final AtomicInteger downloadedCount = new AtomicInteger(0);
+        private final AtomicInteger totalToDownload = new AtomicInteger(0);
+        private final AtomicInteger downloadQueued = new AtomicInteger(0);
+        private final AtomicInteger parsedCount = new AtomicInteger(0);
+        private final AtomicInteger totalToParse = new AtomicInteger(0);
+        private final AtomicInteger parseQueued = new AtomicInteger(0);
+        private volatile String schedulerTaskName;
+        private volatile boolean isPaused;
+        private volatile boolean isStopped;
+        private volatile String currentLabel;
+
+        public void setTotalToCheck(int total) { totalToCheck.set(total); }
+        public int incrementChecked() { return checkedCount.incrementAndGet(); }
+        public void incrementTotalToDownload() { totalToDownload.incrementAndGet(); downloadQueued.incrementAndGet(); }
+        public int incrementDownloaded() { downloadQueued.decrementAndGet(); return downloadedCount.incrementAndGet(); }
+        public void incrementTotalToParse() { totalToParse.incrementAndGet(); parseQueued.incrementAndGet(); }
+        public int incrementParsed() { parseQueued.decrementAndGet(); return parsedCount.incrementAndGet(); }
+        public void setSchedulerTaskName(String name) { schedulerTaskName = name; }
+        public void setPaused(boolean paused) { isPaused = paused; }
+        public void setStopped(boolean stopped) { isStopped = stopped; }
+        public void setCurrentLabel(String label) { currentLabel = label; }
+        public boolean isPaused() { return isPaused; }
+        public boolean isStopped() { return isStopped; }
+
+        public MultiPhaseProgress build() {
+            return new MultiPhaseProgress(
+                    checkedCount.get(), totalToCheck.get(),
+                    downloadedCount.get(), totalToDownload.get(), downloadQueued.get(),
+                    parsedCount.get(), totalToParse.get(), parseQueued.get(),
+                    schedulerTaskName, isPaused, isStopped, currentLabel
+            );
+        }
+
+        public void reset() {
+            checkedCount.set(0);
+            totalToCheck.set(0);
+            downloadedCount.set(0);
+            totalToDownload.set(0);
+            downloadQueued.set(0);
+            parsedCount.set(0);
+            totalToParse.set(0);
+            parseQueued.set(0);
+            schedulerTaskName = null;
+            isPaused = false;
+            isStopped = false;
+            currentLabel = null;
         }
     }
 }

@@ -33,12 +33,75 @@ public class RegexUtils {
 
     /**
      * Check whether a hostname is valid.
+     * Uses a fast-path check for common valid hostnames before falling back to Guava's
+     * InternetDomainName.isValid() for edge cases. This significantly improves performance
+     * when validating millions of hostnames during bulk parsing.
      *
      * @param hostname The hostname to validate.
      * @return return {@code true} if hostname is valid, {@code false} otherwise.
      */
     public static boolean isValidHostname(String hostname) {
-        return InternetDomainName.isValid(hostname);
+        // Fast-path: reject obviously invalid hostnames before expensive Guava call
+        if (hostname == null || hostname.isEmpty()) {
+            return false;
+        }
+
+        int len = hostname.length();
+        // Max DNS hostname length is 253 characters
+        if (len > 253) {
+            return false;
+        }
+
+        // Fast-path validation: check for valid DNS hostname characters
+        // Valid: a-z, A-Z, 0-9, hyphen (-), dot (.)
+        // Hostname cannot start or end with hyphen or dot
+        char first = hostname.charAt(0);
+        char last = hostname.charAt(len - 1);
+        if (first == '-' || first == '.' || last == '-' || last == '.') {
+            return false;
+        }
+
+        boolean hasLetter = false;
+        boolean prevWasDot = false;
+        int labelLength = 0;
+
+        for (int i = 0; i < len; i++) {
+            char c = hostname.charAt(i);
+            if (c == '.') {
+                // Empty label (double dot) is invalid
+                if (prevWasDot || labelLength == 0) {
+                    return false;
+                }
+                // Label max length is 63 characters
+                if (labelLength > 63) {
+                    return false;
+                }
+                labelLength = 0;
+                prevWasDot = true;
+            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                hasLetter = true;
+                labelLength++;
+                prevWasDot = false;
+            } else if ((c >= '0' && c <= '9') || c == '-') {
+                labelLength++;
+                prevWasDot = false;
+            } else {
+                // Invalid character - fall back to Guava for IDN/punycode
+                return InternetDomainName.isValid(hostname);
+            }
+        }
+
+        // Last label length check
+        if (labelLength > 63) {
+            return false;
+        }
+
+        // Must have at least one dot (TLD required) and contain at least one letter
+        if (!hostname.contains(".") || !hasLetter) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
