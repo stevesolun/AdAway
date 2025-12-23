@@ -324,6 +324,15 @@ public class HomeActivity extends AppCompatActivity {
             }
             sourceModelProgressActive = true;
 
+            // Skip legacy progress display when multi-phase progress is active (avoid duplicate/confusing percentages)
+            MultiPhaseProgress multiPhase = this.homeViewModel.getMultiPhaseProgress().getValue();
+            if (multiPhase != null && multiPhase.isActive()) {
+                // Multi-phase UI is showing, hide legacy progress to avoid confusion
+                removeView(this.binding.content.filterListsSubscribeProgressTextView);
+                removeView(this.binding.content.filterListsSubscribeProgressBar);
+                return;
+            }
+
             int done = progress.done;
             int total = progress.total;
             double pct = progress.basisPoints / 100.0;

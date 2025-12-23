@@ -510,6 +510,9 @@ public class SourceModel {
             // Semaphore limits concurrent SourceLoader.parse() calls to prevent OOM
             final Semaphore parseSemaphore = new Semaphore(PARSE_PARALLELISM);
 
+            // Global deduplication set - ensures each host is inserted only once across ALL sources
+            final java.util.Set<String> globalSeenHosts = ConcurrentHashMap.newKeySet();
+
             // Submit all downloads
             for (HostsSource source : enabledUrlSources) {
                 completion.submit(new DownloadCallable(source, null));
@@ -542,7 +545,8 @@ public class SourceModel {
                                 // Acquire permit before parsing - blocks if PARSE_PARALLELISM already running
                                 parseSemaphore.acquire();
                                 try (BufferedReader reader = finalResult.openReader()) {
-                                    parseSourceInputStream(finalResult.source, reader);
+                                    // Pass globalSeenHosts for cross-source deduplication
+                                    parseSourceInputStream(finalResult.source, reader, globalSeenHosts);
                                 } finally {
                                     parseSemaphore.release();
                                 }
@@ -591,6 +595,7 @@ public class SourceModel {
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
+            Timber.i("Global deduplication: %d unique hosts stored (duplicates skipped)", globalSeenHosts.size());
         }
 
         if (numberOfCopies == numberOfFailedCopies && numberOfCopies != 0) {
@@ -702,10 +707,14 @@ public class SourceModel {
             LinkedBlockingQueue<HostsSource> downloadQueue = new LinkedBlockingQueue<>();
             LinkedBlockingQueue<DownloadResult> parseQueue = new LinkedBlockingQueue<>();
 
+            // Global deduplication set - ConcurrentHashMap.newKeySet() is thread-safe for concurrent adds
+            // This ensures each host is only inserted once across ALL sources
+            final java.util.Set<String> globalSeenHosts = ConcurrentHashMap.newKeySet();
+
             // Adaptive thread pools based on hardware with optimized priorities
-            Timber.i("Adaptive parallelism: check=%d, download=%d, parse=%d, parser-threads=%d (cores=%d, heap=%dMB)",
-                    CHECK_PARALLELISM, DOWNLOAD_PARALLELISM, PARSE_PARALLELISM,
-                    PARSER_THREADS_PER_SOURCE, CPU_CORES, MAX_MEMORY / (1024 * 1024));
+            Timber.d("Pipeline start: check=%d, download=%d, parse=%d workers (cores=%d, heap=%dMB)",
+                    CHECK_PARALLELISM, DOWNLOAD_PARALLELISM, PARSE_PARALLELISM, CPU_CORES, MAX_MEMORY / (1024 * 1024));
+            long pipelineStartTime = System.currentTimeMillis();
 
             // Check and download are I/O bound - higher priority
             ExecutorService checkPool = Executors.newFixedThreadPool(CHECK_PARALLELISM,
@@ -849,7 +858,8 @@ public class SourceModel {
                                 if (!progressBuilder.isStopped()) {
                                     setState(R.string.status_parse_source, result.source.getLabel());
                                     try (BufferedReader reader = result.openReader()) {
-                                        parseSourceInputStream(result.source, reader);
+                                        // Pass globalSeenHosts for cross-source deduplication
+                                        parseSourceInputStream(result.source, reader, globalSeenHosts);
                                     }
                                     if (result.entityTag != null) {
                                         hostsSourceDao.updateEntityTag(result.source.getId(), result.entityTag);
@@ -885,7 +895,8 @@ public class SourceModel {
             }
             checkPhaseComplete.set(true);
             checkPool.shutdown();
-            Timber.d("Check phase complete: %d sources need update", sourcesNeedingUpdate.get());
+            Timber.d("Check phase done in %dms: %d sources need update",
+                    System.currentTimeMillis() - pipelineStartTime, sourcesNeedingUpdate.get());
 
             // Wait for download phase to complete
             while (downloadsRemaining.get() > 0 || !downloadQueue.isEmpty()) {
@@ -893,7 +904,7 @@ public class SourceModel {
             }
             downloadPhaseComplete.set(true);
             downloadPool.shutdown();
-            Timber.d("Download phase complete");
+            Timber.d("Download phase done in %dms", System.currentTimeMillis() - pipelineStartTime);
 
             // Wait for parse phase to complete
             try {
@@ -902,7 +913,8 @@ public class SourceModel {
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
-            Timber.d("Parse phase complete");
+            long totalTime = System.currentTimeMillis() - pipelineStartTime;
+            Timber.i("Pipeline complete in %ds with %d unique hosts", totalTime / 1000, globalSeenHosts.size());
         }
 
         int totalFailed = failedCount.get();
@@ -1361,13 +1373,26 @@ public class SourceModel {
      * @param reader      The host source reader.
      */
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader) {
+        parseSourceInputStream(hostsSource, reader, null);
+    }
+
+    /**
+     * Parse a source from its input stream to store it into database with global deduplication.
+     *
+     * @param hostsSource      The host source to parse.
+     * @param reader           The host source reader.
+     * @param globalSeenHosts  Set for global deduplication across sources (null to disable).
+     */
+    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
+                                        @Nullable java.util.Set<String> globalSeenHosts) {
         setState(R.string.status_parse_source, hostsSource.getLabel());
         long startTime = System.currentTimeMillis();
         // Pass callback to update live blocked count in UI
         new SourceLoader(hostsSource).parse(reader, this.hostListItemDao, count -> {
             progressBuilder.addParsedHosts(count);
-            postMultiPhaseProgress(progressBuilder.build());
-        });
+            MultiPhaseProgress mp = progressBuilder.build();
+            postMultiPhaseProgress(mp);
+        }, globalSeenHosts);
         long endTime = System.currentTimeMillis();
         Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");
     }
@@ -1461,13 +1486,21 @@ public class SourceModel {
         @Nullable
         public final String currentLabel;
 
+        // Monotonic percentages (never decrease)
+        public final int monotonicCheckPercent;
+        public final int monotonicDownloadPercent;
+        public final int monotonicParsePercent;
+        public final int monotonicOverallPercent;
+
         public MultiPhaseProgress(
                 int checkedCount, int totalToCheck,
                 int downloadedCount, int totalToDownload, int downloadQueued,
                 int parsedCount, int totalToParse, int parseQueued,
                 long parsedHostCount,
                 @Nullable String schedulerTaskName, boolean isPaused, boolean isStopped,
-                @Nullable String currentLabel) {
+                @Nullable String currentLabel,
+                int monotonicCheckPercent, int monotonicDownloadPercent,
+                int monotonicParsePercent, int monotonicOverallPercent) {
             this.checkedCount = checkedCount;
             this.totalToCheck = totalToCheck;
             this.downloadedCount = downloadedCount;
@@ -1481,50 +1514,51 @@ public class SourceModel {
             this.isPaused = isPaused;
             this.isStopped = isStopped;
             this.currentLabel = currentLabel;
+            this.monotonicCheckPercent = monotonicCheckPercent;
+            this.monotonicDownloadPercent = monotonicDownloadPercent;
+            this.monotonicParsePercent = monotonicParsePercent;
+            this.monotonicOverallPercent = monotonicOverallPercent;
         }
 
         public static MultiPhaseProgress idle() {
-            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null);
+            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null, 0, 0, 0, 0);
         }
 
         public boolean isActive() {
-            return totalToCheck > 0 && (checkedCount < totalToCheck || parsedCount < totalToParse);
+            // Active if any phase has work remaining (using >= for safety since counts can exceed totals)
+            return totalToCheck > 0 && (getCheckPercent() < 100 || getDownloadPercent() < 100 || getParsePercent() < 100);
         }
 
         public int getCheckPercent() {
-            return totalToCheck > 0 ? (checkedCount * 100 / totalToCheck) : 0;
+            return monotonicCheckPercent;
         }
 
         public double getCheckPercentDouble() {
-            return totalToCheck > 0 ? (checkedCount * 100.0 / totalToCheck) : 0.0;
+            return monotonicCheckPercent;
         }
 
         public int getDownloadPercent() {
-            return totalToDownload > 0 ? (downloadedCount * 100 / totalToDownload) : 0;
+            return monotonicDownloadPercent;
         }
 
         public double getDownloadPercentDouble() {
-            return totalToDownload > 0 ? (downloadedCount * 100.0 / totalToDownload) : 0.0;
+            return monotonicDownloadPercent;
         }
 
         public int getParsePercent() {
-            return totalToParse > 0 ? (parsedCount * 100 / totalToParse) : 0;
+            return monotonicParsePercent;
         }
 
         public double getParsePercentDouble() {
-            return totalToParse > 0 ? (parsedCount * 100.0 / totalToParse) : 0.0;
+            return monotonicParsePercent;
         }
 
         public int getOverallPercent() {
-            int total = totalToCheck + totalToDownload + totalToParse;
-            int done = checkedCount + downloadedCount + parsedCount;
-            return total > 0 ? (done * 100 / total) : 0;
+            return monotonicOverallPercent;
         }
 
         public double getOverallPercentDouble() {
-            int total = totalToCheck + totalToDownload + totalToParse;
-            int done = checkedCount + downloadedCount + parsedCount;
-            return total > 0 ? (done * 100.0 / total) : 0.0;
+            return monotonicOverallPercent;
         }
 
         /** Convert to legacy Progress for backward compatibility. */
@@ -1549,6 +1583,11 @@ public class SourceModel {
         private final AtomicInteger totalToParse = new AtomicInteger(0);
         private final AtomicInteger parseQueued = new AtomicInteger(0);
         private final java.util.concurrent.atomic.AtomicLong parsedHostCount = new java.util.concurrent.atomic.AtomicLong(0);
+        // High water marks - percentages NEVER decrease
+        private final AtomicInteger maxCheckPercent = new AtomicInteger(0);
+        private final AtomicInteger maxDownloadPercent = new AtomicInteger(0);
+        private final AtomicInteger maxParsePercent = new AtomicInteger(0);
+        private final AtomicInteger maxOverallPercent = new AtomicInteger(0);
         private volatile String schedulerTaskName;
         private volatile boolean isPaused;
         private volatile boolean isStopped;
@@ -1570,12 +1609,28 @@ public class SourceModel {
         public boolean isStopped() { return isStopped; }
 
         public MultiPhaseProgress build() {
+            // Calculate current percentages
+            int ttc = totalToCheck.get();
+            int ttd = totalToDownload.get();
+            int ttp = totalToParse.get();
+            int curCheck = ttc > 0 ? Math.min(100, checkedCount.get() * 100 / ttc) : 0;
+            int curDownload = ttd > 0 ? Math.min(100, downloadedCount.get() * 100 / ttd) : 0;
+            int curParse = ttp > 0 ? Math.min(100, parsedCount.get() * 100 / ttp) : 0;
+            int curOverall = (int) Math.min(100, curCheck * 0.30 + curDownload * 0.40 + curParse * 0.30);
+
+            // Update high water marks (monotonic - only increase)
+            maxCheckPercent.updateAndGet(prev -> Math.max(prev, curCheck));
+            maxDownloadPercent.updateAndGet(prev -> Math.max(prev, curDownload));
+            maxParsePercent.updateAndGet(prev -> Math.max(prev, curParse));
+            maxOverallPercent.updateAndGet(prev -> Math.max(prev, curOverall));
+
             return new MultiPhaseProgress(
                     checkedCount.get(), totalToCheck.get(),
                     downloadedCount.get(), totalToDownload.get(), downloadQueued.get(),
                     parsedCount.get(), totalToParse.get(), parseQueued.get(),
                     parsedHostCount.get(),
-                    schedulerTaskName, isPaused, isStopped, currentLabel
+                    schedulerTaskName, isPaused, isStopped, currentLabel,
+                    maxCheckPercent.get(), maxDownloadPercent.get(), maxParsePercent.get(), maxOverallPercent.get()
             );
         }
 
@@ -1589,6 +1644,10 @@ public class SourceModel {
             totalToParse.set(0);
             parseQueued.set(0);
             parsedHostCount.set(0);
+            maxCheckPercent.set(0);
+            maxDownloadPercent.set(0);
+            maxParsePercent.set(0);
+            maxOverallPercent.set(0);
             schedulerTaskName = null;
             isPaused = false;
             isStopped = false;

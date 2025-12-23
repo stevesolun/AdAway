@@ -61,7 +61,7 @@ class SourceLoader {
     }
 
     void parse(BufferedReader reader, HostListItemDao hostListItemDao) {
-        parse(reader, hostListItemDao, null);
+        parse(reader, hostListItemDao, null, null);
     }
 
     /**
@@ -71,6 +71,18 @@ class SourceLoader {
      * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
      */
     void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
+        parse(reader, hostListItemDao, onBatchInserted, null);
+    }
+
+    /**
+     * Parse hosts source and insert into database with global deduplication.
+     * @param reader The source reader.
+     * @param hostListItemDao The DAO for inserting items.
+     * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
+     * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
+     */
+    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
+               @Nullable java.util.Set<String> globalSeenHosts) {
         // Clear current hosts
         hostListItemDao.clearSourceHosts(this.source.getId());
         // Create queues with bounded capacity to prevent OOM during parallel parsing
@@ -89,7 +101,7 @@ class SourceLoader {
         );
         executorService.execute(sourceReader);
         for (int i = 0; i < PARSER_COUNT; i++) {
-            executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue));
+            executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue, globalSeenHosts));
         }
         Future<Integer> inserterFuture = executorService.submit(inserter);
         try {
@@ -141,11 +153,16 @@ class SourceLoader {
         private final HostsSource source;
         private final BlockingQueue<String> lineQueue;
         private final BlockingQueue<HostListItem> itemQueue;
+        @Nullable
+        private final java.util.Set<String> globalSeenHosts;
 
-        private HostListItemParser(HostsSource source, BlockingQueue<String> lineQueue, BlockingQueue<HostListItem> itemQueue) {
+        private HostListItemParser(HostsSource source, BlockingQueue<String> lineQueue,
+                                   BlockingQueue<HostListItem> itemQueue,
+                                   @Nullable java.util.Set<String> globalSeenHosts) {
             this.source = source;
             this.lineQueue = lineQueue;
             this.itemQueue = itemQueue;
+            this.globalSeenHosts = globalSeenHosts;
         }
 
         @Override
@@ -169,7 +186,11 @@ class SourceLoader {
                     } else {
                         HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
                         if (item != null && isRedirectionValid(item) && isHostValid(item)) {
-                            this.itemQueue.put(item);  // put() blocks if full, add() throws!
+                            // Global deduplication: skip if already seen from another source
+                            // ConcurrentHashMap.newKeySet() is thread-safe for add operations
+                            if (globalSeenHosts == null || globalSeenHosts.add(item.getHost())) {
+                                this.itemQueue.put(item);  // put() blocks if full, add() throws!
+                            }
                         }
                     }
                 } catch (InterruptedException e) {
