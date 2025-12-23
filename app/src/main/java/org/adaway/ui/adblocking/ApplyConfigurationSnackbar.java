@@ -136,7 +136,7 @@ public class ApplyConfigurationSnackbar {
             AdBlockModel adBlockModel = application.getAdBlockModel();
             try {
                 if (this.syncSources) {
-                    sourceModel.retrieveHostsSources();
+                    sourceModel.checkAndRetrieveHostsSources();
                 } else {
                     sourceModel.syncHostEntries();
                 }

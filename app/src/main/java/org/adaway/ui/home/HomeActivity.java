@@ -89,6 +89,8 @@ public class HomeActivity extends AppCompatActivity {
     private int filterListsLastTotal = -1;
     private int scheduledLastDone = -1;
     private int scheduledLastTotal = -1;
+    // Initial blocked count when progress starts (for live counter update)
+    private long initialBlockedCount = -1;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -373,10 +375,22 @@ public class HomeActivity extends AppCompatActivity {
         this.homeViewModel.getMultiPhaseProgress().observe(this, progress -> {
             if (progress == null || !progress.isActive()) {
                 removeView(this.binding.content.multiPhaseProgressContainer);
+                // Reset initial blocked count so LiveData takes over again
+                initialBlockedCount = -1;
                 return;
             }
 
             showView(this.binding.content.multiPhaseProgressContainer);
+
+            // Capture initial blocked count once when progress starts
+            if (initialBlockedCount < 0) {
+                Integer currentBlocked = this.homeViewModel.getBlockedHostCount().getValue();
+                initialBlockedCount = currentBlocked != null ? currentBlocked : 0;
+            }
+
+            // Update main blocked counter with initial + parsed hosts
+            long liveBlockedCount = initialBlockedCount + progress.parsedHostCount;
+            this.binding.content.blockedHostCounterTextView.setText(String.valueOf(liveBlockedCount));
 
             // Update overall progress bar and bird position with x.y% format
             double overallPercentDouble = progress.getOverallPercentDouble();
@@ -497,7 +511,12 @@ public class HomeActivity extends AppCompatActivity {
 
         TextView blockedHostCountTextView = this.binding.content.blockedHostCounterTextView;
         LiveData<Integer> blockedHostCount = this.homeViewModel.getBlockedHostCount();
-        Transformations.map(blockedHostCount, stringMapper).observe(this, blockedHostCountTextView::setText);
+        // Skip updating if multi-phase progress is active (we handle it there)
+        Transformations.map(blockedHostCount, stringMapper).observe(this, text -> {
+            if (initialBlockedCount < 0) {
+                blockedHostCountTextView.setText(text);
+            }
+        });
 
         TextView allowedHostCountTextView = this.binding.content.allowedHostCounterTextView;
         LiveData<Integer> allowedHostCount = this.homeViewModel.getAllowedHostCount();
@@ -553,9 +572,7 @@ public class HomeActivity extends AppCompatActivity {
         this.binding.content.sourcesCardView.setOnClickListener(this::startHostsSourcesActivity);
         this.binding.content.checkForUpdateImageView.setOnClickListener(v -> this.homeViewModel.update());
         this.binding.content.updateImageView.setOnClickListener(v -> this.homeViewModel.sync());
-        this.binding.content.logCardView.setOnClickListener(this::startDnsLogActivity);
-        this.binding.content.helpCardView.setOnClickListener(this::startHelpActivity);
-        this.binding.content.supportCardView.setOnClickListener(this::showSupportActivity);
+        // DNS Log, Help, and Donate cards moved to Settings
     }
 
     private void setUpBottomDrawer() {

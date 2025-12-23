@@ -1,0 +1,51 @@
+{
+  "project": {
+    "name": "AdAway",
+    "type": "android-native-hybrid",
+    "languages": ["c", "java", "cpp"],
+    "philosophy": "ultrathink"
+  },
+  "behavior": {
+    "codeStyle": {
+      "java": {
+        "indentation": 4,
+        "maxLineWidth": 100,
+        "fieldPrefix": "m",
+        "acronymsAsWords": true
+      },
+      "c": {
+        "indentation": 4,
+        "maxLineWidth": 100
+      }
+    },
+    "commits": {
+      "style": "atomic",
+      "tense": "present",
+      "requireWhy": true
+    }
+  },
+  "investigation": {
+    "performanceTargets": [
+      "app/src/main/java/org/adaway/db/AppDatabase.java",
+      "app/src/main/java/org/adaway/model/source/SourceModel.java",
+      "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+      "app/src/main/java/org/adaway/util/AppExecutors.java"
+    ],
+    "nativeCode": [
+      "tcpdump/",
+      "webserver/"
+    ],
+    "hotPaths": [
+      "SourceLoader.parse",
+      "HostListItemDao.insertAll",
+      "HostEntryDao.sync"
+    ]
+  },
+  "boundaries": {
+    "requireReview": [
+      "tcpdump/**",
+      "webserver/**",
+      "app/src/main/java/org/adaway/db/Migrations.java"
+    ]
+  }
+}

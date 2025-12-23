@@ -423,7 +423,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
             boolean ok = true;
             try {
                 if (source == null) {
-                    sourceModel.retrieveHostsSources();
+                    sourceModel.checkAndRetrieveHostsSources();
                 } else {
                     sourceModel.retrieveHostsSource(source.getId());
                 }

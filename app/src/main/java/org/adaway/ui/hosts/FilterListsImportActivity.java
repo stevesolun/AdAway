@@ -540,3 +540,4 @@ public class FilterListsImportActivity extends AppCompatActivity {
         return sb.toString();
     }
 }
+

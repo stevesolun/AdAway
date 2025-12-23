@@ -41,12 +41,13 @@ class SourceLoader {
     private static final String TAG = "SourceLoader";
     private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
     // Larger batch reduces Room/SQLite overhead during big imports.
-    private static final int INSERT_BATCH_SIZE = 2000;
+    // 5000 items per batch = fewer transactions = faster writes.
+    private static final int INSERT_BATCH_SIZE = 5000;
     // Queue capacity - balances throughput vs memory usage.
-    // 10,000 is plenty for flow control; 50,000 was causing OOM with parallel parsing.
-    private static final int QUEUE_CAPACITY = 10000;
-    // Parser thread count - keep moderate to avoid thread explosion when multiple sources parse
-    private static final int PARSER_COUNT = Math.min(4, Runtime.getRuntime().availableProcessors());
+    // 20,000 allows reader to stay ahead of parsers without blocking.
+    private static final int QUEUE_CAPACITY = 20000;
+    // Parser thread count - adaptive based on hardware (from SourceModel)
+    private static final int PARSER_COUNT = SourceModel.PARSER_THREADS_PER_SOURCE;
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
@@ -79,7 +80,12 @@ class SourceLoader {
         ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, PARSER_COUNT, onBatchInserted);
         ExecutorService executorService = Executors.newFixedThreadPool(
                 PARSER_COUNT + 2,
-                r -> new Thread(r, TAG)
+                r -> {
+                    Thread t = new Thread(r, TAG);
+                    // Parser threads are CPU-intensive - slightly lower priority to avoid starving I/O
+                    t.setPriority(Thread.NORM_PRIORITY - 1);
+                    return t;
+                }
         );
         executorService.execute(sourceReader);
         for (int i = 0; i < PARSER_COUNT; i++) {

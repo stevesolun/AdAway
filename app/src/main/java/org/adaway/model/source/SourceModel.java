@@ -86,19 +86,50 @@ public class SourceModel {
      * The HTTP client cache size.
      */
     private static final long CACHE_SIZE = 250L * 1024L * 1024L; // 250MB
-    private static final int MAX_PARALLEL_DOWNLOADS = 10;
+
+    // Hardware-adaptive parallelism - computed once based on device capabilities
+    private static final int CPU_CORES = Runtime.getRuntime().availableProcessors();
+    private static final long MAX_MEMORY = Runtime.getRuntime().maxMemory();
+
     /**
-     * Maximum concurrent source parsing operations.
-     * Each parse creates internal threads and queues - too many in parallel causes OOM.
-     * 2-3 is a safe balance between speed and memory on mobile devices.
+     * Check parallelism: I/O bound (network HEAD requests), scales with cores.
+     * Higher is better since most time is waiting for network.
      */
-    private static final int MAX_PARALLEL_PARSES = 2;
+    private static final int CHECK_PARALLELISM = Math.max(4, Math.min(CPU_CORES * 2, 16));
+
     /**
-     * Adaptive batch sizing for check+download pipeline.
+     * Download parallelism: Network bound, scales with cores but caps at 12.
+     * Too many causes socket exhaustion on some devices.
      */
-    private static final int INITIAL_CHECK_BATCH = 10;
-    private static final int MIN_CHECK_BATCH = 5;
-    private static final int MAX_CHECK_BATCH = 30;
+    private static final int DOWNLOAD_PARALLELISM = Math.max(6, Math.min(CPU_CORES * 2, 12));
+
+    /**
+     * Parse parallelism: Memory intensive, based on heap size.
+     * Each SourceLoader can use 50-100MB for large lists.
+     * - <128MB heap: 2 parsers
+     * - 128-256MB heap: 3 parsers
+     * - 256-512MB heap: 4 parsers
+     * - >512MB heap: 6 parsers
+     */
+    private static final int PARSE_PARALLELISM;
+    static {
+        long heapMB = MAX_MEMORY / (1024 * 1024);
+        if (heapMB < 128) {
+            PARSE_PARALLELISM = 2;
+        } else if (heapMB < 256) {
+            PARSE_PARALLELISM = 3;
+        } else if (heapMB < 512) {
+            PARSE_PARALLELISM = 4;
+        } else {
+            PARSE_PARALLELISM = 6;
+        }
+    }
+
+    /**
+     * Parser threads per source (internal to SourceLoader).
+     * Scales with cores but caps at 8 to avoid thread explosion.
+     */
+    static final int PARSER_THREADS_PER_SOURCE = Math.max(4, Math.min(CPU_CORES, 8));
     private static final String LAST_MODIFIED_HEADER = "Last-Modified";
     private static final String IF_NONE_MATCH_HEADER = "If-None-Match";
     private static final String IF_MODIFIED_SINCE_HEADER = "If-Modified-Since";
@@ -466,18 +497,18 @@ public class SourceModel {
 
         // Then handle URL sources with parallel downloads but bounded parallel parsing.
         // Downloads are network-bound (safe to parallelize), but parsing is memory-intensive.
-        // We use a semaphore to limit concurrent parsing to MAX_PARALLEL_PARSES to avoid OOM.
+        // We use adaptive parallelism based on hardware capabilities.
         if (!enabledUrlSources.isEmpty()) {
-            int downloadParallelism = Math.min(MAX_PARALLEL_DOWNLOADS, enabledUrlSources.size());
+            int downloadParallelism = Math.min(DOWNLOAD_PARALLELISM, enabledUrlSources.size());
             // Parse pool can have more threads, but semaphore limits actual concurrent parsing
-            int parsePoolSize = Math.max(MAX_PARALLEL_PARSES, Math.min(4, Runtime.getRuntime().availableProcessors()));
+            int parsePoolSize = PARSE_PARALLELISM + 1;
 
             ExecutorService downloadPool = Executors.newFixedThreadPool(downloadParallelism);
             ExecutorService parsePool = Executors.newFixedThreadPool(parsePoolSize);
             CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(downloadPool);
 
             // Semaphore limits concurrent SourceLoader.parse() calls to prevent OOM
-            final Semaphore parseSemaphore = new Semaphore(MAX_PARALLEL_PARSES);
+            final Semaphore parseSemaphore = new Semaphore(PARSE_PARALLELISM);
 
             // Submit all downloads
             for (HostsSource source : enabledUrlSources) {
@@ -508,7 +539,7 @@ public class SourceModel {
                         final DownloadResult finalResult = result;
                         parseFutures.add(parsePool.submit(() -> {
                             try {
-                                // Acquire permit before parsing - blocks if MAX_PARALLEL_PARSES already running
+                                // Acquire permit before parsing - blocks if PARSE_PARALLELISM already running
                                 parseSemaphore.acquire();
                                 try (BufferedReader reader = finalResult.openReader()) {
                                     parseSourceInputStream(finalResult.source, reader);
@@ -671,12 +702,32 @@ public class SourceModel {
             LinkedBlockingQueue<HostsSource> downloadQueue = new LinkedBlockingQueue<>();
             LinkedBlockingQueue<DownloadResult> parseQueue = new LinkedBlockingQueue<>();
 
-            // Thread pools
-            int checkParallelism = Math.min(4, Runtime.getRuntime().availableProcessors());
-            ExecutorService checkPool = Executors.newFixedThreadPool(checkParallelism);
-            ExecutorService downloadPool = Executors.newFixedThreadPool(MAX_PARALLEL_DOWNLOADS);
-            ExecutorService parsePool = Executors.newFixedThreadPool(Math.max(MAX_PARALLEL_PARSES + 1, 3));
-            Semaphore parseSemaphore = new Semaphore(MAX_PARALLEL_PARSES);
+            // Adaptive thread pools based on hardware with optimized priorities
+            Timber.i("Adaptive parallelism: check=%d, download=%d, parse=%d, parser-threads=%d (cores=%d, heap=%dMB)",
+                    CHECK_PARALLELISM, DOWNLOAD_PARALLELISM, PARSE_PARALLELISM,
+                    PARSER_THREADS_PER_SOURCE, CPU_CORES, MAX_MEMORY / (1024 * 1024));
+
+            // Check and download are I/O bound - higher priority
+            ExecutorService checkPool = Executors.newFixedThreadPool(CHECK_PARALLELISM,
+                    r -> {
+                        Thread t = new Thread(r, "CheckWorker");
+                        t.setPriority(Thread.NORM_PRIORITY + 1);
+                        return t;
+                    });
+            ExecutorService downloadPool = Executors.newFixedThreadPool(DOWNLOAD_PARALLELISM,
+                    r -> {
+                        Thread t = new Thread(r, "DownloadWorker");
+                        t.setPriority(Thread.NORM_PRIORITY + 1);
+                        return t;
+                    });
+            // Parse is CPU bound - normal priority
+            ExecutorService parsePool = Executors.newFixedThreadPool(PARSE_PARALLELISM + 1,
+                    r -> {
+                        Thread t = new Thread(r, "ParseWorker");
+                        t.setPriority(Thread.NORM_PRIORITY);
+                        return t;
+                    });
+            Semaphore parseSemaphore = new Semaphore(PARSE_PARALLELISM);
 
             // Track completion
             AtomicInteger checksRemaining = new AtomicInteger(enabledUrlSources.size());
@@ -731,7 +782,7 @@ public class SourceModel {
             }
 
             // PHASE 2: Download workers - consume from download queue, feed parse queue
-            for (int i = 0; i < MAX_PARALLEL_DOWNLOADS; i++) {
+            for (int i = 0; i < DOWNLOAD_PARALLELISM; i++) {
                 downloadPool.submit(() -> {
                     try {
                         while (!progressBuilder.isStopped()) {
@@ -776,7 +827,7 @@ public class SourceModel {
             }
 
             // PHASE 3: Parse workers - consume from parse queue
-            for (int i = 0; i < MAX_PARALLEL_PARSES + 1; i++) {
+            for (int i = 0; i < PARSE_PARALLELISM + 1; i++) {
                 parsePool.submit(() -> {
                     try {
                         while (!progressBuilder.isStopped()) {
@@ -961,6 +1012,7 @@ public class SourceModel {
 
     /**
      * Get the HTTP client to download hosts sources.
+     * Configured for high parallelism with optimized dispatcher and connection pool.
      *
      * @return The HTTP client to download hosts sources.
      */
@@ -968,7 +1020,24 @@ public class SourceModel {
     private OkHttpClient getHttpClient() {
         if (this.cachedHttpClient == null) {
             File cacheDir = new File(this.context.getCacheDir(), "okhttp");
+
+            // Configure dispatcher for high parallelism - default limits (64 total, 5 per host) are too low
+            okhttp3.Dispatcher dispatcher = new okhttp3.Dispatcher();
+            dispatcher.setMaxRequests(DOWNLOAD_PARALLELISM * 2);  // 24 for typical device
+            dispatcher.setMaxRequestsPerHost(DOWNLOAD_PARALLELISM);  // 12 for typical device
+
+            // Configure connection pool to support parallel connections
+            okhttp3.ConnectionPool connectionPool = new okhttp3.ConnectionPool(
+                    DOWNLOAD_PARALLELISM * 2,  // Max idle connections
+                    5, TimeUnit.MINUTES        // Keep-alive duration
+            );
+
             this.cachedHttpClient = new OkHttpClient.Builder()
+                    .dispatcher(dispatcher)
+                    .connectionPool(connectionPool)
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
                     .cache(new Cache(cacheDir, CACHE_SIZE))
                     .build();
         }
