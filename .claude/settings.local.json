@@ -43,7 +43,14 @@
       "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat -d -t 50 org.adaway:V \"*:S\")",
       "Bash(git push:*)",
       "Skill(review-threading)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat -d -t 500 \"*:E\")",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell \"run-as org.adaway sqlite3 databases/app.db ''SELECT COUNT\\(*\\) as total, COUNT\\(DISTINCT host\\) as unique_hosts FROM hosts_lists WHERE type = 0 AND enabled = 1''\")",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell \"run-as org.adaway sqlite3 databases/app.db ''SELECT * FROM hosts_lists WHERE type = 0 AND enabled = 1 LIMIT 5''\")",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell \"run-as org.adaway sqlite3 databases/app.db \"\"SELECT COUNT\\(*\\) FROM \\(SELECT * FROM hosts_lists WHERE type = 0 AND host LIKE ''%%'' AND \\(\\(0 == 0 AND source_id == 1\\) || \\(1 == 1\\)\\) GROUP BY host ORDER BY host ASC\\)\"\"\")",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat -d -t 500)",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell \"run-as org.adaway sqlite3 databases/app.db ''SELECT host FROM hosts_lists WHERE type = 0 AND enabled = 1 GROUP BY host LIMIT 10''\")",
+      "Bash(\"C:/Users/solun/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell \"run-as org.adaway sqlite3 databases/app.db \"\"SELECT COUNT\\(*\\) FROM hosts_lists WHERE type = 0 AND host LIKE ''%'' AND \\(\\(1 == 0 AND source_id == 1\\) || \\(1 == 1\\)\\)\"\"\")"
     ]
   }
 }
