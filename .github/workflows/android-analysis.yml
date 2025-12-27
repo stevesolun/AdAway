@@ -51,7 +51,7 @@ jobs:
     - name: Install Android SDK/NDK (required for native modules)
       shell: bash
       run: |
-          set -eu
+          set -u
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
           echo "ANDROID_HOME=${ANDROID_HOME:-}"
 
@@ -82,12 +82,39 @@ jobs:
           fi
           echo "Using sdkmanager: $SDKMANAGER"
 
-          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses > /dev/null
-          "$SDKMANAGER" --sdk_root="$SDKROOT" --install \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "platform-tools" \
+          set +e
+          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses
+          lic_rc=$?
+          set -e
+          if [ $lic_rc -ne 0 ]; then
+            echo "::warning::sdkmanager --licenses exited with code $lic_rc (continuing)"
+          fi
+
+          pkgs=(
+            "platforms;android-34"
+            "build-tools;34.0.0"
+            "platform-tools"
             "ndk;27.2.12479018"
+          )
+
+          set +e
+          install_rc=0
+          for attempt in 1 2 3; do
+            echo "Installing SDK packages (attempt $attempt/3)..."
+            "$SDKMANAGER" --sdk_root="$SDKROOT" --install "${pkgs[@]}"
+            install_rc=$?
+            if [ $install_rc -eq 0 ]; then
+              break
+            fi
+            echo "::warning::sdkmanager install failed (exit $install_rc) on attempt $attempt; retrying..."
+            sleep $((attempt * 15))
+          done
+          set -e
+          if [ $install_rc -ne 0 ]; then
+            echo "::error::sdkmanager install failed after retries (exit $install_rc)"
+            "$SDKMANAGER" --sdk_root="$SDKROOT" --list || true
+            exit $install_rc
+          fi
 
     # Build from command line as Autobuild fails
     - run: |
