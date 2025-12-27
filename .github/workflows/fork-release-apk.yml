@@ -27,12 +27,22 @@ jobs:
       - name: Install Android SDK/NDK (required for native modules)
         shell: bash
         run: |
-          sdkmanager --install \
+          set -eu
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+
+          SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
+          echo "Using SDK root: $SDKROOT"
+
+          # Accept licenses first (some packages fail to install otherwise).
+          yes | sdkmanager --sdk_root="$SDKROOT" --licenses > /dev/null
+
+          sdkmanager --sdk_root="$SDKROOT" --install \
             "platforms;android-34" \
             "build-tools;34.0.0" \
+            "platform-tools" \
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
-          yes | sdkmanager --licenses > /dev/null
 
       # NOTE: We avoid step-level `if:` expressions referencing `secrets.*` because
       # GitHub can mark the workflow as invalid in forks ("Unrecognized named-value: 'secrets'").
