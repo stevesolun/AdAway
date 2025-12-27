@@ -1,4 +1,4 @@
-name: Fork APK Release
+name: Release APK (tagged)
 
 on:
   push:
@@ -21,16 +21,59 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Decode signing keystore (optional)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.keystore"
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "$HOME/.keystore/release.jks"
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Configure Gradle signing (optional)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.gradle"
+          cat >> "$HOME/.gradle/gradle.properties" <<EOF
+          signingStoreLocation=$HOME/.keystore/release.jks
+          signingStorePassword=${SIGNING_STORE_PASSWORD}
+          signingKeyAlias=${SIGNING_KEY_ALIAS}
+          signingKeyPassword=${SIGNING_KEY_PASSWORD}
+          EOF
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build release APK (signed if secrets provided)
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Select APK artifact
+        id: apk
+        shell: bash
+        run: |
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            echo "path=app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+          else
+            echo "path=app/build/outputs/apk/release/app-release-unsigned.apk" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create GitHub Release + upload APK
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
           files: |
-            app/build/outputs/apk/debug/app-debug.apk
+            ${{ steps.apk.outputs.path }}
+
+      - name: Delete older releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        with:
+          keep_latest: 3
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
 

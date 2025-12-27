@@ -57,9 +57,24 @@ This fork adds an enhanced filter management experience:
 ### Install this fork (download APK)
 
 - Download the latest APK from [Releases (latest)](https://github.com/stevesolun/AdAway/releases/latest).
+  - Prefer **`app-release.apk`** (signed). If you only see **`app-release-unsigned.apk`**, signing secrets are not configured yet (see CI/CD notes below).
 - On Android: open the downloaded APK and allow **Install unknown apps** when prompted.
   - If you see an error like “App not installed” / “Signature conflict”, uninstall the previous `org.adaway` app first, then install the APK again.
 - Verify it installed: open AdAway and confirm the version shown on the Home screen (top-right).
+
+### CI/CD (automatic APK releases)
+
+This repo includes a GitHub Actions workflow that publishes a Release whenever you push a tag like `v13.0.1`.
+
+- **Tag + release**: push `v*` tags → builds `assembleRelease` → creates a GitHub Release with the APK attached
+- **Cleanup**: automatically deletes older releases (keeps the latest 3), and can be triggered manually via **Actions → “Cleanup old releases”**
+
+To publish **signed** APKs (recommended), add these repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64` (base64 of your `.jks`)
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
 
 There are two kinds of release:
 * The preview builds: on the bleeding edge of development - for testers or adventurous

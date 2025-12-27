@@ -1,0 +1,30 @@
+name: Cleanup old releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep_latest:
+        description: "How many releases to keep"
+        required: true
+        default: "3"
+      delete_tags:
+        description: "Also delete tags for removed releases"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete older releases
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        with:
+          keep_latest: ${{ inputs.keep_latest }}
+          delete_tags: ${{ inputs.delete_tags }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
