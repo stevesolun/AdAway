@@ -29,3 +29,6 @@ build
 /uidump*.xml
 /win.txt
 /nul
+
+# Local release signing material (never commit)
+.release/
