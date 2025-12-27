@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
+    <string name="home">Home</string>
+    <string name="credit_line_home">Brought with love by Steve Solun • Built on AdAway by the AdAway contributors</string>
+    <string name="about_credits">Brought with love by Steve Solun.</string>
+    <string name="about_attribution">This app is built on AdAway. Credit to the original AdAway project and its contributors.</string>
     <!--Buttons-->
     <string name="button_exit">Exit</string>
     <string name="button_close">Close</string>

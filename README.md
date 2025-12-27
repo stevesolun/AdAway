@@ -9,19 +9,19 @@
 AdAway is an open source ad blocker for Android using the hosts file and local vpn.
 
 [<img src="metadata/en-US/phoneScreenshots/screenshot1.png"
-    alt="Home screen (progress)"
+    alt="Home screen (glass + neon)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot1.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot2.png"
-    alt="Hosts sources (categorized)"
+    alt="Filter catalog (Safe/Balanced/Aggressive)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot2.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot3.png"
     alt="FilterLists import"
     height="256">](metadata/en-US/phoneScreenshots/screenshot3.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot4.png"
-    alt="Schedule manager"
+    alt="Schedule manager (glass)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot4.png)
 [<img src="metadata/en-US/phoneScreenshots/screenshot5.png"
-    alt="Subscribe-all running"
+    alt="Update progress (neon)"
     height="256">](metadata/en-US/phoneScreenshots/screenshot5.png)
 
 For more information visit https://adaway.org

@@ -70,6 +70,12 @@
             app:key="pref_donate"
             app:title="@string/support_label"
             app:summary="@string/pref_donate_summary" />
+
+        <Preference
+            app:icon="@drawable/ic_info_24dp"
+            app:key="pref_about"
+            app:title="@string/pref_about_title"
+            app:summary="@string/credit_line_home" />
     </PreferenceCategory>
 
 </PreferenceScreen>

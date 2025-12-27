@@ -1,23 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material theming light theme -->
-    <color name="primary">#ef5350</color>
-    <color name="primaryVariant">#e53935</color>
-    <color name="onPrimary">#000000</color>
+    <!-- Deep / royal blue theme -->
+    <color name="primary">#1E3A8A</color>
+    <color name="primaryVariant">#1D4ED8</color>
+    <color name="onPrimary">#FFFFFF</color>
+    <!-- Keep the bird/logo red (do not tie it to primary) -->
+    <color name="logo_red">#B71C1C</color>
+    <color name="logo_bg_red">#8B0000</color>
+    <!-- Launcher icon background (deep blue box) -->
+    <color name="logo_bg_blue">#061B3A</color>
+    <!-- Status badge colors (deep) -->
+    <color name="status_red">#8B0000</color>
+    <color name="status_green">#006400</color>
+    <!-- Modern UI surfaces (glassmorphism) -->
+    <!-- Marine / royal deep blues (avoid near-black) -->
+    <color name="ui_bg">#061B3A</color>
+    <color name="ui_surface">#0B2A5A</color>
+    <color name="ui_glass">#331D4ED8</color>
+    <color name="ui_glass_stroke">#33FFFFFF</color>
+    <color name="ui_text_primary">#EAF0FF</color>
+    <color name="ui_text_secondary">#B8C3E6</color>
+    <!-- Neon gradient accents -->
+    <color name="ui_neon_start">#FF4FD8FF</color>
+    <color name="ui_neon_mid">#FF7C3AED</color>
+    <color name="ui_neon_end">#FFFF3D8D</color>
     <!-- App icon colors -->
-    <color name="drawer_icon">#B71C1C</color>
+    <color name="drawer_icon">#1D4ED8</color>
     <!-- Host list state -->
     <color name="blocked">#FF5252</color>
     <color name="allowed">#64FFDA</color>
-    <color name="redirected">#536DFE</color>
+    <!-- Redirect accent (avoid gray/washed-out tones) -->
+    <color name="redirected">#1D4ED8</color>
     <!-- Common UI elements -->
-    <color name="selected_background">#78b71c1c</color>
+    <color name="selected_background">#331D4ED8</color>
     <color name="shortcut_background">#f5f5f5</color>
     <color name="card_spacer">#3F000000</color>
     <!-- Cards -->
     <color name="cardBackground">#FF424242</color>
     <color name="cardEnabledBackground">#388E3C</color>
-    <color name="welcomeBackground">#B71C1C</color>
+    <color name="welcomeBackground">#1E3A8A</color>
     <!-- Notifications -->
-    <color name="notification">#b71c1c</color>
+    <color name="notification">#1D4ED8</color>
 </resources>

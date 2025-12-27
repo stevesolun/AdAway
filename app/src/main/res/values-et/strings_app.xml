@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AdAway</string>
-    <string name="app_description">Avatud lähtekoodiga reklaamiblokeerija</string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">Avatud lÃ¤htekoodiga reklaamiblokeerija</string>
     <string name="app_logo">AdAway logo</string>
 </resources>
+

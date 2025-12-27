@@ -1,10 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material theming black theme -->
-    <color name="primary">#B71C1C</color>
-    <color name="primaryVariant">#e53935</color>
+    <!-- Deep / royal blue theme (night) -->
+    <color name="primary">#0B1F55</color>
+    <color name="primaryVariant">#1D4ED8</color>
     <color name="onPrimary">#ffffff</color>
+    <!-- Keep the bird/logo red (do not tie it to primary) -->
+    <color name="logo_red">#B71C1C</color>
+    <color name="logo_bg_red">#8B0000</color>
+    <!-- Launcher icon background (deep blue box) -->
+    <color name="logo_bg_blue">#061B3A</color>
+    <!-- Status badge colors (deep) -->
+    <color name="status_red">#8B0000</color>
+    <color name="status_green">#006400</color>
+    <!-- Modern UI surfaces (glassmorphism) -->
+    <!-- Marine / royal deep blues (avoid near-black) -->
+    <color name="ui_bg">#061B3A</color>
+    <color name="ui_surface">#0B2A5A</color>
+    <color name="ui_glass">#331D4ED8</color>
+    <color name="ui_glass_stroke">#33FFFFFF</color>
+    <color name="ui_text_primary">#EAF0FF</color>
+    <color name="ui_text_secondary">#B8C3E6</color>
+    <!-- Neon gradient accents -->
+    <color name="ui_neon_start">#FF4FD8FF</color>
+    <color name="ui_neon_mid">#FF7C3AED</color>
+    <color name="ui_neon_end">#FFFF3D8D</color>
     <color name="blocked">#EF9A9A</color>
     <color name="allowed">#80CBC4</color>
-    <color name="redirected">#9FA8DA</color>
+    <!-- Redirect accent (avoid gray/washed-out tones) -->
+    <color name="redirected">#1D4ED8</color>
 </resources>

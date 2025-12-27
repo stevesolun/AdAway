@@ -23,6 +23,14 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 
+import java.util.concurrent.Executor;
+
+import java.text.NumberFormat;
+import java.util.Locale;
+
+import org.adaway.db.AppDatabase;
+import org.adaway.util.AppExecutors;
+
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
@@ -30,6 +38,7 @@ import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.Transformations;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.work.WorkInfo;
@@ -91,6 +100,27 @@ public class HomeActivity extends AppCompatActivity {
     private int scheduledLastTotal = -1;
     // Initial blocked count when progress starts (for live counter update)
     private long initialBlockedCount = -1;
+
+    // Enforce comma grouping (1,000 / 1,000,000) as requested.
+    private static final NumberFormat COUNT_FORMAT = NumberFormat.getIntegerInstance(Locale.US);
+    // Use a non-disk executor for quick counter reads so it doesn't get starved by long DB import writes on diskIO.
+    private static final Executor COUNTS_EXECUTOR = AppExecutors.getInstance().networkIO();
+
+    // Host counter LiveData observers (detached during bulk import to avoid expensive DB COUNT queries)
+    @Nullable
+    private LiveData<Integer> blockedHostCountLiveData;
+    @Nullable
+    private LiveData<Integer> allowedHostCountLiveData;
+    @Nullable
+    private LiveData<Integer> redirectHostCountLiveData;
+    @Nullable
+    private Observer<Integer> blockedHostCountObserver;
+    @Nullable
+    private Observer<Integer> allowedHostCountObserver;
+    @Nullable
+    private Observer<Integer> redirectHostCountObserver;
+    private boolean hostCountersAttached = false;
+    private boolean hostCountersPrimedDuringImport = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -313,6 +343,14 @@ public class HomeActivity extends AppCompatActivity {
 
     private void bindSourceModelProgress() {
         this.homeViewModel.getSourceProgress().observe(this, progress -> {
+            // Always hide legacy progress text/bar when using MultiPhase UI
+            MultiPhaseProgress multiPhase = this.homeViewModel.getMultiPhaseProgress().getValue();
+            if (multiPhase != null && multiPhase.isActive()) {
+                removeView(this.binding.content.filterListsSubscribeProgressTextView);
+                removeView(this.binding.content.filterListsSubscribeProgressBar);
+                return;
+            }
+
             if (progress == null || !progress.isActive()) {
                 sourceModelProgressActive = false;
                 // Only hide if nothing else is currently showing in the shared progress UI.
@@ -325,9 +363,8 @@ public class HomeActivity extends AppCompatActivity {
             sourceModelProgressActive = true;
 
             // Skip legacy progress display when multi-phase progress is active (avoid duplicate/confusing percentages)
-            MultiPhaseProgress multiPhase = this.homeViewModel.getMultiPhaseProgress().getValue();
+            // Double check inside the observer in case of race condition
             if (multiPhase != null && multiPhase.isActive()) {
-                // Multi-phase UI is showing, hide legacy progress to avoid confusion
                 removeView(this.binding.content.filterListsSubscribeProgressTextView);
                 removeView(this.binding.content.filterListsSubscribeProgressBar);
                 return;
@@ -386,25 +423,85 @@ public class HomeActivity extends AppCompatActivity {
                 removeView(this.binding.content.multiPhaseProgressContainer);
                 // Reset initial blocked count so LiveData takes over again
                 initialBlockedCount = -1;
+                hostCountersPrimedDuringImport = false;
+                // Re-attach DB-backed host counters now that import is done.
+                attachHostCounterObservers();
                 return;
             }
 
             showView(this.binding.content.multiPhaseProgressContainer);
+            // Detach DB-backed host counters during import to avoid expensive COUNT queries on every batch insert.
+            detachHostCounterObservers();
+            primeCountersOnceDuringImport();
 
             // Capture initial blocked count once when progress starts
             if (initialBlockedCount < 0) {
-                Integer currentBlocked = this.homeViewModel.getBlockedHostCount().getValue();
-                initialBlockedCount = currentBlocked != null ? currentBlocked : 0;
+                // First check if we have a cached value in ViewModel (survives rotation)
+                long cached = this.homeViewModel.getCachedInitialBlockedCount();
+                if (cached >= 0) {
+                    initialBlockedCount = cached;
+                } else {
+                    // Try to get from LiveData
+                    Integer currentBlocked = this.homeViewModel.getBlockedHostCount().getValue();
+                    if (currentBlocked != null && currentBlocked > 0) {
+                        initialBlockedCount = currentBlocked;
+                        this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
+                    } else {
+                        // Fallback to current text if LiveData isn't ready or returns 0 (which might be wrong during init)
+                        try {
+                            String text = this.binding.content.blockedHostCounterTextView.getText().toString();
+                            long parsed = Long.parseLong(text.replaceAll("[^0-9]", ""));
+                            if (parsed > 0) {
+                                initialBlockedCount = parsed;
+                                this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
+                            } else if (currentBlocked != null) {
+                                // Real 0 from LiveData and text is 0 -> accept 0
+                                initialBlockedCount = 0;
+                                this.homeViewModel.setCachedInitialBlockedCount(0);
+                            }
+                        } catch (Exception e) {
+                            // If parsing fails and we have no LiveData, stay at -1 to try again next update
+                            if (currentBlocked != null) {
+                                initialBlockedCount = currentBlocked;
+                                this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
+                            }
+                        }
+                    }
+                }
+
+                // If we still don't have a useful baseline (e.g. LiveData never delivered before we detached),
+                // do a best-effort one-shot count on a non-disk executor so it doesn't get starved.
+                if (initialBlockedCount <= 0) {
+                    COUNTS_EXECUTOR.execute(() -> {
+                        try {
+                            int blockedNow = AppDatabase.getInstance(this).hostEntryDao().getBlockedEntryCountNow();
+                            AppExecutors.getInstance().mainThread().execute(() -> {
+                                if (initialBlockedCount <= 0) {
+                                    initialBlockedCount = blockedNow;
+                                    this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
+                                    // Update UI immediately (don't wait for the next progress tick).
+                                    this.binding.content.blockedHostCounterTextView.setText(formatCount(blockedNow));
+                                }
+                            });
+                        } catch (Exception ignored) {
+                        }
+                    });
+                }
             }
 
             // Update main blocked counter with initial + parsed hosts
-            long liveBlockedCount = initialBlockedCount + progress.parsedHostCount;
-            this.binding.content.blockedHostCounterTextView.setText(String.valueOf(liveBlockedCount));
+            // parsedHostCount is the running count for the *current* import.
+            // To avoid showing "0" at the start of an import, use the last known blocked count as a baseline,
+            // but DO NOT add them (that would double count). Instead, show the max until the import catches up.
+            long baseline = Math.max(0, initialBlockedCount);
+            long liveBlockedCount = Math.max(baseline, progress.parsedHostCount);
+            this.binding.content.blockedHostCounterTextView.setText(formatCount(liveBlockedCount));
 
             // Update overall progress bar and bird position with x.y% format
             double overallPercentDouble = progress.getOverallPercentDouble();
             int overallPercent = (int) overallPercentDouble;
-            this.binding.content.overallProgressBar.setProgressCompat(overallPercent, true);
+            this.binding.content.overallProgressBar.setMax(100);
+            this.binding.content.overallProgressBar.setProgress(overallPercent);
             // Show live blocked count during update
             String progressText;
             if (progress.parsedHostCount > 0) {
@@ -428,23 +525,34 @@ public class HomeActivity extends AppCompatActivity {
             progressFrame.post(() -> {
                 int barWidth = progressBar.getWidth();
                 int birdWidth = birdIcon.getWidth();
-                // Calculate bird position: from left edge to right edge minus bird width
-                int maxTravel = barWidth - birdWidth;
-                int birdX = marginStartPx + (int) (maxTravel * capturedPercent / 100.0f);
+                // Keep the bird fully inside the bar "track" (respect both start/end margins).
+                int available = barWidth - (2 * marginStartPx) - birdWidth;
+                if (available < 0) available = 0;
+                int birdX = marginStartPx + (int) (available * capturedPercent / 100.0f);
                 birdIcon.setTranslationX(birdX);
             });
 
-            // Update individual phase progress bars with x.y% format
-            double checkPercent = progress.getCheckPercentDouble();
-            this.binding.content.checkProgressBar.setProgressCompat((int) checkPercent, true);
-            this.binding.content.checkPhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", checkPercent));
+            // Update individual phase progress bars
+            // Hide Checking phase (user requested removal)
+            this.binding.content.checkProgressBar.setVisibility(View.GONE);
+            this.binding.content.checkPhasePercent.setVisibility(View.GONE);
+            this.binding.content.checkPhaseLabel.setVisibility(View.GONE);
 
-            double downloadPercent = progress.getDownloadPercentDouble();
-            this.binding.content.downloadProgressBar.setProgressCompat((int) downloadPercent, true);
-            this.binding.content.downloadPhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", downloadPercent));
+            // Download Progress:
+            // The "Download" phase in UI now represents the progress of processing all sources (Check + Download).
+            // We use checkedCount / totalToCheck to match the "X/Y" text displayed to the user.
+            int totalToCheck = progress.totalToCheck;
+            int checked = progress.checkedCount;
+            int downloadBarProgress = totalToCheck > 0 ? (int) ((long) checked * 100 / totalToCheck) : 0;
+            this.binding.content.downloadProgressBar.setMax(100);
+            this.binding.content.downloadProgressBar.setProgress(downloadBarProgress);
+            
+            // Show "X/Y" for sources processed
+            this.binding.content.downloadPhasePercent.setText(String.format(java.util.Locale.ROOT, "%d/%d", checked, totalToCheck));
 
             double parsePercent = progress.getParsePercentDouble();
-            this.binding.content.parseProgressBar.setProgressCompat((int) parsePercent, true);
+            this.binding.content.parseProgressBar.setMax(100);
+            this.binding.content.parseProgressBar.setProgress((int) parsePercent);
             this.binding.content.parsePhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
 
             // Show scheduler task info if present
@@ -516,24 +624,131 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void bindHostCounter() {
-        Function1<Integer, CharSequence> stringMapper = count -> Integer.toString(count);
+        // Keep references so we can detach/attach during bulk import.
+        this.blockedHostCountLiveData = this.homeViewModel.getBlockedHostCount();
+        this.allowedHostCountLiveData = this.homeViewModel.getAllowedHostCount();
+        this.redirectHostCountLiveData = this.homeViewModel.getRedirectHostCount();
 
         TextView blockedHostCountTextView = this.binding.content.blockedHostCounterTextView;
-        LiveData<Integer> blockedHostCount = this.homeViewModel.getBlockedHostCount();
-        // Skip updating if multi-phase progress is active (we handle it there)
-        Transformations.map(blockedHostCount, stringMapper).observe(this, text -> {
-            if (initialBlockedCount < 0) {
-                blockedHostCountTextView.setText(text);
+        TextView allowedHostCountTextView = this.binding.content.allowedHostCounterTextView;
+        TextView redirectHostCountTextView = this.binding.content.redirectHostCounterTextView;
+
+        this.blockedHostCountObserver = count -> {
+            if (count == null) return;
+            // When a multi-phase update is active, we show the live counter from parsing progress instead.
+            if (initialBlockedCount >= 0) return;
+            blockedHostCountTextView.setText(formatCount(count));
+        };
+        this.allowedHostCountObserver = count -> {
+            if (count == null) return;
+            allowedHostCountTextView.setText(formatCount(count));
+        };
+        this.redirectHostCountObserver = count -> {
+            if (count == null) return;
+            redirectHostCountTextView.setText(formatCount(count));
+        };
+
+        attachHostCounterObservers();
+
+        // Ensure we never show blank/0 due to Room LiveData races on cold start while an update is already active.
+        // (The DB often has the correct counts; LiveData might not deliver before we detach observers for import.)
+        refreshHostCountersOnce();
+    }
+
+    private void refreshHostCountersOnce() {
+        // Avoid kicking off multiple refresh jobs during rapid relaunches.
+        if (hostCountersPrimedDuringImport) return;
+        hostCountersPrimedDuringImport = true;
+        COUNTS_EXECUTOR.execute(() -> {
+            try {
+                // Allowed/redirect counts are small and quick. Blocked can be huge; rely on LiveData or progress update.
+                int allowedNow = AppDatabase.getInstance(this).hostsListItemDao().getAllowedHostCountNow();
+                int redirectNow = AppDatabase.getInstance(this).hostsListItemDao().getRedirectHostCountNow();
+                AppExecutors.getInstance().mainThread().execute(() -> {
+                    this.binding.content.allowedHostCounterTextView.setText(formatCount(allowedNow));
+                    this.binding.content.redirectHostCounterTextView.setText(formatCount(redirectNow));
+                    // If blocked text is still blank (first launch), at least show 0 until LiveData/progress updates it.
+                    CharSequence blockedText = this.binding.content.blockedHostCounterTextView.getText();
+                    if (blockedText == null || blockedText.length() == 0) {
+                        this.binding.content.blockedHostCounterTextView.setText(formatCount(0));
+                    }
+                });
+            } catch (Exception ignored) {
+                // Best-effort; LiveData should populate eventually.
             }
         });
+    }
 
-        TextView allowedHostCountTextView = this.binding.content.allowedHostCounterTextView;
-        LiveData<Integer> allowedHostCount = this.homeViewModel.getAllowedHostCount();
-        Transformations.map(allowedHostCount, stringMapper).observe(this, allowedHostCountTextView::setText);
+    private void attachHostCounterObservers() {
+        if (hostCountersAttached) return;
+        if (this.blockedHostCountLiveData != null && this.blockedHostCountObserver != null) {
+            this.blockedHostCountLiveData.observe(this, this.blockedHostCountObserver);
+        }
+        if (this.allowedHostCountLiveData != null && this.allowedHostCountObserver != null) {
+            this.allowedHostCountLiveData.observe(this, this.allowedHostCountObserver);
+        }
+        if (this.redirectHostCountLiveData != null && this.redirectHostCountObserver != null) {
+            this.redirectHostCountLiveData.observe(this, this.redirectHostCountObserver);
+        }
+        hostCountersAttached = true;
+    }
 
-        TextView redirectHostCountTextView = this.binding.content.redirectHostCounterTextView;
-        LiveData<Integer> redirectHostCount = this.homeViewModel.getRedirectHostCount();
-        Transformations.map(redirectHostCount, stringMapper).observe(this, redirectHostCountTextView::setText);
+    private void detachHostCounterObservers() {
+        if (!hostCountersAttached) return;
+        if (this.blockedHostCountLiveData != null && this.blockedHostCountObserver != null) {
+            this.blockedHostCountLiveData.removeObserver(this.blockedHostCountObserver);
+        }
+        if (this.allowedHostCountLiveData != null && this.allowedHostCountObserver != null) {
+            this.allowedHostCountLiveData.removeObserver(this.allowedHostCountObserver);
+        }
+        if (this.redirectHostCountLiveData != null && this.redirectHostCountObserver != null) {
+            this.redirectHostCountLiveData.removeObserver(this.redirectHostCountObserver);
+        }
+        hostCountersAttached = false;
+    }
+
+    private void primeCountersOnceDuringImport() {
+        if (hostCountersPrimedDuringImport) return;
+        hostCountersPrimedDuringImport = true;
+
+        // Use last known LiveData values if already computed.
+        Integer blocked = blockedHostCountLiveData != null ? blockedHostCountLiveData.getValue() : null;
+        Integer allowed = allowedHostCountLiveData != null ? allowedHostCountLiveData.getValue() : null;
+        Integer redirected = redirectHostCountLiveData != null ? redirectHostCountLiveData.getValue() : null;
+        if (blocked != null && initialBlockedCount < 0) {
+            initialBlockedCount = blocked;
+            this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
+            this.binding.content.blockedHostCounterTextView.setText(formatCount(blocked));
+        }
+        if (allowed != null) {
+            this.binding.content.allowedHostCounterTextView.setText(formatCount(allowed));
+        }
+        if (redirected != null) {
+            this.binding.content.redirectHostCounterTextView.setText(formatCount(redirected));
+        }
+        if (blocked != null && allowed != null && redirected != null) {
+            return;
+        }
+
+        // Otherwise do a single background fetch (one-shot) and set the text.
+        // IMPORTANT: Use COUNTS_EXECUTOR so it doesn't get starved behind long-running import work on diskIO.
+        COUNTS_EXECUTOR.execute(() -> {
+            try {
+                int allowedNow = AppDatabase.getInstance(this).hostsListItemDao().getAllowedHostCountNow();
+                int redirectNow = AppDatabase.getInstance(this).hostsListItemDao().getRedirectHostCountNow();
+                AppExecutors.getInstance().mainThread().execute(() -> {
+                    this.binding.content.allowedHostCounterTextView.setText(formatCount(allowedNow));
+                    this.binding.content.redirectHostCounterTextView.setText(formatCount(redirectNow));
+                });
+            } catch (Exception ignored) {
+                // Best-effort: if this fails, the counters will update when import completes and observers reattach.
+            }
+        });
+    }
+
+    private boolean progressIsActive() {
+        MultiPhaseProgress p = this.homeViewModel.getMultiPhaseProgress().getValue();
+        return p != null && p.isActive();
     }
 
     private void bindSourceCounter() {
@@ -687,9 +902,15 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void notifyAdBlocked(boolean adBlocked) {
-        int color = adBlocked ? getResources().getColor(R.color.primary, null) : Color.GRAY;
-        this.binding.content.headerFrameLayout.setBackgroundColor(color);
-        this.binding.fab.setImageResource(adBlocked ? R.drawable.ic_pause_24dp : R.drawable.logo);
+        // Keep Home background consistently deep blue (no gray header), regardless of state.
+        this.binding.content.headerFrameLayout.setBackgroundColor(getResources().getColor(R.color.ui_bg, null));
+        // Bird-only toggle button (no box background), always deep red.
+        this.binding.fab.setImageResource(R.drawable.icon_foreground_red);
+    }
+
+    private static String formatCount(long value) {
+        COUNT_FORMAT.setGroupingUsed(true);
+        return COUNT_FORMAT.format(value);
     }
 
     private void notifyError(HostError error) {

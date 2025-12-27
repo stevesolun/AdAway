@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="@color/ui_bg">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -16,9 +16,14 @@
             android:id="@+id/catalogToolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            android:background="@color/ui_bg"
             app:navigationIcon="@drawable/baseline_clear_all_24"
+            app:navigationIconTint="@color/ui_text_primary"
+            app:titleTextColor="@color/ui_text_primary"
+            app:subtitleTextColor="@color/ui_text_secondary"
+            app:itemIconTint="@color/ui_text_primary"
             app:title="@string/filter_catalog_title"
-            app:titleTextColor="?attr/colorOnSurface" />
+            />
 
         <!-- Search Bar -->
         <com.google.android.material.textfield.TextInputLayout
@@ -29,12 +34,17 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
+            app:boxBackgroundColor="@color/ui_glass"
+            app:boxStrokeColor="@color/ui_glass_stroke"
+            app:boxStrokeWidth="1dp"
+            app:boxStrokeWidthFocused="1dp"
             app:boxCornerRadiusBottomEnd="24dp"
             app:boxCornerRadiusBottomStart="24dp"
             app:boxCornerRadiusTopEnd="24dp"
             app:boxCornerRadiusTopStart="24dp"
             app:hintEnabled="false"
-            app:startIconDrawable="@drawable/baseline_search_24">
+            app:startIconDrawable="@drawable/baseline_search_24"
+            app:startIconTint="@color/ui_text_secondary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/searchEditText"
@@ -43,7 +53,9 @@
                 android:hint="@string/filter_search_hint"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
-                android:maxLines="1" />
+                android:maxLines="1"
+                android:textColor="@color/ui_text_primary"
+                android:textColorHint="@color/ui_text_secondary" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -77,6 +89,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/filter_preset_safe"
+                    app:chipBackgroundColor="@color/ui_glass"
+                    android:textColor="@color/ui_text_primary"
                     app:chipIcon="@drawable/baseline_check_24" />
 
                 <com.google.android.material.chip.Chip
@@ -85,6 +99,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/filter_preset_balanced"
+                    app:chipBackgroundColor="@color/ui_glass"
+                    android:textColor="@color/ui_text_primary"
                     app:chipIcon="@drawable/baseline_check_24" />
 
                 <com.google.android.material.chip.Chip
@@ -93,6 +109,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/filter_preset_aggressive"
+                    app:chipBackgroundColor="@color/ui_glass"
+                    android:textColor="@color/ui_text_primary"
                     app:chipIcon="@drawable/baseline_check_24" />
 
                 <com.google.android.material.chip.Chip
@@ -102,6 +120,8 @@
                     android:layout_height="wrap_content"
                     android:checked="true"
                     android:text="@string/filter_preset_custom"
+                    app:chipBackgroundColor="@color/ui_glass"
+                    android:textColor="@color/ui_text_primary"
                     app:chipIcon="@drawable/baseline_edit_24" />
 
             </com.google.android.material.chip.ChipGroup>
@@ -118,7 +138,7 @@
             android:paddingBottom="8dp"
             android:text="@string/filter_catalog_subtitle"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:textColor="@color/ui_text_secondary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/importFromFilterListsButton"
@@ -128,7 +148,9 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
-            android:text="@string/filterlists_import" />
+            android:text="@string/filterlists_import"
+            android:textColor="@color/ui_text_primary"
+            app:strokeColor="@color/ui_glass_stroke" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/catalogRecyclerView"

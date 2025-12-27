@@ -4,15 +4,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/ui_bg">
 
     <FrameLayout
         android:id="@+id/headerFrameLayout"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:background="?attr/colorPrimary"
+        android:layout_height="240dp"
+        android:background="@drawable/bg_home_hero"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_percent="0.25"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -26,6 +26,7 @@
         android:layout_marginEnd="8dp"
         android:textAlignment="viewEnd"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+        android:textColor="@color/ui_text_secondary"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Version" />
@@ -38,10 +39,10 @@
         android:contentDescription="@string/app_logo"
         app:layout_constraintBottom_toTopOf="@+id/allowedHostCardView"
         app:layout_constraintDimensionRatio="1"
-        app:layout_constraintHeight_percent="0.1"
+        app:layout_constraintHeight_percent="0.15"
         app:layout_constraintStart_toStartOf="@+id/headerFrameLayout"
         app:layout_constraintTop_toTopOf="@+id/headerFrameLayout"
-        app:srcCompat="@mipmap/icon_round" />
+        app:srcCompat="@drawable/icon_foreground_red" />
 
     <TextView
         android:id="@+id/appNameTextView"
@@ -52,6 +53,8 @@
         android:layout_marginEnd="8dp"
         android:text="@string/app_name"
         android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        android:textColor="@color/ui_text_primary"
+        android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@+id/appDescriptionTextView"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintHorizontal_bias="0.5"
@@ -67,25 +70,47 @@
         android:layout_marginBottom="8dp"
         android:text="@string/app_description"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+        android:textColor="@color/ui_text_secondary"
+        android:maxLines="2"
+        android:ellipsize="end"
         app:layout_constraintBottom_toTopOf="@+id/headerFrameLayout"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/logoImageView"
         app:layout_constraintTop_toBottomOf="@+id/appNameTextView" />
 
-    <androidx.cardview.widget.CardView
+    <!-- Credit line moved to bottom to avoid overlaying header content -->
+    <TextView
+        android:id="@+id/creditTextView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="96dp"
+        android:gravity="center"
+        android:text="@string/credit_line_home"
+        android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+        android:textColor="@color/ui_text_secondary"
+        android:maxLines="3"
+        android:ellipsize="end"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/sourcesCardView"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/blockedHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:clickable="true"
         android:focusable="true"
-        android:elevation="10dp"
-        app:cardCornerRadius="8dp"
-        app:contentPaddingBottom="16dp"
-        app:contentPaddingLeft="8dp"
-        app:contentPaddingRight="8dp"
-        app:contentPaddingTop="16dp"
+        app:cardElevation="0dp"
+        app:cardCornerRadius="20dp"
+        app:cardBackgroundColor="@color/ui_glass"
+        app:strokeColor="@color/ui_glass_stroke"
+        app:strokeWidth="1dp"
+        app:contentPadding="16dp"
         app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
         app:layout_constraintEnd_toStartOf="@+id/badge1Space"
         app:layout_constraintHorizontal_bias="0.5"
@@ -103,20 +128,32 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                android:textColor="@color/ui_text_primary"
                 android:textStyle="bold"
-                tools:text="2250" />
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="16sp"
+                app:autoSizeMaxTextSize="32sp"
+                app:autoSizeStepGranularity="1sp"
+                tools:text="100,000,000" />
 
             <TextView
                 android:id="@+id/blockedHostTextView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/blocked_hosts_label" />
+                android:text="@string/blocked_hosts_label"
+                android:textColor="@color/ui_text_secondary"
+                android:textAllCaps="false"
+                android:letterSpacing="0.02"
+                android:textSize="12sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <androidx.cardview.widget.CardView
         android:layout_width="wrap_content"
@@ -125,6 +162,7 @@
         android:elevation="10dp"
         android:shape="ring"
         app:cardCornerRadius="75dp"
+        app:cardBackgroundColor="@color/status_red"
         app:layout_constraintBottom_toTopOf="@+id/blockedHostCardView"
         app:layout_constraintEnd_toEndOf="@+id/blockedHostCardView"
         app:layout_constraintStart_toStartOf="@+id/blockedHostCardView"
@@ -138,7 +176,7 @@
             android:contentDescription="@string/blocked_hosts_label"
             android:elevation="15dp"
             app:srcCompat="@drawable/baseline_block_24"
-            app:tint="@color/blocked" />
+            app:tint="@android:color/white" />
     </androidx.cardview.widget.CardView>
 
     <Space
@@ -151,18 +189,18 @@
         app:layout_constraintStart_toEndOf="@id/blockedHostCardView"
         app:layout_constraintTop_toBottomOf="@+id/headerFrameLayout" />
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/allowedHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:clickable="true"
         android:focusable="true"
-        android:elevation="10dp"
-        app:cardCornerRadius="8dp"
-        app:contentPaddingBottom="16dp"
-        app:contentPaddingLeft="8dp"
-        app:contentPaddingRight="8dp"
-        app:contentPaddingTop="16dp"
+        app:cardElevation="0dp"
+        app:cardCornerRadius="20dp"
+        app:cardBackgroundColor="@color/ui_glass"
+        app:strokeColor="@color/ui_glass_stroke"
+        app:strokeWidth="1dp"
+        app:contentPadding="16dp"
         app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
         app:layout_constraintEnd_toStartOf="@+id/badge2Space"
         app:layout_constraintHorizontal_bias="0.5"
@@ -180,8 +218,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:text="0"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                android:textColor="@color/ui_text_primary"
                 android:textStyle="bold"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="16sp"
+                app:autoSizeMaxTextSize="32sp"
+                app:autoSizeStepGranularity="1sp"
                 tools:text="25" />
 
             <TextView
@@ -189,11 +236,15 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/allowed_hosts_label" />
+                android:text="@string/allowed_hosts_label"
+                android:textColor="@color/ui_text_secondary"
+                android:textAllCaps="false"
+                android:letterSpacing="0.02"
+                android:textSize="12sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <androidx.cardview.widget.CardView
         android:layout_width="wrap_content"
@@ -202,6 +253,7 @@
         android:elevation="10dp"
         android:shape="ring"
         app:cardCornerRadius="75dp"
+        app:cardBackgroundColor="@color/status_green"
         app:layout_constraintBottom_toTopOf="@+id/allowedHostCardView"
         app:layout_constraintEnd_toEndOf="@+id/allowedHostCardView"
         app:layout_constraintStart_toStartOf="@+id/allowedHostCardView"
@@ -215,7 +267,7 @@
             android:contentDescription="@string/allowed_hosts_label"
             android:elevation="15dp"
             app:srcCompat="@drawable/baseline_check_24"
-            app:tint="@color/allowed" />
+            app:tint="@android:color/white" />
     </androidx.cardview.widget.CardView>
 
     <Space
@@ -228,19 +280,19 @@
         app:layout_constraintStart_toEndOf="@id/allowedHostCardView"
         app:layout_constraintTop_toBottomOf="@+id/headerFrameLayout" />
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/redirectHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="16dp"
         android:clickable="true"
         android:focusable="true"
-        android:elevation="10dp"
-        app:cardCornerRadius="8dp"
-        app:contentPaddingBottom="16dp"
-        app:contentPaddingLeft="8dp"
-        app:contentPaddingRight="8dp"
-        app:contentPaddingTop="16dp"
+        app:cardElevation="0dp"
+        app:cardCornerRadius="20dp"
+        app:cardBackgroundColor="@color/ui_glass"
+        app:strokeColor="@color/ui_glass_stroke"
+        app:strokeWidth="1dp"
+        app:contentPadding="16dp"
         app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
@@ -258,8 +310,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:text="0"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                android:textColor="@color/ui_text_primary"
                 android:textStyle="bold"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="16sp"
+                app:autoSizeMaxTextSize="32sp"
+                app:autoSizeStepGranularity="1sp"
                 tools:text="2" />
 
             <TextView
@@ -267,11 +328,15 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/redirect_hosts_label" />
+                android:text="@string/redirect_hosts_label"
+                android:textColor="@color/ui_text_secondary"
+                android:textAllCaps="false"
+                android:letterSpacing="0.02"
+                android:textSize="12sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <androidx.cardview.widget.CardView
         android:layout_width="wrap_content"
@@ -280,6 +345,7 @@
         android:elevation="10dp"
         android:shape="ring"
         app:cardCornerRadius="75dp"
+        app:cardBackgroundColor="@color/primaryVariant"
         app:layout_constraintBottom_toTopOf="@+id/redirectHostCardView"
         app:layout_constraintEnd_toEndOf="@+id/redirectHostCardView"
         app:layout_constraintStart_toStartOf="@+id/redirectHostCardView"
@@ -293,22 +359,27 @@
             android:contentDescription="@string/redirect_hosts_label"
             android:elevation="15dp"
             app:srcCompat="@drawable/baseline_compare_arrows_24"
-            app:tint="@color/redirected" />
+            app:tint="@android:color/white" />
     </androidx.cardview.widget.CardView>
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/sourcesCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginLeft="16dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="8dp"
         android:layout_marginRight="16dp"
+        android:layout_marginBottom="6dp"
         android:clickable="true"
         android:focusable="true"
-        app:cardCornerRadius="8dp"
-        app:contentPadding="16dp"
+        app:cardCornerRadius="24dp"
+        app:cardBackgroundColor="@color/ui_glass"
+        app:strokeColor="@color/ui_glass_stroke"
+        app:strokeWidth="1dp"
+        app:contentPadding="18dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/creditTextView"
         app:layout_constraintTop_toBottomOf="@+id/allowedHostCardView">
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -378,12 +449,14 @@
                 app:layout_constraintTop_toBottomOf="@id/checkForUpdateImageView"
                 app:srcCompat="@drawable/ic_get_app_24dp" />
 
-            <com.google.android.material.progressindicator.LinearProgressIndicator
+            <ProgressBar
                 android:id="@+id/sourcesProgressBar"
+                style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="2dp"
-                android:layout_marginTop="6dp"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
                 android:indeterminate="true"
+                android:progressDrawable="@drawable/progress_neon"
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -423,24 +496,24 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent">
 
-                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                    <ProgressBar
                         android:id="@+id/overallProgressBar"
+                        style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
-                        android:layout_height="12dp"
+                        android:layout_height="14dp"
                         android:layout_marginStart="20dp"
                         android:layout_marginEnd="20dp"
                         android:layout_gravity="center_vertical"
-                        app:trackThickness="12dp"
-                        app:trackCornerRadius="6dp"
+                        android:progressDrawable="@drawable/progress_neon"
                         tools:progress="45" />
 
                     <ImageView
                         android:id="@+id/birdProgressIcon"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
                         android:layout_gravity="start|center_vertical"
                         android:contentDescription="@string/app_logo"
-                        app:srcCompat="@mipmap/icon_round"
+                        app:srcCompat="@drawable/icon_foreground_red"
                         tools:layout_marginStart="100dp" />
 
                 </FrameLayout>
@@ -452,6 +525,7 @@
                     android:layout_marginTop="2dp"
                     android:textSize="12sp"
                     android:textStyle="bold"
+                    android:textColor="@color/ui_text_primary"
                     app:layout_constraintTop_toBottomOf="@id/overallProgressFrame"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
@@ -465,17 +539,18 @@
                     android:layout_marginTop="8dp"
                     android:text="@string/phase_check"
                     android:textSize="11sp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toBottomOf="@id/overallProgressText"
                     app:layout_constraintStart_toStartOf="parent" />
 
-                <com.google.android.material.progressindicator.LinearProgressIndicator
+                <ProgressBar
                     android:id="@+id/checkProgressBar"
+                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
                     android:layout_height="6dp"
                     android:layout_marginStart="4dp"
                     android:layout_marginEnd="4dp"
-                    app:trackThickness="6dp"
-                    app:trackCornerRadius="3dp"
+                    android:progressDrawable="@drawable/progress_neon"
                     app:layout_constraintTop_toTopOf="@id/checkPhaseLabel"
                     app:layout_constraintBottom_toBottomOf="@id/checkPhaseLabel"
                     app:layout_constraintStart_toEndOf="@id/checkPhaseLabel"
@@ -484,10 +559,12 @@
 
                 <TextView
                     android:id="@+id/checkPhasePercent"
-                    android:layout_width="40dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="11sp"
                     android:textAlignment="textEnd"
+                    android:minWidth="40dp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toTopOf="@id/checkPhaseLabel"
                     app:layout_constraintEnd_toEndOf="parent"
                     tools:text="100%" />
@@ -500,17 +577,18 @@
                     android:layout_marginTop="4dp"
                     android:text="@string/phase_download"
                     android:textSize="11sp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toBottomOf="@id/checkPhaseLabel"
                     app:layout_constraintStart_toStartOf="parent" />
 
-                <com.google.android.material.progressindicator.LinearProgressIndicator
+                <ProgressBar
                     android:id="@+id/downloadProgressBar"
+                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
                     android:layout_height="6dp"
                     android:layout_marginStart="4dp"
                     android:layout_marginEnd="4dp"
-                    app:trackThickness="6dp"
-                    app:trackCornerRadius="3dp"
+                    android:progressDrawable="@drawable/progress_neon"
                     app:layout_constraintTop_toTopOf="@id/downloadPhaseLabel"
                     app:layout_constraintBottom_toBottomOf="@id/downloadPhaseLabel"
                     app:layout_constraintStart_toEndOf="@id/downloadPhaseLabel"
@@ -519,10 +597,12 @@
 
                 <TextView
                     android:id="@+id/downloadPhasePercent"
-                    android:layout_width="40dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="11sp"
                     android:textAlignment="textEnd"
+                    android:minWidth="40dp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toTopOf="@id/downloadPhaseLabel"
                     app:layout_constraintEnd_toEndOf="parent"
                     tools:text="65%" />
@@ -535,17 +615,18 @@
                     android:layout_marginTop="4dp"
                     android:text="@string/phase_parse"
                     android:textSize="11sp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toBottomOf="@id/downloadPhaseLabel"
                     app:layout_constraintStart_toStartOf="parent" />
 
-                <com.google.android.material.progressindicator.LinearProgressIndicator
+                <ProgressBar
                     android:id="@+id/parseProgressBar"
+                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
                     android:layout_height="6dp"
                     android:layout_marginStart="4dp"
                     android:layout_marginEnd="4dp"
-                    app:trackThickness="6dp"
-                    app:trackCornerRadius="3dp"
+                    android:progressDrawable="@drawable/progress_neon"
                     app:layout_constraintTop_toTopOf="@id/parsePhaseLabel"
                     app:layout_constraintBottom_toBottomOf="@id/parsePhaseLabel"
                     app:layout_constraintStart_toEndOf="@id/parsePhaseLabel"
@@ -554,10 +635,12 @@
 
                 <TextView
                     android:id="@+id/parsePhasePercent"
-                    android:layout_width="40dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="11sp"
                     android:textAlignment="textEnd"
+                    android:minWidth="40dp"
+                    android:textColor="@color/ui_text_secondary"
                     app:layout_constraintTop_toTopOf="@id/parsePhaseLabel"
                     app:layout_constraintEnd_toEndOf="parent"
                     tools:text="30%" />
@@ -630,7 +713,7 @@
                 tools:visibility="visible" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- DNS Log, Help, and Donate cards moved to Settings -->
     <androidx.cardview.widget.CardView

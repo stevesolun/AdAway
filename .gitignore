@@ -10,3 +10,22 @@ build
 # IntelliJ IDEA
 .idea
 *.iml
+
+# Local debug artifacts (screenshots/db exports) - keep repo clean
+/app_device*.db
+/tmp_db*.py
+/adaway_test_log.txt
+/crash_state.png
+/home_*.png
+/home.png
+/catalog*.png
+/filter_catalog*.png
+/filterlists_*.png
+/launch_*.png
+/modern_home.png
+/screen*.png
+/splash_try.png
+/ui*.xml
+/uidump*.xml
+/win.txt
+/nul

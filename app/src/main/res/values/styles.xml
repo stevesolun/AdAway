@@ -3,13 +3,21 @@
 
     <style name="Theme.AdAway" parent="Base.AdAway" />
 
-    <style name="Base.AdAway" parent="Theme.MaterialComponents.DayNight">
+    <!-- Material 3 baseline for modern UI -->
+    <style name="Base.AdAway" parent="Theme.Material3.DayNight">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primaryVariant</item>
         <item name="colorOnPrimary">@color/onPrimary</item>
         <item name="colorSecondary">@color/primary</item>
         <item name="colorSecondaryVariant">@color/primaryVariant</item>
         <item name="colorOnSecondary">@color/onPrimary</item>
+        <!-- Modern dark background defaults -->
+        <item name="colorSurface">@color/ui_surface</item>
+        <item name="colorOnSurface">@color/ui_text_primary</item>
+        <item name="android:colorBackground">@color/ui_bg</item>
+        <item name="android:windowBackground">@color/ui_bg</item>
+        <item name="android:textColorPrimary">@color/ui_text_primary</item>
+        <item name="android:textColorSecondary">@color/ui_text_secondary</item>
 
         <!--
             Material 3 color tokens used by new filter-list UI.
@@ -27,13 +35,20 @@
         <item name="colorPrimaryDark">?colorPrimary</item>
     </style>
 
-    <style name="Theme.AdAway.NoActionBar" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.AdAway.NoActionBar" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primaryVariant</item>
         <item name="colorOnPrimary">@color/onPrimary</item>
         <item name="colorSecondary">@color/primary</item>
         <item name="colorSecondaryVariant">@color/primaryVariant</item>
         <item name="colorOnSecondary">@color/onPrimary</item>
+        <!-- Modern dark background defaults -->
+        <item name="colorSurface">@color/ui_surface</item>
+        <item name="colorOnSurface">@color/ui_text_primary</item>
+        <item name="android:colorBackground">@color/ui_bg</item>
+        <item name="android:windowBackground">@drawable/bg_launch_screen</item>
+        <item name="android:textColorPrimary">@color/ui_text_primary</item>
+        <item name="android:textColorSecondary">@color/ui_text_secondary</item>
 
         <!-- Same Material 3 token fallbacks as Base.AdAway -->
         <item name="colorSurfaceVariant">?attr/colorSurface</item>

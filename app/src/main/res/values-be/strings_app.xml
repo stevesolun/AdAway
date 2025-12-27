@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AdAway</string>
-    <string name="app_description">Блакіроўшчык рэкламы з адкрытым зыходным кодам</string>
-    <string name="app_logo">Лагатып AdAway</string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">Ð‘Ð»Ð°ÐºÑ–Ñ€Ð¾ÑžÑˆÑ‡Ñ‹Ðº Ñ€ÑÐºÐ»Ð°Ð¼Ñ‹ Ð· Ð°Ð´ÐºÑ€Ñ‹Ñ‚Ñ‹Ð¼ Ð·Ñ‹Ñ…Ð¾Ð´Ð½Ñ‹Ð¼ ÐºÐ¾Ð´Ð°Ð¼</string>
+    <string name="app_logo">Ð›Ð°Ð³Ð°Ñ‚Ñ‹Ð¿ AdAway</string>
 </resources>
+

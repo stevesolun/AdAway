@@ -8,7 +8,10 @@ import static org.adaway.util.Constants.LOCALHOST_HOSTNAME;
 import static org.adaway.util.Constants.LOCALHOST_IPV4;
 import static org.adaway.util.Constants.LOCALHOST_IPV6;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.sqlite.db.SupportSQLiteDatabase;
+import androidx.sqlite.db.SupportSQLiteStatement;
 
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.entity.HostListItem;
@@ -24,10 +27,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+
+import android.os.SystemClock;
 
 import timber.log.Timber;
 
@@ -40,9 +47,13 @@ import timber.log.Timber;
 class SourceLoader {
     private static final String TAG = "SourceLoader";
     private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
-    // Larger batch reduces Room/SQLite overhead during big imports.
-    // 5000 items per batch = fewer transactions = faster writes.
-    private static final int INSERT_BATCH_SIZE = 5000;
+    // Batch size tradeoff:
+    // - Smaller => smoother UI updates but slower DB throughput
+    // - Larger  => much faster parsing/DB insert for large filter sets
+    //
+    // 2000 is tuned for throughput on large filter sets. This increases per-batch latency, but can
+    // significantly reduce overall parse time when SQLite/Room is the bottleneck.
+    private static final int INSERT_BATCH_SIZE = 2000;
     // Queue capacity - balances throughput vs memory usage.
     // 20,000 allows reader to stay ahead of parsers without blocking.
     private static final int QUEUE_CAPACITY = 20000;
@@ -55,13 +66,20 @@ class SourceLoader {
     private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
 
     private final HostsSource source;
+    private final int generation;
 
     SourceLoader(HostsSource hostsSource) {
         this.source = hostsSource;
+        this.generation = 0;
+    }
+
+    SourceLoader(HostsSource hostsSource, int generation) {
+        this.source = hostsSource;
+        this.generation = generation;
     }
 
     void parse(BufferedReader reader, HostListItemDao hostListItemDao) {
-        parse(reader, hostListItemDao, null, null);
+        parse(reader, hostListItemDao, null, null, null, Integer.MAX_VALUE, null);
     }
 
     /**
@@ -71,7 +89,7 @@ class SourceLoader {
      * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
      */
     void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
-        parse(reader, hostListItemDao, onBatchInserted, null);
+        parse(reader, hostListItemDao, null, onBatchInserted, null, Integer.MAX_VALUE, null);
     }
 
     /**
@@ -83,13 +101,47 @@ class SourceLoader {
      */
     void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
                @Nullable java.util.Set<String> globalSeenHosts) {
-        // Clear current hosts
-        hostListItemDao.clearSourceHosts(this.source.getId());
+        parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, Integer.MAX_VALUE, null);
+    }
+
+    /**
+     * Parse hosts source and insert into database with global deduplication and memory cap.
+     * @param reader The source reader.
+     * @param hostListItemDao The DAO for inserting items.
+     * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
+     * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
+     * @param maxDedupEntries Maximum entries in dedup set before disabling dedup to prevent OOM.
+     * @param dedupCapReached Flag set to true when dedup cap is reached (may be null).
+     */
+    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
+               @Nullable java.util.Set<String> globalSeenHosts, int maxDedupEntries,
+               @Nullable AtomicBoolean dedupCapReached) {
+        parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, maxDedupEntries, dedupCapReached);
+    }
+
+    /**
+     * Parse hosts source and insert into database, optionally using raw SQLite for high-throughput bulk inserts.
+     * When {@code db} is provided, inserts are performed using a compiled statement + explicit transactions,
+     * which is significantly faster than Room @Insert for large batches.
+     */
+    void parse(BufferedReader reader,
+               HostListItemDao hostListItemDao,
+               @Nullable SupportSQLiteDatabase db,
+               @Nullable LongConsumer onBatchInserted,
+               @Nullable java.util.Set<String> globalSeenHosts,
+               int maxDedupEntries,
+               @Nullable AtomicBoolean dedupCapReached) {
+        // Clear any previous partial import for THIS generation only (atomic updates keep old generations intact).
+        hostListItemDao.clearSourceHostsForGeneration(this.source.getId(), this.generation);
         // Create queues with bounded capacity to prevent OOM during parallel parsing
         LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT);
-        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, PARSER_COUNT, onBatchInserted);
+        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db, this.generation, PARSER_COUNT, onBatchInserted);
+
+        // Shared counter for malformed lines across all parser threads
+        AtomicInteger skippedLines = new AtomicInteger(0);
+
         ExecutorService executorService = Executors.newFixedThreadPool(
                 PARSER_COUNT + 2,
                 r -> {
@@ -101,12 +153,17 @@ class SourceLoader {
         );
         executorService.execute(sourceReader);
         for (int i = 0; i < PARSER_COUNT; i++) {
-            executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue, globalSeenHosts));
+            executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue,
+                    globalSeenHosts, maxDedupEntries, dedupCapReached, skippedLines));
         }
         Future<Integer> inserterFuture = executorService.submit(inserter);
         try {
             Integer inserted = inserterFuture.get();
-            Timber.i("%s host list items inserted.", inserted);
+            int skipped = skippedLines.get();
+            if (skipped > 0) {
+                Timber.w("Source %s: %d lines skipped (malformed or unrecognized format)", this.source.getLabel(), skipped);
+            }
+            Timber.i("%s: %d host list items inserted, %d lines skipped.", this.source.getLabel(), inserted, skipped);
         } catch (ExecutionException e) {
             Timber.w(e, "Failed to parse hosts sources.");
         } catch (InterruptedException e) {
@@ -155,14 +212,24 @@ class SourceLoader {
         private final BlockingQueue<HostListItem> itemQueue;
         @Nullable
         private final java.util.Set<String> globalSeenHosts;
+        private final int maxDedupEntries;
+        @Nullable
+        private final AtomicBoolean dedupCapReached;
+        private final AtomicInteger skippedLines;
 
         private HostListItemParser(HostsSource source, BlockingQueue<String> lineQueue,
                                    BlockingQueue<HostListItem> itemQueue,
-                                   @Nullable java.util.Set<String> globalSeenHosts) {
+                                   @Nullable java.util.Set<String> globalSeenHosts,
+                                   int maxDedupEntries,
+                                   @Nullable AtomicBoolean dedupCapReached,
+                                   AtomicInteger skippedLines) {
             this.source = source;
             this.lineQueue = lineQueue;
             this.itemQueue = itemQueue;
             this.globalSeenHosts = globalSeenHosts;
+            this.maxDedupEntries = maxDedupEntries;
+            this.dedupCapReached = dedupCapReached;
+            this.skippedLines = skippedLines;
         }
 
         @Override
@@ -185,11 +252,22 @@ class SourceLoader {
                         // skip
                     } else {
                         HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
-                        if (item != null && isRedirectionValid(item) && isHostValid(item)) {
-                            // Global deduplication: skip if already seen from another source
-                            // ConcurrentHashMap.newKeySet() is thread-safe for add operations
-                            if (globalSeenHosts == null || globalSeenHosts.add(item.getHost())) {
-                                this.itemQueue.put(item);  // put() blocks if full, add() throws!
+                        if (item == null || !isRedirectionValid(item) || !isHostValid(item)) {
+                            // Track failed parse attempts
+                            this.skippedLines.incrementAndGet();
+                        } else {
+                            // Memory-safe deduplication with cap
+                            if (globalSeenHosts == null) {
+                                this.itemQueue.put(item);
+                            } else if (dedupCapReached != null && dedupCapReached.get()) {
+                                // Cap reached - allow through without dedup (correctness over memory)
+                                this.itemQueue.put(item);
+                            } else if (globalSeenHosts.size() >= maxDedupEntries) {
+                                // Just hit the cap
+                                if (dedupCapReached != null) dedupCapReached.set(true);
+                                this.itemQueue.put(item);
+                            } else if (globalSeenHosts.add(item.getHost())) {
+                                this.itemQueue.put(item);
                             }
                         }
                     }
@@ -373,14 +451,22 @@ class SourceLoader {
     private static class ItemInserter implements Callable<Integer> {
         private final BlockingQueue<HostListItem> hostListItemQueue;
         private final HostListItemDao hostListItemDao;
+        @Nullable
+        private final SupportSQLiteDatabase db;
+        private final int generation;
         private final int parserCount;
         @Nullable
         private final LongConsumer onBatchInserted;
 
-        private ItemInserter(BlockingQueue<HostListItem> itemQueue, HostListItemDao hostListItemDao,
+        private ItemInserter(BlockingQueue<HostListItem> itemQueue,
+                             HostListItemDao hostListItemDao,
+                             @Nullable SupportSQLiteDatabase db,
+                             int generation,
                              int parserCount, @Nullable LongConsumer onBatchInserted) {
             this.hostListItemQueue = itemQueue;
             this.hostListItemDao = hostListItemDao;
+            this.db = db;
+            this.generation = generation;
             this.parserCount = parserCount;
             this.onBatchInserted = onBatchInserted;
         }
@@ -392,6 +478,25 @@ class SourceLoader {
             HostListItem[] batch = new HostListItem[INSERT_BATCH_SIZE];
             int cacheSize = 0;
             boolean queueEmptied = false;
+
+            // Lightweight DB perf logging: rows/sec + batch insert latency.
+            // Rate-limited to once every ~2s to avoid log spam.
+            final boolean perfLog = true;
+            final long startMs = SystemClock.elapsedRealtime();
+            long lastLogMs = startMs;
+            int insertedSinceLastLog = 0;
+            long totalDbInsertMs = 0L;
+
+            // Optional fast path: compiled statement for bulk insert.
+            final SupportSQLiteStatement insertStmt;
+            if (db != null) {
+                insertStmt = db.compileStatement(
+                        "INSERT INTO hosts_lists (host, type, enabled, redirection, source_id, generation) VALUES (?, ?, ?, ?, ?, ?)"
+                );
+            } else {
+                insertStmt = null;
+            }
+
             while (!queueEmptied) {
                 try {
                     HostListItem item = this.hostListItemQueue.take();
@@ -405,8 +510,53 @@ class SourceLoader {
                     } else {
                         batch[cacheSize++] = item;
                         if (cacheSize >= batch.length) {
-                            this.hostListItemDao.insert(batch);
+                            long t0 = SystemClock.elapsedRealtimeNanos();
+                            if (db != null && insertStmt != null) {
+                                long dbMs = bulkInsert(db, insertStmt, batch, cacheSize, this.generation);
+                                long batchDbMs = dbMs;
+                                inserted += cacheSize;
+                                if (perfLog) {
+                                    totalDbInsertMs += batchDbMs;
+                                    insertedSinceLastLog += cacheSize;
+                                    long nowMs = SystemClock.elapsedRealtime();
+                                    if (nowMs - lastLogMs >= 2000L) {
+                                        long windowMs = Math.max(1L, nowMs - lastLogMs);
+                                        double rowsPerSec = (insertedSinceLastLog * 1000.0) / windowMs;
+                                        double batchRowsPerSec = batchDbMs > 0 ? (cacheSize * 1000.0) / batchDbMs : 0.0;
+                                        Timber.i("DB insert perf: win=%.0f rows/s, batch=%.0f rows/s (batchSize=%d, lastBatchMs=%d), totalInserted=%d, elapsed=%ds",
+                                                rowsPerSec, batchRowsPerSec, cacheSize, batchDbMs, inserted, (nowMs - startMs) / 1000);
+                                        insertedSinceLastLog = 0;
+                                        lastLogMs = nowMs;
+                                    }
+                                }
+                                if (this.onBatchInserted != null) {
+                                    this.onBatchInserted.accept(cacheSize);
+                                }
+                                cacheSize = 0;
+                                continue;
+                            } else {
+                                // Ensure generation is set for Room insert
+                                for (int i = 0; i < cacheSize; i++) {
+                                    if (batch[i] != null) batch[i].setGeneration(this.generation);
+                                }
+                                this.hostListItemDao.insert(batch);
+                            }
+                            long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
                             inserted += cacheSize;
+                            if (perfLog) {
+                                totalDbInsertMs += batchDbMs;
+                                insertedSinceLastLog += cacheSize;
+                                long nowMs = SystemClock.elapsedRealtime();
+                                if (nowMs - lastLogMs >= 2000L) {
+                                    long windowMs = Math.max(1L, nowMs - lastLogMs);
+                                    double rowsPerSec = (insertedSinceLastLog * 1000.0) / windowMs;
+                                    double batchRowsPerSec = batchDbMs > 0 ? (cacheSize * 1000.0) / batchDbMs : 0.0;
+                                    Timber.i("DB insert perf: win=%.0f rows/s, batch=%.0f rows/s (batchSize=%d, lastBatchMs=%d), totalInserted=%d, elapsed=%ds",
+                                            rowsPerSec, batchRowsPerSec, cacheSize, batchDbMs, inserted, (nowMs - startMs) / 1000);
+                                    insertedSinceLastLog = 0;
+                                    lastLogMs = nowMs;
+                                }
+                            }
                             // Notify callback of batch insert for live UI updates
                             if (this.onBatchInserted != null) {
                                 this.onBatchInserted.accept(cacheSize);
@@ -423,14 +573,72 @@ class SourceLoader {
             // Flush current batch
             HostListItem[] remaining = new HostListItem[cacheSize];
             System.arraycopy(batch, 0, remaining, 0, remaining.length);
-            this.hostListItemDao.insert(remaining);
+            if (cacheSize > 0) {
+                long t0 = SystemClock.elapsedRealtimeNanos();
+                if (db != null && insertStmt != null) {
+                    long batchDbMs = bulkInsert(db, insertStmt, remaining, cacheSize, this.generation);
+                    totalDbInsertMs += batchDbMs;
+                } else {
+                    for (int i = 0; i < cacheSize; i++) {
+                        if (remaining[i] != null) remaining[i].setGeneration(this.generation);
+                    }
+                    this.hostListItemDao.insert(remaining);
+                    long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
+                    totalDbInsertMs += batchDbMs;
+                }
+            }
             inserted += cacheSize;
             // Notify callback of final batch
             if (cacheSize > 0 && this.onBatchInserted != null) {
                 this.onBatchInserted.accept(cacheSize);
             }
+            if (perfLog) {
+                long nowMs = SystemClock.elapsedRealtime();
+                long elapsedMs = Math.max(1L, nowMs - startMs);
+                double rowsPerSec = (inserted * 1000.0) / elapsedMs;
+                double dbOnlyRowsPerSec = totalDbInsertMs > 0 ? (inserted * 1000.0) / totalDbInsertMs : 0.0;
+                Timber.i("DB insert perf done: overall=%.0f rows/s, dbOnly=%.0f rows/s (totalInserted=%d, dbInsertMs=%d, elapsed=%ds)",
+                        rowsPerSec, dbOnlyRowsPerSec, inserted, totalDbInsertMs, elapsedMs / 1000);
+            }
             // Return number of inserted items
             return inserted;
+        }
+
+        /**
+         * Bulk insert using a compiled statement + a single transaction.
+         * Returns time spent inside DB transaction (ms).
+         */
+        private static long bulkInsert(@NonNull SupportSQLiteDatabase db,
+                                       @NonNull SupportSQLiteStatement stmt,
+                                       @NonNull HostListItem[] items,
+                                       int count,
+                                       int generation) {
+            long t0 = SystemClock.elapsedRealtimeNanos();
+            db.beginTransaction();
+            try {
+                for (int i = 0; i < count; i++) {
+                    HostListItem it = items[i];
+                    if (it == null) continue;
+                    stmt.clearBindings();
+                    stmt.bindString(1, it.getHost());
+                    ListType type = it.getType();
+                    stmt.bindLong(2, type != null ? type.getValue() : 0);
+                    stmt.bindLong(3, it.isEnabled() ? 1L : 0L);
+                    String redirection = it.getRedirection();
+                    if (redirection != null) {
+                        stmt.bindString(4, redirection);
+                    } else {
+                        stmt.bindNull(4);
+                    }
+                    stmt.bindLong(5, it.getSourceId());
+                    stmt.bindLong(6, generation);
+                    stmt.executeInsert();
+                }
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+            return (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
         }
     }
 }

@@ -120,4 +120,37 @@ final class Migrations {
             database.execSQL("ALTER TABLE `hosts_sources` ADD `entityTag` TEXT DEFAULT NULL");
         }
     };
+
+    /**
+     * Migration script from v7 to v8.
+     * Adds generation-based atomic updates and a small meta table storing the active generation.
+     */
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Add generation column to hosts_lists (default 0 for existing data)
+            database.execSQL("ALTER TABLE `hosts_lists` ADD COLUMN `generation` INTEGER NOT NULL DEFAULT 0");
+            // Index generation for faster active-dataset queries
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_generation` ON `hosts_lists` (`generation`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_generation_source_id` ON `hosts_lists` (`generation`, `source_id`)");
+
+            // Create meta table for active generation (Room entity)
+            database.execSQL("CREATE TABLE IF NOT EXISTS `hosts_meta` (`id` INTEGER NOT NULL, `active_generation` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+            // Ensure exactly one row exists (id=0)
+            database.execSQL("INSERT OR REPLACE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
+        }
+    };
+
+    /**
+     * Migration script from v8 to v9.
+     * Adds indexes to speed up host counter queries (type/enabled filters were previously full table scans).
+     */
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_type_enabled` ON `hosts_lists` (`type`, `enabled`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_type_enabled_source_id` ON `hosts_lists` (`type`, `enabled`, `source_id`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_type_enabled_generation` ON `hosts_lists` (`type`, `enabled`, `generation`)");
+        }
+    };
 }

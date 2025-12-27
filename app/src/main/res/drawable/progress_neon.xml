@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Track -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="#332A3566" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+
+    <!-- Progress (clipped) -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <gradient
+                    android:angle="0"
+                    android:startColor="@color/ui_neon_start"
+                    android:centerColor="@color/ui_neon_mid"
+                    android:endColor="@color/ui_neon_end"
+                    android:type="linear" />
+                <corners android:radius="999dp" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
+
+
+
+

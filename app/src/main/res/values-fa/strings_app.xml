@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="app_name">مسدود کننده تبلیغات AdAway</string>
-    <string name="app_description">مسدود کننده تبلیغات منبع باز</string>
-    <string name="app_logo">نماد برنامه AdAway</string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">Ù…Ø³Ø¯ÙˆØ¯ Ú©Ù†Ù†Ø¯Ù‡ ØªØ¨Ù„ÛŒØºØ§Øª Ù…Ù†Ø¨Ø¹ Ø¨Ø§Ø²</string>
+    <string name="app_logo">Ù†Ù…Ø§Ø¯ Ø¨Ø±Ù†Ø§Ù…Ù‡ AdAway</string>
 </resources>
+

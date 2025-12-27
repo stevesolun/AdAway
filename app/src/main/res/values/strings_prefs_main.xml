@@ -25,6 +25,7 @@
     <string name="pref_enable_debug_summary">App restart is needed to apply</string>
     <!-- Tools & Support category -->
     <string name="pref_tools_support_category">Tools &amp; Support</string>
+    <string name="pref_about_title">About</string>
     <string name="pref_dns_log_summary">View DNS request log</string>
     <string name="pref_help_summary">View documentation</string>
     <string name="pref_donate_summary">Support the project</string>

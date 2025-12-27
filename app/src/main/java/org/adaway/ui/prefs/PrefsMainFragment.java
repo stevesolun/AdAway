@@ -13,6 +13,7 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.ui.help.HelpActivity;
 import org.adaway.ui.log.LogActivity;
+import org.adaway.ui.about.AboutActivity;
 import org.adaway.ui.support.SupportActivity;
 import org.adaway.util.log.SentryLog;
 
@@ -105,6 +106,14 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         if (donatePref != null) {
             donatePref.setOnPreferenceClickListener(preference -> {
                 startActivity(new Intent(requireContext(), SupportActivity.class));
+                return true;
+            });
+        }
+
+        Preference aboutPref = findPreference("pref_about");
+        if (aboutPref != null) {
+            aboutPref.setOnPreferenceClickListener(preference -> {
+                startActivity(new Intent(requireContext(), AboutActivity.class));
                 return true;
             });
         }

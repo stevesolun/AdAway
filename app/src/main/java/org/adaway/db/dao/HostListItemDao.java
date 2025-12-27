@@ -37,10 +37,14 @@ public interface HostListItemDao {
     @Query("DELETE FROM hosts_lists WHERE source_id = 1 AND host = :host")
     void deleteUserFromHost(String host);
 
-    @Query("SELECT * FROM hosts_lists WHERE type = :type AND host LIKE :query AND ((:includeSources == 0 AND source_id == 1) || (:includeSources == 1)) ORDER BY host ASC")
+    @Query("SELECT * FROM hosts_lists " +
+            "WHERE type = :type AND host LIKE :query AND (" +
+            "(:includeSources == 0 AND source_id == 1) OR " +
+            "(:includeSources == 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0)))" +
+            ") ORDER BY host ASC")
     PagingSource<Integer, HostListItem> loadList(int type, boolean includeSources, String query);
 
-    @Query("SELECT * FROM hosts_lists ORDER BY host ASC")
+    @Query("SELECT * FROM hosts_lists WHERE (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0)) ORDER BY host ASC")
     List<HostListItem> getAll();
 
     @Query("SELECT * FROM hosts_lists WHERE source_id = 1")
@@ -49,15 +53,28 @@ public interface HostListItemDao {
     @Query("SELECT id FROM hosts_lists WHERE host = :host AND source_id = 1 LIMIT 1")
     Optional<Integer> getHostId(String host);
 
-    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 0 AND enabled = 1")
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 0 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     LiveData<Integer> getBlockedHostCount();
 
-    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 1 AND enabled = 1")
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 1 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     LiveData<Integer> getAllowedHostCount();
 
-    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 2 AND enabled = 1")
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 2 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     LiveData<Integer> getRedirectHostCount();
+
+    // One-shot counts (used to prime UI during import without keeping a LiveData observer attached).
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 0 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    int getBlockedHostCountNow();
+
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 1 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    int getAllowedHostCountNow();
+
+    @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 2 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    int getRedirectHostCountNow();
 
     @Query("DELETE FROM hosts_lists WHERE source_id = :sourceId")
     void clearSourceHosts(int sourceId);
+
+    @Query("DELETE FROM hosts_lists WHERE source_id = :sourceId AND generation = :generation")
+    void clearSourceHostsForGeneration(int sourceId, int generation);
 }

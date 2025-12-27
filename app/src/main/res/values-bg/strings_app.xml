@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AdAway</string>
-    <string name="app_description">Рекламен блокер с отворен код</string>
-    <string name="app_logo">AdAway лого</string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">Ð ÐµÐºÐ»Ð°Ð¼ÐµÐ½ Ð±Ð»Ð¾ÐºÐµÑ€ Ñ Ð¾Ñ‚Ð²Ð¾Ñ€ÐµÐ½ ÐºÐ¾Ð´</string>
+    <string name="app_logo">AdAway Ð»Ð¾Ð³Ð¾</string>
 </resources>
+

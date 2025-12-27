@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/coordinator_layout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/ui_bg">
 
     <include
         android:id="@+id/content"
@@ -15,6 +16,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:background="@color/ui_surface"
+        app:backgroundTint="@color/ui_surface"
+        app:fabAlignmentMode="center"
+        app:fabAnimationMode="slide"
+        app:liftOnScroll="false"
         app:menu="@menu/next_actions"
         app:navigationContentDescription="@string/open_drawer_button_description"
         app:navigationIcon="@drawable/ic_menu_24dp" />
@@ -25,7 +31,21 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/adblock_pause_button_description"
         app:layout_anchor="@id/bar"
-        app:srcCompat="@drawable/ic_pause_24dp" />
+        app:layout_anchorGravity="center|bottom"
+        android:translationY="26dp"
+        app:srcCompat="@drawable/icon_foreground_red"
+        app:maxImageSize="86dp"
+        app:fabCustomSize="118dp"
+        app:fabSize="normal"
+        app:tint="@null"
+        app:backgroundTint="@android:color/transparent"
+        android:background="@android:color/transparent"
+        app:rippleColor="@android:color/transparent"
+        android:elevation="0dp"
+        app:elevation="0dp"
+        android:stateListAnimator="@null"
+        app:borderWidth="0dp"
+        app:useCompatPadding="false" />
 
     <FrameLayout
         android:id="@+id/bottom_drawer"

@@ -15,6 +15,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -34,6 +35,7 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.FilterListCategory;
+import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
@@ -87,10 +89,17 @@ public class FilterCatalogActivity extends AppCompatActivity {
 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.catalogToolbar);
+        // Use this toolbar as the Activity ActionBar to avoid the default ActionBar being shown above it
+        // (which caused the "double back arrows / double titles" UI).
+        setSupportActionBar(toolbar);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayShowHomeEnabled(false);
+            actionBar.setDisplayHomeAsUpEnabled(false);
+        }
         toolbar.setNavigationOnClickListener(v -> finish());
-        toolbar.setNavigationIcon(R.drawable.baseline_clear_all_24);
-        toolbar.inflateMenu(R.menu.filter_catalog_menu);
-        toolbar.setOnMenuItemClickListener(this::onToolbarMenuItemClicked);
+        // Standard "Up"/Back affordance
+        toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24);
 
         // Setup views
         recyclerView = findViewById(R.id.catalogRecyclerView);
@@ -143,7 +152,14 @@ public class FilterCatalogActivity extends AppCompatActivity {
     }
 
     private boolean onToolbarMenuItemClicked(MenuItem item) {
-        if (item.getItemId() == R.id.action_filter_add_custom) {
+        if (item.getItemId() == R.id.action_go_home) {
+            // Jump straight back to the app home screen (fast escape hatch).
+            Intent intent = new Intent(this, HomeActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            finish();
+            return true;
+        } else if (item.getItemId() == R.id.action_filter_add_custom) {
             Intent intent = new Intent(this, SourceEditActivity.class);
             intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, getString(R.string.filter_add_custom));
             intent.putExtra(SourceEditActivity.EXTRA_INITIAL_URL, "https://");
@@ -156,6 +172,20 @@ public class FilterCatalogActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.filter_catalog_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (onToolbarMenuItemClicked(item)) {
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void loadData() {

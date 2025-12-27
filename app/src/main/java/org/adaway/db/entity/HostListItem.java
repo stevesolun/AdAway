@@ -20,7 +20,13 @@ import static androidx.room.ForeignKey.CASCADE;
         tableName = "hosts_lists",
         indices = {
                 @Index(value = "host"),
-                @Index(value = "source_id")
+                @Index(value = "source_id"),
+                @Index(value = "generation"),
+                @Index(value = {"generation", "source_id"}),
+                // Speed up Home screen counter queries (type=0/1/2 + enabled + generation/source_id).
+                @Index(value = {"type", "enabled"}),
+                @Index(value = {"type", "enabled", "source_id"}),
+                @Index(value = {"type", "enabled", "generation"})
         },
         foreignKeys = @ForeignKey(
                 entity = HostsSource.class,
@@ -41,6 +47,12 @@ public class HostListItem {
     private String redirection;
     @ColumnInfo(name = "source_id")
     private int sourceId;
+    /**
+     * Generation id used for atomic updates.
+     * Active dataset is the one where generation == hosts_meta.active_generation (plus user source).
+     */
+    @ColumnInfo(name = "generation")
+    private int generation;
 
     public int getId() {
         return id;
@@ -92,6 +104,14 @@ public class HostListItem {
         this.sourceId = sourceId;
     }
 
+    public int getGeneration() {
+        return generation;
+    }
+
+    public void setGeneration(int generation) {
+        this.generation = generation;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -102,6 +122,7 @@ public class HostListItem {
         if (id != item.id) return false;
         if (enabled != item.enabled) return false;
         if (sourceId != item.sourceId) return false;
+        if (generation != item.generation) return false;
         if (!host.equals(item.host)) return false;
         if (type != item.type) return false;
         return Objects.equals(redirection, item.redirection);
@@ -116,6 +137,7 @@ public class HostListItem {
         result = 31 * result + (enabled ? 1 : 0);
         result = 31 * result + (redirection != null ? redirection.hashCode() : 0);
         result = 31 * result + sourceId;
+        result = 31 * result + generation;
         return result;
     }
 }

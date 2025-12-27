@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.db.AppDatabase;
+import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.model.adblocking.AdBlockModel;
@@ -36,12 +37,15 @@ public class HomeViewModel extends AndroidViewModel {
 
     private final HostsSourceDao hostsSourceDao;
     private final HostListItemDao hostListItemDao;
+    private final HostEntryDao hostEntryDao;
 
     private final MutableLiveData<Boolean> pending;
     private final MediatorLiveData<String> state;
     private final MutableLiveData<HostError> error;
     private final LiveData<SourceModel.Progress> sourceProgress;
     private final LiveData<SourceModel.MultiPhaseProgress> multiPhaseProgress;
+    // Cache initial blocked count to prevent UI race conditions where it resets to 0
+    private long cachedInitialBlockedCount = -1;
 
     public HomeViewModel(@NonNull Application application) {
         super(application);
@@ -53,6 +57,7 @@ public class HomeViewModel extends AndroidViewModel {
         AppDatabase database = AppDatabase.getInstance(application);
         this.hostsSourceDao = database.hostsSourceDao();
         this.hostListItemDao = database.hostsListItemDao();
+        this.hostEntryDao = database.hostEntryDao();
 
         this.pending = new MutableLiveData<>(false);
         this.state = new MediatorLiveData<>();
@@ -85,7 +90,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<Integer> getBlockedHostCount() {
-        return this.hostListItemDao.getBlockedHostCount();
+        // Use built host_entries table for fast counts (hosts_lists DISTINCT counts are huge and can stall UI).
+        return this.hostEntryDao.getBlockedEntryCount();
     }
 
     public LiveData<Integer> getAllowedHostCount() {
@@ -122,6 +128,14 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<SourceModel.MultiPhaseProgress> getMultiPhaseProgress() {
         return this.multiPhaseProgress;
+    }
+
+    public long getCachedInitialBlockedCount() {
+        return cachedInitialBlockedCount;
+    }
+
+    public void setCachedInitialBlockedCount(long count) {
+        this.cachedInitialBlockedCount = count;
     }
 
     public void pauseUpdate() {
@@ -187,6 +201,7 @@ public class HomeViewModel extends AndroidViewModel {
         EXECUTORS.networkIO().execute(() -> {
             try {
                 this.pending.postValue(true);
+                // Sync also uses the full pipeline now for consistency
                 this.sourceModel.checkAndRetrieveHostsSources();
                 this.adBlockModel.apply();
             } catch (HostErrorException exception) {

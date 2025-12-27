@@ -10,6 +10,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -110,7 +111,8 @@ public class FilterListsSubscribeAllWorker extends Worker {
             // Start as foreground work immediately so Android won't kill it, and so UI can show "Preparing…" instantly.
             setForegroundAsync(new ForegroundInfo(
                     NOTIFICATION_ID,
-                    buildProgressNotification(context, 0, 0, context.getString(R.string.filterlists_import))
+                    buildProgressNotification(context, 0, 0, context.getString(R.string.filterlists_import)),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             ));
             setProgressAsync(new Data.Builder()
                     .putInt(PROGRESS_DONE, 0)

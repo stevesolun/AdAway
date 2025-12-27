@@ -30,6 +30,7 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.helper.ThemeHelper;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
@@ -111,11 +112,13 @@ public class FilterListsImportActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeHelper.applyTheme(this);
         setContentView(R.layout.filterlists_import_activity);
 
         hostsSourceDao = AppDatabase.getInstance(this).hostsSourceDao();
 
         MaterialToolbar toolbar = findViewById(R.id.filterlistsToolbar);
+        setSupportActionBar(toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
 
         progress = findViewById(R.id.filterlistsProgress);
@@ -248,6 +251,9 @@ public class FilterListsImportActivity extends AppCompatActivity {
                             all.clear();
                             all.addAll(cachedLists);
                             filter();
+                            // Show cached results immediately even if we still plan to refresh from network.
+                            progress.setVisibility(View.GONE);
+                            subscribeAllButton.setEnabled(true);
                         });
                     } catch (IOException ignored) {
                         // fall through to network fetch

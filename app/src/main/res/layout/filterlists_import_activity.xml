@@ -2,18 +2,25 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/ui_bg">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/ui_bg"
+        app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/filterlistsToolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/baseline_clear_all_24"
-            app:title="@string/filterlists_import" />
+            android:background="@color/ui_bg"
+            app:navigationIcon="@drawable/baseline_arrow_back_24"
+            app:navigationIconTint="@color/ui_text_primary"
+            app:title="@string/filterlists_import"
+            app:titleTextColor="@color/ui_text_primary"
+            app:subtitleTextColor="@color/ui_text_secondary" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -22,6 +29,14 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
+            app:boxBackgroundColor="@color/ui_glass"
+            app:boxStrokeColor="@color/ui_glass_stroke"
+            app:boxStrokeWidth="1dp"
+            app:boxStrokeWidthFocused="1dp"
+            app:boxCornerRadiusBottomEnd="24dp"
+            app:boxCornerRadiusBottomStart="24dp"
+            app:boxCornerRadiusTopEnd="24dp"
+            app:boxCornerRadiusTopStart="24dp"
             app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -31,19 +46,25 @@
                 android:hint="@string/filter_search_hint"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
-                android:maxLines="1" />
+                android:maxLines="1"
+                android:textColor="@color/ui_text_primary"
+                android:textColorHint="@color/ui_text_secondary" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/filterlistsSubscribeAllButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.MaterialComponents.Button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
-            android:text="@string/filterlists_subscribe_all" />
+            android:text="@string/filterlists_subscribe_all"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/status_red"
+            app:cornerRadius="24dp" />
 
         <TextView
             android:id="@+id/filterlistsSubscribeAllStatus"
@@ -53,6 +74,7 @@
             android:layout_marginEnd="20dp"
             android:layout_marginBottom="8dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+            android:textColor="@color/ui_text_secondary"
             android:visibility="gone" />
 
     </com.google.android.material.appbar.AppBarLayout>

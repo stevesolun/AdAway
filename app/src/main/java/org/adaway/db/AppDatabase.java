@@ -16,6 +16,7 @@ import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
+import org.adaway.db.entity.HostsMeta;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.ListType;
@@ -28,6 +29,8 @@ import static org.adaway.db.Migrations.MIGRATION_3_4;
 import static org.adaway.db.Migrations.MIGRATION_4_5;
 import static org.adaway.db.Migrations.MIGRATION_5_6;
 import static org.adaway.db.Migrations.MIGRATION_6_7;
+import static org.adaway.db.Migrations.MIGRATION_7_8;
+import static org.adaway.db.Migrations.MIGRATION_8_9;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 
@@ -36,7 +39,7 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
-@Database(entities = {HostsSource.class, HostListItem.class, HostEntry.class}, version = 7)
+@Database(entities = {HostsSource.class, HostListItem.class, HostEntry.class, HostsMeta.class}, version = 9)
 @TypeConverters({ListTypeConverter.class, ZonedDateTimeConverter.class})
 public abstract class AppDatabase extends RoomDatabase {
     /**
@@ -62,6 +65,8 @@ public abstract class AppDatabase extends RoomDatabase {
                     .addCallback(new Callback() {
                         @Override
                         public void onCreate(@NonNull SupportSQLiteDatabase db) {
+                            // Ensure the single-row hosts_meta exists.
+                            db.execSQL("INSERT OR IGNORE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
                             AppExecutors.getInstance().diskIO().execute(
                                     () -> AppDatabase.initialize(context, instance)
                             );
@@ -72,7 +77,9 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_3_4,
                             MIGRATION_4_5,
                             MIGRATION_5_6,
-                            MIGRATION_6_7
+                            MIGRATION_6_7,
+                            MIGRATION_7_8,
+                            MIGRATION_8_9
                     ).build();
                 }
             }

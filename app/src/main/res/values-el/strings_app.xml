@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AdAway</string>
-    <string name="app_description">Ανοιχτού Κώδικα Πρόγραμμα αποκλεισμού διαφημίσεων </string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">Î‘Î½Î¿Î¹Ï‡Ï„Î¿Ï ÎšÏŽÎ´Î¹ÎºÎ± Î ÏÏŒÎ³ÏÎ±Î¼Î¼Î± Î±Ï€Î¿ÎºÎ»ÎµÎ¹ÏƒÎ¼Î¿Ï Î´Î¹Î±Ï†Î·Î¼Î¯ÏƒÎµÏ‰Î½ </string>
     <string name="app_logo">AdAway logo</string>
 </resources>
+

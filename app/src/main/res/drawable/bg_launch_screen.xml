@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ui_bg" />
+
+    <!-- Centered deep-red bird while the first frame renders -->
+    <item
+        android:gravity="center"
+        android:width="160dp"
+        android:height="160dp"
+        android:drawable="@drawable/icon_foreground_red" />
+</layer-list>
+
+

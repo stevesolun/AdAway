@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ஆட்அவே</string>
-    <string name="app_description">திறந்த மூல விளம்பர-தடுப்பான்</string>
-    <string name="app_logo">ஆட்அவே சின்னம்</string>
+    <string name="app_name">AdsAway</string>
+    <string name="app_description">à®¤à®¿à®±à®¨à¯à®¤ à®®à¯‚à®² à®µà®¿à®³à®®à¯à®ªà®°-à®¤à®Ÿà¯à®ªà¯à®ªà®¾à®©à¯</string>
+    <string name="app_logo">à®†à®Ÿà¯à®…à®µà¯‡ à®šà®¿à®©à¯à®©à®®à¯</string>
 </resources>
+
