@@ -80,8 +80,7 @@ jobs:
             "platforms;android-34" \
             "build-tools;34.0.0" \
             "platform-tools" \
-            "ndk;27.2.12479018" \
-            "cmake;3.22.1"
+            "ndk;27.2.12479018"
 
     # Build from command line as Autobuild fails
     - run: |
