@@ -24,6 +24,19 @@ jobs:
           java-version: 21
           cache: 'gradle'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK/NDK (required for native modules)
+        shell: bash
+        run: |
+          sdkmanager --install \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
+          yes | sdkmanager --licenses > /dev/null
+
       - name: Restore SonarCloud packages cache
         uses: actions/cache@v4
         with:
