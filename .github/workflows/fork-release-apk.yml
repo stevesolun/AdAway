@@ -21,30 +21,38 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # NOTE: We avoid step-level `if:` expressions referencing `secrets.*` because
+      # GitHub can mark the workflow as invalid in forks ("Unrecognized named-value: 'secrets'").
+      # Instead, we check the env var at runtime.
       - name: Decode signing keystore (optional)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         shell: bash
-        run: |
-          mkdir -p "$HOME/.keystore"
-          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "$HOME/.keystore/release.jks"
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
+            mkdir -p "$HOME/.keystore"
+            echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "$HOME/.keystore/release.jks"
+          else
+            echo "ANDROID_KEYSTORE_BASE64 not set; building unsigned release APK."
+          fi
 
       - name: Configure Gradle signing (optional)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         shell: bash
-        run: |
-          mkdir -p "$HOME/.gradle"
-          cat >> "$HOME/.gradle/gradle.properties" <<EOF
-          signingStoreLocation=$HOME/.keystore/release.jks
-          signingStorePassword=${SIGNING_STORE_PASSWORD}
-          signingKeyAlias=${SIGNING_KEY_ALIAS}
-          signingKeyPassword=${SIGNING_KEY_PASSWORD}
-          EOF
         env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
+            mkdir -p "$HOME/.gradle"
+            cat >> "$HOME/.gradle/gradle.properties" <<EOF
+            signingStoreLocation=$HOME/.keystore/release.jks
+            signingStorePassword=${SIGNING_STORE_PASSWORD}
+            signingKeyAlias=${SIGNING_KEY_ALIAS}
+            signingKeyPassword=${SIGNING_KEY_PASSWORD}
+            EOF
+          fi
 
       - name: Build release APK (signed if secrets provided)
         run: ./gradlew :app:assembleRelease --no-daemon
