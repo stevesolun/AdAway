@@ -30,12 +30,37 @@ jobs:
       - name: Install Android SDK/NDK (required for native modules)
         shell: bash
         run: |
-          sdkmanager --install \
+          set -eu
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+
+          SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
+          echo "Using SDK root: $SDKROOT"
+
+          mkdir -p "$HOME/.android"
+          touch "$HOME/.android/repositories.cfg"
+
+          SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$SDKROOT/cmdline-tools/bin/sdkmanager"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found (SDKROOT=$SDKROOT)" >&2
+            find "$SDKROOT" -maxdepth 5 -type f -name sdkmanager -print || true
+            exit 1
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses > /dev/null
+          "$SDKMANAGER" --sdk_root="$SDKROOT" --install \
             "platforms;android-34" \
             "build-tools;34.0.0" \
+            "platform-tools" \
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
-          yes | sdkmanager --licenses > /dev/null
 
       - name: Restore SonarCloud packages cache
         uses: actions/cache@v4

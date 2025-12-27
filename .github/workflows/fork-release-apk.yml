@@ -34,10 +34,28 @@ jobs:
           SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
           echo "Using SDK root: $SDKROOT"
 
-          # Accept licenses first (some packages fail to install otherwise).
-          yes | sdkmanager --sdk_root="$SDKROOT" --licenses > /dev/null
+          # Some environments error without this file (and sdkmanager may return non-zero).
+          mkdir -p "$HOME/.android"
+          touch "$HOME/.android/repositories.cfg"
 
-          sdkmanager --sdk_root="$SDKROOT" --install \
+          SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$SDKROOT/cmdline-tools/bin/sdkmanager"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found (SDKROOT=$SDKROOT)" >&2
+            find "$SDKROOT" -maxdepth 5 -type f -name sdkmanager -print || true
+            exit 1
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          # Accept licenses first (some packages fail to install otherwise).
+          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses > /dev/null
+
+          "$SDKMANAGER" --sdk_root="$SDKROOT" --install \
             "platforms;android-34" \
             "build-tools;34.0.0" \
             "platform-tools" \
