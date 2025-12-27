@@ -38,6 +38,14 @@ jobs:
           mkdir -p "$HOME/.android"
           touch "$HOME/.android/repositories.cfg"
 
+          # Newer runners may have an SDK directory that is not user-writable; sdkmanager needs write access.
+          if [ -d "$SDKROOT" ]; then
+            ls -ld "$SDKROOT" || true
+            sudo chown -R "$USER:$USER" "$SDKROOT" || true
+            chmod -R u+rwX "$SDKROOT" || true
+            ls -ld "$SDKROOT" || true
+          fi
+
           SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER="$SDKROOT/cmdline-tools/bin/sdkmanager"
