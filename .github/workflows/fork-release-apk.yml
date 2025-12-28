@@ -121,11 +121,10 @@ jobs:
         run: |
           if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
             mkdir -p "$HOME/.gradle"
-            printf "signingStoreLocation=%s/.keystore/release.jks\nsigningStorePassword=%s\nsigningKeyAlias=%s\nsigningKeyPassword=%s\n" \
-              "$HOME" \
-              "${SIGNING_STORE_PASSWORD}" \
-              "${SIGNING_KEY_ALIAS}" \
-              "${SIGNING_KEY_PASSWORD}" >> "$HOME/.gradle/gradle.properties"
+            echo "signingStoreLocation=$HOME/.keystore/release.jks" >> "$HOME/.gradle/gradle.properties"
+            echo "signingStorePassword=${SIGNING_STORE_PASSWORD}" >> "$HOME/.gradle/gradle.properties"
+            echo "signingKeyAlias=${SIGNING_KEY_ALIAS}" >> "$HOME/.gradle/gradle.properties"
+            echo "signingKeyPassword=${SIGNING_KEY_PASSWORD}" >> "$HOME/.gradle/gradle.properties"
           fi
 
       - name: Build release APK (signed if secrets provided)
