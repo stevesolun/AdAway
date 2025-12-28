@@ -56,20 +56,24 @@ This fork adds an enhanced filter management experience:
 
 ### Install this fork (download APK)
 
-- Download the latest APK from [Releases (latest)](https://github.com/stevesolun/AdAway/releases/latest).
-  - Prefer **`app-release.apk`** (signed). If you only see **`app-release-unsigned.apk`**, signing secrets are not configured yet (see CI/CD notes below).
-- On Android: open the downloaded APK and allow **Install unknown apps** when prompted.
-  - If you see an error like “App not installed” / “Signature conflict”, uninstall the previous `org.adaway` app first, then install the APK again.
-- Verify it installed: open AdAway and confirm the version shown on the Home screen (top-right).
+1. **Download**: Get the latest `app-release.apk` from [Releases](https://github.com/stevesolun/AdAway/releases/latest).
+2. **Uninstall**: If you have an existing AdAway app, **you must uninstall it first** (this fork uses a different signing key).
+3. **Install**: Open the APK file on your Android device.
+   - If prompted, allow "Install unknown apps".
+   - You should see the "AdAway" installation dialog.
+4. **Verify**: Open AdAway and confirm the version on the Home screen.
+
+> **Note**: This is a test build signed with a debug key. Android will block updates over the official app due to signature mismatch. Uninstalling the old app solves this.
 
 ### CI/CD (automatic APK releases)
 
 This repo includes a GitHub Actions workflow that publishes a Release whenever you push a tag like `v13.0.1`.
 
-- **Tag + release**: push `v*` tags → builds `assembleRelease` → creates a GitHub Release with the APK attached
-- **Cleanup**: automatically deletes older releases (keeps the latest 3), and can be triggered manually via **Actions → “Cleanup old releases”**
+- **Tag + release**: push `v*` tags → builds `assembleRelease` → creates a GitHub Release with the APK attached.
+- **Cleanup**: automatically deletes older releases (keeps the latest 3).
+- **Security**: The build falls back to a debug signing key if no release secrets are provided, ensuring the APK is always installable (v2+ signature).
 
-To publish **signed** APKs (recommended), add these repository secrets:
+To publish **production-signed** APKs (for Play Store/F-Droid), add these repository secrets:
 
 - `ANDROID_KEYSTORE_BASE64` (base64 of your `.jks`)
 - `ANDROID_KEYSTORE_PASSWORD`
