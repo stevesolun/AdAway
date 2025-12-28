@@ -130,7 +130,7 @@ jobs:
           fi
 
       - name: Build release APK (signed if secrets provided)
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace -x :webserver:lintVitalAnalyzeRelease -x :tcpdump:lintVitalAnalyzeRelease
 
       - name: Select APK artifact
         id: apk

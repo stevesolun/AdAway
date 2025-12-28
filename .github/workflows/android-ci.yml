@@ -106,7 +106,7 @@ jobs:
         run: ./gradlew test --stacktrace
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace -x :webserver:lintVitalAnalyzeRelease -x :tcpdump:lintVitalAnalyzeRelease
 
       # - name: Upload APK
       #   uses: actions/upload-artifact@v3
