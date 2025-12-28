@@ -108,6 +108,12 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew assembleRelease --stacktrace -x :webserver:lintVitalAnalyzeRelease -x :tcpdump:lintVitalAnalyzeRelease
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: AdAway-release
+          path: app/build/outputs/apk/release/app-release.apk
+
 
 
       - name: Analyze project
