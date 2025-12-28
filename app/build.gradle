@@ -58,6 +58,9 @@ android {
 
         buildTypes.debug.signingConfig = signingConfigs.release
         buildTypes.release.signingConfig = signingConfigs.release
+    } else {
+        println "No signature properties found. Using debug key for release build to ensure APK is installable."
+        buildTypes.release.signingConfig = signingConfigs.debug
     }
 
     compileOptions {
@@ -76,11 +79,13 @@ android {
     }
 
     buildTypes {
-//        debug {
-//            shrinkResources false
-//            minifyEnabled false
-//            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-//        }
+        debug {
+            // shrinkResources false
+            // minifyEnabled false
+            // proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Ensure modern signing for debug builds (required for Android 11+)
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled true
             shrinkResources true
