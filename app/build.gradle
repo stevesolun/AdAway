@@ -44,6 +44,15 @@ android {
      * signingKeyAlias=alias
      * signingKeyPassword=xxx
      */
+    signingConfigs {
+        debug {
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+    }
+
     if (keyStoreDefined) {
         println "Found signature properties in gradle.properties. Build will be signed."
 
@@ -64,13 +73,6 @@ android {
         buildTypes.release.signingConfig = signingConfigs.release
     } else {
         println "No signature properties found. Using debug key for release build to ensure APK is installable."
-        // Customize debug signing to ensure v1+v2+v3 are enabled
-        signingConfigs.debug {
-            enableV1Signing true
-            enableV2Signing true
-            enableV3Signing true
-            enableV4Signing true
-        }
         buildTypes.release.signingConfig = signingConfigs.debug
     }
 
