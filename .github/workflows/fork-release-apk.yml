@@ -108,7 +108,7 @@ jobs:
             mkdir -p "$HOME/.keystore"
             echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "$HOME/.keystore/release.jks"
           else
-            echo "ANDROID_KEYSTORE_BASE64 not set; building unsigned release APK."
+            echo "ANDROID_KEYSTORE_BASE64 not set; building with debug key."
           fi
 
       - name: Configure Gradle signing (optional)
@@ -134,11 +134,7 @@ jobs:
         id: apk
         shell: bash
         run: |
-          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-            echo "path=app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
-          else
-            echo "path=app/build/outputs/apk/release/app-release-unsigned.apk" >> $GITHUB_OUTPUT
-          fi
+          echo "path=app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release + upload APK
         uses: softprops/action-gh-release@v2
