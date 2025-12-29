@@ -123,9 +123,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
         Timber.d("onStartCommand %s", intent == null ? "null intent" : intent);
         // Check null intent that happens when system restart the service
         // https://developer.android.com/reference/android/app/Service#START_STICKY
-        Command command = intent == null ?
-                START :
-                Command.readFromIntent(intent);
+        Command command = intent == null ? START : Command.readFromIntent(intent);
         switch (command) {
             case START:
                 startVpn();
@@ -203,7 +201,12 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
             case STARTING:
             case RUNNING:
                 notificationManager.cancel(VPN_RESUME_SERVICE_NOTIFICATION_ID);
-                startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                } else {
+                    startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
+                }
                 break;
             default:
                 if (checkSelfPermission(POST_NOTIFICATIONS) == PERMISSION_GRANTED) {
@@ -212,7 +215,8 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
         }
 
         // Persist status for UI/state checks (source of truth is PreferenceHelper).
-        // UI should observe AdBlockModel.isApplied() / VpnServiceControls.isRunning() rather than local broadcasts.
+        // UI should observe AdBlockModel.isApplied() / VpnServiceControls.isRunning()
+        // rather than local broadcasts.
     }
 
     private Notification getNotification(VpnStatus status) {
@@ -234,23 +238,23 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
                 Intent stopIntent = new Intent(this, CommandReceiver.class)
                         .setAction(SEND_COMMAND_ACTION);
                 STOP.appendToIntent(stopIntent);
-                PendingIntent stopActionIntent = PendingIntent.getBroadcast(this, REQUEST_CODE_PAUSE, stopIntent, FLAG_IMMUTABLE);
+                PendingIntent stopActionIntent = PendingIntent.getBroadcast(this, REQUEST_CODE_PAUSE, stopIntent,
+                        FLAG_IMMUTABLE);
                 builder.addAction(
                         R.drawable.ic_pause_24dp,
                         getString(R.string.vpn_notification_action_pause),
-                        stopActionIntent
-                ).setOngoing(true);
+                        stopActionIntent).setOngoing(true);
                 break;
             case STOPPED:
                 Intent startIntent = new Intent(this, CommandReceiver.class)
                         .setAction(SEND_COMMAND_ACTION);
                 START.appendToIntent(startIntent);
-                PendingIntent startActionIntent = PendingIntent.getBroadcast(this, REQUEST_CODE_START, startIntent, FLAG_IMMUTABLE);
+                PendingIntent startActionIntent = PendingIntent.getBroadcast(this, REQUEST_CODE_START, startIntent,
+                        FLAG_IMMUTABLE);
                 builder.addAction(
                         0,
                         getString(R.string.vpn_notification_action_resume),
-                        startActionIntent
-                );
+                        startActionIntent);
                 break;
         }
         return builder.build();
@@ -316,7 +320,9 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
      * This class receives network change events to monitor network type available.
      *
      * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
-     * @see <a href="https://developer.android.com/training/basics/network-ops/reading-network-state#listening-events">Android Developer Documentation</a>
+     * @see <a href=
+     *      "https://developer.android.com/training/basics/network-ops/reading-network-state#listening-events">Android
+     *      Developer Documentation</a>
      */
     private class NetworkTypeCallback extends NetworkCallback {
         private final NetworkType monitoredType;

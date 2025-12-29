@@ -25,6 +25,7 @@ LOCAL_MODULE           := webserver
 LOCAL_SRC_FILES        := webserver.c mongoose/mongoose.c
 LOCAL_SHARED_LIBRARIES := ssl crypto
 LOCAL_LDLIBS           := -llog
+LOCAL_LDFLAGS          := -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
 
 include $(BUILD_EXECUTABLE)
 
