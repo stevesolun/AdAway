@@ -1133,6 +1133,18 @@ public class SourceModel {
                     .readTimeout(60, TimeUnit.SECONDS)
                     .writeTimeout(60, TimeUnit.SECONDS)
                     .cache(new Cache(cacheDir, CACHE_SIZE))
+                    // Security hardening: Block HTTPS -> HTTP redirect downgrades.
+                    .addNetworkInterceptor(chain -> {
+                        Response response = chain.proceed(chain.request());
+                        if (response.isRedirect()) {
+                            String location = response.header("Location");
+                            if (location != null && chain.request().url().scheme().equals("https")
+                                    && location.startsWith("http:")) {
+                                throw new IOException("Security: Blocked HTTPS to HTTP redirect to " + location);
+                            }
+                        }
+                        return response;
+                    })
                     .build();
         }
         return this.cachedHttpClient;

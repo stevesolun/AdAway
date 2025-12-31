@@ -107,17 +107,27 @@ struct settings parse_cli_parameters(int argc, char *argv[]) {
             // Initialize TLS options
             char cert_path[100];
             char key_path[100];
-            strcpy(cert_path, resource_path);
-            strcat(cert_path, "/localhost-2410.crt");
-            strcpy(key_path, resource_path);
-            strcat(key_path, "/localhost-2410.key");
+            
+            // Safe string handling
+            strncpy(cert_path, resource_path, sizeof(cert_path) - 1);
+            cert_path[sizeof(cert_path) - 1] = '\0';
+            strncat(cert_path, "/localhost-2410.crt", sizeof(cert_path) - strlen(cert_path) - 1);
+
+            strncpy(key_path, resource_path, sizeof(key_path) - 1);
+            key_path[sizeof(key_path) - 1] = '\0';
+            strncat(key_path, "/localhost-2410.key", sizeof(key_path) - strlen(key_path) - 1);
+
             s.tls_opts.cert = mg_file_read(&mg_fs_posix, cert_path);
             s.tls_opts.key = mg_file_read(&mg_fs_posix, key_path);
             // Initialize resource paths
-            strcpy(s.icon_path, resource_path);
-            strcat(s.icon_path, "/icon.svg");
-            strcpy(s.test_path, resource_path);
-            strcat(s.test_path, "/test.html");
+            strncpy(s.icon_path, resource_path, sizeof(s.icon_path) - 1);
+            s.icon_path[sizeof(s.icon_path) - 1] = '\0';
+            strncat(s.icon_path, "/icon.svg", sizeof(s.icon_path) - strlen(s.icon_path) - 1);
+
+            strncpy(s.test_path, resource_path, sizeof(s.test_path) - 1);
+            s.test_path[sizeof(s.test_path) - 1] = '\0';
+            strncat(s.test_path, "/test.html", sizeof(s.test_path) - strlen(s.test_path) - 1);
+
             s.init = true;
         } else if (strcmp(argv[i], "--icon") == 0) {
             s.icon = true;

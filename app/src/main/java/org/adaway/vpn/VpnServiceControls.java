@@ -16,7 +16,8 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * This utility class allows controlling (start and stop) the AdAway VPN service.
+ * This utility class allows controlling (start and stop) the AdAway VPN
+ * service.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -32,7 +33,8 @@ public final class VpnServiceControls {
      * Check if the VPN service is currently running.
      *
      * @param context The application context.
-     * @return {@code true} if the VPN service is currently running, {@code false} otherwise.
+     * @return {@code true} if the VPN service is currently running, {@code false}
+     *         otherwise.
      */
     public static boolean isRunning(Context context) {
         boolean networkVpnCapability = checkAnyNetworkVpnCapability(context);
@@ -61,19 +63,36 @@ public final class VpnServiceControls {
      * @return {@code true} if the service is started, {@code false} otherwise.
      */
     public static boolean start(Context context) {
+        android.util.Log.e("VPN_DEBUG", "VpnServiceControls.start() called");
         // Check if VPN is already running
         if (isRunning(context)) {
+            android.util.Log.e("VPN_DEBUG", "VPN already running");
             return true;
         }
         // Start the VPN service
         Intent intent = new Intent(context, VpnService.class);
         START.appendToIntent(intent);
-        boolean started = context.startForegroundService(intent) != null;
-        if (started) {
-            // Start the heartbeat
-            VpnServiceHeartbeat.start(context);
+        try {
+            android.util.Log.e("VPN_DEBUG", "Attempting to launch service intent");
+            android.content.ComponentName component;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                component = context.startForegroundService(intent);
+            } else {
+                component = context.startService(intent);
+            }
+
+            boolean started = component != null;
+            android.util.Log.e("VPN_DEBUG", "Service launch result: " + component);
+
+            if (started) {
+                // Start the heartbeat
+                VpnServiceHeartbeat.start(context);
+            }
+            return started;
+        } catch (Exception e) {
+            android.util.Log.e("VPN_DEBUG", "Failed to start service with exception", e);
+            return false;
         }
-        return started;
     }
 
     /**

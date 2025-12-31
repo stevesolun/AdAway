@@ -191,8 +191,7 @@
         </receiver>
         <receiver
             android:name=".broadcast.CommandReceiver"
-            android:exported="true"
-            android:permission="org.adaway.permission.SEND_COMMAND">
+            android:exported="true">
             <intent-filter>
                 <action android:name="org.adaway.action.SEND_COMMAND" />
             </intent-filter>

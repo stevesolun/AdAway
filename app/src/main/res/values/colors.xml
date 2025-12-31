@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material theming light theme -->
-    <!-- Deep / royal blue theme -->
-    <color name="primary">#1E3A8A</color>
-    <color name="primaryVariant">#1D4ED8</color>
+    <!-- RED theme for enabled checkboxes and toggles -->
+    <color name="primary">#D32F2F</color>
+    <color name="primaryVariant">#B71C1C</color>
     <color name="onPrimary">#FFFFFF</color>
     <!-- Keep the bird/logo red (do not tie it to primary) -->
     <color name="logo_red">#B71C1C</color>

@@ -35,8 +35,10 @@ public interface HostEntryDao {
     void clear();
 
     /**
-     * Fast blocked host count based on the built host_entries table (unique hosts, no DISTINCT needed).
-     * This is used for the Home "Blocked" counter so it doesn't stall on huge DISTINCT queries.
+     * Fast blocked host count based on the built host_entries table (unique hosts,
+     * no DISTINCT needed).
+     * This is used for the Home "Blocked" counter so it doesn't stall on huge
+     * DISTINCT queries.
      */
     @Query("SELECT COUNT(*) FROM `host_entries` WHERE `type` = 0")
     LiveData<Integer> getBlockedEntryCount();
@@ -44,12 +46,10 @@ public interface HostEntryDao {
     @Query("SELECT COUNT(*) FROM `host_entries` WHERE `type` = 0")
     int getBlockedEntryCountNow();
 
-    @Query("INSERT INTO `host_entries` " +
-            "SELECT DISTINCT `host`, `type`, `redirection` FROM `hosts_lists` " +
-            "WHERE `type` = 0 AND `enabled` = 1 AND (`source_id` = 1 OR `generation` = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    @Query("INSERT INTO `host_entries` SELECT DISTINCT `host`, `type`, `redirection` FROM `hosts_lists` WHERE `type` = 0 AND `enabled` = 1")
     void importBlocked();
 
-    @Query("SELECT host FROM hosts_lists WHERE type = 1 AND enabled = 1 AND (source_id = 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    @Query("SELECT host FROM hosts_lists WHERE type = 1 AND enabled = 1")
     List<String> getEnabledAllowedHosts();
 
     @Query("DELETE FROM `host_entries` WHERE `host` LIKE :hostPattern")
@@ -58,7 +58,7 @@ public interface HostEntryDao {
     @RawQuery
     int allowHostsRaw(SupportSQLiteQuery query);
 
-    @Query("SELECT * FROM hosts_lists WHERE type = 2 AND enabled = 1 AND (source_id = 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0)) ORDER BY host ASC, source_id DESC")
+    @Query("SELECT * FROM hosts_lists WHERE type = 2 AND enabled = 1 ORDER BY host ASC, source_id DESC")
     List<HostListItem> getEnabledRedirectedHosts();
 
     @Insert(onConflict = REPLACE)
@@ -93,7 +93,8 @@ public interface HostEntryDao {
                 StringBuilder sql = new StringBuilder("DELETE FROM host_entries WHERE ");
                 Object[] args = new Object[batch.size()];
                 for (int j = 0; j < batch.size(); j++) {
-                    if (j > 0) sql.append(" OR ");
+                    if (j > 0)
+                        sql.append(" OR ");
                     sql.append("host LIKE ?");
                     String pattern = ANY_CHAR_PATTERN.matcher(batch.get(j)).replaceAll("%");
                     pattern = A_CHAR_PATTERN.matcher(pattern).replaceAll("_");

@@ -120,15 +120,18 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
-        Timber.d("onStartCommand %s", intent == null ? "null intent" : intent);
+        android.util.Log.e("VPN_DEBUG", "VpnService onStartCommand called. Intent: " + intent);
         // Check null intent that happens when system restart the service
         // https://developer.android.com/reference/android/app/Service#START_STICKY
         Command command = intent == null ? START : Command.readFromIntent(intent);
+        android.util.Log.e("VPN_DEBUG", "Command received: " + command);
         switch (command) {
             case START:
+                android.util.Log.e("VPN_DEBUG", "Processing START command");
                 startVpn();
                 return START_STICKY;
             case STOP:
+                android.util.Log.e("VPN_DEBUG", "Processing STOP command");
                 stopVpn();
                 return START_NOT_STICKY;
             default:
@@ -167,7 +170,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     }
 
     private void startVpn() {
-        Timber.d("Starting VPN service…");
+        android.util.Log.e("VPN_DEBUG", "startVpn() called");
         PreferenceHelper.setVpnServiceStatus(this, RUNNING);
         updateVpnStatus(STARTING);
         this.vpnWorker.start();
@@ -195,6 +198,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     }
 
     private void updateVpnStatus(VpnStatus status) {
+        android.util.Log.e("VPN_DEBUG", "updateVpnStatus called with status: " + status);
         Notification notification = getNotification(status);
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
         switch (status) {
@@ -202,8 +206,14 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
             case RUNNING:
                 notificationManager.cancel(VPN_RESUME_SERVICE_NOTIFICATION_ID);
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
-                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                    android.util.Log.e("VPN_DEBUG", "Calling startForeground for Android Q+");
+                    try {
+                        startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
+                                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                        android.util.Log.e("VPN_DEBUG", "startForeground success");
+                    } catch (Exception e) {
+                        android.util.Log.e("VPN_DEBUG", "startForeground FAILED", e);
+                    }
                 } else {
                     startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
                 }

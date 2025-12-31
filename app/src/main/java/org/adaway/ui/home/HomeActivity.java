@@ -92,8 +92,9 @@ public class HomeActivity extends AppCompatActivity {
     private Snackbar scheduledUpdateSnackbar;
     private boolean sourceModelProgressActive = false;
     private boolean scheduledProgressActive = false;
-    
-    // UI-side monotonic guards: WorkManager delivers progress async and out-of-order
+
+    // UI-side monotonic guards: WorkManager delivers progress async and
+    // out-of-order
     private int filterListsLastDone = -1;
     private int filterListsLastTotal = -1;
     private int scheduledLastDone = -1;
@@ -103,10 +104,12 @@ public class HomeActivity extends AppCompatActivity {
 
     // Enforce comma grouping (1,000 / 1,000,000) as requested.
     private static final NumberFormat COUNT_FORMAT = NumberFormat.getIntegerInstance(Locale.US);
-    // Use a non-disk executor for quick counter reads so it doesn't get starved by long DB import writes on diskIO.
+    // Use a non-disk executor for quick counter reads so it doesn't get starved by
+    // long DB import writes on diskIO.
     private static final Executor COUNTS_EXECUTOR = AppExecutors.getInstance().networkIO();
 
-    // Host counter LiveData observers (detached during bulk import to avoid expensive DB COUNT queries)
+    // Host counter LiveData observers (detached during bulk import to avoid
+    // expensive DB COUNT queries)
     @Nullable
     private LiveData<Integer> blockedHostCountLiveData;
     @Nullable
@@ -158,7 +161,8 @@ public class HomeActivity extends AppCompatActivity {
 
         this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK) {
-                // Permission granted: only start ad-blocking if VPN is still the selected method.
+                // Permission granted: only start ad-blocking if VPN is still the selected
+                // method.
                 if (PreferenceHelper.getAdBlockMethod(this) == VPN) {
                     Boolean isBlocked = this.homeViewModel.isAdBlocked().getValue();
                     if (isBlocked == null || !isBlocked) {
@@ -167,7 +171,8 @@ public class HomeActivity extends AppCompatActivity {
                     }
                 }
             } else {
-                // Permission denied/canceled: revert to UNDEFINED so we don't keep prompting on every resume.
+                // Permission denied/canceled: revert to UNDEFINED so we don't keep prompting on
+                // every resume.
                 PreferenceHelper.setAbBlockMethod(this, UNDEFINED);
                 new MaterialAlertDialogBuilder(this)
                         .setIcon(android.R.drawable.ic_dialog_alert)
@@ -211,7 +216,8 @@ public class HomeActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING || info.getState() == WorkInfo.State.ENQUEUED);
+                    boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING
+                            || info.getState() == WorkInfo.State.ENQUEUED);
                     if (!running || info == null) {
                         if (filterListsProgressSnackbar != null) {
                             filterListsProgressSnackbar.dismiss();
@@ -229,7 +235,7 @@ public class HomeActivity extends AppCompatActivity {
 
                     int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
                     int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
-                    
+
                     // UI-side monotonic guard: WorkManager delivers async, can be out-of-order
                     // Reset if total changes (new job); otherwise only accept if done >= last seen
                     if (total != filterListsLastTotal) {
@@ -240,7 +246,8 @@ public class HomeActivity extends AppCompatActivity {
                         return; // Stale/out-of-order update, ignore
                     }
                     filterListsLastDone = done;
-                    String currentName = info.getProgress().getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
+                    String currentName = info.getProgress()
+                            .getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
                     int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
                     String msg;
                     if (total <= 0) {
@@ -254,9 +261,8 @@ public class HomeActivity extends AppCompatActivity {
 
                     // Persistent progress on the main screen
                     this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
-                    this.binding.content.filterListsSubscribeProgressTextView.setOnClickListener(v ->
-                            startActivity(new Intent(this, FilterListsImportActivity.class))
-                    );
+                    this.binding.content.filterListsSubscribeProgressTextView
+                            .setOnClickListener(v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
                     showView(this.binding.content.filterListsSubscribeProgressTextView);
 
                     this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
@@ -267,8 +273,10 @@ public class HomeActivity extends AppCompatActivity {
                     showView(this.binding.content.filterListsSubscribeProgressBar);
 
                     if (filterListsProgressSnackbar == null) {
-                        filterListsProgressSnackbar = Snackbar.make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE)
-                                .setAction("View", v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
+                        filterListsProgressSnackbar = Snackbar
+                                .make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE)
+                                .setAction("View",
+                                        v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
                         filterListsProgressSnackbar.show();
                     } else {
                         filterListsProgressSnackbar.setText(msg);
@@ -304,7 +312,7 @@ public class HomeActivity extends AppCompatActivity {
 
                     int done = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_DONE, 0);
                     int total = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_TOTAL, 0);
-                    
+
                     // UI-side monotonic guard: WorkManager delivers async, can be out-of-order
                     if (total != scheduledLastTotal) {
                         scheduledLastTotal = total;
@@ -318,7 +326,8 @@ public class HomeActivity extends AppCompatActivity {
                     int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
 
                     String msg = "Scheduled update: " + done + "/" + total + " (" + percent + "%)";
-                    if (current != null && !current.isEmpty()) msg += " • " + current;
+                    if (current != null && !current.isEmpty())
+                        msg += " • " + current;
 
                     // If subscribe-all is not running, reuse the main-screen percent UI.
                     if (filterListsProgressSnackbar == null) {
@@ -333,7 +342,8 @@ public class HomeActivity extends AppCompatActivity {
                     }
 
                     if (scheduledUpdateSnackbar == null) {
-                        scheduledUpdateSnackbar = Snackbar.make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE);
+                        scheduledUpdateSnackbar = Snackbar.make(this.binding.getRoot(), msg,
+                                Snackbar.LENGTH_INDEFINITE);
                         scheduledUpdateSnackbar.show();
                     } else {
                         scheduledUpdateSnackbar.setText(msg);
@@ -362,7 +372,8 @@ public class HomeActivity extends AppCompatActivity {
             }
             sourceModelProgressActive = true;
 
-            // Skip legacy progress display when multi-phase progress is active (avoid duplicate/confusing percentages)
+            // Skip legacy progress display when multi-phase progress is active (avoid
+            // duplicate/confusing percentages)
             // Double check inside the observer in case of race condition
             if (multiPhase != null && multiPhase.isActive()) {
                 removeView(this.binding.content.filterListsSubscribeProgressTextView);
@@ -374,8 +385,10 @@ public class HomeActivity extends AppCompatActivity {
             int total = progress.total;
             double pct = progress.basisPoints / 100.0;
             int percentForBar = (int) Math.floor(pct);
-            if (percentForBar <= 0 && progress.isActive()) percentForBar = 1; // ensure it doesn't look stuck at 0
-            String msg = "Updating sources: " + done + "/" + total + " (" + String.format(java.util.Locale.ROOT, "%.1f", pct) + "%)";
+            if (percentForBar <= 0 && progress.isActive())
+                percentForBar = 1; // ensure it doesn't look stuck at 0
+            String msg = "Updating sources: " + done + "/" + total + " ("
+                    + String.format(java.util.Locale.ROOT, "%.1f", pct) + "%)";
             if (progress.currentLabel != null && !progress.currentLabel.isEmpty()) {
                 msg += " • " + progress.currentLabel;
             }
@@ -430,7 +443,8 @@ public class HomeActivity extends AppCompatActivity {
             }
 
             showView(this.binding.content.multiPhaseProgressContainer);
-            // Detach DB-backed host counters during import to avoid expensive COUNT queries on every batch insert.
+            // Detach DB-backed host counters during import to avoid expensive COUNT queries
+            // on every batch insert.
             detachHostCounterObservers();
             primeCountersOnceDuringImport();
 
@@ -447,7 +461,8 @@ public class HomeActivity extends AppCompatActivity {
                         initialBlockedCount = currentBlocked;
                         this.homeViewModel.setCachedInitialBlockedCount(initialBlockedCount);
                     } else {
-                        // Fallback to current text if LiveData isn't ready or returns 0 (which might be wrong during init)
+                        // Fallback to current text if LiveData isn't ready or returns 0 (which might be
+                        // wrong during init)
                         try {
                             String text = this.binding.content.blockedHostCounterTextView.getText().toString();
                             long parsed = Long.parseLong(text.replaceAll("[^0-9]", ""));
@@ -469,8 +484,10 @@ public class HomeActivity extends AppCompatActivity {
                     }
                 }
 
-                // If we still don't have a useful baseline (e.g. LiveData never delivered before we detached),
-                // do a best-effort one-shot count on a non-disk executor so it doesn't get starved.
+                // If we still don't have a useful baseline (e.g. LiveData never delivered
+                // before we detached),
+                // do a best-effort one-shot count on a non-disk executor so it doesn't get
+                // starved.
                 if (initialBlockedCount <= 0) {
                     COUNTS_EXECUTOR.execute(() -> {
                         try {
@@ -491,8 +508,10 @@ public class HomeActivity extends AppCompatActivity {
 
             // Update main blocked counter with initial + parsed hosts
             // parsedHostCount is the running count for the *current* import.
-            // To avoid showing "0" at the start of an import, use the last known blocked count as a baseline,
-            // but DO NOT add them (that would double count). Instead, show the max until the import catches up.
+            // To avoid showing "0" at the start of an import, use the last known blocked
+            // count as a baseline,
+            // but DO NOT add them (that would double count). Instead, show the max until
+            // the import catches up.
             long baseline = Math.max(0, initialBlockedCount);
             long liveBlockedCount = Math.max(baseline, progress.parsedHostCount);
             this.binding.content.blockedHostCounterTextView.setText(formatCount(liveBlockedCount));
@@ -513,7 +532,8 @@ public class HomeActivity extends AppCompatActivity {
             this.binding.content.overallProgressText.setText(progressText);
 
             // Animate bird icon position along the progress bar
-            // Capture values in local variables to avoid memory leak from capturing 'this.binding' in post()
+            // Capture values in local variables to avoid memory leak from capturing
+            // 'this.binding' in post()
             View progressFrame = this.binding.content.overallProgressFrame;
             View progressBar = this.binding.content.overallProgressBar;
             View birdIcon = this.binding.content.birdProgressIcon;
@@ -527,7 +547,8 @@ public class HomeActivity extends AppCompatActivity {
                 int birdWidth = birdIcon.getWidth();
                 // Keep the bird fully inside the bar "track" (respect both start/end margins).
                 int available = barWidth - (2 * marginStartPx) - birdWidth;
-                if (available < 0) available = 0;
+                if (available < 0)
+                    available = 0;
                 int birdX = marginStartPx + (int) (available * capturedPercent / 100.0f);
                 birdIcon.setTranslationX(birdX);
             });
@@ -539,21 +560,25 @@ public class HomeActivity extends AppCompatActivity {
             this.binding.content.checkPhaseLabel.setVisibility(View.GONE);
 
             // Download Progress:
-            // The "Download" phase in UI now represents the progress of processing all sources (Check + Download).
-            // We use checkedCount / totalToCheck to match the "X/Y" text displayed to the user.
+            // The "Download" phase in UI now represents the progress of processing all
+            // sources (Check + Download).
+            // We use checkedCount / totalToCheck to match the "X/Y" text displayed to the
+            // user.
             int totalToCheck = progress.totalToCheck;
             int checked = progress.checkedCount;
             int downloadBarProgress = totalToCheck > 0 ? (int) ((long) checked * 100 / totalToCheck) : 0;
             this.binding.content.downloadProgressBar.setMax(100);
             this.binding.content.downloadProgressBar.setProgress(downloadBarProgress);
-            
+
             // Show "X/Y" for sources processed
-            this.binding.content.downloadPhasePercent.setText(String.format(java.util.Locale.ROOT, "%d/%d", checked, totalToCheck));
+            this.binding.content.downloadPhasePercent
+                    .setText(String.format(java.util.Locale.ROOT, "%d/%d", checked, totalToCheck));
 
             double parsePercent = progress.getParsePercentDouble();
             this.binding.content.parseProgressBar.setMax(100);
             this.binding.content.parseProgressBar.setProgress((int) parsePercent);
-            this.binding.content.parsePhasePercent.setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
+            this.binding.content.parsePhasePercent
+                    .setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
 
             // Show scheduler task info if present
             if (progress.schedulerTaskName != null && !progress.schedulerTaskName.isEmpty()) {
@@ -619,8 +644,7 @@ public class HomeActivity extends AppCompatActivity {
                         versionTextView.setTypeface(versionTextView.getTypeface(), Typeface.BOLD);
                         versionTextView.setText(R.string.update_available);
                     }
-                }
-        );
+                });
     }
 
     private void bindHostCounter() {
@@ -634,40 +658,50 @@ public class HomeActivity extends AppCompatActivity {
         TextView redirectHostCountTextView = this.binding.content.redirectHostCounterTextView;
 
         this.blockedHostCountObserver = count -> {
-            if (count == null) return;
-            // When a multi-phase update is active, we show the live counter from parsing progress instead.
-            if (initialBlockedCount >= 0) return;
+            if (count == null)
+                return;
+            // When a multi-phase update is active, we show the live counter from parsing
+            // progress instead.
+            if (initialBlockedCount >= 0)
+                return;
             blockedHostCountTextView.setText(formatCount(count));
         };
         this.allowedHostCountObserver = count -> {
-            if (count == null) return;
+            if (count == null)
+                return;
             allowedHostCountTextView.setText(formatCount(count));
         };
         this.redirectHostCountObserver = count -> {
-            if (count == null) return;
+            if (count == null)
+                return;
             redirectHostCountTextView.setText(formatCount(count));
         };
 
         attachHostCounterObservers();
 
-        // Ensure we never show blank/0 due to Room LiveData races on cold start while an update is already active.
-        // (The DB often has the correct counts; LiveData might not deliver before we detach observers for import.)
+        // Ensure we never show blank/0 due to Room LiveData races on cold start while
+        // an update is already active.
+        // (The DB often has the correct counts; LiveData might not deliver before we
+        // detach observers for import.)
         refreshHostCountersOnce();
     }
 
     private void refreshHostCountersOnce() {
         // Avoid kicking off multiple refresh jobs during rapid relaunches.
-        if (hostCountersPrimedDuringImport) return;
+        if (hostCountersPrimedDuringImport)
+            return;
         hostCountersPrimedDuringImport = true;
         COUNTS_EXECUTOR.execute(() -> {
             try {
-                // Allowed/redirect counts are small and quick. Blocked can be huge; rely on LiveData or progress update.
+                // Allowed/redirect counts are small and quick. Blocked can be huge; rely on
+                // LiveData or progress update.
                 int allowedNow = AppDatabase.getInstance(this).hostsListItemDao().getAllowedHostCountNow();
                 int redirectNow = AppDatabase.getInstance(this).hostsListItemDao().getRedirectHostCountNow();
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     this.binding.content.allowedHostCounterTextView.setText(formatCount(allowedNow));
                     this.binding.content.redirectHostCounterTextView.setText(formatCount(redirectNow));
-                    // If blocked text is still blank (first launch), at least show 0 until LiveData/progress updates it.
+                    // If blocked text is still blank (first launch), at least show 0 until
+                    // LiveData/progress updates it.
                     CharSequence blockedText = this.binding.content.blockedHostCounterTextView.getText();
                     if (blockedText == null || blockedText.length() == 0) {
                         this.binding.content.blockedHostCounterTextView.setText(formatCount(0));
@@ -680,7 +714,8 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void attachHostCounterObservers() {
-        if (hostCountersAttached) return;
+        if (hostCountersAttached)
+            return;
         if (this.blockedHostCountLiveData != null && this.blockedHostCountObserver != null) {
             this.blockedHostCountLiveData.observe(this, this.blockedHostCountObserver);
         }
@@ -694,7 +729,8 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void detachHostCounterObservers() {
-        if (!hostCountersAttached) return;
+        if (!hostCountersAttached)
+            return;
         if (this.blockedHostCountLiveData != null && this.blockedHostCountObserver != null) {
             this.blockedHostCountLiveData.removeObserver(this.blockedHostCountObserver);
         }
@@ -708,7 +744,8 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void primeCountersOnceDuringImport() {
-        if (hostCountersPrimedDuringImport) return;
+        if (hostCountersPrimedDuringImport)
+            return;
         hostCountersPrimedDuringImport = true;
 
         // Use last known LiveData values if already computed.
@@ -731,7 +768,8 @@ public class HomeActivity extends AppCompatActivity {
         }
 
         // Otherwise do a single background fetch (one-shot) and set the text.
-        // IMPORTANT: Use COUNTS_EXECUTOR so it doesn't get starved behind long-running import work on diskIO.
+        // IMPORTANT: Use COUNTS_EXECUTOR so it doesn't get starved behind long-running
+        // import work on diskIO.
         COUNTS_EXECUTOR.execute(() -> {
             try {
                 int allowedNow = AppDatabase.getInstance(this).hostsListItemDao().getAllowedHostCountNow();
@@ -741,7 +779,8 @@ public class HomeActivity extends AppCompatActivity {
                     this.binding.content.redirectHostCounterTextView.setText(formatCount(redirectNow));
                 });
             } catch (Exception ignored) {
-                // Best-effort: if this fails, the counters will update when import completes and observers reattach.
+                // Best-effort: if this fails, the counters will update when import completes
+                // and observers reattach.
             }
         });
     }
@@ -756,15 +795,13 @@ public class HomeActivity extends AppCompatActivity {
 
         TextView upToDateSourcesTextView = this.binding.content.upToDateSourcesTextView;
         LiveData<Integer> upToDateSourceCount = this.homeViewModel.getUpToDateSourceCount();
-        upToDateSourceCount.observe(this, count ->
-                upToDateSourcesTextView.setText(resources.getQuantityString(R.plurals.up_to_date_source_label, count, count))
-        );
+        upToDateSourceCount.observe(this, count -> upToDateSourcesTextView
+                .setText(resources.getQuantityString(R.plurals.up_to_date_source_label, count, count)));
 
         TextView outdatedSourcesTextView = this.binding.content.outdatedSourcesTextView;
         LiveData<Integer> outdatedSourceCount = this.homeViewModel.getOutdatedSourceCount();
-        outdatedSourceCount.observe(this, count ->
-                outdatedSourcesTextView.setText(resources.getQuantityString(R.plurals.outdated_source_label, count, count))
-        );
+        outdatedSourceCount.observe(this, count -> outdatedSourcesTextView
+                .setText(resources.getQuantityString(R.plurals.outdated_source_label, count, count)));
     }
 
     private void bindPending() {
@@ -817,8 +854,8 @@ public class HomeActivity extends AppCompatActivity {
             this.drawerBehavior.setState(STATE_HALF_EXPANDED);
             this.onBackPressedCallback.setEnabled(true);
         });
-//        this.binding.bar.setNavigationIcon(R.drawable.ic_menu_24dp);
-//        this.binding.bar.replaceMenu(R.menu.next_actions);
+        // this.binding.bar.setNavigationIcon(R.drawable.ic_menu_24dp);
+        // this.binding.bar.replaceMenu(R.menu.next_actions);
     }
 
     private void bindFab() {
@@ -902,10 +939,15 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void notifyAdBlocked(boolean adBlocked) {
-        // Keep Home background consistently deep blue (no gray header), regardless of state.
+        // Keep Home background consistently deep blue (no gray header), regardless of
+        // state.
         this.binding.content.headerFrameLayout.setBackgroundColor(getResources().getColor(R.color.ui_bg, null));
-        // Bird-only toggle button (no box background), always deep red.
-        this.binding.fab.setImageResource(R.drawable.icon_foreground_red);
+        // Bird toggle button: RED when VPN is ON, WHITE when VPN is OFF
+        if (adBlocked) {
+            this.binding.fab.setImageResource(R.drawable.icon_foreground_red);
+        } else {
+            this.binding.fab.setImageResource(R.drawable.icon_foreground_white);
+        }
     }
 
     private static String formatCount(long value) {

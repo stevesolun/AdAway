@@ -39,11 +39,13 @@ public class AdAwayApplication extends Application {
         ApplicationLog.init(this);
         // Create notification channels
         NotificationHelper.createNotificationChannels(this);
+
         // Create models
         this.sourceModel = new SourceModel(this);
         this.updateModel = new UpdateModel(this);
 
-        // Default: enable global daily update schedule for all enabled sources (configurable in UI).
+        // Default: enable global daily update schedule for all enabled sources
+        // (configurable in UI).
         FilterSetStore.ensureGlobalDefaults(this);
         if (FilterSetStore.isGlobalScheduleEnabled(this)) {
             FilterSetUpdateService.enable(this);
