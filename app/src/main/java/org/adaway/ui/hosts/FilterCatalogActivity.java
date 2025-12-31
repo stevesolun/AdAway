@@ -27,6 +27,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
@@ -68,12 +69,13 @@ public class FilterCatalogActivity extends AppCompatActivity {
     private EditText searchEditText;
     private ChipGroup presetChipGroup;
     private Chip chipSafe, chipBalanced, chipAggressive, chipCustom;
-    
+    private MaterialSwitch selectAllSwitch;
+
     private CatalogAdapter adapter;
     private HostsSourceDao hostsSourceDao;
     private Set<String> existingUrls = new HashSet<>();
     private Set<FilterListCatalog.CatalogEntry> selectedEntries = new HashSet<>();
-    
+
     // All entries and filtered entries
     private List<FilterListCatalog.CatalogEntry> allEntries;
     private List<FilterListCatalog.CatalogEntry> filteredEntries;
@@ -89,7 +91,8 @@ public class FilterCatalogActivity extends AppCompatActivity {
 
         // Setup toolbar
         MaterialToolbar toolbar = findViewById(R.id.catalogToolbar);
-        // Use this toolbar as the Activity ActionBar to avoid the default ActionBar being shown above it
+        // Use this toolbar as the Activity ActionBar to avoid the default ActionBar
+        // being shown above it
         // (which caused the "double back arrows / double titles" UI).
         setSupportActionBar(toolbar);
         ActionBar actionBar = getSupportActionBar();
@@ -104,40 +107,64 @@ public class FilterCatalogActivity extends AppCompatActivity {
         // Setup views
         recyclerView = findViewById(R.id.catalogRecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        
+
         addButton = findViewById(R.id.addSelectedButton);
         addButton.setOnClickListener(v -> addSelectedSources());
 
         importFromFilterListsButton = findViewById(R.id.importFromFilterListsButton);
-        importFromFilterListsButton.setOnClickListener(v ->
-                startActivity(new Intent(this, FilterListsImportActivity.class))
-        );
-        
+        importFromFilterListsButton
+                .setOnClickListener(v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
+
         subtitleView = findViewById(R.id.catalogSubtitle);
-        
+
+        // Setup "Select All" switch
+        selectAllSwitch = findViewById(R.id.catalogSelectAllSwitch);
+        selectAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (filteredEntries == null)
+                return;
+
+            selectedEntries.clear();
+            if (isChecked) {
+                for (FilterListCatalog.CatalogEntry entry : filteredEntries) {
+                    if (!existingUrls.contains(entry.url)) {
+                        selectedEntries.add(entry);
+                    }
+                }
+            }
+
+            if (adapter != null) {
+                adapter.notifyDataSetChanged();
+            }
+            updateAddButton();
+            // Automatically select "Custom" preset when using Select All
+            chipCustom.setChecked(true);
+        });
+
         // Setup search
         searchEditText = findViewById(R.id.searchEditText);
         searchEditText.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 currentSearchQuery = s.toString();
                 filterEntries();
             }
-            
+
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+            }
         });
-        
+
         // Setup preset chips
         presetChipGroup = findViewById(R.id.presetChipGroup);
         chipSafe = findViewById(R.id.chipSafe);
         chipBalanced = findViewById(R.id.chipBalanced);
         chipAggressive = findViewById(R.id.chipAggressive);
         chipCustom = findViewById(R.id.chipCustom);
-        
+
         chipSafe.setOnClickListener(v -> applyPreset("safe"));
         chipBalanced.setOnClickListener(v -> applyPreset("balanced"));
         chipAggressive.setOnClickListener(v -> applyPreset("aggressive"));
@@ -210,11 +237,12 @@ public class FilterCatalogActivity extends AppCompatActivity {
     }
 
     private void filterEntries() {
-        if (allEntries == null) return;
-        
+        if (allEntries == null)
+            return;
+
         filteredEntries = new ArrayList<>();
         String query = currentSearchQuery.toLowerCase(Locale.ROOT).trim();
-        
+
         for (FilterListCatalog.CatalogEntry entry : allEntries) {
             if (query.isEmpty()) {
                 filteredEntries.add(entry);
@@ -223,22 +251,29 @@ public class FilterCatalogActivity extends AppCompatActivity {
                 boolean matchesLabel = entry.label.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesUrl = entry.url.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesCategory = entry.category.name().toLowerCase(Locale.ROOT).contains(query);
-                
+
                 if (matchesLabel || matchesUrl || matchesCategory) {
                     filteredEntries.add(entry);
                 }
             }
         }
-        
+
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
         updateSubtitle();
+
+        // Uncheck "Select All" when filter changes because the visible set changes
+        if (selectAllSwitch != null && selectAllSwitch.isChecked()) {
+            // Avoid triggering listener loops if possible, or just accept it clears
+            // selection
+            selectAllSwitch.setChecked(false);
+        }
     }
 
     private void applyPreset(String preset) {
         selectedEntries.clear();
-        
+
         List<FilterListCatalog.CatalogEntry> presetEntries;
         switch (preset) {
             case "safe":
@@ -253,18 +288,18 @@ public class FilterCatalogActivity extends AppCompatActivity {
             default:
                 presetEntries = new ArrayList<>();
         }
-        
+
         for (FilterListCatalog.CatalogEntry entry : presetEntries) {
             if (!existingUrls.contains(entry.url)) {
                 selectedEntries.add(entry);
             }
         }
-        
+
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
         updateAddButton();
-        
+
         // Show info about what was selected
         String message;
         switch (preset) {
@@ -280,7 +315,7 @@ public class FilterCatalogActivity extends AppCompatActivity {
             default:
                 message = "";
         }
-        
+
         if (!message.isEmpty()) {
             Snackbar.make(recyclerView, message, Snackbar.LENGTH_SHORT).show();
         }
@@ -297,7 +332,7 @@ public class FilterCatalogActivity extends AppCompatActivity {
     private void updateSubtitle() {
         int total = allEntries != null ? allEntries.size() : 0;
         int showing = filteredEntries != null ? filteredEntries.size() : 0;
-        
+
         if (currentSearchQuery.isEmpty()) {
             subtitleView.setText(getString(R.string.filter_catalog_count, total));
         } else {
@@ -316,7 +351,8 @@ public class FilterCatalogActivity extends AppCompatActivity {
     }
 
     private void addSelectedSources() {
-        if (selectedEntries.isEmpty()) return;
+        if (selectedEntries.isEmpty())
+            return;
 
         addButton.setEnabled(false);
         addButton.setText(R.string.filter_update_started);
@@ -345,8 +381,7 @@ public class FilterCatalogActivity extends AppCompatActivity {
                 Snackbar.make(
                         recyclerView,
                         getString(R.string.filter_added_success) + " (" + finalAdded + ")",
-                        Snackbar.LENGTH_SHORT
-                ).show();
+                        Snackbar.LENGTH_SHORT).show();
 
                 // Finish after brief delay to show snackbar
                 recyclerView.postDelayed(this::finish, 1500);
@@ -392,21 +427,19 @@ public class FilterCatalogActivity extends AppCompatActivity {
 
             holder.name.setText(entry.label);
             holder.badge.setText(entry.category.getLabelResId());
-            
+
             // Color code the badge based on category risk level
             if (entry.category.mayBreakServices()) {
                 // Warning color for risky categories
                 holder.badge.setBackgroundTintList(
-                    android.content.res.ColorStateList.valueOf(
-                        getResources().getColor(R.color.blocked, getTheme())
-                    )
-                );
+                        android.content.res.ColorStateList.valueOf(
+                                getResources().getColor(R.color.blocked, getTheme())));
                 holder.badge.setTextColor(getResources().getColor(android.R.color.white, getTheme()));
             } else {
                 // Normal color for safe categories
                 holder.badge.setBackgroundTintList(null);
             }
-            
+
             // Show URL as description
             String urlPreview = entry.url;
             if (urlPreview.length() > 55) {
@@ -416,8 +449,24 @@ public class FilterCatalogActivity extends AppCompatActivity {
 
             // Already added state
             holder.alreadyAdded.setVisibility(alreadyAdded ? View.VISIBLE : View.GONE);
-            holder.checkbox.setVisibility(alreadyAdded ? View.GONE : View.VISIBLE);
-            holder.checkbox.setChecked(isSelected);
+            holder.toggle.setVisibility(alreadyAdded ? View.GONE : View.VISIBLE);
+
+            // Avoid triggering listener during bind
+            holder.toggle.setOnCheckedChangeListener(null);
+            holder.toggle.setChecked(isSelected);
+
+            holder.toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (isChecked) {
+                    selectedEntries.add(entry);
+                } else {
+                    selectedEntries.remove(entry);
+                    if (selectAllSwitch.isChecked()) {
+                        selectAllSwitch.setChecked(false);
+                    }
+                }
+                updateAddButton();
+                chipCustom.setChecked(true);
+            });
 
             // Card checked state
             holder.card.setChecked(isSelected);
@@ -429,9 +478,11 @@ public class FilterCatalogActivity extends AppCompatActivity {
                     // Open editor for already-added sources
                     EXECUTOR.execute(() -> {
                         HostsSource existing = hostsSourceDao.getByUrl(entry.url).orElse(null);
-                        if (existing == null) return;
+                        if (existing == null)
+                            return;
                         runOnUiThread(() -> {
-                            Intent intent = new Intent(FilterCatalogActivity.this, org.adaway.ui.source.SourceEditActivity.class);
+                            Intent intent = new Intent(FilterCatalogActivity.this,
+                                    org.adaway.ui.source.SourceEditActivity.class);
                             intent.putExtra(org.adaway.ui.source.SourceEditActivity.SOURCE_ID, existing.getId());
                             startActivity(intent);
                         });
@@ -441,7 +492,8 @@ public class FilterCatalogActivity extends AppCompatActivity {
                     new AlertDialog.Builder(FilterCatalogActivity.this)
                             .setTitle(R.string.checkbox_list_context_delete)
                             .setMessage(entry.label)
-                            .setPositiveButton(R.string.checkbox_list_context_delete, (d, which) -> removeExistingSourceByUrl(entry.url))
+                            .setPositiveButton(R.string.checkbox_list_context_delete,
+                                    (d, which) -> removeExistingSourceByUrl(entry.url))
                             .setNegativeButton(R.string.button_cancel, null)
                             .show();
                     return true;
@@ -454,8 +506,15 @@ public class FilterCatalogActivity extends AppCompatActivity {
                     } else {
                         selectedEntries.add(entry);
                     }
-                    // Switch to custom mode when manually selecting
-                    chipCustom.setChecked(true);
+
+                    // Update switch visual state
+                    holder.toggle.setChecked(!selectedEntries.contains(entry)); // Toggle was already clicked, so state
+                                                                                // is opposite? No, click listener is on
+                                                                                // card.
+                    // Actually, if we click card, we toggle the state.
+                    boolean newState = selectedEntries.contains(entry);
+                    holder.toggle.setChecked(newState);
+
                     notifyItemChanged(position);
                     updateAddButton();
                 });
@@ -469,7 +528,7 @@ public class FilterCatalogActivity extends AppCompatActivity {
 
         class ViewHolder extends RecyclerView.ViewHolder {
             final MaterialCardView card;
-            final CheckBox checkbox;
+            final MaterialSwitch toggle;
             final TextView name;
             final TextView badge;
             final TextView description;
@@ -478,7 +537,7 @@ public class FilterCatalogActivity extends AppCompatActivity {
             ViewHolder(@NonNull View itemView) {
                 super(itemView);
                 card = itemView.findViewById(R.id.catalogItemCard);
-                checkbox = itemView.findViewById(R.id.catalogItemCheckbox);
+                toggle = itemView.findViewById(R.id.catalogItemSwitch);
                 name = itemView.findViewById(R.id.catalogItemName);
                 badge = itemView.findViewById(R.id.catalogItemBadge);
                 description = itemView.findViewById(R.id.catalogItemDescription);

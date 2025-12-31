@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
+import android.widget.CompoundButton; // Copied import
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -28,27 +29,26 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
     /**
      * This callback is use to compare hosts sources.
      */
-    private static final DiffUtil.ItemCallback<HostsSource> DIFF_CALLBACK =
-            new DiffUtil.ItemCallback<HostsSource>() {
-                @Override
-                public boolean areItemsTheSame(@NonNull HostsSource oldSource, @NonNull HostsSource newSource) {
-                    return oldSource.getUrl().equals(newSource.getUrl());
-                }
+    private static final DiffUtil.ItemCallback<HostsSource> DIFF_CALLBACK = new DiffUtil.ItemCallback<HostsSource>() {
+        @Override
+        public boolean areItemsTheSame(@NonNull HostsSource oldSource, @NonNull HostsSource newSource) {
+            return oldSource.getUrl().equals(newSource.getUrl());
+        }
 
-                @Override
-                public boolean areContentsTheSame(@NonNull HostsSource oldSource, @NonNull HostsSource newSource) {
-                    // NOTE: if you use equals, your object must properly override Object#equals()
-                    // Incorrectly returning false here will result in too many animations.
-                    return oldSource.equals(newSource);
-                }
-            };
+        @Override
+        public boolean areContentsTheSame(@NonNull HostsSource oldSource, @NonNull HostsSource newSource) {
+            // NOTE: if you use equals, your object must properly override Object#equals()
+            // Incorrectly returning false here will result in too many animations.
+            return oldSource.equals(newSource);
+        }
+    };
 
     /**
      * This callback is use to call view actions.
      */
     @NonNull
     private final HostsSourcesViewCallback viewCallback;
-    private static final String[] QUANTITY_PREFIXES = new String[]{"k", "M", "G"};
+    private static final String[] QUANTITY_PREFIXES = new String[] { "k", "M", "G" };
 
     /**
      * Constructor.
@@ -109,7 +109,8 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         HostsSource source = this.getItem(position);
         holder.enabledCheckBox.setChecked(source.isEnabled());
-        holder.enabledCheckBox.setOnClickListener(view -> viewCallback.setEnabled(source, holder.enabledCheckBox.isChecked()));
+        holder.enabledCheckBox
+                .setOnClickListener(view -> viewCallback.setEnabled(source, holder.enabledCheckBox.isChecked()));
         holder.labelTextView.setText(source.getLabel());
         holder.urlTextView.setText(source.getUrl());
         holder.updateTextView.setText(getUpdateText(source));
@@ -180,12 +181,13 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
     }
 
     /**
-     * This class is a the {@link RecyclerView.ViewHolder} for the hosts sources view.
+     * This class is a the {@link RecyclerView.ViewHolder} for the hosts sources
+     * view.
      *
      * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
      */
     static class ViewHolder extends RecyclerView.ViewHolder {
-        final CheckBox enabledCheckBox;
+        final CompoundButton enabledCheckBox;
         final TextView labelTextView;
         final TextView urlTextView;
         final TextView updateTextView;

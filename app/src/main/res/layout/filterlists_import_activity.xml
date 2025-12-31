@@ -8,7 +8,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/ui_bg"
+        android:background="#061B3A"
         app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
@@ -50,19 +50,19 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/filterlistsSubscribeAllButton"
-            style="@style/Widget.MaterialComponents.Button"
+
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/filterlistsSubscribeAllSwitch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
             android:text="@string/filterlists_subscribe_all"
-            android:textAllCaps="false"
-            android:textColor="@android:color/white"
-            app:backgroundTint="@color/status_red"
-            app:cornerRadius="24dp" />
+            android:textColor="@color/ui_text_primary"
+            app:thumbTint="@color/status_red"
+            app:trackTint="@color/ui_glass_stroke" />
 
         <TextView
             android:id="@+id/filterlistsSubscribeAllStatus"

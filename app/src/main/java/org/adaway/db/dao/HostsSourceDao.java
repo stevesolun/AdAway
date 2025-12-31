@@ -83,4 +83,7 @@ public interface HostsSourceDao {
 
     @Query("UPDATE hosts_sources SET last_modified_local = NULL, last_modified_online = NULL, entityTag = NULL, size = 0 WHERE id = :id")
     void clearProperties(int id);
+
+    @Query("DELETE FROM hosts_sources WHERE id != 1")
+    void deleteAll();
 }

@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="48dp">
 
-    <CheckBox
+    <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/checkbox_list_checkbox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -14,6 +14,8 @@
         android:layout_marginBottom="8dp"
         android:clickable="false"
         android:focusable="false"
+        app:thumbTint="@color/status_red"
+        app:trackTint="@color/ui_glass_stroke"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />

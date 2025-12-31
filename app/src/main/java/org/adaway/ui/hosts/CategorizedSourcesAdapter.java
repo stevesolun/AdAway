@@ -12,7 +12,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
@@ -46,7 +46,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
     private static final int VIEW_TYPE_CATEGORY = 0;
     private static final int VIEW_TYPE_SOURCE = 1;
-    private static final String[] QUANTITY_PREFIXES = new String[]{"k", "M", "G"};
+    private static final String[] QUANTITY_PREFIXES = new String[] { "k", "M", "G" };
 
     private final HostsSourcesViewCallback callback;
     private final List<FilterListItem> items = new ArrayList<>();
@@ -96,9 +96,9 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                 FilterListCategory.CRYPTO,
                 FilterListCategory.ANNOYANCES,
                 FilterListCategory.REGIONAL,
-                FilterListCategory.SOCIAL,      // ⚠️ May break Facebook
-                FilterListCategory.DEVICE,      // ⚠️ May break OEM features
-                FilterListCategory.SERVICE,     // ⚠️ May break apps
+                FilterListCategory.SOCIAL, // ⚠️ May break Facebook
+                FilterListCategory.DEVICE, // ⚠️ May break OEM features
+                FilterListCategory.SERVICE, // ⚠️ May break apps
                 FilterListCategory.CUSTOM
         };
 
@@ -124,8 +124,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
             // Add category header
             FilterListItem.CategoryHeader header = new FilterListItem.CategoryHeader(
-                    category, enabledCount, categorySources.size(), totalHosts, isExpanded
-            );
+                    category, enabledCount, categorySources.size(), totalHosts, isExpanded);
             items.add(header);
 
             // Add source items if expanded
@@ -150,7 +149,8 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     @Override
     public int getItemViewType(int position) {
         return items.get(position).getItemType() == FilterListItem.TYPE_CATEGORY_HEADER
-                ? VIEW_TYPE_CATEGORY : VIEW_TYPE_SOURCE;
+                ? VIEW_TYPE_CATEGORY
+                : VIEW_TYPE_SOURCE;
     }
 
     @Override
@@ -198,8 +198,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                     R.string.filter_category_summary_enabled,
                     header.getEnabledCount(),
                     header.getTotalCount(),
-                    hostCount
-            ));
+                    hostCount));
         } else {
             holder.summary.setText(R.string.filter_category_summary_disabled);
         }
@@ -213,28 +212,22 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             return;
         }
 
-        // Tri-state toggle (none / some / all)
+        // Binary toggle (all / not all)
         holder.toggle.setOnClickListener(null);
         int enabledCount = header.getEnabledCount();
         int totalCount = header.getTotalCount();
-        if (totalCount <= 0) {
-            holder.toggle.setEnabled(false);
-            holder.toggle.setCheckedState(MaterialCheckBox.STATE_UNCHECKED);
-        } else if (enabledCount <= 0) {
-            holder.toggle.setEnabled(true);
-            holder.toggle.setCheckedState(MaterialCheckBox.STATE_UNCHECKED);
-        } else if (enabledCount >= totalCount) {
-            holder.toggle.setEnabled(true);
-            holder.toggle.setCheckedState(MaterialCheckBox.STATE_CHECKED);
-        } else {
-            holder.toggle.setEnabled(true);
-            holder.toggle.setCheckedState(MaterialCheckBox.STATE_INDETERMINATE);
-        }
+
+        holder.toggle.setEnabled(totalCount > 0);
+
+        // If ALL enabled, check it. Otherwise uncheck.
+        // This simplifies the tri-state "square" to a simple switch.
+        boolean allEnabled = totalCount > 0 && enabledCount >= totalCount;
+        holder.toggle.setOnCheckedChangeListener(null); // prevent trigger during bind
+        holder.toggle.setChecked(allEnabled);
         holder.toggle.setOnClickListener(v -> {
-            // Decide based on current category state (not on the checkbox's post-click visual state).
-            // If any list is disabled -> enable all, else disable all.
-            boolean shouldEnableAll = header.getEnabledCount() < header.getTotalCount();
-            setAllInCategory(header.getCategory(), shouldEnableAll);
+            boolean isChecked = holder.toggle.isChecked();
+            // If user turned it ON, enable all. If OFF, disable all.
+            setAllInCategory(header.getCategory(), isChecked);
         });
 
         // Expand indicator rotation
@@ -256,8 +249,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             RotateAnimation anim = new RotateAnimation(
                     fromRotation, toRotation,
                     RotateAnimation.RELATIVE_TO_SELF, 0.5f,
-                    RotateAnimation.RELATIVE_TO_SELF, 0.5f
-            );
+                    RotateAnimation.RELATIVE_TO_SELF, 0.5f);
             anim.setDuration(200);
             anim.setFillAfter(true);
             holder.expandIndicator.startAnimation(anim);
@@ -268,8 +260,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
         // Hide expand indicator if no sources
         holder.expandIndicator.setVisibility(
-                header.getTotalCount() > 0 ? View.VISIBLE : View.INVISIBLE
-        );
+                header.getTotalCount() > 0 ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void bindSource(SourceViewHolder holder, FilterListItem.SourceItem item) {
@@ -286,13 +277,11 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         String hostCount = formatHostCount(source.getSize());
         holder.hostCountBadge.setText(hostCount);
         holder.hostCountBadge.setVisibility(
-                source.getSize() > 0 && source.isEnabled() ? View.VISIBLE : View.GONE
-        );
+                source.getSize() > 0 && source.isEnabled() ? View.VISIBLE : View.GONE);
 
         // Update indicator
         holder.updateIndicator.setVisibility(
-                item.isUpdateAvailable() ? View.VISIBLE : View.GONE
-        );
+                item.isUpdateAvailable() ? View.VISIBLE : View.GONE);
 
         // Switch (per-list enable/disable)
         holder.toggle.setOnCheckedChangeListener(null);
@@ -354,7 +343,8 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     }
 
     private String formatHostCount(long size) {
-        if (size <= 0) return "0";
+        if (size <= 0)
+            return "0";
 
         int length = 1;
         long temp = size;
@@ -407,7 +397,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         final ImageView icon;
         final TextView title;
         final TextView summary;
-        final MaterialCheckBox toggle;
+        final MaterialSwitch toggle;
         final ImageView expandIndicator;
 
         CategoryViewHolder(@NonNull View itemView) {
@@ -443,4 +433,3 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         }
     }
 }
-

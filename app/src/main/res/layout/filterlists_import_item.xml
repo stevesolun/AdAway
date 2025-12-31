@@ -20,12 +20,14 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/filterlistsItemCheckbox"
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/filterlistsItemSwitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="16dp"
+            app:thumbTint="@color/status_red"
+            app:trackTint="@color/ui_glass_stroke"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
@@ -39,7 +41,7 @@
             android:maxLines="1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle2"
             android:textColor="@color/ui_text_primary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemCheckbox"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="StevenBlack Unified" />
@@ -54,7 +56,7 @@
             android:maxLines="1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemCheckbox"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemName"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Hosts (IPv4)" />
@@ -68,7 +70,7 @@
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_neon_start"
             android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemCheckbox"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemSyntax"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Subscribed"
@@ -84,7 +86,7 @@
             android:maxLines="2"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemCheckbox"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemStatus"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Unified hosts with base extensions" />

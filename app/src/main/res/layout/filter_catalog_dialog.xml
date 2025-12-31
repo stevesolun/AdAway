@@ -10,6 +10,7 @@
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#061B3A"
         app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
@@ -34,7 +35,7 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
-            app:boxBackgroundColor="@color/ui_glass"
+            app:boxBackgroundColor="#061B3A"
             app:boxStrokeColor="@color/ui_glass_stroke"
             app:boxStrokeWidth="1dp"
             app:boxStrokeWidthFocused="1dp"
@@ -58,6 +59,18 @@
                 android:textColorHint="@color/ui_text_secondary" />
 
         </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/catalogSelectAllSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/filterlists_subscribe_all"
+            android:textColor="@color/ui_text_primary"
+            app:thumbTint="@color/status_red"
+            app:trackTint="@color/ui_glass_stroke" />
 
     </com.google.android.material.appbar.AppBarLayout>
 

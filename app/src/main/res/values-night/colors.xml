@@ -25,8 +25,8 @@
     <color name="ui_neon_start">#FF4FD8FF</color>
     <color name="ui_neon_mid">#FF7C3AED</color>
     <color name="ui_neon_end">#FFFF3D8D</color>
-    <color name="blocked">#EF9A9A</color>
+    <color name="blocked">#B71C1C</color>
     <color name="allowed">#80CBC4</color>
     <!-- Redirect accent - DEEP RED like bird logo (NIGHT MODE) -->
-    <color name="redirected">#B71C1C</color>
+    <color name="redirected">#FFD600</color>
 </resources>

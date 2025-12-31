@@ -1,12 +1,19 @@
 # ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway
+======
+**AdAway** is an open source ad blocker for Android using the hosts file.
+
+### New Material Design UI
+<p float="left">
+  <img src="docs/screenshots/home_final.png" width="300" alt="Home Screen (Deep Red/Navy)"/>
+  <img src="docs/screenshots/import_final.png" width="300" alt="FilterLists Import (Sub-All Restored)"/>
+</p>
+ and local vpn.
 
 [![Build Status](https://github.com/adaway/adaway/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AdAway/AdAway/actions/workflows/android-ci.yml) 
 [![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=org.adaway&metric=security_rating)](https://sonarcloud.io/project/overview?id=org.adaway)
 [![GitHub Downloads](https://img.shields.io/github/downloads/adaway/adaway/total?logo=github)](https://github.com/AdAway/AdAway/releases)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/perfectslayer?logo=github)](https://github.com/sponsors/PerfectSlayer)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](/LICENSE.md)
-
-AdAway is an open source ad blocker for Android using the hosts file and local vpn.
 
 [<img src="metadata/en-US/phoneScreenshots/screenshot1.png"
     alt="Home screen (glass + neon)"
