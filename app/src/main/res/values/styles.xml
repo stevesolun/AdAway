@@ -58,7 +58,7 @@
         <item name="colorOnSecondaryContainer">?attr/colorOnSecondary</item>
         <item name="colorTertiary">?attr/colorPrimary</item>
 
-        <item name="android:statusBarColor">?colorPrimary</item>
+        <item name="android:statusBarColor">#061B3A</item>
     </style>
 
     <style name="Theme.AdAway.NoActionBar.Red" parent="Theme.MaterialComponents.NoActionBar">

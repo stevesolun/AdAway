@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material theming light theme -->
-    <!-- RED theme for enabled checkboxes and toggles -->
-    <color name="primary">#D32F2F</color>
-    <color name="primaryVariant">#B71C1C</color>
+    <!-- DEEP RED theme like bird logo for enabled checkboxes and toggles -->
+    <color name="primary">#B71C1C</color>
+    <color name="primaryVariant">#8B0000</color>
     <color name="onPrimary">#FFFFFF</color>
     <!-- Keep the bird/logo red (do not tie it to primary) -->
     <color name="logo_red">#B71C1C</color>
@@ -21,17 +21,17 @@
     <color name="ui_glass_stroke">#33FFFFFF</color>
     <color name="ui_text_primary">#EAF0FF</color>
     <color name="ui_text_secondary">#B8C3E6</color>
-    <!-- Neon gradient accents -->
-    <color name="ui_neon_start">#FF4FD8FF</color>
-    <color name="ui_neon_mid">#FF7C3AED</color>
-    <color name="ui_neon_end">#FFFF3D8D</color>
+    <!-- Deep navy blue gradient accents (NO PURPLE) -->
+    <color name="ui_neon_start">#FF1E3A8A</color>
+    <color name="ui_neon_mid">#FF0B2A5A</color>
+    <color name="ui_neon_end">#FF061B3A</color>
     <!-- App icon colors -->
     <color name="drawer_icon">#1D4ED8</color>
-    <!-- Host list state -->
-    <color name="blocked">#FF5252</color>
+    <!-- Host list state - DEEP RED like bird logo -->
+    <color name="blocked">#B71C1C</color>
     <color name="allowed">#64FFDA</color>
-    <!-- Redirect accent (avoid gray/washed-out tones) -->
-    <color name="redirected">#1D4ED8</color>
+    <!-- Redirect accent - DEEP RED like bird logo -->
+    <color name="redirected">#B71C1C</color>
     <!-- Common UI elements -->
     <color name="selected_background">#331D4ED8</color>
     <color name="shortcut_background">#f5f5f5</color>
