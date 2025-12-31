@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material theming black theme -->
-    <!-- Deep / royal blue theme (night) -->
-    <color name="primary">#0B1F55</color>
-    <color name="primaryVariant">#1D4ED8</color>
+    <!-- RED theme for enabled checkboxes and toggles (NIGHT MODE) -->
+    <color name="primary">#EF5350</color>
+    <color name="primaryVariant">#D32F2F</color>
     <color name="onPrimary">#ffffff</color>
     <!-- Keep the bird/logo red (do not tie it to primary) -->
     <color name="logo_red">#B71C1C</color>
