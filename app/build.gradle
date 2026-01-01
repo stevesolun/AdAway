@@ -115,7 +115,7 @@ android {
 dependencies {
     // Native modules
     implementation project(':tcpdump')
-    implementation project(':webserver')
+    // implementation project(':webserver')
 
     // AndroidX components
     implementation 'androidx.appcompat:appcompat:1.7.0'
