@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="home">Home</string>
-    <string name="credit_line_home">Brought with love by Steve Solun • Built on AdAway by the AdAway contributors</string>
+    <string name="credit_line_home">Brought with love by Steve Solun • Built on AdsAway by the AdAway contributors</string>
     <string name="about_credits">Brought with love by Steve Solun.</string>
     <string name="about_attribution">This app is built on AdAway. Credit to the original AdAway project and its contributors.</string>
     <!--Buttons-->
@@ -25,7 +25,7 @@
 
     <!--Home-->
     <string name="header_help">Welcome!</string>
-    <string name="text_help">AdAway is a free and open-source software design to block advertising. It fetches advertising network addresses to block them on your device.\nWant to know more? Check the help below!</string>
+    <string name="text_help">AdsAway is a free and open-source software design to block advertising. It fetches advertising network addresses to block them on your device.\nWant to know more? Check the help below!</string>
     <string name="button_show_help">Show more help</string>
     <string name="icon_update_status">Update status</string>
     <string name="text_update">All hosts files from the defined sources are downloaded, merged with your own lists and installed as one hosts file on your system.</string>

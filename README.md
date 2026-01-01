@@ -3,9 +3,14 @@
 **AdsAway** is an open source ad blocker for Android using the hosts file.
 
 ### New Material Design UI
-| Home Screen (Deep Red/Navy) | FilterLists Import (Sub-All Restored) |
+
+| **Welcome** | **Home** |
 |:---:|:---:|
-| ![Home Screen (Deep Red/Navy)](docs/screenshots/home_fresh.png) | ![FilterLists Import (Sub-All Restored)](docs/screenshots/import_fresh.png) |
+| ![Welcome](docs/screenshots/welcome_final.png) | ![Home](docs/screenshots/home_final.png) |
+
+| **Filter Sources** | **Catalog** |
+|:---:|:---:|
+| ![Sources](docs/screenshots/sources_final.png) | ![Catalog](docs/screenshots/catalog_final.png) |
  and local vpn.
 
 [![Build Status](https://github.com/adaway/adaway/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AdAway/AdAway/actions/workflows/android-ci.yml) 

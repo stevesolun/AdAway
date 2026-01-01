@@ -502,7 +502,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="14dp"
                         android:layout_marginStart="20dp"
-                        android:layout_marginEnd="20dp"
+                        android:layout_marginEnd="50dp"
                         android:layout_gravity="center_vertical"
                         android:progressDrawable="@drawable/progress_neon"
                         tools:progress="45" />
@@ -534,7 +534,7 @@
                 <!-- Check phase -->
                 <TextView
                     android:id="@+id/checkPhaseLabel"
-                    android:layout_width="50dp"
+                    android:layout_width="70dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/phase_check"
@@ -572,7 +572,7 @@
                 <!-- Download phase -->
                 <TextView
                     android:id="@+id/downloadPhaseLabel"
-                    android:layout_width="50dp"
+                    android:layout_width="70dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/phase_download"
@@ -610,7 +610,7 @@
                 <!-- Parse phase -->
                 <TextView
                     android:id="@+id/parsePhaseLabel"
-                    android:layout_width="50dp"
+                    android:layout_width="70dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/phase_parse"

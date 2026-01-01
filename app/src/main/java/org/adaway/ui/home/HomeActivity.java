@@ -387,6 +387,8 @@ public class HomeActivity extends AppCompatActivity {
             int percentForBar = (int) Math.floor(pct);
             if (percentForBar <= 0 && progress.isActive())
                 percentForBar = 1; // ensure it doesn't look stuck at 0
+            if (pct > 99.9)
+                pct = 100.0;
             String msg = "Updating sources: " + done + "/" + total + " ("
                     + String.format(java.util.Locale.ROOT, "%.1f", pct) + "%)";
             if (progress.currentLabel != null && !progress.currentLabel.isEmpty()) {
@@ -545,12 +547,15 @@ public class HomeActivity extends AppCompatActivity {
             progressFrame.post(() -> {
                 int barWidth = progressBar.getWidth();
                 int birdWidth = birdIcon.getWidth();
-                // Keep the bird fully inside the bar "track" (respect both start/end margins).
-                int available = barWidth - (2 * marginStartPx) - birdWidth;
-                if (available < 0)
-                    available = 0;
-                int birdX = marginStartPx + (int) (available * capturedPercent / 100.0f);
-                birdIcon.setTranslationX(birdX);
+                // "Leading the progress": usage of the bird as the head of the progress bar.
+                // Track width IS the bar width (since margins are handled by parent
+                // layout/offset).
+                int trackWidth = barWidth;
+                int progressX = marginStartPx + (int) (trackWidth * capturedPercent / 100.0f);
+                // Position bird at the progress tip (leading edge) with a small overlap
+                // "a bit to the left" -> subtract a portion of the width
+                int overlap = birdWidth / 5;
+                birdIcon.setTranslationX(progressX - overlap);
             });
 
             // Update individual phase progress bars
@@ -577,6 +582,8 @@ public class HomeActivity extends AppCompatActivity {
             double parsePercent = progress.getParsePercentDouble();
             this.binding.content.parseProgressBar.setMax(100);
             this.binding.content.parseProgressBar.setProgress((int) parsePercent);
+            if (parsePercent > 99.9)
+                parsePercent = 100.0;
             this.binding.content.parsePhasePercent
                     .setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
 
@@ -859,7 +866,21 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void bindFab() {
-        this.binding.fab.setOnClickListener(v -> this.homeViewModel.toggleAdBlocking());
+        this.binding.fab.setOnClickListener(v -> {
+            MultiPhaseProgress progress = this.homeViewModel.getMultiPhaseProgress().getValue();
+            // If "work" (update) is active, the bird button immediately continues/pauses
+            // it.
+            if (progress != null && progress.isActive()) {
+                if (progress.isPaused) {
+                    this.homeViewModel.resumeUpdate();
+                } else {
+                    this.homeViewModel.pauseUpdate();
+                }
+            } else {
+                // Otherwise it toggles the main ad-blocking service (on/off).
+                this.homeViewModel.toggleAdBlocking();
+            }
+        });
     }
 
     private boolean showFragment(@IdRes int actionId) {
@@ -951,8 +972,14 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private static String formatCount(long value) {
-        COUNT_FORMAT.setGroupingUsed(true);
-        return COUNT_FORMAT.format(value);
+        if (value < 1000)
+            return String.valueOf(value);
+        int unit = 1000;
+        if (value < unit)
+            return String.valueOf(value);
+        int exp = (int) (Math.log(value) / Math.log(unit));
+        String pre = "kMGTPE".charAt(exp - 1) + "";
+        return String.format(java.util.Locale.ROOT, "%.1f%s", value / Math.pow(unit, exp), pre);
     }
 
     private void notifyError(HostError error) {
