@@ -5,7 +5,7 @@
 ### New Material Design UI
 | Home Screen (Deep Red/Navy) | FilterLists Import (Sub-All Restored) |
 |:---:|:---:|
-| <img src="docs/screenshots/home_final.png" width="300"> | <img src="docs/screenshots/import_final.png" width="300"> |
+| ![Home Screen (Deep Red/Navy)](docs/screenshots/home_final.png) | ![FilterLists Import (Sub-All Restored)](docs/screenshots/import_final.png) |
  and local vpn.
 
 [![Build Status](https://github.com/adaway/adaway/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AdAway/AdAway/actions/workflows/android-ci.yml) 
