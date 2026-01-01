@@ -4,13 +4,9 @@
 
 ### New Material Design UI
 
-| **Welcome** | **Home** |
-|:---:|:---:|
-| <img src="docs/screenshots/welcome_final.png" height="500"> | <img src="docs/screenshots/home_final.png" height="500"> |
-
-| **Filter Sources** | **Catalog** |
-|:---:|:---:|
-| <img src="docs/screenshots/sources_final.png" height="500"> | <img src="docs/screenshots/catalog_final.png" height="500"> |
+| **Welcome** | **Home** | **Filter Sources** | **Catalog** |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/welcome_final.png" height="500"> | <img src="docs/screenshots/home_final.png" height="500"> | <img src="docs/screenshots/sources_final.png" height="500"> | <img src="docs/screenshots/catalog_final.png" height="500"> |
  and local vpn.
 
 [![Build Status](https://github.com/adaway/adaway/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AdAway/AdAway/actions/workflows/android-ci.yml) 
