@@ -24,7 +24,8 @@ import static com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE;
 import static com.google.android.material.snackbar.Snackbar.LENGTH_LONG;
 
 /**
- * This class is a {@link Snackbar} to notify about adblock model new configuration to apply.
+ * This class is a {@link Snackbar} to notify about adblock model new
+ * configuration to apply.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -46,15 +47,18 @@ public class ApplyConfigurationSnackbar {
      */
     private final boolean syncSources;
     /**
-     * The current hosts update available status ({@code true} if update available, {@code false} otherwise).
+     * The current hosts update available status ({@code true} if update available,
+     * {@code false} otherwise).
      */
     private boolean update;
     /**
-     * Whether or not ignore the next update event ({@code true} to ignore, {@code false} otherwise).
+     * Whether or not ignore the next update event ({@code true} to ignore,
+     * {@code false} otherwise).
      */
     private boolean skipUpdate;
     /**
-     * Whether or not ignore update events during the install ({@code true} to ignore, {@code false} otherwise).
+     * Whether or not ignore update events during the install ({@code true} to
+     * ignore, {@code false} otherwise).
      */
     private boolean ignoreEventDuringInstall;
 
@@ -62,8 +66,10 @@ public class ApplyConfigurationSnackbar {
      * Constructor.
      *
      * @param view                     The view to bind the snackbar to.
-     * @param syncSources              To synchronize sources before installing or not.
-     * @param ignoreEventDuringInstall {@code true} to ignore events, {@code false} otherwise.
+     * @param syncSources              To synchronize sources before installing or
+     *                                 not.
+     * @param ignoreEventDuringInstall {@code true} to ignore events, {@code false}
+     *                                 otherwise.
      */
     public ApplyConfigurationSnackbar(@NonNull View view, boolean syncSources, boolean ignoreEventDuringInstall) {
         this.view = view;
@@ -90,7 +96,8 @@ public class ApplyConfigurationSnackbar {
             @Override
             public void onChanged(@Nullable T t) {
                 // Check new data
-                if (t == null || (t instanceof Collection && ((Collection<?>) t).isEmpty())) {
+                // Check new data
+                if (t == null) {
                     return;
                 }
                 // First update
@@ -166,7 +173,8 @@ public class ApplyConfigurationSnackbar {
         this.waitSnackbar.dismiss();
         // Check install failure
         if (!successfulInstall) {
-            Snackbar failureSnackbar = Snackbar.make(this.view, R.string.notification_configuration_failed, LENGTH_LONG);
+            Snackbar failureSnackbar = Snackbar.make(this.view, R.string.notification_configuration_failed,
+                    LENGTH_LONG);
             ImageView view = new ImageView(this.view.getContext());
             view.setImageResource(R.drawable.ic_error_outline_24dp);
             appendViewToSnackbar(failureSnackbar, view);
@@ -185,7 +193,8 @@ public class ApplyConfigurationSnackbar {
     }
 
     private void appendViewToSnackbar(Snackbar snackbar, View view) {
-        ViewGroup viewGroup = (ViewGroup) snackbar.getView().findViewById(com.google.android.material.R.id.snackbar_text).getParent();
+        ViewGroup viewGroup = (ViewGroup) snackbar.getView()
+                .findViewById(com.google.android.material.R.id.snackbar_text).getParent();
         viewGroup.addView(view);
     }
 }

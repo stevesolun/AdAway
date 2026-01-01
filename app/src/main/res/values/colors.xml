@@ -39,7 +39,7 @@
     <!-- Cards -->
     <color name="cardBackground">#FF424242</color>
     <color name="cardEnabledBackground">#388E3C</color>
-    <color name="welcomeBackground">#1E3A8A</color>
+    <color name="welcomeBackground">#061B3A</color>
     <!-- Notifications -->
     <color name="notification">#1D4ED8</color>
 </resources>

@@ -38,7 +38,7 @@
         app:layout_anchorGravity="center|bottom"
         android:translationY="24dp"
         app:srcCompat="@drawable/icon_foreground_red"
-        android:elevation="0dp"
+        android:elevation="12dp"
         android:background="@null" />
 
     <FrameLayout
