@@ -6,11 +6,11 @@
 
 | **Welcome** | **Home** |
 |:---:|:---:|
-| ![Welcome](docs/screenshots/welcome_final.png) | ![Home](docs/screenshots/home_final.png) |
+| <img src="docs/screenshots/welcome_final.png" height="500"> | <img src="docs/screenshots/home_final.png" height="500"> |
 
 | **Filter Sources** | **Catalog** |
 |:---:|:---:|
-| ![Sources](docs/screenshots/sources_final.png) | ![Catalog](docs/screenshots/catalog_final.png) |
+| <img src="docs/screenshots/sources_final.png" height="500"> | <img src="docs/screenshots/catalog_final.png" height="500"> |
  and local vpn.
 
 [![Build Status](https://github.com/adaway/adaway/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AdAway/AdAway/actions/workflows/android-ci.yml) 
