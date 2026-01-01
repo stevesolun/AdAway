@@ -1,6 +1,6 @@
-# ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway
+# ![AdsAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdsAway
 ======
-**AdAway** is an open source ad blocker for Android using the hosts file.
+**AdsAway** is an open source ad blocker for Android using the hosts file.
 
 ### New Material Design UI
 <p float="left">
@@ -15,23 +15,9 @@
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/perfectslayer?logo=github)](https://github.com/sponsors/PerfectSlayer)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](/LICENSE.md)
 
-[<img src="metadata/en-US/phoneScreenshots/screenshot1.png"
-    alt="Home screen (glass + neon)"
-    height="256">](metadata/en-US/phoneScreenshots/screenshot1.png)
-[<img src="metadata/en-US/phoneScreenshots/screenshot2.png"
-    alt="Filter catalog (Safe/Balanced/Aggressive)"
-    height="256">](metadata/en-US/phoneScreenshots/screenshot2.png)
-[<img src="metadata/en-US/phoneScreenshots/screenshot3.png"
-    alt="FilterLists import"
-    height="256">](metadata/en-US/phoneScreenshots/screenshot3.png)
-[<img src="metadata/en-US/phoneScreenshots/screenshot4.png"
-    alt="Schedule manager (glass)"
-    height="256">](metadata/en-US/phoneScreenshots/screenshot4.png)
-[<img src="metadata/en-US/phoneScreenshots/screenshot5.png"
-    alt="Update progress (neon)"
-    height="256">](metadata/en-US/phoneScreenshots/screenshot5.png)
-
 For more information visit https://adaway.org
+
+
 
 ## Filter management
 
