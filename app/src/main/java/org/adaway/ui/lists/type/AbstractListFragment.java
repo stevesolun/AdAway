@@ -26,8 +26,11 @@ import org.adaway.ui.lists.ListsViewCallback;
 import org.adaway.ui.lists.ListsViewModel;
 import org.adaway.util.Clipboard;
 
+import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
+
 /**
- * This class is a {@link Fragment} to display and manage lists of {@link org.adaway.ui.lists.ListsActivity}.
+ * This class is a {@link Fragment} to display and manage lists of
+ * {@link org.adaway.ui.lists.ListsActivity}.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -41,7 +44,8 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
      */
     protected FragmentActivity mActivity;
     /**
-     * The current action mode when item is selection (<code>null</code> if no action started).
+     * The current action mode when item is selection (<code>null</code> if no
+     * action started).
      */
     private ActionMode mActionMode;
     /**
@@ -49,16 +53,19 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
      */
     private ActionMode.Callback mActionCallback;
     /**
-     * The hosts list related to the current action (<code>null</code> if view is not created).
+     * The hosts list related to the current action (<code>null</code> if view is
+     * not created).
      */
     private HostListItem mActionItem;
     /**
-     * The view related hosts source of the current action (<code>null</code> if view is not created).
+     * The view related hosts source of the current action (<code>null</code> if
+     * view is not created).
      */
     private View mActionSourceView;
 
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         // Store activity
         this.mActivity = requireActivity();
         // Create fragment view
@@ -92,10 +99,11 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
                 return true;
             }
 
-            @Override
             public boolean onPrepareActionMode(ActionMode actionMode, Menu menu) {
-                // Nothing special to do
-                return false;
+                boolean editable = mActionItem.getSourceId() == USER_SOURCE_ID;
+                menu.findItem(R.id.edit_action).setVisible(editable);
+                menu.findItem(R.id.delete_action).setVisible(editable);
+                return true;
             }
 
             @Override
@@ -108,6 +116,12 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
                 if (item.getItemId() == R.id.edit_action) {
                     // Edit action item
                     editItem(mActionItem);
+                    // Finish action mode
+                    mActionMode.finish();
+                    return true;
+                } else if (item.getItemId() == R.id.move_action) {
+                    // Move action item
+                    mViewModel.moveListItem(mActionItem);
                     // Finish action mode
                     mActionMode.finish();
                     return true;
@@ -166,8 +180,35 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
 
     @Override
     public boolean copyHostToClipboard(HostListItem item) {
+        // Copy host to clipboard
         Clipboard.copyHostToClipboard(this.mActivity, item.getHost());
         return true;
+    }
+
+    @Override
+    public void onToggleListItem(HostListItem item, boolean isChecked) {
+        if (item.getSourceId() == USER_SOURCE_ID) {
+            mViewModel.toggleItemEnabled(item);
+        } else {
+            if (!isChecked) {
+                // User turned it OFF -> Prompt to override (whitelist)
+                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.checkbox_list_context_move)
+                        .setMessage(
+                                "This item is from a downloaded source. Do you want to create a rule to override it?")
+                        .setPositiveButton(android.R.string.yes, (dialog, which) -> {
+                            mViewModel.moveListItem(item);
+                        })
+                        .setNegativeButton(android.R.string.no, (dialog, which) -> {
+                            // Refresh list to revert checkbox state
+                            mViewModel.search(mViewModel.isSearching() ? mViewModel.getSearchQuery() : "");
+                        })
+                        .show();
+            } else {
+                // User turned it ON -> Just re-enable the block
+                mViewModel.toggleItemEnabled(item);
+            }
+        }
     }
 
     /**

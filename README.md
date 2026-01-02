@@ -44,6 +44,7 @@ This fork adds an enhanced filter management experience:
   - Aggressive batching for DB inserts (5000 entries per batch)
   - Conditional GET (`If-None-Match` / `If-Modified-Since`) to skip unchanged sources
   - Monotonic progress display (percentages never decrease)
+- **Smart Toggle**: Intelligent handling of downloaded rules. Browsing the Blocked list and toggling a downloaded item now seamlessly creates a user override (Allow rule) and visually disables the original block.
 
 ## Installing
 
@@ -60,7 +61,9 @@ This fork adds an enhanced filter management experience:
 
 ### CI/CD (automatic APK releases)
 
-This repo includes a GitHub Actions workflow that publishes a Release whenever you push a tag like `v13.0.1`.
+### CI/CD (automatic APK releases)
+
+This repo includes a GitHub Actions workflow that publishes a Release whenever you push a tag like `v13.0.6`.
 
 - **Tag + release**: push `v*` tags → builds `assembleRelease` → creates a GitHub Release with the APK attached.
 - **Cleanup**: automatically deletes older releases (keeps the latest 3).

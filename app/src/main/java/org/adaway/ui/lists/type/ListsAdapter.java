@@ -3,7 +3,7 @@ package org.adaway.ui.lists.type;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -26,20 +26,19 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
     /**
      * This callback is use to compare hosts sources.
      */
-    private static final DiffUtil.ItemCallback<HostListItem> DIFF_CALLBACK =
-            new DiffUtil.ItemCallback<HostListItem>() {
-                @Override
-                public boolean areItemsTheSame(@NonNull HostListItem oldItem, @NonNull HostListItem newItem) {
-                    return (oldItem.getHost().equals(newItem.getHost()));
-                }
+    private static final DiffUtil.ItemCallback<HostListItem> DIFF_CALLBACK = new DiffUtil.ItemCallback<HostListItem>() {
+        @Override
+        public boolean areItemsTheSame(@NonNull HostListItem oldItem, @NonNull HostListItem newItem) {
+            return (oldItem.getHost().equals(newItem.getHost()));
+        }
 
-                @Override
-                public boolean areContentsTheSame(@NonNull HostListItem oldItem, @NonNull HostListItem newItem) {
-                    // NOTE: if you use equals, your object must properly override Object#equals()
-                    // Incorrectly returning false here will result in too many animations.
-                    return oldItem.equals(newItem);
-                }
-            };
+        @Override
+        public boolean areContentsTheSame(@NonNull HostListItem oldItem, @NonNull HostListItem newItem) {
+            // NOTE: if you use equals, your object must properly override Object#equals()
+            // Incorrectly returning false here will result in too many animations.
+            return oldItem.equals(newItem);
+        }
+    };
 
     /**
      * This callback is use to call view actions.
@@ -70,8 +69,7 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
         View view = layoutInflater.inflate(
                 this.twoRows ? R.layout.checkbox_list_two_entries : R.layout.checkbox_list_entry,
                 parent,
-                false
-        );
+                false);
         return new ViewHolder(view);
     }
 
@@ -83,16 +81,15 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
             return;
         }
         boolean editable = item.getSourceId() == USER_SOURCE_ID;
-        holder.enabledCheckBox.setEnabled(editable);
+        holder.enabledCheckBox.setEnabled(true);
         holder.enabledCheckBox.setChecked(item.isEnabled());
-        holder.enabledCheckBox.setOnClickListener(editable ? view -> this.viewCallback.toggleItemEnabled(item) : null);
+        holder.enabledCheckBox.setOnClickListener(
+                view -> this.viewCallback.onToggleListItem(item, holder.enabledCheckBox.isChecked()));
         holder.hostTextView.setText(item.getHost());
         if (this.twoRows) {
             holder.redirectionTextView.setText(item.getRedirection());
         }
-        holder.itemView.setOnLongClickListener(editable ?
-                view -> this.viewCallback.startAction(item, holder.itemView) :
-                view -> this.viewCallback.copyHostToClipboard(item));
+        holder.itemView.setOnLongClickListener(view -> this.viewCallback.startAction(item, holder.itemView));
     }
 
     /**
@@ -101,7 +98,7 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
      * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
      */
     static class ViewHolder extends RecyclerView.ViewHolder {
-        final CheckBox enabledCheckBox;
+        final CompoundButton enabledCheckBox;
         final TextView hostTextView;
         final TextView redirectionTextView;
 

@@ -16,6 +16,19 @@ public interface ListsViewCallback {
      *
      * @param item The list to toggle status.
      */
+    /**
+     * Called when a list item toggle is clicked.
+     *
+     * @param item      The list item.
+     * @param isChecked The new checked state.
+     */
+    void onToggleListItem(HostListItem item, boolean isChecked);
+
+    /**
+     * Toggle item enable status.
+     *
+     * @param item The list to toggle status.
+     */
     void toggleItemEnabled(HostListItem item);
 
     /**
@@ -23,7 +36,8 @@ public interface ListsViewCallback {
      *
      * @param item       The list to start the action.
      * @param sourceView The list related view.
-     * @return <code>true</code> if the action was started, <code>false</code> otherwise.
+     * @return <code>true</code> if the action was started, <code>false</code>
+     *         otherwise.
      */
     boolean startAction(HostListItem item, View sourceView);
 

@@ -29,7 +29,8 @@ import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.ui.lists.ListsFilter.ALL;
 
 /**
- * This class is an {@link AndroidViewModel} for the {@link AbstractListFragment} implementations.
+ * This class is an {@link AndroidViewModel} for the
+ * {@link AbstractListFragment} implementations.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -49,22 +50,16 @@ public class ListsViewModel extends AndroidViewModel {
         PagingConfig pagingConfig = new PagingConfig(50, 150, true);
         this.blockedListItems = switchMap(
                 this.filter,
-                filter -> getLiveData(new Pager<>(pagingConfig, () ->
-                        this.hostListItemDao.loadList(BLOCKED.getValue(), filter.sourcesIncluded, filter.sqlQuery)
-                ))
-        );
+                filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao.loadList(BLOCKED.getValue(),
+                        filter.sourcesIncluded, filter.sqlQuery))));
         this.allowedListItems = switchMap(
                 this.filter,
-                filter -> getLiveData(new Pager<>(pagingConfig, () ->
-                        this.hostListItemDao.loadList(ALLOWED.getValue(), filter.sourcesIncluded, filter.sqlQuery)
-                ))
-        );
+                filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao.loadList(ALLOWED.getValue(),
+                        filter.sourcesIncluded, filter.sqlQuery))));
         this.redirectedListItems = switchMap(
                 this.filter,
-                filter -> getLiveData(new Pager<>(pagingConfig, () ->
-                        this.hostListItemDao.loadList(REDIRECTED.getValue(), filter.sourcesIncluded, filter.sqlQuery)
-                ))
-        );
+                filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao
+                        .loadList(REDIRECTED.getValue(), filter.sourcesIncluded, filter.sqlQuery))));
         this.modelChanged = new MutableLiveData<>(false);
     }
 
@@ -100,15 +95,20 @@ public class ListsViewModel extends AndroidViewModel {
         item.setEnabled(true);
         item.setSourceId(USER_SOURCE_ID);
         EXECUTOR.execute(() -> {
-            Optional<Integer> id = this.hostListItemDao.getHostId(host);
-            if (id.isPresent()) {
-                item.setId(id.get());
-                this.hostListItemDao.update(item);
-            } else {
-                this.hostListItemDao.insert(item);
-            }
+            addOrUpdateItemInternal(item);
             this.modelChanged.postValue(true);
+            this.refresh();
         });
+    }
+
+    private void addOrUpdateItemInternal(HostListItem item) {
+        Optional<Integer> id = this.hostListItemDao.getHostId(item.getHost());
+        if (id.isPresent()) {
+            item.setId(id.get());
+            this.hostListItemDao.update(item);
+        } else {
+            this.hostListItemDao.insert(item);
+        }
     }
 
     public void updateListItem(@NonNull HostListItem item, @NonNull String host, String redirection) {
@@ -117,6 +117,7 @@ public class ListsViewModel extends AndroidViewModel {
         EXECUTOR.execute(() -> {
             this.hostListItemDao.update(item);
             this.modelChanged.postValue(true);
+            this.refresh();
         });
     }
 
@@ -125,6 +126,53 @@ public class ListsViewModel extends AndroidViewModel {
             this.hostListItemDao.delete(list);
             this.modelChanged.postValue(true);
         });
+    }
+
+    public void moveListItem(HostListItem item) {
+        ListType newType;
+        if (item.getType() == BLOCKED) {
+            newType = ALLOWED;
+        } else if (item.getType() == ALLOWED) {
+            newType = BLOCKED;
+        } else {
+            return; // Ignore REDIRECTED or other types for now
+        }
+
+        if (item.getSourceId() == USER_SOURCE_ID) {
+            item.setType(newType);
+            EXECUTOR.execute(() -> {
+                this.hostListItemDao.update(item);
+                this.modelChanged.postValue(true);
+                this.refresh();
+            });
+        } else {
+            // Source item -> Add new User Item override
+            HostListItem newItem = new HostListItem();
+            newItem.setType(newType);
+            newItem.setHost(item.getHost());
+            newItem.setRedirection(item.getRedirection());
+            newItem.setEnabled(true);
+            newItem.setSourceId(USER_SOURCE_ID);
+
+            // Execute as atomic transaction block
+            EXECUTOR.execute(() -> {
+                // 1. Add/Update the User Override Rule
+                addOrUpdateItemInternal(newItem);
+
+                // 2. Disable the original Source Item (visual only)
+                item.setEnabled(false);
+                this.hostListItemDao.update(item);
+
+                // 3. Notify and Refresh once
+                this.modelChanged.postValue(true);
+                this.refresh();
+            });
+        }
+    }
+
+    private void refresh() {
+        ListsFilter current = getFilter();
+        setFilter(new ListsFilter(current.sourcesIncluded, current.query));
     }
 
     public void search(String query) {
@@ -149,12 +197,20 @@ public class ListsViewModel extends AndroidViewModel {
         setFilter(newFilter);
     }
 
+    public String getSearchQuery() {
+        return getFilter().query;
+    }
+
     private ListsFilter getFilter() {
         ListsFilter filter = this.filter.getValue();
         return filter == null ? ALL : filter;
     }
 
     private void setFilter(ListsFilter filter) {
-        this.filter.setValue(filter);
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            this.filter.setValue(filter);
+        } else {
+            this.filter.postValue(filter);
+        }
     }
 }
