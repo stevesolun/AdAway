@@ -20,7 +20,6 @@
 
 package org.adaway.ui.lists.type;
 
-
 import android.text.Editable;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -39,7 +38,8 @@ import org.adaway.ui.dialog.AlertDialogValidator;
 import org.adaway.util.RegexUtils;
 
 /**
- * This class is a {@link AbstractListFragment} to display and manage allowed hosts.
+ * This class is a {@link AbstractListFragment} to display and manage allowed
+ * hosts.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -66,25 +66,39 @@ public class AllowedHostsFragment extends AbstractListFragment {
                         (dialog, which) -> {
                             // Close dialog
                             dialog.dismiss();
-                            // Check hostname validity
-                            String hostname = inputEditText.getText().toString();
-                            if (RegexUtils.isValidWildcardHostname(hostname)) {
-                                // Insert host to whitelist
-                                this.mViewModel.addListItem(ListType.ALLOWED, hostname, null);
+                            // Split input by newlines and add each valid hostname
+                            String input = inputEditText.getText().toString();
+                            String[] lines = input.split("\\r?\\n");
+                            for (String line : lines) {
+                                String hostname = line.trim();
+                                if (RegexUtils.isValidWildcardHostname(hostname)) {
+                                    // Insert host to whitelist
+                                    this.mViewModel.addListItem(ListType.ALLOWED, hostname, null);
+                                }
                             }
-                        }
-                )
+                        })
                 .setNegativeButton(
                         R.string.button_cancel,
-                        (dialog, which) -> dialog.dismiss()
-                )
+                        (dialog, which) -> dialog.dismiss())
                 .create();
         // Show dialog
         alertDialog.show();
         // Set button validation behavior
         inputEditText.addTextChangedListener(
-                new AlertDialogValidator(alertDialog, RegexUtils::isValidWildcardHostname, false)
-        );
+                new AlertDialogValidator(alertDialog, input -> {
+                    String[] lines = input.split("\\r?\\n");
+                    boolean hasContent = false;
+                    for (String line : lines) {
+                        String trimmed = line.trim();
+                        if (!trimmed.isEmpty()) {
+                            if (!RegexUtils.isValidWildcardHostname(trimmed)) {
+                                return false; // Invalid line found
+                            }
+                            hasContent = true;
+                        }
+                    }
+                    return hasContent; // Valid if at least one non-empty line exists and all are valid
+                }, false));
     }
 
     @Override
@@ -115,18 +129,15 @@ public class AllowedHostsFragment extends AbstractListFragment {
                                 // Update list item
                                 this.mViewModel.updateListItem(item, hostname, null);
                             }
-                        }
-                )
+                        })
                 .setNegativeButton(
                         R.string.button_cancel,
-                        (dialog, which) -> dialog.dismiss()
-                )
+                        (dialog, which) -> dialog.dismiss())
                 .create();
         // Show dialog
         alertDialog.show();
         // Set button validation behavior
         inputEditText.addTextChangedListener(
-                new AlertDialogValidator(alertDialog, RegexUtils::isValidWildcardHostname, true)
-        );
+                new AlertDialogValidator(alertDialog, RegexUtils::isValidWildcardHostname, true));
     }
 }

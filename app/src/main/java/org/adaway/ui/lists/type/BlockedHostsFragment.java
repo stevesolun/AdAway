@@ -20,7 +20,6 @@
 
 package org.adaway.ui.lists.type;
 
-
 import android.text.Editable;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -40,7 +39,8 @@ import org.adaway.util.RegexUtils;
 import static org.adaway.db.entity.ListType.BLOCKED;
 
 /**
- * This class is a {@link AbstractListFragment} to display and manage blocked hosts.
+ * This class is a {@link AbstractListFragment} to display and manage blocked
+ * hosts.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
@@ -67,24 +67,39 @@ public class BlockedHostsFragment extends AbstractListFragment {
                         (dialog, which) -> {
                             // Close dialog
                             dialog.dismiss();
-                            // Check if hostname is valid
-                            String hostname = inputEditText.getText().toString();
-                            if (RegexUtils.isValidHostname(hostname)) {
-                                // Insert host to black list
-                                this.mViewModel.addListItem(BLOCKED, hostname, null);
+                            // Split input by newlines and add each valid hostname
+                            String input = inputEditText.getText().toString();
+                            String[] lines = input.split("\\r?\\n");
+                            for (String line : lines) {
+                                String hostname = line.trim();
+                                if (RegexUtils.isValidHostname(hostname)) {
+                                    // Insert host to black list
+                                    this.mViewModel.addListItem(BLOCKED, hostname, null);
+                                }
                             }
                         })
                 .setNegativeButton(
                         R.string.button_cancel,
-                        (dialog, which) -> dialog.dismiss()
-                )
+                        (dialog, which) -> dialog.dismiss())
                 .create();
         // Show dialog
         alertDialog.show();
         // Set button validation behavior
         inputEditText.addTextChangedListener(
-                new AlertDialogValidator(alertDialog, RegexUtils::isValidHostname, false)
-        );
+                new AlertDialogValidator(alertDialog, input -> {
+                    String[] lines = input.split("\\r?\\n");
+                    boolean hasContent = false;
+                    for (String line : lines) {
+                        String trimmed = line.trim();
+                        if (!trimmed.isEmpty()) {
+                            if (!RegexUtils.isValidHostname(trimmed)) {
+                                return false; // Invalid line found
+                            }
+                            hasContent = true;
+                        }
+                    }
+                    return hasContent; // Valid if at least one non-empty line exists and all are valid
+                }, false));
     }
 
     @Override
@@ -117,15 +132,12 @@ public class BlockedHostsFragment extends AbstractListFragment {
                             }
                         })
                 .setNegativeButton(
-                        R.string.button_cancel
-                        , (dialog, which) -> dialog.dismiss()
-                )
+                        R.string.button_cancel, (dialog, which) -> dialog.dismiss())
                 .create();
         // Show dialog
         alertDialog.show();
         // Set button validation behavior
         inputEditText.addTextChangedListener(
-                new AlertDialogValidator(alertDialog, RegexUtils::isValidHostname, true)
-        );
+                new AlertDialogValidator(alertDialog, RegexUtils::isValidHostname, true));
     }
 }
