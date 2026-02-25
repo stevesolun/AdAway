@@ -1,42 +1,32 @@
-package org.adaway.ui.hosts;
+package org.adaway.ui.discover;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.appbar.MaterialToolbar;
-import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.chip.Chip;
-import com.google.android.material.chip.ChipGroup;
-import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
+import org.adaway.databinding.FragmentDiscoverCatalogBinding;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
-import org.adaway.helper.ThemeHelper;
 import org.adaway.model.source.FilterListCatalog;
-import org.adaway.model.source.FilterListCategory;
-import org.adaway.ui.home.HomeActivity;
+import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
@@ -48,81 +38,47 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
- * Activity for browsing and adding filter lists from the curated catalog.
- * Inspired by uBlock Origin's filter list selection experience.
- * <p>
- * Features:
- * - Search across all filter lists
- * - Preset modes (Safe, Balanced, Aggressive)
- * - Category-based browsing
- * - Multi-select for batch adding
- * - Shows which lists are already added
+ * Fragment for browsing and adding filter lists from the curated catalog.
+ *
+ * Ported from FilterCatalogActivity. Embedded into DiscoverFragment as the first sub-tab.
  */
-public class FilterCatalogActivity extends AppCompatActivity {
+public class DiscoverCatalogFragment extends Fragment {
 
     private static final Executor EXECUTOR = AppExecutors.getInstance().diskIO();
 
-    private RecyclerView recyclerView;
-    private MaterialButton addButton;
-    private MaterialButton importFromFilterListsButton;
-    private TextView subtitleView;
-    private EditText searchEditText;
-    private ChipGroup presetChipGroup;
-    private Chip chipSafe, chipBalanced, chipAggressive, chipCustom;
-    private MaterialSwitch selectAllSwitch;
+    private FragmentDiscoverCatalogBinding binding;
+    private HostsSourceDao hostsSourceDao;
 
     private CatalogAdapter adapter;
-    private HostsSourceDao hostsSourceDao;
     private Set<String> existingUrls = new HashSet<>();
     private Set<FilterListCatalog.CatalogEntry> selectedEntries = new HashSet<>();
 
-    // All entries and filtered entries
     private List<FilterListCatalog.CatalogEntry> allEntries;
     private List<FilterListCatalog.CatalogEntry> filteredEntries;
     private String currentSearchQuery = "";
 
+    @Nullable
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        ThemeHelper.applyTheme(this);
-        setContentView(R.layout.filter_catalog_dialog);
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        this.binding = FragmentDiscoverCatalogBinding.inflate(inflater, container, false);
+        return this.binding.getRoot();
+    }
 
-        hostsSourceDao = AppDatabase.getInstance(this).hostsSourceDao();
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
-        // Setup toolbar
-        MaterialToolbar toolbar = findViewById(R.id.catalogToolbar);
-        // Use this toolbar as the Activity ActionBar to avoid the default ActionBar
-        // being shown above it
-        // (which caused the "double back arrows / double titles" UI).
-        setSupportActionBar(toolbar);
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.setDisplayShowHomeEnabled(false);
-            actionBar.setDisplayHomeAsUpEnabled(false);
-        }
-        toolbar.setNavigationOnClickListener(v -> finish());
-        // Standard "Up"/Back affordance
-        toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24);
+        hostsSourceDao = AppDatabase.getInstance(requireContext()).hostsSourceDao();
 
-        // Setup views
-        recyclerView = findViewById(R.id.catalogRecyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        binding.catalogRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
 
-        addButton = findViewById(R.id.addSelectedButton);
-        addButton.setOnClickListener(v -> addSelectedSources());
+        binding.addSelectedButton.setOnClickListener(v -> addSelectedSources());
 
-        importFromFilterListsButton = findViewById(R.id.importFromFilterListsButton);
-        importFromFilterListsButton
-                .setOnClickListener(v -> startActivity(new Intent(this, FilterListsImportActivity.class)));
-
-        subtitleView = findViewById(R.id.catalogSubtitle);
-
-        // Setup "Select All" switch
-        selectAllSwitch = findViewById(R.id.catalogSelectAllSwitch);
-        selectAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (filteredEntries == null)
-                return;
-
+        binding.catalogSelectAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (this.binding == null) return;
+            if (filteredEntries == null) return;
             selectedEntries.clear();
             if (isChecked) {
                 for (FilterListCatalog.CatalogEntry entry : filteredEntries) {
@@ -131,114 +87,56 @@ public class FilterCatalogActivity extends AppCompatActivity {
                     }
                 }
             }
-
-            if (adapter != null) {
-                adapter.notifyDataSetChanged();
-            }
+            if (adapter != null) adapter.notifyDataSetChanged();
             updateAddButton();
-            // Automatically select "Custom" preset when using Select All
-            chipCustom.setChecked(true);
+            binding.chipCustom.setChecked(true);
         });
 
-        // Setup search
-        searchEditText = findViewById(R.id.searchEditText);
-        searchEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
+        binding.searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 currentSearchQuery = s.toString();
                 filterEntries();
             }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
+            @Override public void afterTextChanged(Editable s) {}
         });
 
-        // Setup preset chips
-        presetChipGroup = findViewById(R.id.presetChipGroup);
-        chipSafe = findViewById(R.id.chipSafe);
-        chipBalanced = findViewById(R.id.chipBalanced);
-        chipAggressive = findViewById(R.id.chipAggressive);
-        chipCustom = findViewById(R.id.chipCustom);
+        binding.chipSafe.setOnClickListener(v -> applyPreset("safe"));
+        binding.chipBalanced.setOnClickListener(v -> applyPreset("balanced"));
+        binding.chipAggressive.setOnClickListener(v -> applyPreset("aggressive"));
+        binding.chipCustom.setOnClickListener(v -> binding.chipCustom.setChecked(true));
 
-        chipSafe.setOnClickListener(v -> applyPreset("safe"));
-        chipBalanced.setOnClickListener(v -> applyPreset("balanced"));
-        chipAggressive.setOnClickListener(v -> applyPreset("aggressive"));
-        // "Custom" means manual selection mode (uBlock-style). Do NOT clear selection.
-        chipCustom.setOnClickListener(v -> {
-            // no-op; the chip is set automatically when user manually selects entries
-            chipCustom.setChecked(true);
-        });
-
-        // Load data
         loadData();
     }
 
-    private boolean onToolbarMenuItemClicked(MenuItem item) {
-        if (item.getItemId() == R.id.action_go_home) {
-            // Jump straight back to the app home screen (fast escape hatch).
-            Intent intent = new Intent(this, HomeActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            startActivity(intent);
-            finish();
-            return true;
-        } else if (item.getItemId() == R.id.action_filter_add_custom) {
-            Intent intent = new Intent(this, SourceEditActivity.class);
-            intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, getString(R.string.filter_add_custom));
-            intent.putExtra(SourceEditActivity.EXTRA_INITIAL_URL, "https://");
-            intent.putExtra(SourceEditActivity.EXTRA_INITIAL_ALLOW, false);
-            intent.putExtra(SourceEditActivity.EXTRA_INITIAL_REDIRECT, false);
-            startActivity(intent);
-            return true;
-        } else if (item.getItemId() == R.id.action_filterlists_import) {
-            startActivity(new Intent(this, FilterListsImportActivity.class));
-            return true;
-        }
-        return false;
-    }
-
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.filter_catalog_menu, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (onToolbarMenuItemClicked(item)) {
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
+    public void onDestroyView() {
+        super.onDestroyView();
+        this.binding = null;
     }
 
     private void loadData() {
         EXECUTOR.execute(() -> {
-            // Get existing source URLs
             List<HostsSource> existing = hostsSourceDao.getAll();
             existingUrls.clear();
             for (HostsSource source : existing) {
                 existingUrls.add(source.getUrl());
             }
 
-            // Get all catalog entries
             allEntries = FilterListCatalog.getAll();
             filteredEntries = new ArrayList<>(allEntries);
 
-            runOnUiThread(() -> {
+            requireActivity().runOnUiThread(() -> {
+                if (this.binding == null) return;
                 adapter = new CatalogAdapter();
-                recyclerView.setAdapter(adapter);
+                binding.catalogRecyclerView.setAdapter(adapter);
                 updateSubtitle();
             });
         });
     }
 
     private void filterEntries() {
-        if (allEntries == null)
-            return;
+        if (allEntries == null) return;
 
         filteredEntries = new ArrayList<>();
         String query = currentSearchQuery.toLowerCase(Locale.ROOT).trim();
@@ -247,27 +145,20 @@ public class FilterCatalogActivity extends AppCompatActivity {
             if (query.isEmpty()) {
                 filteredEntries.add(entry);
             } else {
-                // Search in label, URL, and category name
                 boolean matchesLabel = entry.label.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesUrl = entry.url.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesCategory = entry.category.name().toLowerCase(Locale.ROOT).contains(query);
-
                 if (matchesLabel || matchesUrl || matchesCategory) {
                     filteredEntries.add(entry);
                 }
             }
         }
 
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
+        if (adapter != null) adapter.notifyDataSetChanged();
         updateSubtitle();
 
-        // Uncheck "Select All" when filter changes because the visible set changes
-        if (selectAllSwitch != null && selectAllSwitch.isChecked()) {
-            // Avoid triggering listener loops if possible, or just accept it clears
-            // selection
-            selectAllSwitch.setChecked(false);
+        if (binding != null && binding.catalogSelectAllSwitch.isChecked()) {
+            binding.catalogSelectAllSwitch.setChecked(false);
         }
     }
 
@@ -295,12 +186,9 @@ public class FilterCatalogActivity extends AppCompatActivity {
             }
         }
 
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
+        if (adapter != null) adapter.notifyDataSetChanged();
         updateAddButton();
 
-        // Show info about what was selected
         String message;
         switch (preset) {
             case "safe":
@@ -316,75 +204,79 @@ public class FilterCatalogActivity extends AppCompatActivity {
                 message = "";
         }
 
-        if (!message.isEmpty()) {
-            Snackbar.make(recyclerView, message, Snackbar.LENGTH_SHORT).show();
+        if (!message.isEmpty() && binding != null) {
+            Snackbar.make(binding.catalogRecyclerView, message, Snackbar.LENGTH_SHORT).show();
         }
     }
 
     private void clearSelection() {
         selectedEntries.clear();
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
+        if (adapter != null) adapter.notifyDataSetChanged();
         updateAddButton();
     }
 
     private void updateSubtitle() {
+        if (binding == null) return;
         int total = allEntries != null ? allEntries.size() : 0;
         int showing = filteredEntries != null ? filteredEntries.size() : 0;
 
         if (currentSearchQuery.isEmpty()) {
-            subtitleView.setText(getString(R.string.filter_catalog_count, total));
+            binding.catalogSubtitle.setText(getString(R.string.filter_catalog_count, total));
         } else {
-            subtitleView.setText(String.format(Locale.ROOT, "Showing %d of %d", showing, total));
+            binding.catalogSubtitle.setText(String.format(Locale.ROOT, "Showing %d of %d", showing, total));
         }
     }
 
     private void updateAddButton() {
+        if (binding == null) return;
         int count = selectedEntries.size();
-        addButton.setEnabled(count > 0);
+        binding.addSelectedButton.setEnabled(count > 0);
         if (count > 0) {
-            addButton.setText(getString(R.string.filter_catalog_add_selected) + " (" + count + ")");
+            binding.addSelectedButton.setText(getString(R.string.filter_catalog_add_selected) + " (" + count + ")");
         } else {
-            addButton.setText(R.string.filter_catalog_add_selected);
+            binding.addSelectedButton.setText(R.string.filter_catalog_add_selected);
         }
     }
 
     private void addSelectedSources() {
-        if (selectedEntries.isEmpty())
-            return;
+        if (selectedEntries.isEmpty() || binding == null) return;
 
-        addButton.setEnabled(false);
-        addButton.setText(R.string.filter_update_started);
+        binding.addSelectedButton.setEnabled(false);
+        binding.addSelectedButton.setText(R.string.filter_update_started);
+
+        // Capture URLs before clearing selectedEntries (called on main thread)
+        final Set<String> selectedUrls = new HashSet<>();
+        for (FilterListCatalog.CatalogEntry e : selectedEntries) {
+            selectedUrls.add(e.url);
+        }
+        final android.content.Context appContext = requireContext().getApplicationContext();
 
         EXECUTOR.execute(() -> {
             int added = 0;
             for (FilterListCatalog.CatalogEntry entry : selectedEntries) {
                 if (!existingUrls.contains(entry.url)) {
                     HostsSource source = entry.toHostsSource();
-                    // If the user selected it, enable it (uBlock-style behavior).
                     source.setEnabled(true);
                     hostsSourceDao.insert(source);
                     existingUrls.add(entry.url);
                     added++;
                 }
             }
+            // Persist applied preset to FilterSetStore so scheduled updates can track it.
+            if (!selectedUrls.isEmpty()) {
+                FilterSetStore.saveSet(appContext, "custom", selectedUrls);
+            }
 
             final int finalAdded = added;
-            runOnUiThread(() -> {
+            requireActivity().runOnUiThread(() -> {
+                if (this.binding == null) return;
                 selectedEntries.clear();
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
+                if (adapter != null) adapter.notifyDataSetChanged();
                 updateAddButton();
-
                 Snackbar.make(
-                        recyclerView,
+                        binding.catalogRecyclerView,
                         getString(R.string.filter_added_success) + " (" + finalAdded + ")",
                         Snackbar.LENGTH_SHORT).show();
-
-                // Finish after brief delay to show snackbar
-                recyclerView.postDelayed(this::finish, 1500);
             });
         });
     }
@@ -396,19 +288,20 @@ public class FilterCatalogActivity extends AppCompatActivity {
                 hostsSourceDao.delete(existing);
             }
             existingUrls.remove(url);
-            runOnUiThread(() -> {
-                if (adapter != null) {
-                    adapter.notifyDataSetChanged();
-                }
-                Snackbar.make(recyclerView, R.string.filter_removed_success, Snackbar.LENGTH_SHORT).show();
+            requireActivity().runOnUiThread(() -> {
+                if (this.binding == null) return;
+                if (adapter != null) adapter.notifyDataSetChanged();
+                Snackbar.make(binding.catalogRecyclerView, R.string.filter_removed_success, Snackbar.LENGTH_SHORT)
+                        .show();
                 updateSubtitle();
             });
         });
     }
 
-    /**
-     * Adapter for the catalog list with search support.
-     */
+    // -----------------------------------------------------------------------------------------
+    // Adapter
+    // -----------------------------------------------------------------------------------------
+
     private class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHolder> {
 
         @NonNull
@@ -428,30 +321,27 @@ public class FilterCatalogActivity extends AppCompatActivity {
             holder.name.setText(entry.label);
             holder.badge.setText(entry.category.getLabelResId());
 
-            // Color code the badge based on category risk level
             if (entry.category.mayBreakServices()) {
-                // Warning color for risky categories
                 holder.badge.setBackgroundTintList(
                         android.content.res.ColorStateList.valueOf(
-                                getResources().getColor(R.color.blocked, getTheme())));
-                holder.badge.setTextColor(getResources().getColor(android.R.color.white, getTheme()));
+                                requireContext().getResources().getColor(R.color.blocked,
+                                        requireContext().getTheme())));
+                holder.badge.setTextColor(
+                        requireContext().getResources().getColor(android.R.color.white,
+                                requireContext().getTheme()));
             } else {
-                // Normal color for safe categories
                 holder.badge.setBackgroundTintList(null);
             }
 
-            // Show URL as description
             String urlPreview = entry.url;
             if (urlPreview.length() > 55) {
                 urlPreview = urlPreview.substring(0, 52) + "...";
             }
             holder.description.setText(urlPreview);
 
-            // Already added state
             holder.alreadyAdded.setVisibility(alreadyAdded ? View.VISIBLE : View.GONE);
             holder.toggle.setVisibility(alreadyAdded ? View.GONE : View.VISIBLE);
 
-            // Avoid triggering listener during bind
             holder.toggle.setOnCheckedChangeListener(null);
             holder.toggle.setChecked(isSelected);
 
@@ -460,36 +350,32 @@ public class FilterCatalogActivity extends AppCompatActivity {
                     selectedEntries.add(entry);
                 } else {
                     selectedEntries.remove(entry);
-                    if (selectAllSwitch.isChecked()) {
-                        selectAllSwitch.setChecked(false);
+                    if (binding != null && binding.catalogSelectAllSwitch.isChecked()) {
+                        binding.catalogSelectAllSwitch.setChecked(false);
                     }
                 }
                 updateAddButton();
-                chipCustom.setChecked(true);
+                if (binding != null) binding.chipCustom.setChecked(true);
             });
 
-            // Card checked state
             holder.card.setChecked(isSelected);
 
-            // Disable selection for already-added items
             if (alreadyAdded) {
                 holder.card.setAlpha(0.7f);
                 holder.card.setOnClickListener(v -> {
-                    // Open editor for already-added sources
                     EXECUTOR.execute(() -> {
                         HostsSource existing = hostsSourceDao.getByUrl(entry.url).orElse(null);
-                        if (existing == null)
-                            return;
-                        runOnUiThread(() -> {
-                            Intent intent = new Intent(FilterCatalogActivity.this,
-                                    org.adaway.ui.source.SourceEditActivity.class);
-                            intent.putExtra(org.adaway.ui.source.SourceEditActivity.SOURCE_ID, existing.getId());
+                        if (existing == null) return;
+                        requireActivity().runOnUiThread(() -> {
+                            if (DiscoverCatalogFragment.this.binding == null) return;
+                            Intent intent = new Intent(requireContext(), SourceEditActivity.class);
+                            intent.putExtra(SourceEditActivity.SOURCE_ID, existing.getId());
                             startActivity(intent);
                         });
                     });
                 });
                 holder.card.setOnLongClickListener(v -> {
-                    new AlertDialog.Builder(FilterCatalogActivity.this)
+                    new MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.checkbox_list_context_delete)
                             .setMessage(entry.label)
                             .setPositiveButton(R.string.checkbox_list_context_delete,
@@ -501,23 +387,17 @@ public class FilterCatalogActivity extends AppCompatActivity {
             } else {
                 holder.card.setAlpha(1.0f);
                 holder.card.setOnClickListener(v -> {
-                    if (selectedEntries.contains(entry)) {
-                        selectedEntries.remove(entry);
-                    } else {
+                    boolean newState = !selectedEntries.contains(entry);
+                    if (newState) {
                         selectedEntries.add(entry);
+                    } else {
+                        selectedEntries.remove(entry);
                     }
-
-                    // Update switch visual state
-                    holder.toggle.setChecked(!selectedEntries.contains(entry)); // Toggle was already clicked, so state
-                                                                                // is opposite? No, click listener is on
-                                                                                // card.
-                    // Actually, if we click card, we toggle the state.
-                    boolean newState = selectedEntries.contains(entry);
                     holder.toggle.setChecked(newState);
-
                     notifyItemChanged(position);
                     updateAddButton();
                 });
+                holder.card.setOnLongClickListener(null);
             }
         }
 

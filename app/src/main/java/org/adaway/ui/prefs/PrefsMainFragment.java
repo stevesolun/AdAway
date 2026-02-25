@@ -8,13 +8,13 @@ import androidx.annotation.NonNull;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
+import android.net.Uri;
+
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
-import org.adaway.ui.help.HelpActivity;
 import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.about.AboutActivity;
-import org.adaway.ui.support.SupportActivity;
 import org.adaway.util.log.SentryLog;
 
 import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
@@ -97,7 +97,8 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         Preference helpPref = findPreference("pref_help");
         if (helpPref != null) {
             helpPref.setOnPreferenceClickListener(preference -> {
-                startActivity(new Intent(requireContext(), HelpActivity.class));
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/AdAway/AdAway/wiki")));
                 return true;
             });
         }
@@ -105,7 +106,8 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         Preference donatePref = findPreference("pref_donate");
         if (donatePref != null) {
             donatePref.setOnPreferenceClickListener(preference -> {
-                startActivity(new Intent(requireContext(), SupportActivity.class));
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://paypal.me/BruceBUJON")));
                 return true;
             });
         }

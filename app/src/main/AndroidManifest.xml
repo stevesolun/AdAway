@@ -78,11 +78,10 @@
                 android:resource="@xml/shortcuts" />
         </activity>
         <activity
-            android:name=".ui.welcome.WelcomeActivity"
+            android:name=".ui.onboarding.OnboardingActivity"
             android:exported="false"
-            android:label="@string/welcome_title"
-            android:parentActivityName=".ui.home.HomeActivity"
-            android:theme="@style/Theme.AdAway.NoActionBar.Red" />
+            android:label="@string/app_name"
+            android:theme="@style/Theme.AdAway.NoActionBar" />
         <activity
             android:name=".ui.hosts.HostsSourcesActivity"
             android:exported="false"
@@ -93,18 +92,6 @@
             android:exported="false"
             android:label="@string/source_edit_title"
             android:parentActivityName=".ui.hosts.HostsSourcesActivity" />
-        <activity
-            android:name=".ui.hosts.FilterCatalogActivity"
-            android:exported="false"
-            android:label="@string/filter_catalog_title"
-            android:parentActivityName=".ui.hosts.HostsSourcesActivity"
-            android:theme="@style/Theme.AdAway.NoActionBar" />
-        <activity
-            android:name=".ui.hosts.FilterListsImportActivity"
-            android:exported="false"
-            android:label="@string/filterlists_import"
-            android:parentActivityName=".ui.hosts.FilterCatalogActivity"
-            android:theme="@style/Theme.AdAway.NoActionBar" />
         <activity
             android:name=".ui.hosts.SchedulesActivity"
             android:exported="false"
@@ -128,17 +115,6 @@
                 <action android:name="android.intent.action.SEARCH" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.help.HelpActivity"
-            android:exported="false"
-            android:label="@string/menu_help"
-            android:parentActivityName=".ui.home.HomeActivity" />
-        <activity
-            android:name=".ui.support.SupportActivity"
-            android:exported="false"
-            android:label="@string/support_title"
-            android:parentActivityName=".ui.home.HomeActivity"
-            android:theme="@style/Theme.AdAway.NoActionBar.Red" />
         <activity
             android:name=".ui.prefs.PrefsActivity"
             android:exported="false"

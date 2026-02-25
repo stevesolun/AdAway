@@ -3,10 +3,9 @@ package org.adaway.ui.update;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
-import static org.adaway.ui.support.SupportActivity.SPONSORSHIP_LINK;
-import static org.adaway.ui.support.SupportActivity.SUPPORT_LINK;
-import static org.adaway.ui.support.SupportActivity.bindLink;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 
@@ -25,6 +24,11 @@ import org.adaway.model.update.Manifest;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class UpdateActivity extends AppCompatActivity {
+    /** PayPal support link (inlined from deleted SupportActivity). */
+    private static final Uri SUPPORT_LINK = Uri.parse("https://paypal.me/BruceBUJON");
+    /** GitHub sponsors link (inlined from deleted SupportActivity). */
+    private static final Uri SPONSORSHIP_LINK = Uri.parse("https://github.com/sponsors/PerfectSlayer");
+
     private UpdateActityBinding binding;
     private UpdateViewModel updateViewModel;
 
@@ -43,8 +47,10 @@ public class UpdateActivity extends AppCompatActivity {
 
     private void bindListeners() {
         this.binding.updateButton.setOnClickListener(this::startUpdate);
-        bindLink(this, this.binding.updateDonateButton, SUPPORT_LINK);
-        bindLink(this, this.binding.updateSponsorButton, SPONSORSHIP_LINK);
+        this.binding.updateDonateButton.setOnClickListener(
+                v -> startActivity(new Intent(Intent.ACTION_VIEW, SUPPORT_LINK)));
+        this.binding.updateSponsorButton.setOnClickListener(
+                v -> startActivity(new Intent(Intent.ACTION_VIEW, SPONSORSHIP_LINK)));
     }
 
     private void bindManifest() {

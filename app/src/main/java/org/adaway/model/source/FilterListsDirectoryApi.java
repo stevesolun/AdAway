@@ -36,12 +36,17 @@ public final class FilterListsDirectoryApi {
         public final String name;
         public final String description;
         public final int[] syntaxIds;
+        public final int[] tagIds;
+        public final int[] languageIds;
 
-        public ListSummary(int id, String name, String description, int[] syntaxIds) {
+        public ListSummary(int id, String name, String description, int[] syntaxIds,
+                int[] tagIds, int[] languageIds) {
             this.id = id;
             this.name = name;
             this.description = description;
             this.syntaxIds = syntaxIds;
+            this.tagIds = tagIds;
+            this.languageIds = languageIds;
         }
     }
 
@@ -52,6 +57,30 @@ public final class FilterListsDirectoryApi {
         public Syntax(int id, String name) {
             this.id = id;
             this.name = name;
+        }
+    }
+
+    public static final class Tag {
+        public final int id;
+        public final String name;
+        public final String description;
+
+        public Tag(int id, String name, String description) {
+            this.id = id;
+            this.name = name;
+            this.description = description;
+        }
+    }
+
+    public static final class Language {
+        public final int id;
+        public final String name;
+        public final String iso6391;
+
+        public Language(int id, String name, String iso6391) {
+            this.id = id;
+            this.name = name;
+            this.iso6391 = iso6391;
         }
     }
 
@@ -131,6 +160,22 @@ public final class FilterListsDirectoryApi {
         return getJson(BASE_URL + "/syntaxes");
     }
 
+    /**
+     * Fetch raw tags JSON (for local caching).
+     */
+    @NonNull
+    public String getTagsJson() throws IOException {
+        return getJson(BASE_URL + "/tags");
+    }
+
+    /**
+     * Fetch raw languages JSON (for local caching).
+     */
+    @NonNull
+    public String getLanguagesJson() throws IOException {
+        return getJson(BASE_URL + "/languages");
+    }
+
     @NonNull
     public static List<ListSummary> parseListsJson(@NonNull String body) throws IOException {
         try {
@@ -142,7 +187,9 @@ public final class FilterListsDirectoryApi {
                 String name = o.optString("name", "");
                 String desc = o.optString("description", null);
                 int[] syntaxIds = toIntArray(o.optJSONArray("syntaxIds"));
-                out.add(new ListSummary(id, name, desc, syntaxIds));
+                int[] tagIds = toIntArray(o.optJSONArray("tagIds"));
+                int[] languageIds = toIntArray(o.optJSONArray("languageIds"));
+                out.add(new ListSummary(id, name, desc, syntaxIds, tagIds, languageIds));
             }
             return out;
         } catch (JSONException e) {
@@ -164,6 +211,42 @@ public final class FilterListsDirectoryApi {
             return out;
         } catch (JSONException e) {
             throw new IOException("Failed to parse FilterLists /syntaxes JSON", e);
+        }
+    }
+
+    @NonNull
+    public static List<Tag> parseTagsJson(@NonNull String body) throws IOException {
+        try {
+            JSONArray arr = new JSONArray(body);
+            List<Tag> out = new ArrayList<>(arr.length());
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                int id = o.getInt("id");
+                String name = o.optString("name", "");
+                String description = o.optString("description", null);
+                out.add(new Tag(id, name, description));
+            }
+            return out;
+        } catch (JSONException e) {
+            throw new IOException("Failed to parse FilterLists /tags JSON", e);
+        }
+    }
+
+    @NonNull
+    public static List<Language> parseLanguagesJson(@NonNull String body) throws IOException {
+        try {
+            JSONArray arr = new JSONArray(body);
+            List<Language> out = new ArrayList<>(arr.length());
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                int id = o.getInt("id");
+                String name = o.optString("name", "");
+                String iso6391 = o.optString("iso6391", "");
+                out.add(new Language(id, name, iso6391));
+            }
+            return out;
+        } catch (JSONException e) {
+            throw new IOException("Failed to parse FilterLists /languages JSON", e);
         }
     }
 

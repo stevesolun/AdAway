@@ -55,6 +55,7 @@ import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar;
+import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
@@ -337,11 +338,14 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
         View sheetView = getLayoutInflater().inflate(R.layout.hosts_add_options_sheet, null);
         
-        // Browse catalog option
+        // Browse catalog option — opens Discover tab in HomeActivity (catalog is embedded there)
         View catalogOption = sheetView.findViewById(R.id.browseCatalogOption);
         catalogOption.setOnClickListener(v -> {
             dialog.dismiss();
-            startActivity(new Intent(requireContext(), FilterCatalogActivity.class));
+            Intent intent = new Intent(requireContext(), HomeActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.putExtra(HomeActivity.EXTRA_NAV_DISCOVER, true);
+            startActivity(intent);
         });
         
         // Add custom source option

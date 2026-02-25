@@ -13,7 +13,10 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
+import org.adaway.db.entity.HostsSource;
 import org.adaway.model.adblocking.AdBlockModel;
+
+import java.util.List;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
@@ -100,6 +103,10 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<Integer> getRedirectHostCount() {
         return this.hostListItemDao.getRedirectHostCount();
+    }
+
+    public LiveData<List<HostsSource>> getHosts() {
+        return this.hostsSourceDao.loadAll();
     }
 
     public LiveData<Integer> getUpToDateSourceCount() {
