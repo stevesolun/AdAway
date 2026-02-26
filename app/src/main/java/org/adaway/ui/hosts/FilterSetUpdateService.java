@@ -29,7 +29,7 @@ public final class FilterSetUpdateService {
                 .build();
 
         // Run periodically (best effort). We check due schedules inside the worker.
-        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(FilterSetUpdateWorker.class, 6, TimeUnit.HOURS)
+        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(FilterSetUpdateWorker.class, 1, TimeUnit.HOURS)
                 .setConstraints(constraints)
                 .build();
 

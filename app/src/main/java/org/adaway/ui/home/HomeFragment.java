@@ -1,8 +1,6 @@
 package org.adaway.ui.home;
 
 import static android.app.Activity.RESULT_OK;
-import static com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED;
-import static com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN;
 import static org.adaway.model.adblocking.AdBlockMethod.UNDEFINED;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.adaway.ui.Animations.removeView;
@@ -33,7 +31,6 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -64,7 +61,6 @@ import timber.log.Timber;
 public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
-    private BottomSheetBehavior<View> drawerBehavior;
     private HomeViewModel homeViewModel;
     private ActivityResultLauncher<Intent> prepareVpnLauncher;
     private Snackbar filterListsProgressSnackbar;
@@ -122,7 +118,6 @@ public class HomeFragment extends Fragment {
         bindPending();
         bindState();
         bindClickListeners();
-        setUpBottomDrawer();
         bindFab();
         bindFilterListsSubscribeAllProgress();
         bindScheduledUpdateProgress();
@@ -131,18 +126,6 @@ public class HomeFragment extends Fragment {
 
         bindDiscoverCta();
         bindProtectionToggle();
-
-        this.binding.navigationView.setNavigationItemSelectedListener(item -> {
-            if (item.getItemId() == R.id.drawer_preferences) {
-                startActivity(new Intent(requireContext(),
-                        org.adaway.ui.prefs.PrefsActivity.class));
-                this.drawerBehavior.setState(STATE_HIDDEN);
-            } else if (item.getItemId() == R.id.drawer_github_project) {
-                showProjectPage();
-                this.drawerBehavior.setState(STATE_HIDDEN);
-            }
-            return false;
-        });
 
         this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK) {
@@ -746,15 +729,6 @@ public class HomeFragment extends Fragment {
                 .setOnClickListener(v -> this.homeViewModel.sync());
     }
 
-    private void setUpBottomDrawer() {
-        this.drawerBehavior = BottomSheetBehavior.from(this.binding.bottomDrawer);
-        this.drawerBehavior.setState(STATE_HIDDEN);
-
-        this.binding.bar.setNavigationOnClickListener(v -> {
-            this.drawerBehavior.setState(STATE_HALF_EXPANDED);
-        });
-    }
-
     private void bindFab() {
         this.binding.fab.setOnClickListener(v -> {
             MultiPhaseProgress progress = this.homeViewModel.getMultiPhaseProgress().getValue();
@@ -786,11 +760,6 @@ public class HomeFragment extends Fragment {
         Intent intent = new Intent(requireContext(), ListsActivity.class);
         intent.putExtra(TAB, tab);
         startActivity(intent);
-    }
-
-    private void showProjectPage() {
-        startActivity(new Intent(Intent.ACTION_VIEW,
-                android.net.Uri.parse("https://github.com/AdAway/AdAway")));
     }
 
     private void notifyAdBlocked(boolean adBlocked) {
