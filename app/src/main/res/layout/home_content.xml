@@ -16,6 +16,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/protectionToggleButton"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="44dp"
+            android:layout_marginEnd="12dp"
+            android:text="@string/protection_stop_button"
+            android:textSize="12sp" />
+
     </FrameLayout>
 
     <TextView

@@ -26,6 +26,9 @@
     <!-- Discover fragment labels -->
     <string name="discover_tab_curated">Curated</string>
     <string name="discover_tab_filterlists">FilterLists.com</string>
+    <!-- Home fragment protection toggle -->
+    <string name="protection_stop_button">Stop Protection</string>
+    <string name="protection_start_button">Start Protection</string>
     <!-- Home fragment no-sources hint -->
     <string name="home_no_sources_hint">No filter sources. Tap Discover to add some.</string>
     <string name="home_discover_cta">Browse Filter Lists</string>

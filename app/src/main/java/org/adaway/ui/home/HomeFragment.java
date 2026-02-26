@@ -130,6 +130,7 @@ public class HomeFragment extends Fragment {
         bindMultiPhaseProgress();
 
         bindDiscoverCta();
+        bindProtectionToggle();
 
         this.binding.navigationView.setNavigationItemSelectedListener(item -> {
             if (item.getItemId() == R.id.drawer_preferences) {
@@ -798,9 +799,30 @@ public class HomeFragment extends Fragment {
                 getResources().getColor(R.color.ui_bg, null));
         if (adBlocked) {
             this.binding.fab.setImageResource(R.drawable.icon_foreground_red);
+            this.binding.content.protectionToggleButton.setText(R.string.protection_stop_button);
         } else {
             this.binding.fab.setImageResource(R.drawable.icon_foreground_white);
+            this.binding.content.protectionToggleButton.setText(R.string.protection_start_button);
         }
+    }
+
+    private void bindProtectionToggle() {
+        this.binding.content.protectionToggleButton.setOnClickListener(v -> {
+            AdBlockMethod method = PreferenceHelper.getAdBlockMethod(requireContext());
+            if (method == VPN) {
+                Intent prepareIntent = VpnService.prepare(requireContext());
+                if (prepareIntent != null) {
+                    this.prepareVpnLauncher.launch(prepareIntent);
+                    return;
+                }
+            }
+            this.homeViewModel.toggleAdBlocking();
+        });
+        // Disable while a toggle is already in progress
+        this.homeViewModel.getPending().observe(getViewLifecycleOwner(), pending -> {
+            if (this.binding == null) return;
+            this.binding.content.protectionToggleButton.setEnabled(pending == null || !pending);
+        });
     }
 
     private void notifyError(HostError error) {

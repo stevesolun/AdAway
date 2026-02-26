@@ -23,6 +23,7 @@
         app:itemIconTint="@color/ui_text_secondary"
         app:itemTextColor="@color/ui_text_primary"
         app:labelVisibilityMode="labeled"
+        app:layout_insetEdge="bottom"
         app:menu="@menu/bottom_nav_menu" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
