@@ -230,19 +230,18 @@ public class DiscoverCatalogFragment extends Fragment {
     private void updateAddButton() {
         if (binding == null) return;
         int count = selectedEntries.size();
-        binding.addSelectedButton.setEnabled(count > 0);
         if (count > 0) {
             binding.addSelectedButton.setText(getString(R.string.filter_catalog_add_selected) + " (" + count + ")");
+            binding.addSelectedButton.setVisibility(View.VISIBLE);
         } else {
-            binding.addSelectedButton.setText(R.string.filter_catalog_add_selected);
+            binding.addSelectedButton.setVisibility(View.GONE);
         }
     }
 
     private void addSelectedSources() {
         if (selectedEntries.isEmpty() || binding == null) return;
 
-        binding.addSelectedButton.setEnabled(false);
-        binding.addSelectedButton.setText(R.string.filter_update_started);
+        binding.addSelectedButton.setVisibility(View.GONE);
 
         // Capture URLs before clearing selectedEntries (called on main thread)
         final Set<String> selectedUrls = new HashSet<>();

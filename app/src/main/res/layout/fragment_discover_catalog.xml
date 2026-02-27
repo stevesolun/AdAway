@@ -152,14 +152,14 @@
 
     </LinearLayout>
 
-    <!-- Add selected button -->
+    <!-- Add selected button — hidden until at least one item is selected -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/addSelectedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:layout_margin="16dp"
-        android:enabled="false"
+        android:visibility="gone"
         android:text="@string/filter_catalog_add_selected"
         app:cornerRadius="28dp"
         app:icon="@drawable/ic_add_black_24px"
