@@ -87,7 +87,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginBottom="96dp"
+        android:layout_marginBottom="48dp"
         android:gravity="center"
         android:text="@string/credit_line_home"
         android:textAppearance="@style/TextAppearance.AppCompat.Caption"
@@ -363,27 +363,12 @@
             app:tint="@android:color/white" />
     </androidx.cardview.widget.CardView>
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/protectionToggleButton"
-        style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp"
-        android:text="@string/protection_stop_button"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/allowedHostCardView"
-        app:layout_constraintBottom_toTopOf="@+id/sourcesCardView" />
-
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/sourcesCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginLeft="16dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="20dp"
         android:layout_marginRight="16dp"
         android:layout_marginBottom="6dp"
         android:clickable="true"
@@ -395,8 +380,7 @@
         app:contentPadding="18dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/creditTextView"
-        app:layout_constraintTop_toBottomOf="@+id/protectionToggleButton">
+        app:layout_constraintTop_toBottomOf="@+id/allowedHostCardView">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
