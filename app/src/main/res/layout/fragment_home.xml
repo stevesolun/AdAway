@@ -21,21 +21,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal|bottom"
-        android:layout_marginBottom="88dp"
+        android:layout_marginBottom="16dp"
         android:text="@string/home_discover_cta"
         android:visibility="gone"
         tools:visibility="visible" />
-
-    <com.google.android.material.bottomappbar.BottomAppBar
-        android:id="@+id/bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="@color/ui_surface"
-        app:backgroundTint="@color/ui_surface"
-        app:fabAlignmentMode="center"
-        app:fabAnimationMode="slide"
-        app:liftOnScroll="false" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/fab"
@@ -46,9 +35,8 @@
         android:clickable="true"
         android:focusable="true"
         android:contentDescription="@string/adblock_pause_button_description"
-        app:layout_anchor="@id/bar"
-        app:layout_anchorGravity="center|bottom"
-        android:translationY="24dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="8dp"
         app:srcCompat="@drawable/icon_foreground_red"
         android:elevation="12dp"
         android:background="@null" />

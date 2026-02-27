@@ -7,8 +7,10 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -36,6 +38,12 @@ public class DiscoverFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        // Shift content below the status bar dynamically
+        ViewCompat.setOnApplyWindowInsetsListener(view, (v, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
+            v.setPadding(0, insets.top, 0, 0);
+            return windowInsets;
+        });
         setupTabs();
     }
 
@@ -46,7 +54,7 @@ public class DiscoverFragment extends Fragment {
     }
 
     private void setupTabs() {
-        DiscoverPagerAdapter adapter = new DiscoverPagerAdapter(requireActivity());
+        DiscoverPagerAdapter adapter = new DiscoverPagerAdapter(this);
         this.binding.discoverViewPager.setAdapter(adapter);
 
         new TabLayoutMediator(this.binding.discoverTabLayout, this.binding.discoverViewPager,
@@ -65,8 +73,8 @@ public class DiscoverFragment extends Fragment {
 
     private static class DiscoverPagerAdapter extends FragmentStateAdapter {
 
-        DiscoverPagerAdapter(@NonNull FragmentActivity activity) {
-            super(activity);
+        DiscoverPagerAdapter(@NonNull Fragment fragment) {
+            super(fragment);
         }
 
         @NonNull
