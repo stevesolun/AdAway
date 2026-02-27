@@ -83,6 +83,7 @@
     <string name="filter_warning_service">⚠️ May break the targeted app</string>
 
     <!-- Preset Modes -->
+    <string name="discover_quick_start">Quick start:</string>
     <string name="filter_preset_title">Quick Setup</string>
     <string name="filter_preset_safe">Safe Mode</string>
     <string name="filter_preset_safe_desc">Essential ad &amp; malware blocking. Won\'t break anything.</string>

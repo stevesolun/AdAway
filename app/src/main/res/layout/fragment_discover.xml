@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Discover screen: FilterLists.com browser is the primary content.
+    Quick-start preset chips at top let users subscribe a curated set in one tap.
+    No hidden sub-tabs — everything is immediately visible.
+-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -7,18 +12,59 @@
     android:orientation="vertical"
     android:background="@color/ui_bg">
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/discover_tab_layout"
+    <!-- Quick-start preset strip -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/ui_surface"
-        app:tabTextColor="@color/ui_text_secondary"
-        app:tabSelectedTextColor="@color/ui_text_primary"
-        app:tabIndicatorColor="@color/primary"
-        app:tabMode="fixed" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp">
 
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/discover_view_pager"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/discover_quick_start"
+            android:textSize="13sp"
+            android:textColor="@color/ui_text_secondary"
+            android:layout_marginEnd="8dp" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipDiscoverSafe"
+            style="@style/Widget.MaterialComponents.Chip.Action"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/filter_preset_safe"
+            app:chipBackgroundColor="@color/ui_glass"
+            android:textColor="@color/ui_text_primary" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipDiscoverBalanced"
+            style="@style/Widget.MaterialComponents.Chip.Action"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="@string/filter_preset_balanced"
+            app:chipBackgroundColor="@color/ui_glass"
+            android:textColor="@color/ui_text_primary" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipDiscoverAggressive"
+            style="@style/Widget.MaterialComponents.Chip.Action"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="@string/filter_preset_aggressive"
+            app:chipBackgroundColor="@color/ui_glass"
+            android:textColor="@color/ui_text_primary" />
+
+    </LinearLayout>
+
+    <!-- Full FilterLists.com browser (search + tags + language + list) -->
+    <FrameLayout
+        android:id="@+id/discoverBrowserContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />
