@@ -47,12 +47,6 @@ public class MoreFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        // Shift content below the status bar dynamically (handles all screen sizes)
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
-            v.setPadding(0, insets.top + 8, 0, 0);
-            return windowInsets;
-        });
         bindRows();
     }
 

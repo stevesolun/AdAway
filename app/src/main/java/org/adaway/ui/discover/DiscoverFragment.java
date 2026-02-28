@@ -46,12 +46,6 @@ public class DiscoverFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Shift content below the status bar
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
-            v.setPadding(0, insets.top, 0, 0);
-            return windowInsets;
-        });
 
         // Embed the full FilterLists.com browser as child fragment
         if (savedInstanceState == null) {
