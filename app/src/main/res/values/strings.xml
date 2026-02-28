@@ -31,9 +31,9 @@
     <!-- Home fragment no-sources hint -->
     <string name="home_no_sources_hint">No filter sources. Tap Discover to add some.</string>
     <string name="home_discover_cta">Browse Filter Lists</string>
-    <string name="credit_line_home">Brought with love by Steve Solun • Built on AdsAway by the AdAway contributors</string>
-    <string name="about_credits">Brought with love by Steve Solun.</string>
-    <string name="about_attribution">This app is built on AdAway. Credit to the original AdAway project and its contributors.</string>
+    <string name="credit_line_home">Crafted with love by Steve Solun · Forked from AdAway</string>
+    <string name="about_credits">Crafted with love by Steve Solun · Forked from AdAway</string>
+    <string name="about_attribution">Crafted with love by Steve Solun · Forked from AdAway</string>
     <!--Buttons-->
     <string name="button_exit">Exit</string>
     <string name="button_close">Close</string>
