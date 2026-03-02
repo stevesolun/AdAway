@@ -78,9 +78,14 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final Set<String> existingUrls = new HashSet<>();
     private HostsSourceDao hostsSourceDao;
 
-    // Tag/language filter state
+    // Compatible syntax IDs: Hosts (1), Domains (2), Non-localhost hosts (14), dnsmasq (20).
+    // All other syntaxes (Adblock Plus, uBlock Origin, etc.) are not parseable by AdAway.
+    private static final int[] ADAWAY_SYNTAX_IDS = {1, 2, 14, 20};
+
+    // Tag/language/compat filter state
     private int selectedTagId = 0;
     private int selectedLanguageId = 0;
+    private boolean mCompatibleOnly = true;
     private List<FilterListsDirectoryApi.Language> loadedLanguages = new ArrayList<>();
 
     private Adapter adapter;
@@ -209,6 +214,11 @@ public class DiscoverFilterListsFragment extends Fragment {
                     binding.filterlistsSubscribeAllSwitch.setEnabled(!running);
                     requestAdapterRefreshThrottled(running ? 1000 : 0);
                 });
+
+        binding.filterlistsCompatibleOnlySwitch.setOnCheckedChangeListener((btn, checked) -> {
+            mCompatibleOnly = checked;
+            filter();
+        });
 
         load();
     }
@@ -433,6 +443,7 @@ public class DiscoverFilterListsFragment extends Fragment {
             }
             if (selectedTagId != 0 && !hasId(s.tagIds, selectedTagId)) continue;
             if (selectedLanguageId != 0 && !hasId(s.languageIds, selectedLanguageId)) continue;
+            if (mCompatibleOnly && !isAdAwayCompatible(s.syntaxIds)) continue;
             filtered.add(s);
         }
         if (adapter != null) adapter.notifyDataSetChanged();
@@ -441,6 +452,17 @@ public class DiscoverFilterListsFragment extends Fragment {
     private static boolean hasId(@Nullable int[] ids, int want) {
         if (ids == null) return false;
         for (int id : ids) if (id == want) return true;
+        return false;
+    }
+
+    /** Returns true if the list uses a syntax AdAway can parse, or if syntax is unknown. */
+    private static boolean isAdAwayCompatible(@Nullable int[] syntaxIds) {
+        if (syntaxIds == null || syntaxIds.length == 0) return true; // unknown — include
+        for (int id : syntaxIds) {
+            for (int compat : ADAWAY_SYNTAX_IDS) {
+                if (id == compat) return true;
+            }
+        }
         return false;
     }
 
