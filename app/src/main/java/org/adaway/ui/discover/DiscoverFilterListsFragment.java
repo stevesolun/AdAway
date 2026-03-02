@@ -86,7 +86,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     // Tag/language/compat filter state
     private int selectedTagId = 0;
     private int selectedLanguageId = 0;
-    private boolean mCompatibleOnly = true;
+    private boolean mCompatibleOnly = false;
     private List<FilterListsDirectoryApi.Language> loadedLanguages = new ArrayList<>();
 
     private Adapter adapter;
