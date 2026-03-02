@@ -23,6 +23,8 @@
     <string name="more_backup">Backup &amp; Restore</string>
     <string name="more_about">About</string>
     <string name="more_github">GitHub / Help</string>
+    <string name="more_domain_checker">Domain Checker</string>
+    <string name="more_domain_checker_desc">Test if a site is blocked — unblock instantly</string>
     <!-- Discover fragment labels -->
     <string name="discover_tab_curated">Curated</string>
     <string name="discover_tab_filterlists">FilterLists.com</string>
@@ -32,8 +34,8 @@
     <string name="home_no_sources_hint">No filter sources. Tap Discover to add some.</string>
     <string name="home_discover_cta">Browse Filter Lists</string>
     <string name="credit_line_home">Crafted with love by Steve Solun · Forked from AdAway</string>
-    <string name="about_credits">Crafted with love by Steve Solun · Forked from AdAway</string>
-    <string name="about_attribution">Crafted with love by Steve Solun · Forked from AdAway</string>
+    <string name="about_credits">Crafted with love by Steve Solun</string>
+    <string name="about_attribution">Forked from AdAway · Open source, GPL-3.0</string>
     <!--Buttons-->
     <string name="button_exit">Exit</string>
     <string name="button_close">Close</string>

@@ -19,6 +19,7 @@ import org.adaway.R;
 import org.adaway.databinding.FragmentMoreBinding;
 import org.adaway.ui.adware.AdwareFragment;
 import org.adaway.ui.about.AboutActivity;
+import org.adaway.ui.domainchecker.DomainCheckerFragment;
 import org.adaway.ui.hosts.HostsSourcesActivity;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.log.LogActivity;
@@ -57,6 +58,15 @@ public class MoreFragment extends Fragment {
     }
 
     private void bindRows() {
+        // Domain Checker
+        this.binding.domainCheckerCard.setOnClickListener(v -> {
+            requireActivity().getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.nav_fragment_container, new DomainCheckerFragment())
+                    .addToBackStack(null)
+                    .commit();
+        });
+
         // DNS Log
         this.binding.moreRowDnsLog.setOnClickListener(v ->
                 startActivity(new Intent(requireContext(), LogActivity.class)));

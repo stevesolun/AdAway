@@ -26,6 +26,14 @@ public class ListsFilter {
         this.sqlQuery = convertToLikeQuery(query);
     }
 
+    /**
+     * Returns {@code true} when no query text has been entered (i.e. the filter shows all items).
+     * Used by the search bar restore path in AbstractListFragment.
+     */
+    public boolean isEmpty() {
+        return query.isEmpty();
+    }
+
     private static String convertToLikeQuery(String query) {
         return "%" + query.replace("*", "%")
                 .replace("?", "_") + "%";

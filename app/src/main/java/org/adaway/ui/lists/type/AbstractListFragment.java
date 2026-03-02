@@ -2,6 +2,8 @@ package org.adaway.ui.lists.type;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -9,6 +11,8 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+
+import com.google.android.material.textfield.TextInputEditText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -155,6 +159,25 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
         // Get view model and bind it to the list view
         this.mViewModel = new ViewModelProvider(this.mActivity).get(ListsViewModel.class);
         getData().observe(getViewLifecycleOwner(), data -> adapter.submitData(getLifecycle(), data));
+        /*
+         * Wire search bar.
+         */
+        TextInputEditText searchEditText = view.findViewById(R.id.hostsSearchEditText);
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mViewModel.search(s.toString());
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+        // Restore search query if one is active (e.g. after config change)
+        String currentQuery = this.mViewModel.getSearchQuery();
+        if (!currentQuery.isEmpty()) {
+            searchEditText.setText(currentQuery);
+        }
         // Return created view
         return view;
     }
