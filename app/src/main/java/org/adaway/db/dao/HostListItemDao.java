@@ -81,4 +81,7 @@ public interface HostListItemDao {
     @Query("SELECT * FROM hosts_lists WHERE host = :host AND " +
            "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     List<HostListItem> getEntriesForHost(String host);
+
+    @Query("DELETE FROM hosts_lists WHERE id = :id")
+    void deleteById(int id);
 }

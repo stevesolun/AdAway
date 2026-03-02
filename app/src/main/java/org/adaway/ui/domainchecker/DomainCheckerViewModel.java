@@ -64,7 +64,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             List<HostListItem> entries = mHostListItemDao.getEntriesForHost(domain);
             List<HostsSource> allSources = mHostsSourceDao.getAll();
 
-            List<String> blockingSources = new ArrayList<>();
+            List<DomainCheckResult.BlockingSource> blockingSources = new ArrayList<>();
             boolean userAllowed = false;
             boolean blocked = false;
 
@@ -74,10 +74,10 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                 }
                 if (item.getType() == ListType.BLOCKED) {
                     blocked = true;
+                    boolean isUserRule = item.getSourceId() == USER_SOURCE_ID;
                     String sourceName = resolveSourceName(allSources, item.getSourceId());
-                    if (!blockingSources.contains(sourceName)) {
-                        blockingSources.add(sourceName);
-                    }
+                    blockingSources.add(
+                            new DomainCheckResult.BlockingSource(item.getId(), sourceName, isUserRule));
                 } else if (item.getType() == ListType.ALLOWED && item.getSourceId() == USER_SOURCE_ID) {
                     userAllowed = true;
                 }
@@ -111,6 +111,19 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             mHostListItemDao.insert(item);
 
             // Refresh the check so UI reflects the new allow rule
+            loading.postValue(false);
+            checkDomain(domain);
+        });
+    }
+
+    /**
+     * Delete a user-defined block rule by its database row ID and refresh the check.
+     * Only call this for rules where {@link DomainCheckResult.BlockingSource#isUserRule} is true.
+     */
+    public void deleteRule(int itemId, String domain) {
+        loading.setValue(true);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            mHostListItemDao.deleteById(itemId);
             loading.postValue(false);
             checkDomain(domain);
         });

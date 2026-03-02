@@ -88,13 +88,36 @@ public class DomainCheckerFragment extends Fragment {
                 statusBadge.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
                 sourcesLabel.setVisibility(View.VISIBLE);
                 sourcesContainer.setVisibility(View.VISIBLE);
-                for (String src : result.blockingSources) {
+
+                int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+
+                for (DomainCheckResult.BlockingSource src : result.blockingSources) {
+                    LinearLayout row = new LinearLayout(requireContext());
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setPadding(0, dp8, 0, dp8);
+
                     TextView tv = new TextView(requireContext());
-                    tv.setText("\u2022 " + src);
+                    tv.setLayoutParams(new LinearLayout.LayoutParams(
+                            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                    // ✏️ icon for user rules, 🛡️ icon for filter sources
+                    tv.setText((src.isUserRule ? "\u270F\uFE0F " : "\uD83D\uDEE1\uFE0F ") + src.name);
                     tv.setTextSize(13f);
-                    tv.setPadding(0, 4, 0, 4);
-                    sourcesContainer.addView(tv);
+                    row.addView(tv);
+
+                    if (src.isUserRule) {
+                        MaterialButton del = new MaterialButton(requireContext(),
+                                null, com.google.android.material.R.attr.borderlessButtonStyle);
+                        del.setText("Delete Rule");
+                        del.setTextSize(11f);
+                        del.setOnClickListener(v2 -> {
+                            viewModel.deleteRule(src.itemId, result.domain);
+                            Snackbar.make(view, "Rule deleted", Snackbar.LENGTH_SHORT).show();
+                        });
+                        row.addView(del);
+                    }
+                    sourcesContainer.addView(row);
                 }
+
                 if (result.userAllowed) {
                     alreadyAllowedLabel.setVisibility(View.VISIBLE);
                 } else {
