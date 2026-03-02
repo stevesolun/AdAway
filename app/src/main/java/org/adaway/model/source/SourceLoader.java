@@ -64,6 +64,8 @@ class SourceLoader {
     private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
     private static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
     private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
+    private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
+    private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
 
     private final HostsSource source;
     private final int generation;
@@ -78,8 +80,8 @@ class SourceLoader {
         this.generation = generation;
     }
 
-    void parse(BufferedReader reader, HostListItemDao hostListItemDao) {
-        parse(reader, hostListItemDao, null, null, null, Integer.MAX_VALUE, null);
+    int parse(BufferedReader reader, HostListItemDao hostListItemDao) {
+        return parse(reader, hostListItemDao, null, null, null, Integer.MAX_VALUE, null);
     }
 
     /**
@@ -87,9 +89,10 @@ class SourceLoader {
      * @param reader The source reader.
      * @param hostListItemDao The DAO for inserting items.
      * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
+     * @return The number of skipped (malformed or unrecognized) lines.
      */
-    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
-        parse(reader, hostListItemDao, null, onBatchInserted, null, Integer.MAX_VALUE, null);
+    int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
+        return parse(reader, hostListItemDao, null, onBatchInserted, null, Integer.MAX_VALUE, null);
     }
 
     /**
@@ -98,10 +101,11 @@ class SourceLoader {
      * @param hostListItemDao The DAO for inserting items.
      * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
      * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
+     * @return The number of skipped (malformed or unrecognized) lines.
      */
-    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
+    int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
                @Nullable java.util.Set<String> globalSeenHosts) {
-        parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, Integer.MAX_VALUE, null);
+        return parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, Integer.MAX_VALUE, null);
     }
 
     /**
@@ -112,19 +116,21 @@ class SourceLoader {
      * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
      * @param maxDedupEntries Maximum entries in dedup set before disabling dedup to prevent OOM.
      * @param dedupCapReached Flag set to true when dedup cap is reached (may be null).
+     * @return The number of skipped (malformed or unrecognized) lines.
      */
-    void parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
+    int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
                @Nullable java.util.Set<String> globalSeenHosts, int maxDedupEntries,
                @Nullable AtomicBoolean dedupCapReached) {
-        parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, maxDedupEntries, dedupCapReached);
+        return parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, maxDedupEntries, dedupCapReached);
     }
 
     /**
      * Parse hosts source and insert into database, optionally using raw SQLite for high-throughput bulk inserts.
      * When {@code db} is provided, inserts are performed using a compiled statement + explicit transactions,
      * which is significantly faster than Room @Insert for large batches.
+     * @return The number of skipped (malformed or unrecognized) lines.
      */
-    void parse(BufferedReader reader,
+    int parse(BufferedReader reader,
                HostListItemDao hostListItemDao,
                @Nullable SupportSQLiteDatabase db,
                @Nullable LongConsumer onBatchInserted,
@@ -157,9 +163,10 @@ class SourceLoader {
                     globalSeenHosts, maxDedupEntries, dedupCapReached, skippedLines));
         }
         Future<Integer> inserterFuture = executorService.submit(inserter);
+        int skipped = 0;
         try {
             Integer inserted = inserterFuture.get();
-            int skipped = skippedLines.get();
+            skipped = skippedLines.get();
             if (skipped > 0) {
                 Timber.w("Source %s: %d lines skipped (malformed or unrecognized format)", this.source.getLabel(), skipped);
             }
@@ -171,6 +178,7 @@ class SourceLoader {
             Thread.currentThread().interrupt();
         }
         executorService.shutdown();
+        return skipped;
     }
 
     private static class SourceReader implements Runnable {
@@ -358,6 +366,18 @@ class SourceLoader {
                 return sanitizeHostname(dnsmasq.group(1));
             }
 
+            // dnsmasq: local=/example.com/ or local=/example.com
+            Matcher dnsmasqLocal = DNSMASQ_LOCAL.matcher(line);
+            if (dnsmasqLocal.matches()) {
+                return sanitizeHostname(dnsmasqLocal.group(1));
+            }
+
+            // dnsmasq: server=/example.com/8.8.8.8
+            Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
+            if (dnsmasqServer.matches()) {
+                return sanitizeHostname(dnsmasqServer.group(1));
+            }
+
             // Plain domain line: example.com
             String plain = sanitizeHostname(line);
             if (plain != null) {
@@ -417,16 +437,25 @@ class SourceLoader {
         }
 
         private HostListItem parseAllowListItem(String line) {
-            // Extract hostname
-            int indexOf = line.indexOf('#');
-            if (indexOf == 1) {
-                line = line.substring(0, indexOf);
+            // Try multi-format extraction first (ABP, dnsmasq, URL, plain domain).
+            String host = extractHostnameFromNonHostsSyntax(line);
+            if (host == null) {
+                // Fall back: allow wildcard entries (*.example.com) which are valid for
+                // allow-lists but rejected by sanitizeHostname inside the extractor above.
+                String trimmed = line.trim();
+                int hash = trimmed.indexOf('#');
+                if (hash > 0) trimmed = trimmed.substring(0, hash).trim();
+                if (!trimmed.isEmpty() && RegexUtils.isValidWildcardHostname(trimmed)) {
+                    host = trimmed;
+                }
             }
-            line = line.trim();
+            if (host == null) {
+                return null;
+            }
             // Create item
             HostListItem item = new HostListItem();
             item.setType(ALLOWED);
-            item.setHost(line);
+            item.setHost(host);
             item.setEnabled(true);
             item.setSourceId(this.source.getId());
             return item;

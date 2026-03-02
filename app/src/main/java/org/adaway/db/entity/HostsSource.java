@@ -55,6 +55,11 @@ public class HostsSource {
      * The number of hosts list items (<code>0</code> until synced).
      */
     private int size;
+    /**
+     * The number of hosts list items skipped during parsing (<code>0</code> until synced).
+     */
+    @ColumnInfo(name = "skipped_count")
+    private int skippedCount;
 
     /**
      * Check whether an URL is valid for as host source.<br>
@@ -157,6 +162,14 @@ public class HostsSource {
 
     public void setSize(int size) {
         this.size = size;
+    }
+
+    public int getSkippedCount() {
+        return this.skippedCount;
+    }
+
+    public void setSkippedCount(int skippedCount) {
+        this.skippedCount = skippedCount;
     }
 
     @Override

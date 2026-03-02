@@ -153,4 +153,15 @@ final class Migrations {
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_hosts_lists_type_enabled_generation` ON `hosts_lists` (`type`, `enabled`, `generation`)");
         }
     };
+
+    /**
+     * Migration script from v9 to v10.
+     * Adds skipped_count column to hosts_sources to track entries skipped during parsing.
+     */
+    static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `hosts_sources` ADD COLUMN `skipped_count` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
 }

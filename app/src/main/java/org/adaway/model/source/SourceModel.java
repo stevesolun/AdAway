@@ -1536,11 +1536,12 @@ public class SourceModel {
         // Use raw SQLite handle for high-throughput bulk insert in SourceLoader.
         SupportSQLiteDatabase db = AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
         // Pass callback to update live blocked count in UI
-        new SourceLoader(hostsSource, this.currentImportGeneration).parse(reader, this.hostListItemDao, db, count -> {
+        int skippedCount = new SourceLoader(hostsSource, this.currentImportGeneration).parse(reader, this.hostListItemDao, db, count -> {
             progressBuilder.addParsedHosts(count);
             MultiPhaseProgress mp = progressBuilder.build();
             postMultiPhaseProgress(mp);
         }, globalSeenHosts, maxDedupEntries, dedupCapReached);
+        this.hostsSourceDao.updateSkippedCount(hostsSource.getId(), skippedCount);
         long endTime = System.currentTimeMillis();
         Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");
     }

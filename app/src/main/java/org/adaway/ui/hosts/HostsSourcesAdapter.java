@@ -2,6 +2,7 @@ package org.adaway.ui.hosts;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -114,7 +115,13 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
         holder.labelTextView.setText(source.getLabel());
         holder.urlTextView.setText(source.getUrl());
         holder.updateTextView.setText(getUpdateText(source));
-        holder.sizeTextView.setText(getHostCount(source));
+        String hostCount = getHostCount(source);
+        holder.sizeTextView.setText(hostCount);
+        if ("0 domains".equals(hostCount)) {
+            holder.sizeTextView.setTextColor(Color.rgb(255, 140, 0));
+        } else {
+            holder.sizeTextView.setTextColor(Color.GRAY);
+        }
         holder.itemView.setOnClickListener(view -> viewCallback.edit(source));
     }
 
@@ -156,7 +163,14 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
         // Note: NumberFormat.getCompactNumberInstance is Java 12 only
         // Check empty source
         int size = source.getSize();
-        if (size <= 0 || !source.isEnabled()) {
+        if (!source.isEnabled()) {
+            return "";
+        }
+        if (size == 0) {
+            // Warn when enabled and synced at least once but yielded no domains
+            if (source.getLocalModificationDate() != null) {
+                return "0 domains";
+            }
             return "";
         }
         // Compute size decimal length
