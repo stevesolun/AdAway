@@ -66,6 +66,16 @@ class SourceLoader {
     private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
     private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
     private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
+    // Unbound DNS: local-zone: "example.com" always_refuse
+    static final Pattern UNBOUND_LOCAL_ZONE = Pattern.compile("^\\s*local-zone:\\s*\"([^\"]+)\"\\s+\\w+.*$");
+    // Unbound DNS: local-data: "example.com A 0.0.0.0"
+    static final Pattern UNBOUND_LOCAL_DATA = Pattern.compile("^\\s*local-data:\\s*\"([^\\s\"]+)\\s.*$");
+    // BIND RPZ: example.com CNAME .  (optionally: example.com 60 IN CNAME .)
+    static final Pattern RPZ_CNAME_DOT = Pattern.compile("^([a-zA-Z0-9][a-zA-Z0-9._-]{0,252})\\s+(?:\\d+\\s+)?(?:IN\\s+)?CNAME\\s+\\..*$");
+    // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com or DOMAIN-FULL,example.com or DOMAIN,example.com
+    static final Pattern SURGE_DOMAIN_RULE = Pattern.compile("^DOMAIN(?:-SUFFIX|-FULL)?,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})\\s*(?:#.*)?$");
+    // BIND zone statement: zone "example.com" { type master; ... };
+    static final Pattern BIND_ZONE_STMT = Pattern.compile("^\\s*zone\\s+\"([^\"]+)\"\\s*\\{.*$");
 
     private final HostsSource source;
     private final int generation;
@@ -320,6 +330,20 @@ class SourceLoader {
             } else if (this.source.isRedirectEnabled()) {
                 type = REDIRECTED;
             } else {
+                // Not a standard hosts entry (IP is not 127.0.0.1 / 0.0.0.0 / ::1 and redirect
+                // is disabled). This can happen for lines that HOSTS_PARSER_PATTERN matches
+                // structurally but which belong to another format — e.g. RPZ:
+                //   "ads.example.com CNAME . ; comment" → ip=ads.example.com, hostname=CNAME
+                // Fall through to non-hosts syntax extraction to recover these lines.
+                String extracted = extractHostnameFromNonHostsSyntax(line);
+                if (extracted != null) {
+                    HostListItem item = new HostListItem();
+                    item.setType(BLOCKED);
+                    item.setHost(extracted);
+                    item.setEnabled(true);
+                    item.setSourceId(this.source.getId());
+                    return item;
+                }
                 return null;
             }
             HostListItem item = new HostListItem();
@@ -376,6 +400,36 @@ class SourceLoader {
             Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
             if (dnsmasqServer.matches()) {
                 return sanitizeHostname(dnsmasqServer.group(1));
+            }
+
+            // Unbound: local-zone: "example.com" always_refuse
+            Matcher unboundZone = UNBOUND_LOCAL_ZONE.matcher(line);
+            if (unboundZone.matches()) {
+                return sanitizeHostname(unboundZone.group(1));
+            }
+
+            // Unbound: local-data: "example.com A 0.0.0.0"
+            Matcher unboundData = UNBOUND_LOCAL_DATA.matcher(line);
+            if (unboundData.matches()) {
+                return sanitizeHostname(unboundData.group(1));
+            }
+
+            // BIND RPZ: example.com CNAME .  (optionally with TTL/IN class)
+            Matcher rpz = RPZ_CNAME_DOT.matcher(line);
+            if (rpz.matches()) {
+                return sanitizeHostname(rpz.group(1));
+            }
+
+            // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com
+            Matcher surge = SURGE_DOMAIN_RULE.matcher(line);
+            if (surge.matches()) {
+                return sanitizeHostname(surge.group(1));
+            }
+
+            // BIND zone statement: zone "example.com" { type master; ... };
+            Matcher bindZone = BIND_ZONE_STMT.matcher(line);
+            if (bindZone.matches()) {
+                return sanitizeHostname(bindZone.group(1));
             }
 
             // Plain domain line: example.com

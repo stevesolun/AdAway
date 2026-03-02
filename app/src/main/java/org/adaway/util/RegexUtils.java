@@ -141,7 +141,6 @@ public class RegexUtils {
             InetAddresses.forString(ip);
             return true;
         } catch (IllegalArgumentException exception) {
-            Timber.d(exception, "Invalid IP address: %s.", ip);
             return false;
         }
     }
