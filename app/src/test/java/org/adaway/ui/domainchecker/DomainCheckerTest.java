@@ -26,11 +26,12 @@ public class DomainCheckerTest {
      */
     @Test
     public void domainCheckResult_storesAllFields() {
+        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(42, "AdAway Default", false);
         DomainCheckResult result = new DomainCheckResult(
                 "example.com",
                 true,
                 false,
-                Arrays.asList("AdAway Default"),
+                Arrays.asList(src),
                 "Tap \"Add to Allow List\" to create a user exception for this domain."
         );
 
@@ -38,7 +39,7 @@ public class DomainCheckerTest {
         assertTrue(result.blocked);
         assertFalse(result.userAllowed);
         assertEquals(1, result.blockingSources.size());
-        assertEquals("AdAway Default", result.blockingSources.get(0));
+        assertEquals("AdAway Default", result.blockingSources.get(0).name);
         assertNotNull(result.unblockAdvice);
         assertFalse(result.unblockAdvice.isEmpty());
     }
@@ -60,11 +61,12 @@ public class DomainCheckerTest {
 
     @Test
     public void domainCheckResult_userAllowed_flagSet() {
+        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(1, "Some list", false);
         DomainCheckResult result = new DomainCheckResult(
                 "allowed.com",
                 true,
                 true,
-                Arrays.asList("Some list"),
+                Arrays.asList(src),
                 "You have already allowed this domain."
         );
 
