@@ -67,7 +67,7 @@
             android:paddingStart="8dp"
             android:textSize="11sp"
             android:textColor="?android:attr/textColorSecondary"
-            android:text="(Hosts / Domains format)" />
+            android:text="(Hosts, Domains, ABP &amp; AdGuard)" />
 
     </LinearLayout>
 

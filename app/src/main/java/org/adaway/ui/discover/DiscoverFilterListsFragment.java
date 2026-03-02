@@ -78,9 +78,10 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final Set<String> existingUrls = new HashSet<>();
     private HostsSourceDao hostsSourceDao;
 
-    // Compatible syntax IDs: Hosts (1), Domains (2), Non-localhost hosts (14), dnsmasq (20).
-    // All other syntaxes (Adblock Plus, uBlock Origin, etc.) are not parseable by AdAway.
-    private static final int[] ADAWAY_SYNTAX_IDS = {1, 2, 14, 20};
+    // Compatible syntax IDs: Hosts (1), Domains (2), Non-localhost hosts (14), dnsmasq (20),
+    // Adblock Plus (3), AdGuard (4), uBlock Origin (6) — parser extracts domain-level blocks
+    // from ||domain.com^ rules, yielding ~69% usable entries from typical ABP/AdGuard lists.
+    private static final int[] ADAWAY_SYNTAX_IDS = {1, 2, 3, 4, 6, 14, 20};
 
     // Tag/language/compat filter state
     private int selectedTagId = 0;
