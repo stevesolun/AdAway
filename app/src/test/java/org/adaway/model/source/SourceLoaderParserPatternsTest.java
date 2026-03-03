@@ -18,6 +18,8 @@ import static org.junit.Assert.*;
  *  - RPZ_CNAME_DOT       (BIND Response Policy Zone format)
  *  - SURGE_DOMAIN_RULE   (Surge / Quantumult / Clash domain rule format)
  *  - BIND_ZONE_STMT      (BIND zone statement format)
+ *
+ * Also tests ABP/uBO $options rule handling in extractHostnameFromNonHostsSyntax.
  */
 public class SourceLoaderParserPatternsTest {
 
@@ -246,5 +248,44 @@ public class SourceLoaderParserPatternsTest {
         String line = "ads.example.com";
         Matcher m = BIND_ZONE_STMT.matcher(line);
         assertFalse("BIND_ZONE_STMT should not match plain domain", m.matches());
+    }
+
+    // -----------------------------------------------------------------------
+    // ABP/uBO $options rules — must NOT yield a hostname (content-filter, not DNS-blockable)
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void abpRule_thirdPartyOption_notExtracted() {
+        // ||google.com^$third-party = "block 3rd-party requests to google.com"
+        // At DNS level this causes false positive: google.com itself is blocked
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||google.com^$third-party"));
+    }
+
+    @Test
+    public void abpRule_scriptOption_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$script"));
+    }
+
+    @Test
+    public void abpRule_multipleOptions_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$script,image,third-party"));
+    }
+
+    @Test
+    public void abpRule_dollarNoCaretWithOptions_notExtracted() {
+        // ||example.com$third-party (no ^ separator) — still has options
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com$third-party"));
+    }
+
+    @Test
+    public void abpRule_noOptions_extracted() {
+        // ||ads.example.com^ with no $options IS a full domain block
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax("||ads.example.com^"));
+    }
+
+    @Test
+    public void abpRule_noCaretNoOptions_extracted() {
+        // ||tracker.net (bare domain, no ^ and no $) — still a domain block
+        assertEquals("tracker.net", SourceLoader.extractHostnameFromNonHostsSyntax("||tracker.net"));
     }
 }

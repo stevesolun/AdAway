@@ -61,8 +61,8 @@ class SourceLoader {
     private static final int PARSER_COUNT = SourceModel.PARSER_THREADS_PER_SOURCE;
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
-    private static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
-    private static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
+    static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
+    static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
     private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
     private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
     private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
@@ -189,6 +189,152 @@ class SourceLoader {
         }
         executorService.shutdown();
         return skipped;
+    }
+
+    /**
+     * Extract a hostname from non-hosts syntaxes (ABP/uBO/AdGuard style lists, domain lists, dnsmasq, etc.).
+     * ABP rules with $options (e.g. $third-party, $script) are content-filter rules and are skipped —
+     * they cannot be represented as DNS-level domain blocks without causing false positives.
+     */
+    @Nullable
+    static String extractHostnameFromNonHostsSyntax(String rawLine) {
+        if (rawLine == null) return null;
+        String line = rawLine.trim();
+        if (line.isEmpty()) return null;
+
+        // Drop inline comments for common syntaxes
+        int hash = line.indexOf('#');
+        if (hash > 0) {
+            line = line.substring(0, hash).trim();
+        }
+        if (line.isEmpty()) return null;
+
+        // Skip cosmetic/scriptlet rules and section headers
+        if (line.startsWith("[") || line.contains("##") || line.contains("#@#") || line.contains("#$#") || line.contains("#?#")) {
+            return null;
+        }
+
+        // Skip exceptions
+        if (line.startsWith("@@")) {
+            return null;
+        }
+
+        // dnsmasq: address=/example.com/0.0.0.0
+        Matcher dnsmasq = DNSMASQ_ADDRESS.matcher(line);
+        if (dnsmasq.matches()) {
+            return sanitizeHostname(dnsmasq.group(1));
+        }
+
+        // dnsmasq: local=/example.com/ or local=/example.com
+        Matcher dnsmasqLocal = DNSMASQ_LOCAL.matcher(line);
+        if (dnsmasqLocal.matches()) {
+            return sanitizeHostname(dnsmasqLocal.group(1));
+        }
+
+        // dnsmasq: server=/example.com/8.8.8.8
+        Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
+        if (dnsmasqServer.matches()) {
+            return sanitizeHostname(dnsmasqServer.group(1));
+        }
+
+        // Unbound: local-zone: "example.com" always_refuse
+        Matcher unboundZone = UNBOUND_LOCAL_ZONE.matcher(line);
+        if (unboundZone.matches()) {
+            return sanitizeHostname(unboundZone.group(1));
+        }
+
+        // Unbound: local-data: "example.com A 0.0.0.0"
+        Matcher unboundData = UNBOUND_LOCAL_DATA.matcher(line);
+        if (unboundData.matches()) {
+            return sanitizeHostname(unboundData.group(1));
+        }
+
+        // BIND RPZ: example.com CNAME .  (optionally with TTL/IN class)
+        Matcher rpz = RPZ_CNAME_DOT.matcher(line);
+        if (rpz.matches()) {
+            return sanitizeHostname(rpz.group(1));
+        }
+
+        // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com
+        Matcher surge = SURGE_DOMAIN_RULE.matcher(line);
+        if (surge.matches()) {
+            return sanitizeHostname(surge.group(1));
+        }
+
+        // BIND zone statement: zone "example.com" { type master; ... };
+        Matcher bindZone = BIND_ZONE_STMT.matcher(line);
+        if (bindZone.matches()) {
+            return sanitizeHostname(bindZone.group(1));
+        }
+
+        // Plain domain line: example.com
+        // Guard: skip lines starting with '|' — those are ABP-style rules handled below,
+        // and sanitizeHostname() would otherwise strip the leading '||' and return a hostname
+        // even for content-filter rules like ||google.com^$third-party.
+        if (!line.startsWith("|")) {
+            String plain = sanitizeHostname(line);
+            if (plain != null) {
+                return plain;
+            }
+        }
+
+        // uBO/ABP style: ||example.com^  — skip rules with $options (content-filter rules, not DNS-blockable)
+        // e.g. ||google.com^$third-party means "block 3rd-party requests to google.com" in a browser;
+        // treating it as a DNS block causes google.com to be unreachable (false positive).
+        Matcher dbl = ADBLOCK_DOUBLE_PIPE.matcher(line);
+        if (dbl.matches()) {
+            String captured = dbl.group(1);
+            // Skip if '$' appears after the domain portion — indicates content-type/context options
+            if (captured != null && line.indexOf('$', 2 + captured.length()) >= 0) {
+                return null;
+            }
+            return sanitizeHostname(captured);
+        }
+
+        // URL style: |https://example.com/path
+        Matcher url = URL_HOST.matcher(line);
+        if (url.matches()) {
+            return sanitizeHostname(url.group(1));
+        }
+
+        return null;
+    }
+
+    @Nullable
+    static String sanitizeHostname(@Nullable String raw) {
+        if (raw == null) return null;
+        String h = raw.trim();
+        if (h.isEmpty()) return null;
+
+        // Remove leading separators used in some syntaxes
+        while (!h.isEmpty() && (h.charAt(0) == '.' || h.charAt(0) == '|')) {
+            h = h.substring(1);
+        }
+
+        // Truncate at common ABP/uBO delimiters
+        int cut = h.length();
+        int caret = h.indexOf('^');
+        if (caret >= 0) cut = Math.min(cut, caret);
+        int dollar = h.indexOf('$');
+        if (dollar >= 0) cut = Math.min(cut, dollar);
+        int slash = h.indexOf('/');
+        if (slash >= 0) cut = Math.min(cut, slash);
+        if (cut != h.length()) {
+            h = h.substring(0, cut);
+        }
+
+        h = h.trim();
+        if (h.isEmpty()) return null;
+
+        // Reject patterns/wildcards/regex-like tokens
+        if (h.indexOf('*') != -1 || h.indexOf('?') != -1 || h.indexOf('%') != -1) return null;
+        if (h.indexOf(' ') != -1 || h.indexOf('\t') != -1) return null;
+
+        // Reject IP addresses here (we only accept hostnames via this path)
+        if (RegexUtils.isValidIP(h)) return null;
+
+        // Basic hostname validation
+        return RegexUtils.isValidHostname(h) ? h : null;
     }
 
     private static class SourceReader implements Runnable {
@@ -355,139 +501,6 @@ class SourceLoader {
             }
             item.setSourceId(this.source.getId());
             return item;
-        }
-
-        /**
-         * Extract a hostname from non-hosts syntaxes (ABP/uBO/AdGuard style lists, domain lists, dnsmasq, etc.).
-         * This intentionally ignores rule types that are not representable as a hosts entry.
-         */
-        @Nullable
-        private static String extractHostnameFromNonHostsSyntax(String rawLine) {
-            if (rawLine == null) return null;
-            String line = rawLine.trim();
-            if (line.isEmpty()) return null;
-
-            // Drop inline comments for common syntaxes
-            int hash = line.indexOf('#');
-            if (hash > 0) {
-                line = line.substring(0, hash).trim();
-            }
-            if (line.isEmpty()) return null;
-
-            // Skip cosmetic/scriptlet rules and section headers
-            if (line.startsWith("[") || line.contains("##") || line.contains("#@#") || line.contains("#$#") || line.contains("#?#")) {
-                return null;
-            }
-
-            // Skip exceptions
-            if (line.startsWith("@@")) {
-                return null;
-            }
-
-            // dnsmasq: address=/example.com/0.0.0.0
-            Matcher dnsmasq = DNSMASQ_ADDRESS.matcher(line);
-            if (dnsmasq.matches()) {
-                return sanitizeHostname(dnsmasq.group(1));
-            }
-
-            // dnsmasq: local=/example.com/ or local=/example.com
-            Matcher dnsmasqLocal = DNSMASQ_LOCAL.matcher(line);
-            if (dnsmasqLocal.matches()) {
-                return sanitizeHostname(dnsmasqLocal.group(1));
-            }
-
-            // dnsmasq: server=/example.com/8.8.8.8
-            Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
-            if (dnsmasqServer.matches()) {
-                return sanitizeHostname(dnsmasqServer.group(1));
-            }
-
-            // Unbound: local-zone: "example.com" always_refuse
-            Matcher unboundZone = UNBOUND_LOCAL_ZONE.matcher(line);
-            if (unboundZone.matches()) {
-                return sanitizeHostname(unboundZone.group(1));
-            }
-
-            // Unbound: local-data: "example.com A 0.0.0.0"
-            Matcher unboundData = UNBOUND_LOCAL_DATA.matcher(line);
-            if (unboundData.matches()) {
-                return sanitizeHostname(unboundData.group(1));
-            }
-
-            // BIND RPZ: example.com CNAME .  (optionally with TTL/IN class)
-            Matcher rpz = RPZ_CNAME_DOT.matcher(line);
-            if (rpz.matches()) {
-                return sanitizeHostname(rpz.group(1));
-            }
-
-            // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com
-            Matcher surge = SURGE_DOMAIN_RULE.matcher(line);
-            if (surge.matches()) {
-                return sanitizeHostname(surge.group(1));
-            }
-
-            // BIND zone statement: zone "example.com" { type master; ... };
-            Matcher bindZone = BIND_ZONE_STMT.matcher(line);
-            if (bindZone.matches()) {
-                return sanitizeHostname(bindZone.group(1));
-            }
-
-            // Plain domain line: example.com
-            String plain = sanitizeHostname(line);
-            if (plain != null) {
-                return plain;
-            }
-
-            // uBO/ABP style: ||example.com^$third-party
-            Matcher dbl = ADBLOCK_DOUBLE_PIPE.matcher(line);
-            if (dbl.matches()) {
-                return sanitizeHostname(dbl.group(1));
-            }
-
-            // URL style: |https://example.com/path
-            Matcher url = URL_HOST.matcher(line);
-            if (url.matches()) {
-                return sanitizeHostname(url.group(1));
-            }
-
-            return null;
-        }
-
-        @Nullable
-        private static String sanitizeHostname(@Nullable String raw) {
-            if (raw == null) return null;
-            String h = raw.trim();
-            if (h.isEmpty()) return null;
-
-            // Remove leading separators used in some syntaxes
-            while (!h.isEmpty() && (h.charAt(0) == '.' || h.charAt(0) == '|')) {
-                h = h.substring(1);
-            }
-
-            // Truncate at common ABP/uBO delimiters
-            int cut = h.length();
-            int caret = h.indexOf('^');
-            if (caret >= 0) cut = Math.min(cut, caret);
-            int dollar = h.indexOf('$');
-            if (dollar >= 0) cut = Math.min(cut, dollar);
-            int slash = h.indexOf('/');
-            if (slash >= 0) cut = Math.min(cut, slash);
-            if (cut != h.length()) {
-                h = h.substring(0, cut);
-            }
-
-            h = h.trim();
-            if (h.isEmpty()) return null;
-
-            // Reject patterns/wildcards/regex-like tokens
-            if (h.indexOf('*') != -1 || h.indexOf('?') != -1 || h.indexOf('%') != -1) return null;
-            if (h.indexOf(' ') != -1 || h.indexOf('\t') != -1) return null;
-
-            // Reject IP addresses here (we only accept hostnames via this path)
-            if (RegexUtils.isValidIP(h)) return null;
-
-            // Basic hostname validation
-            return RegexUtils.isValidHostname(h) ? h : null;
         }
 
         private HostListItem parseAllowListItem(String line) {
