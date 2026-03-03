@@ -26,6 +26,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
@@ -264,6 +265,10 @@ public class DiscoverCatalogFragment extends Fragment {
             // Persist applied preset to FilterSetStore so scheduled updates can track it.
             if (!selectedUrls.isEmpty()) {
                 FilterSetStore.saveSet(appContext, "custom", selectedUrls);
+            }
+            // Kick off an immediate download of the newly added sources.
+            if (added > 0) {
+                SourceUpdateService.enqueueUpdateNow(appContext);
             }
 
             final int finalAdded = added;

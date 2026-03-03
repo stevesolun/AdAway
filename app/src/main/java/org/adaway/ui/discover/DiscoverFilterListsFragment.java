@@ -34,6 +34,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListsDirectoryApi;
+import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
@@ -553,6 +554,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                     src.setRedirectEnabled(false);
                     hostsSourceDao.insert(src);
                     existingUrls.add(url);
+                    SourceUpdateService.enqueueUpdateNow(appContext);
                 } else {
                     HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
                     if (existing != null) {

@@ -123,8 +123,8 @@ public final class SourceUpdateService {
                 .setRequiresStorageNotLow(true)
                 .build();
         // Create work request
-        // User preference is "daily", so run daily.
-        return new PeriodicWorkRequest.Builder(HostsSourcesUpdateWorker.class, 24, HOURS)
+        // Run hourly (above WorkManager's 15-min floor; was 24 hours).
+        return new PeriodicWorkRequest.Builder(HostsSourcesUpdateWorker.class, 1, HOURS)
                 .setConstraints(constraints)
                 .setInitialDelay(3, HOURS)
                 .build();
