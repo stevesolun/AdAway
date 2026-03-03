@@ -193,7 +193,7 @@ class SourceLoader {
 
     /**
      * Extract a hostname from non-hosts syntaxes (ABP/uBO/AdGuard style lists, domain lists, dnsmasq, etc.).
-     * ABP rules with $options (e.g. $third-party, $script) are content-filter rules and are skipped —
+     * ABP rules with $options or cosmetic/element-hiding rules (##, #@#, #?#, #$#) are skipped —
      * they cannot be represented as DNS-level domain blocks without causing false positives.
      */
     @Nullable
@@ -202,17 +202,24 @@ class SourceLoader {
         String line = rawLine.trim();
         if (line.isEmpty()) return null;
 
-        // Drop inline comments for common syntaxes
+        // Skip ABP/uBO cosmetic and scriptlet rules BEFORE any stripping.
+        // "domain##selector", "domain#@#selector" etc. — the ## is the separator, not a comment.
+        // These must be caught on the raw line before the '#' stripping below removes the ##.
+        if (line.contains("##") || line.contains("#@#") || line.contains("#$#") || line.contains("#?#")) {
+            return null;
+        }
+
+        // Skip section headers like [AdBlock Plus 2.0]
+        if (line.startsWith("[")) {
+            return null;
+        }
+
+        // Drop inline comments for common syntaxes (standalone # only, not ## which was handled above)
         int hash = line.indexOf('#');
         if (hash > 0) {
             line = line.substring(0, hash).trim();
         }
         if (line.isEmpty()) return null;
-
-        // Skip cosmetic/scriptlet rules and section headers
-        if (line.startsWith("[") || line.contains("##") || line.contains("#@#") || line.contains("#$#") || line.contains("#?#")) {
-            return null;
-        }
 
         // Skip exceptions
         if (line.startsWith("@@")) {
@@ -278,15 +285,22 @@ class SourceLoader {
             }
         }
 
-        // uBO/ABP style: ||example.com^  — skip rules with $options (content-filter rules, not DNS-blockable)
-        // e.g. ||google.com^$third-party means "block 3rd-party requests to google.com" in a browser;
-        // treating it as a DNS block causes google.com to be unreachable (false positive).
+        // uBO/ABP style: ||example.com^  — skip ALL rules with $options or path components.
+        // - $options (e.g. $third-party): context-dependent, DNS cannot replicate
+        // - /path (e.g. ||youtube.com/pagead/): URL-path filter, DNS cannot do path filtering
+        // Ad networks are covered by OISD/hosts-format entries instead.
         Matcher dbl = ADBLOCK_DOUBLE_PIPE.matcher(line);
         if (dbl.matches()) {
             String captured = dbl.group(1);
-            // Skip if '$' appears after the domain portion — indicates content-type/context options
-            if (captured != null && line.indexOf('$', 2 + captured.length()) >= 0) {
-                return null;
+            if (captured != null) {
+                int afterDomain = 2 + captured.length();  // position right after ||domain
+                if (afterDomain < line.length()) {
+                    char next = line.charAt(afterDomain);
+                    // '/' means path rule (||example.com/path) — URL-level only, not DNS
+                    if (next == '/') return null;
+                }
+                // '$' anywhere after domain = filter options → skip
+                if (line.indexOf('$', 2 + captured.length()) >= 0) return null;
             }
             return sanitizeHostname(captured);
         }

@@ -37,6 +37,19 @@ import timber.log.Timber;
  */
 public class DnsServerMapper {
     /**
+     * Known DNS-over-HTTPS (DoH) provider IPv4 addresses.
+     * Routing these through the VPN forces TCP/443 connections to them to enter the tunnel
+     * where they are dropped (DnsPacketProxy only handles UDP/53).
+     * Chrome (and other DoH-capable apps) then falls back to system UDP/53 DNS, which IS
+     * captured by AdAway's fake-DNS mapping and properly filtered.
+     */
+    private static final String[] DOH_PROVIDER_IPV4 = {
+            "1.1.1.1", "1.0.0.1",              // Cloudflare
+            "8.8.8.8", "8.8.4.4",              // Google
+            "9.9.9.9", "149.112.112.112",       // Quad9
+            "208.67.222.222", "208.67.220.220"  // OpenDNS
+    };
+    /**
      * The TEST NET addresses blocks, defined in RFC5735.
      */
     private static final String[] TEST_NET_ADDRESS_BLOCKS = {
@@ -92,6 +105,25 @@ public class DnsServerMapper {
             builder.addDnsServer(dnsAddressAlias);
             if (dnsServer instanceof Inet4Address) {
                 builder.addRoute(dnsAddressAlias, 32);
+            }
+        }
+        // Block DoH providers so Chrome falls back to system UDP/53 DNS (captured by AdAway)
+        addDohBlockRoutes(builder);
+    }
+
+    /**
+     * Add /32 routes for known DoH provider IPs through the VPN tunnel.
+     * Since DnsPacketProxy only handles UDP/53, TCP/443 DoH connections entering the tunnel
+     * will be silently dropped, forcing browsers to fall back to system UDP/53 DNS.
+     */
+    private void addDohBlockRoutes(VpnService.Builder builder) {
+        for (String ip : DOH_PROVIDER_IPV4) {
+            try {
+                InetAddress address = InetAddress.getByName(ip);
+                builder.addRoute(address, 32);
+                Timber.d("Added DoH block route for %s/32.", ip);
+            } catch (UnknownHostException e) {
+                Timber.w(e, "Failed to add DoH block route for %s.", ip);
             }
         }
     }
