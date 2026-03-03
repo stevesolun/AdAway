@@ -103,7 +103,7 @@ public class FilterListCatalog {
                 CATALOG.add(new CatalogEntry(
                                 "OISD Full",
                                 "https://hosts.oisd.nl/",
-                                ADS, false));
+                                ADS, true));  // default ON: covers Taboola, Outbrain, and 100k+ ad domains
                 CATALOG.add(new CatalogEntry(
                                 "HaGeZi Multi PRO (Recommended)",
                                 "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/pro.txt",

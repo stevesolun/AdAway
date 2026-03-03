@@ -251,29 +251,63 @@ public class SourceLoaderParserPatternsTest {
     }
 
     // -----------------------------------------------------------------------
-    // ABP/uBO $options rules — must NOT yield a hostname (content-filter, not DNS-blockable)
+    // ABP/uBO $options rules
+    //
+    // Content-type options ($script, $image, etc.) make a rule browser-only — skip at DNS level.
+    // Context-only options ($third-party, $important) ARE valid DNS-level domain blocks:
+    //   ||taboola.com^$third-party = "taboola.com is a pure ad network" → block it at DNS level.
     // -----------------------------------------------------------------------
 
     @Test
-    public void abpRule_thirdPartyOption_notExtracted() {
-        // ||google.com^$third-party = "block 3rd-party requests to google.com"
-        // At DNS level this causes false positive: google.com itself is blocked
+    public void abpRule_thirdPartyAlone_skipped() {
+        // ALL rules with $options are skipped at DNS level — even $third-party.
+        // ||youtube.com^$third-party means "block YT as third-party embed" not "block youtube.com".
+        // Ad networks (taboola.com, etc.) are covered by OISD hosts-format entries instead.
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||google.com^$third-party"));
     }
 
     @Test
+    public void abpRule_taboolaThirdParty_skipped() {
+        // $third-party context modifier → skip. OISD Full list covers taboola.com directly.
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||taboola.com^$third-party"));
+    }
+
+    @Test
     public void abpRule_scriptOption_notExtracted() {
+        // $script is a content-type option → browser-only rule → skip
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$script"));
     }
 
     @Test
-    public void abpRule_multipleOptions_notExtracted() {
+    public void abpRule_imageOption_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$image"));
+    }
+
+    @Test
+    public void abpRule_stylesheetOption_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$stylesheet"));
+    }
+
+    @Test
+    public void abpRule_xmlhttprequestOption_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$xmlhttprequest"));
+    }
+
+    @Test
+    public void abpRule_multipleContentTypeOptions_notExtracted() {
+        // $script,image,third-party — contains content-type options → skip
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com^$script,image,third-party"));
     }
 
     @Test
-    public void abpRule_dollarNoCaretWithOptions_notExtracted() {
-        // ||example.com$third-party (no ^ separator) — still has options
+    public void abpRule_thirdPartyWithContentType_notExtracted() {
+        // $third-party,image — image IS a content-type option → skip
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||taboola.com^$third-party,image"));
+    }
+
+    @Test
+    public void abpRule_dollarNoCaretThirdParty_skipped() {
+        // ||example.com$third-party (no ^ separator) — has $options → skip, same as with ^
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com$third-party"));
     }
 
@@ -288,4 +322,67 @@ public class SourceLoaderParserPatternsTest {
         // ||tracker.net (bare domain, no ^ and no $) — still a domain block
         assertEquals("tracker.net", SourceLoader.extractHostnameFromNonHostsSyntax("||tracker.net"));
     }
+
+    // -----------------------------------------------------------------------
+    // ABP/uBO path-specific rules — must NOT become DNS blocks
+    //
+    // "||domain/path" is a URL-path filter — DNS cannot filter by path.
+    // e.g. ||youtube.com/pagead/ means "block YouTube's ad-serving path", NOT "block youtube.com"
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void abpRule_pathRule_notExtracted() {
+        // ||youtube.com/pagead/ — blocks a specific path, not the whole domain
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||youtube.com/pagead/"));
+    }
+
+    @Test
+    public void abpRule_pathRuleWithParams_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||youtube.com/youtubei/v1/player/ad_break"));
+    }
+
+    @Test
+    public void abpRule_domainWithCaret_extracted() {
+        // ||ads.youtube.com^ — full domain block (no path) — IS a valid DNS block
+        assertEquals("ads.youtube.com", SourceLoader.extractHostnameFromNonHostsSyntax("||ads.youtube.com^"));
+    }
+
+    // -----------------------------------------------------------------------
+    // ABP/uBO cosmetic (element-hiding) rules — must NOT be treated as DNS blocks
+    //
+    // "domain##selector" means "hide CSS selector on domain" — browser-only.
+    // Bug: the old code stripped everything after '#', leaving a bare hostname
+    // which then got blocked at DNS level. Fix: check ## BEFORE hash-stripping.
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void cosmeticRule_doubleHash_notExtracted() {
+        // m.youtube.com##lazy-list > ad-slot-renderer — hides YT ads in browser, NOT a DNS block
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("m.youtube.com##lazy-list > ad-slot-renderer"));
+    }
+
+    @Test
+    public void cosmeticRule_exception_notExtracted() {
+        // domain#@#selector — cosmetic exception rule
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("ads.google.com,youtube.com#@#.video-ads"));
+    }
+
+    @Test
+    public void cosmeticRule_scriptlet_notExtracted() {
+        // domain#$#scriptlet — scriptlet injection rule
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("example.com#$#abort-on-property-read ads"));
+    }
+
+    @Test
+    public void cosmeticRule_uboProc_notExtracted() {
+        // domain#?#selector — uBO procedural cosmetic
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("example.com#?#div:has(> .ad)"));
+    }
+
+    @Test
+    public void cosmeticRule_wildcardStar_notExtracted() {
+        // domain##* — EasyList Hebrew "hide all" cosmetic rule
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("atardrushim.com##*"));
+    }
+
 }
