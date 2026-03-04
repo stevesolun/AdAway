@@ -1,0 +1,652 @@
+{
+  "scan_metadata": {
+    "date": "2026-03-04",
+    "scanner_version": "1.0.0",
+    "total_lists_evaluated": 17,
+    "lists_successfully_scanned": 14
+  },
+  "all_lists": {
+    "StevenBlack Social": {
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/social/hosts",
+      "blocks": [
+        "whatsapp.com",
+        "whatsapp.net",
+        "web.whatsapp.com",
+        "fbcdn.net",
+        "graph.facebook.com",
+        "b-graph.facebook.com",
+        "edge-chat.facebook.com",
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "wa.me",
+        "www.whatsapp.com"
+      ],
+      "source": "already_known"
+    },
+    "BlocklistProject Facebook": {
+      "url": "https://blokada.org/mirror/v5/blocklist/facebook/hosts.txt",
+      "blocks": [
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "wa.me",
+        "whatsapp.com",
+        "sonar.fbdo2-1.fna.whatsapp.net",
+        "sonar.fsin9-1.fna.whatsapp.net",
+        "w4.web.whatsapp.com",
+        "w5.web.whatsapp.com",
+        "w6.web.whatsapp.com"
+      ],
+      "source": "already_known"
+    },
+    "DeveloperDan Facebook": {
+      "url": "https://blokada.org/mirror/v5/developerdan/facebook/hosts.txt",
+      "blocks": [
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "wa.me",
+        "whatsapp.com",
+        "sonar-del.cdn.whatsapp.net",
+        "media-xsp1-3.cdn.whatsapp.net"
+      ],
+      "source": "already_known"
+    },
+    "Anudeep Facebook": {
+      "url": "https://raw.githubusercontent.com/anudeepND/blacklist/master/facebook.txt",
+      "blocks": [
+        "b-graph.facebook.com",
+        "edge-chat.facebook.com",
+        "facebook.com",
+        "fbcdn.net",
+        "graph.facebook.com"
+      ],
+      "source": "already_known"
+    },
+    "HaGeZi Ultimate": {
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/ultimate.txt",
+      "blocks": [
+        "b-graph.facebook.com",
+        "graph-fallback.facebook.com",
+        "an.facebook.com",
+        "ep9.facebook.com",
+        "graph.facebook.com",
+        "graph.whatsapp.com",
+        "graph.whatsapp.net",
+        "privatestats.whatsapp.net",
+        "dit.whatsapp.net",
+        "ads.telegram.org",
+        "promote.telegram.org"
+      ],
+      "source": "already_known"
+    },
+    "HaGeZi Multi PRO": {
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/pro.txt",
+      "blocks": [
+        "an.facebook.com",
+        "tr.facebook.com",
+        "ads.facebook.com",
+        "privatestats.whatsapp.net",
+        "dit.whatsapp.net",
+        "crashlogs.whatsapp.net",
+        "ads.telegram.org",
+        "promote.telegram.org"
+      ],
+      "source": "already_known"
+    },
+    "StevenBlack Unified": {
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+      "blocks": [
+        "pixel.facebook.com",
+        "an.facebook.com",
+        "sonar-iad.xx.fbcdn.net"
+      ],
+      "source": "already_known"
+    },
+    "GoodbyeAds": {
+      "url": "https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Hosts/GoodbyeAds.txt",
+      "blocks": [
+        "crashlogs.whatsapp.net",
+        "dit.whatsapp.net",
+        "an.facebook.com",
+        "analytics.facebook.com"
+      ],
+      "source": "already_known"
+    },
+    "EasyPrivacy": {
+      "url": "https://v.firebog.net/hosts/Easyprivacy.txt",
+      "blocks": [
+        "pixel.facebook.com"
+      ],
+      "source": "already_known"
+    },
+    "OISD Full": {
+      "url": "https://hosts.oisd.nl/",
+      "blocks": [],
+      "source": "error",
+      "error": "download_failed"
+    },
+    "HaGeZi Light": {
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/light.txt",
+      "blocks": [
+        "promote.telegram.org"
+      ],
+      "source": "newly_scanned"
+    },
+    "HaGeZi TIF": {
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/tif.txt",
+      "blocks": [],
+      "source": "skipped",
+      "skip_reason": "already known SAFE - 670k domains, SAFE"
+    },
+    "1Hosts Pro": {
+      "url": "https://o0.pages.dev/Pro/hosts.txt",
+      "blocks": [],
+      "source": "skipped",
+      "skip_reason": "known 404"
+    },
+    "AdAway Official": {
+      "url": "https://adaway.org/hosts.txt",
+      "blocks": [],
+      "source": "newly_scanned"
+    },
+    "Peter Lowe": {
+      "url": "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
+      "blocks": [],
+      "source": "newly_scanned"
+    },
+    "URLhaus": {
+      "url": "https://urlhaus.abuse.ch/downloads/hostfile/",
+      "blocks": [],
+      "source": "newly_scanned"
+    },
+    "Fanboy IsraelList": {
+      "url": "https://fanboy.co.nz/israelilist/IsraelList.txt",
+      "blocks": [
+        "fbcdn.net"
+      ],
+      "source": "newly_scanned"
+    }
+  },
+  "domain_risk_map": {
+    "whatsapp.com": {
+      "impact": "CRITICAL - all WA fails",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "whatsapp.com"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "whatsapp.net": {
+      "impact": "CRITICAL - all WA fails",
+      "blocked_by_count": 1,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.net"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "wa.me": {
+      "impact": "HIGH - WA links break",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "wa.me"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "wa.me"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "wa.me"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "web.whatsapp.com": {
+      "impact": "HIGH - WA Web breaks",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "web.whatsapp.com"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "whatsapp.com"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "mmg.whatsapp.net": {
+      "impact": "HIGH - photos/videos/calls break",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "mmg.whatsapp.net"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "mmg.whatsapp.net"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "mmg.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "static.whatsapp.net": {
+      "impact": "HIGH - WA assets break",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "static.whatsapp.net"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "static.whatsapp.net"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "static.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "graph.facebook.com": {
+      "impact": "HIGH - WA login/auth breaks",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "graph.facebook.com"
+        },
+        {
+          "list": "Anudeep Facebook",
+          "via": "graph.facebook.com"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "graph.facebook.com"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "b-graph.facebook.com": {
+      "impact": "HIGH - WA auth fallback breaks",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "b-graph.facebook.com"
+        },
+        {
+          "list": "Anudeep Facebook",
+          "via": "b-graph.facebook.com"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "b-graph.facebook.com"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "graph-fallback.facebook.com": {
+      "impact": "MEDIUM - WA auth fallback",
+      "blocked_by_count": 2,
+      "blocking_lists": [
+        {
+          "list": "Anudeep Facebook",
+          "via": "facebook.com"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "graph-fallback.facebook.com"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "fbcdn.net": {
+      "impact": "HIGH - WA media CDN",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "fbcdn.net"
+        },
+        {
+          "list": "Anudeep Facebook",
+          "via": "fbcdn.net"
+        },
+        {
+          "list": "Fanboy IsraelList",
+          "via": "fbcdn.net"
+        }
+      ],
+      "is_protected": true,
+      "is_unprotected": false
+    },
+    "edge-chat.facebook.com": {
+      "impact": "MEDIUM - WA chat connectivity",
+      "blocked_by_count": 2,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "edge-chat.facebook.com"
+        },
+        {
+          "list": "Anudeep Facebook",
+          "via": "edge-chat.facebook.com"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "graph.whatsapp.com": {
+      "impact": "MEDIUM - WA features",
+      "blocked_by_count": 4,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "BlocklistProject Facebook",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "DeveloperDan Facebook",
+          "via": "whatsapp.com"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "graph.whatsapp.com"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "graph.whatsapp.net": {
+      "impact": "MEDIUM - WA features",
+      "blocked_by_count": 2,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "graph.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "crashlogs.whatsapp.net": {
+      "impact": "LOW - telemetry only",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Multi PRO",
+          "via": "crashlogs.whatsapp.net"
+        },
+        {
+          "list": "GoodbyeAds",
+          "via": "crashlogs.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "dit.whatsapp.net": {
+      "impact": "LOW - telemetry only",
+      "blocked_by_count": 4,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "dit.whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Multi PRO",
+          "via": "dit.whatsapp.net"
+        },
+        {
+          "list": "GoodbyeAds",
+          "via": "dit.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "privatestats.whatsapp.net": {
+      "impact": "LOW - telemetry only",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "StevenBlack Social",
+          "via": "whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "privatestats.whatsapp.net"
+        },
+        {
+          "list": "HaGeZi Multi PRO",
+          "via": "privatestats.whatsapp.net"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "telegram.org": {
+      "impact": "CRITICAL - all Telegram fails",
+      "blocked_by_count": 0,
+      "blocking_lists": [],
+      "is_protected": false,
+      "is_unprotected": false
+    },
+    "telegram.me": {
+      "impact": "CRITICAL - TG links break",
+      "blocked_by_count": 0,
+      "blocking_lists": [],
+      "is_protected": false,
+      "is_unprotected": false
+    },
+    "t.me": {
+      "impact": "CRITICAL - TG links break",
+      "blocked_by_count": 0,
+      "blocking_lists": [],
+      "is_protected": false,
+      "is_unprotected": false
+    },
+    "core.telegram.org": {
+      "impact": "CRITICAL - TG API fails",
+      "blocked_by_count": 0,
+      "blocking_lists": [],
+      "is_protected": false,
+      "is_unprotected": false
+    },
+    "web.telegram.org": {
+      "impact": "HIGH - TG Web breaks",
+      "blocked_by_count": 0,
+      "blocking_lists": [],
+      "is_protected": false,
+      "is_unprotected": false
+    },
+    "ads.telegram.org": {
+      "impact": "NONE - only ads",
+      "blocked_by_count": 2,
+      "blocking_lists": [
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "ads.telegram.org"
+        },
+        {
+          "list": "HaGeZi Multi PRO",
+          "via": "ads.telegram.org"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    },
+    "promote.telegram.org": {
+      "impact": "NONE - only ads",
+      "blocked_by_count": 3,
+      "blocking_lists": [
+        {
+          "list": "HaGeZi Ultimate",
+          "via": "promote.telegram.org"
+        },
+        {
+          "list": "HaGeZi Multi PRO",
+          "via": "promote.telegram.org"
+        },
+        {
+          "list": "HaGeZi Light",
+          "via": "promote.telegram.org"
+        }
+      ],
+      "is_protected": false,
+      "is_unprotected": true
+    }
+  },
+  "unprotected_domains": [
+    "wa.me",
+    "mmg.whatsapp.net",
+    "static.whatsapp.net",
+    "graph-fallback.facebook.com",
+    "edge-chat.facebook.com",
+    "graph.whatsapp.com",
+    "graph.whatsapp.net",
+    "crashlogs.whatsapp.net",
+    "dit.whatsapp.net",
+    "privatestats.whatsapp.net",
+    "ads.telegram.org",
+    "promote.telegram.org"
+  ],
+  "high_risk_lists": [
+    {
+      "name": "StevenBlack Social",
+      "risk_score": 21,
+      "breaks_these_domains": [
+        "wa.me",
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "edge-chat.facebook.com",
+        "graph.whatsapp.com",
+        "graph.whatsapp.net"
+      ]
+    },
+    {
+      "name": "BlocklistProject Facebook",
+      "risk_score": 17,
+      "breaks_these_domains": [
+        "wa.me",
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "graph.whatsapp.com"
+      ]
+    },
+    {
+      "name": "DeveloperDan Facebook",
+      "risk_score": 17,
+      "breaks_these_domains": [
+        "wa.me",
+        "mmg.whatsapp.net",
+        "static.whatsapp.net",
+        "graph.whatsapp.com"
+      ]
+    },
+    {
+      "name": "HaGeZi Ultimate",
+      "risk_score": 6,
+      "breaks_these_domains": [
+        "graph-fallback.facebook.com",
+        "graph.whatsapp.com",
+        "graph.whatsapp.net"
+      ]
+    },
+    {
+      "name": "Anudeep Facebook",
+      "risk_score": 4,
+      "breaks_these_domains": [
+        "graph-fallback.facebook.com",
+        "edge-chat.facebook.com"
+      ]
+    }
+  ],
+  "current_allowlist": [
+    "b-graph.facebook.com",
+    "facebook.com",
+    "fbcdn.net",
+    "graph.facebook.com",
+    "web.whatsapp.com",
+    "whatsapp.com",
+    "whatsapp.net",
+    "www.facebook.com",
+    "www.whatsapp.com"
+  ],
+  "recommended_additions_to_allowlist": [
+    "*.fbcdn.net",
+    "*.t.me",
+    "*.telegram.me",
+    "*.telegram.org",
+    "*.whatsapp.com",
+    "*.whatsapp.net",
+    "ads.telegram.org",
+    "crashlogs.whatsapp.net",
+    "dit.whatsapp.net",
+    "edge-chat.facebook.com",
+    "facebook.com",
+    "graph-fallback.facebook.com",
+    "graph.whatsapp.com",
+    "graph.whatsapp.net",
+    "mmg.whatsapp.net",
+    "privatestats.whatsapp.net",
+    "promote.telegram.org",
+    "static.whatsapp.net",
+    "t.me",
+    "telegram.me",
+    "telegram.org",
+    "wa.me",
+    "whatsapp.com",
+    "whatsapp.net"
+  ]
+}

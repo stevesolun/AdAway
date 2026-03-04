@@ -6,6 +6,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.model.source.WaTgSafetyAllowlist;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,7 @@ public final class DefaultListsSubscriber {
         }
 
         hostsSourceDao.insertAll(toInsert);
+        WaTgSafetyAllowlist.ensureAllowlist(context);
         return true;
     }
 }
