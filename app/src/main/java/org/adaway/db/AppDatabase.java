@@ -21,6 +21,7 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.ListType;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.model.source.WaTgSafetyAllowlist;
 import org.adaway.util.AppExecutors;
 
 import static org.adaway.db.Migrations.MIGRATION_1_2;
@@ -71,6 +72,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppExecutors.getInstance().diskIO().execute(
                                     () -> AppDatabase.initialize(context, instance)
                             );
+                            WaTgSafetyAllowlist.ensureAllowlist(context);
                         }
                     }).addMigrations(
                             MIGRATION_1_2,
@@ -126,10 +128,6 @@ public abstract class AppDatabase extends RoomDatabase {
     private static void initializeFacebookWhitelist(Context context, HostListItemDao hostListItemDao) {
         // Add each Facebook domain to the allowlist
         for (String domain : FilterListCatalog.FACEBOOK_WHITELIST_DOMAINS) {
-            // Skip wildcard patterns (they would need special handling)
-            if (domain.startsWith("*")) {
-                continue;
-            }
             HostListItem item = new HostListItem();
             item.setType(ListType.ALLOWED);
             item.setHost(domain);

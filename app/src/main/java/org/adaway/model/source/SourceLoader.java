@@ -367,6 +367,11 @@ class SourceLoader {
             try {
                 String line;
                 while ((line = this.reader.readLine()) != null) {
+                    // Strip carriage return in case the source uses Windows (CRLF) line endings
+                    // that were not normalized by the stream reader (e.g. binary streams).
+                    if (line.indexOf('\r') >= 0) {
+                        line = line.replace("\r", "");
+                    }
                     this.queue.put(line);  // put() blocks if queue is full, preventing OOM
                 }
             } catch (Throwable t) {
@@ -591,7 +596,7 @@ class SourceLoader {
 
             // Lightweight DB perf logging: rows/sec + batch insert latency.
             // Rate-limited to once every ~2s to avoid log spam.
-            final boolean perfLog = true;
+            final boolean perfLog = !Timber.forest().isEmpty();
             final long startMs = SystemClock.elapsedRealtime();
             long lastLogMs = startMs;
             int insertedSinceLastLog = 0;

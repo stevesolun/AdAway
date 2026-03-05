@@ -56,7 +56,16 @@ public final class VpnBuilder {
         dnsServerMapper.configureVpn(service, builder);
         // Exclude applications from VPN according user preferences (all applications goes through VPN by default)
         excludeApplicationsFromVpn(service, builder);
-        // Allow applications to bypass the VPN by programmatically binding to a network for compatibility
+        // Allow applications to bypass the VPN by programmatically binding to a network.
+        // WHY: Some system and third-party apps (e.g. certain captive portal helpers, system
+        // services) require direct network access and cannot function through a local VPN.
+        // Calling allowBypass() lets those apps call VpnService.protect() on their sockets to
+        // route traffic outside the VPN tunnel.
+        // SECURITY IMPLICATION: Any app that calls VpnService.protect() on its socket will bypass
+        // this VPN and therefore bypass AdAway's DNS filter for that traffic. This means those
+        // apps can resolve domains that would otherwise be blocked.
+        // TRADEOFF: This is a deliberate, known tradeoff between compatibility and filtering
+        // completeness. Removing allowBypass() would break system connectivity on many devices.
         builder.allowBypass();
         // Set file descriptor in blocking mode as worker has a dedicated thread
         builder.setBlocking(true);

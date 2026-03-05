@@ -553,18 +553,24 @@ public class DiscoverFilterListsFragment extends Fragment {
                     src.setAllowEnabled(false);
                     src.setRedirectEnabled(false);
                     hostsSourceDao.insert(src);
-                    existingUrls.add(url);
                     SourceUpdateService.enqueueUpdateNow(appContext);
                 } else {
                     HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
                     if (existing != null) {
                         hostsSourceDao.delete(existing);
                     }
-                    existingUrls.remove(url);
                 }
 
+                final String finalUrl = url;
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
+                    // Mutations to existingUrls must happen on the main thread so the
+                    // adapter (which reads existingUrls on main thread) sees a consistent view.
+                    if (subscribed) {
+                        existingUrls.add(finalUrl);
+                    } else {
+                        existingUrls.remove(finalUrl);
+                    }
                     binding.filterlistsProgress.setVisibility(View.GONE);
                     if (adapter != null) adapter.notifyDataSetChanged();
                     showSnackbar(subscribed ? "Subscribed" : "Unsubscribed");

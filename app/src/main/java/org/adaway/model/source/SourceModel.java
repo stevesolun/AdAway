@@ -1196,10 +1196,17 @@ public class SourceModel {
      */
     private Request.Builder getRequestFor(HostsSource source) {
         Request.Builder request = new Request.Builder().url(source.getUrl());
-        if (source.getEntityTag() != null) {
+        // Max-age guard: if the source has not been successfully fetched in over 7 days,
+        // skip cached ETag/Last-Modified headers and force a full re-fetch. This prevents
+        // stale data persisting indefinitely when a server sends bad ETags or a source URL
+        // is changed and the old cache metadata no longer matches the new content.
+        ZonedDateTime localModificationDate = source.getLocalModificationDate();
+        boolean cacheExpired = localModificationDate == null ||
+                localModificationDate.isBefore(ZonedDateTime.now().minusDays(7));
+        if (!cacheExpired && source.getEntityTag() != null) {
             request = request.header(IF_NONE_MATCH_HEADER, source.getEntityTag());
         }
-        if (source.getOnlineModificationDate() != null) {
+        if (!cacheExpired && source.getOnlineModificationDate() != null) {
             String lastModified = source.getOnlineModificationDate().format(RFC_1123_DATE_TIME);
             request = request.header(IF_MODIFIED_SINCE_HEADER, lastModified);
         }

@@ -36,7 +36,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 /**
  * Fragment for browsing and adding filter lists from the curated catalog.
@@ -44,8 +43,6 @@ import java.util.concurrent.Executor;
  * Ported from FilterCatalogActivity. Embedded into DiscoverFragment as the first sub-tab.
  */
 public class DiscoverCatalogFragment extends Fragment {
-
-    private static final Executor EXECUTOR = AppExecutors.getInstance().diskIO();
 
     private FragmentDiscoverCatalogBinding binding;
     private HostsSourceDao hostsSourceDao;
@@ -117,11 +114,11 @@ public class DiscoverCatalogFragment extends Fragment {
     }
 
     private void loadData() {
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             List<HostsSource> existing = hostsSourceDao.getAll();
-            existingUrls.clear();
+            Set<String> fetchedUrls = new HashSet<>();
             for (HostsSource source : existing) {
-                existingUrls.add(source.getUrl());
+                fetchedUrls.add(source.getUrl());
             }
 
             allEntries = FilterListCatalog.getAll();
@@ -129,6 +126,9 @@ public class DiscoverCatalogFragment extends Fragment {
 
             requireActivity().runOnUiThread(() -> {
                 if (this.binding == null) return;
+                // existingUrls mutations must happen on main thread — adapter reads it there.
+                existingUrls.clear();
+                existingUrls.addAll(fetchedUrls);
                 adapter = new CatalogAdapter();
                 binding.catalogRecyclerView.setAdapter(adapter);
                 updateSubtitle();
@@ -251,14 +251,15 @@ public class DiscoverCatalogFragment extends Fragment {
         }
         final android.content.Context appContext = requireContext().getApplicationContext();
 
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             int added = 0;
+            List<String> addedUrls = new ArrayList<>();
             for (FilterListCatalog.CatalogEntry entry : selectedEntries) {
                 if (!existingUrls.contains(entry.url)) {
                     HostsSource source = entry.toHostsSource();
                     source.setEnabled(true);
                     hostsSourceDao.insert(source);
-                    existingUrls.add(entry.url);
+                    addedUrls.add(entry.url);
                     added++;
                 }
             }
@@ -272,8 +273,11 @@ public class DiscoverCatalogFragment extends Fragment {
             }
 
             final int finalAdded = added;
+            final List<String> finalAddedUrls = addedUrls;
             requireActivity().runOnUiThread(() -> {
                 if (this.binding == null) return;
+                // existingUrls mutations must happen on main thread — adapter reads it there.
+                existingUrls.addAll(finalAddedUrls);
                 selectedEntries.clear();
                 if (adapter != null) adapter.notifyDataSetChanged();
                 updateAddButton();
@@ -286,14 +290,15 @@ public class DiscoverCatalogFragment extends Fragment {
     }
 
     private void removeExistingSourceByUrl(String url) {
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
             if (existing != null) {
                 hostsSourceDao.delete(existing);
             }
-            existingUrls.remove(url);
             requireActivity().runOnUiThread(() -> {
                 if (this.binding == null) return;
+                // existingUrls mutation must happen on main thread — adapter reads it there.
+                existingUrls.remove(url);
                 if (adapter != null) adapter.notifyDataSetChanged();
                 Snackbar.make(binding.catalogRecyclerView, R.string.filter_removed_success, Snackbar.LENGTH_SHORT)
                         .show();
@@ -367,7 +372,7 @@ public class DiscoverCatalogFragment extends Fragment {
             if (alreadyAdded) {
                 holder.card.setAlpha(0.7f);
                 holder.card.setOnClickListener(v -> {
-                    EXECUTOR.execute(() -> {
+                    AppExecutors.getInstance().diskIO().execute(() -> {
                         HostsSource existing = hostsSourceDao.getByUrl(entry.url).orElse(null);
                         if (existing == null) return;
                         requireActivity().runOnUiThread(() -> {

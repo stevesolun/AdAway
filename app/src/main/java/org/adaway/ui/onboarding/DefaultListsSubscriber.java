@@ -53,7 +53,10 @@ public final class DefaultListsSubscriber {
         }
 
         hostsSourceDao.insertAll(toInsert);
-        WaTgSafetyAllowlist.ensureAllowlist(context);
+        // Use the synchronous variant — we are already on diskIO, so posting a new
+        // async task would queue AFTER this method returns, creating a window with no
+        // WA/TG protection entries in the allowlist on fresh installs.
+        WaTgSafetyAllowlist.ensureAllowlistSync(context);
         return true;
     }
 }

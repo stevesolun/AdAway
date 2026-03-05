@@ -32,7 +32,6 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class HomeViewModel extends AndroidViewModel {
-    private static final AppExecutors EXECUTORS = AppExecutors.getInstance();
 
     private final SourceModel sourceModel;
     private final AdBlockModel adBlockModel;
@@ -158,14 +157,14 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public void checkForAppUpdate() {
-        EXECUTORS.networkIO().execute(this.updateModel::checkForUpdate);
+        AppExecutors.getInstance().networkIO().execute(this.updateModel::checkForUpdate);
     }
 
     public void toggleAdBlocking() {
         if (isTrue(this.pending)) {
             return;
         }
-        EXECUTORS.diskIO().execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 this.pending.postValue(true);
                 if (isTrue(this.adBlockModel.isApplied())) {
@@ -186,7 +185,7 @@ public class HomeViewModel extends AndroidViewModel {
         if (isTrue(this.pending)) {
             return;
         }
-        EXECUTORS.networkIO().execute(() -> {
+        AppExecutors.getInstance().networkIO().execute(() -> {
             try {
                 this.pending.postValue(true);
                 // Use adaptive pipeline: check + download in one pass
@@ -205,7 +204,7 @@ public class HomeViewModel extends AndroidViewModel {
         if (isTrue(this.pending)) {
             return;
         }
-        EXECUTORS.networkIO().execute(() -> {
+        AppExecutors.getInstance().networkIO().execute(() -> {
             try {
                 this.pending.postValue(true);
                 // Sync also uses the full pipeline now for consistency
@@ -221,7 +220,7 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public void enableAllSources() {
-        EXECUTORS.diskIO().execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             if (this.sourceModel.enableAllSources()) {
                 sync();
             }

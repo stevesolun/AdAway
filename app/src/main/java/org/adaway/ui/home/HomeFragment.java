@@ -10,6 +10,7 @@ import static org.adaway.ui.lists.ListsActivity.BLOCKED_HOSTS_TAB;
 import static org.adaway.ui.lists.ListsActivity.REDIRECTED_HOSTS_TAB;
 import static org.adaway.ui.lists.ListsActivity.TAB;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Typeface;
@@ -427,9 +428,10 @@ public class HomeFragment extends Fragment {
                 }
 
                 if (initialBlockedCount <= 0) {
+                    final Context appContext = requireContext().getApplicationContext();
                     COUNTS_EXECUTOR.execute(() -> {
                         try {
-                            int blockedNow = AppDatabase.getInstance(requireContext())
+                            int blockedNow = AppDatabase.getInstance(appContext)
                                     .hostEntryDao().getBlockedEntryCountNow();
                             AppExecutors.getInstance().mainThread().execute(() -> {
                                 if (this.binding == null) return;
@@ -586,11 +588,12 @@ public class HomeFragment extends Fragment {
     private void refreshHostCountersOnce() {
         if (hostCountersPrimedDuringImport) return;
         hostCountersPrimedDuringImport = true;
+        final Context appContext = requireContext().getApplicationContext();
         COUNTS_EXECUTOR.execute(() -> {
             try {
-                int allowedNow = AppDatabase.getInstance(requireContext())
+                int allowedNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getAllowedHostCountNow();
-                int redirectNow = AppDatabase.getInstance(requireContext())
+                int redirectNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getRedirectHostCountNow();
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
@@ -659,11 +662,12 @@ public class HomeFragment extends Fragment {
         }
         if (blocked != null && allowed != null && redirected != null) return;
 
+        final Context appContext = requireContext().getApplicationContext();
         COUNTS_EXECUTOR.execute(() -> {
             try {
-                int allowedNow = AppDatabase.getInstance(requireContext())
+                int allowedNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getAllowedHostCountNow();
-                int redirectNow = AppDatabase.getInstance(requireContext())
+                int redirectNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getRedirectHostCountNow();
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;

@@ -74,6 +74,28 @@ public final class WaTgSafetyAllowlist {
     }
 
     /**
+     * Synchronously ensure all required WhatsApp/Telegram allowlist entries exist.
+     *
+     * <p>This method performs the same DB inserts as {@link #ensureAllowlist(Context)}
+     * but runs <em>inline</em> on the calling thread — no executor dispatch. Use this
+     * variant when the caller is <em>already</em> on a background thread (e.g. diskIO)
+     * and must guarantee the entries are present before returning.</p>
+     *
+     * @param context Any context; application context is obtained internally.
+     */
+    public static void ensureAllowlistSync(Context context) {
+        final Context appContext = context.getApplicationContext();
+        HostListItemDao dao = AppDatabase.getInstance(appContext).hostsListItemDao();
+        List<HostListItem> existing = dao.getUserList();
+
+        for (String domain : REQUIRED_DOMAINS) {
+            if (!isAlreadyPresent(domain, existing)) {
+                dao.insert(buildItem(domain));
+            }
+        }
+    }
+
+    /**
      * Build a new {@link HostListItem} for the given domain with the correct
      * defaults for a user-list allowlist entry.
      *

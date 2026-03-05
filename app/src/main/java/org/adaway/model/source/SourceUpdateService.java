@@ -96,7 +96,7 @@ public final class SourceUpdateService {
      */
     static void syncPreferences(Context context) {
         if (PreferenceHelper.getUpdateCheckHostsDaily(context)) {
-            enqueueWork(context, KEEP, PreferenceHelper.getUpdateOnlyOnWifi(context));
+            enqueueWork(context, UPDATE, PreferenceHelper.getUpdateOnlyOnWifi(context));
         } else {
             disable(context);
         }
