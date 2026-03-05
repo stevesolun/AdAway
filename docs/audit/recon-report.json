@@ -1,0 +1,37 @@
+{
+  "summary": "The AdAway fork is a mature Android ad-blocking application with 181,539 total tracked lines of code across Java, C, and XML. The codebase is dominated by C at ~150,765 lines (native packet-capture and webserver modules), with 24,675 lines of Java application logic and 6,099 lines of XML resources. No tracked C++ files exist. The test suite is healthy: 9 test classes covering 110 test methods, all passing (BUILD SUCCESSFUL, 0 failures, 0 errors). There are only 10 TODO/FIXME/HACK/XXX annotations in main Java sources, indicating a clean codebase with minimal technical debt markers. The project has seen 26 commits in the last 30 days reflecting active development, with recent work focused on parser correctness (ABP false positives), WA/TG safety allowlisting, DoH bypass blocking, and feature additions like hourly auto-updates. The commit log follows a disciplined fix/feat/chore convention with atomic, meaningful messages — strong signal of engineering hygiene.",
+  "loc": {
+    "java": 24675,
+    "c": 150765,
+    "cpp": 0,
+    "xml": 6099,
+    "total": 181539
+  },
+  "testCount": {
+    "classes": 9,
+    "methods": 110
+  },
+  "testResults": {
+    "passed": 110,
+    "failed": 0,
+    "status": "GREEN"
+  },
+  "todoComments": {
+    "total": 10
+  },
+  "gitStats": {
+    "commitsLast30Days": 26
+  },
+  "sourceFileCount": 144,
+  "testClasses": [
+    "GitHostsSourceTest",
+    "FilterListsDirectoryApiTest",
+    "SourceLoaderParserPatternsTest",
+    "SourceLoaderTest",
+    "WaTgSafetyAllowlistTest",
+    "DomainCheckerTest",
+    "ListsSearchBarTest",
+    "LogEntrySortTest",
+    "DefaultListsSubscriberTest"
+  ]
+}

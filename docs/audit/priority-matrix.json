@@ -1,0 +1,514 @@
+{
+  "generatedAt": "2026-03-05",
+  "auditPhases": ["2A-Android", "2B-Security", "2C-Native", "2D-Parser", "3-DevilsAdvocate", "4-DynamicE2E"],
+  "totalFindings": 36,
+  "dedupedFindings": 30,
+  "criticalCount": 2,
+  "highCount": 14,
+  "mediumCount": 10,
+  "lowCount": 1,
+  "infoCount": 3,
+
+  "deduplicationNotes": [
+    "Finding #25 (HostEntryDao WaTg wildcard SQL expansion) marked INFO/PASS — confirmed correct by Phase 4",
+    "Finding #31-36 from Phase 4 collapsed to INFO — runtime confirmations, not new defects",
+    "Finding #34 (AppDatabase wildcard skip) is a confirmed duplicate of Finding #30 with Phase 4 evidence — merged"
+  ],
+
+  "top10": [
+    {
+      "rank": 1,
+      "id": "SEC-01",
+      "severity": "CRITICAL",
+      "category": "Security",
+      "file": "app/src/main/AndroidManifest.xml",
+      "line": 170,
+      "title": "CommandReceiver exported with no android:permission — any app can toggle ad-blocking",
+      "detail": "android:exported='true' with no android:permission attribute on CommandReceiver. Any app on the device can send org.adaway.action.SEND_COMMAND, enabling/disabling ad-blocking. The app declares org.adaway.permission.SEND_COMMAND but never enforces it on the receiver.",
+      "fixComplexity": "1-line",
+      "fix": "Add android:permission=\"org.adaway.permission.SEND_COMMAND\" to the CommandReceiver <receiver> element",
+      "impact": "Allows any installed app to silently disable ad-blocking — trivially exploited by ad SDKs"
+    },
+    {
+      "rank": 2,
+      "id": "SEC-02",
+      "severity": "CRITICAL",
+      "category": "Security",
+      "file": "app/src/main/java/org/adaway/db/AppDatabase.java",
+      "line": 129,
+      "title": "initializeFacebookWhitelist() skips all wildcard allowlist entries — WA/TG subdomain vulnerability survives factory path",
+      "detail": "AppDatabase.initializeFacebookWhitelist() at line 129-131 skips any domain starting with '*'. This code path is triggered for database upgrades and fresh installs that bypass DefaultListsSubscriber. The WaTgSafetyAllowlist wildcard entries (*.whatsapp.net, *.fbcdn.net, etc.) are never inserted, leaving subdomain blocking fully active for users who hit this code path.",
+      "fixComplexity": "small",
+      "fix": "Replace the continue with proper wildcard HostListItem insert — set host to '*.domain.tld', Room's HostEntryDao.sync() already handles LIKE expansion",
+      "impact": "WA/TG subdomain blocking reintroduced for subset of users — calls/media fail silently"
+    },
+    {
+      "rank": 3,
+      "id": "SEC-03",
+      "severity": "HIGH",
+      "category": "Security",
+      "file": "app/src/main/java/org/adaway/vpn/VpnBuilder.java",
+      "line": 60,
+      "title": "allowBypass() unconditional — VPN-aware apps escape DNS tunnel entirely",
+      "detail": "VpnService.Builder.allowBypass() is called unconditionally. Any app that calls VpnService.protect() on its own socket bypasses the DNS proxy. Ad SDKs increasingly do exactly this. The VPN mode ad-blocking is nullified for bypass-aware apps.",
+      "fixComplexity": "small",
+      "fix": "Remove allowBypass() or gate it behind a user-facing setting. Add allowedApplications() whitelist for the system resolver only.",
+      "impact": "VPN-mode users silently lose ad-blocking for bypass-aware ad SDKs"
+    },
+    {
+      "rank": 4,
+      "id": "SEC-04",
+      "severity": "HIGH",
+      "category": "Security",
+      "file": "app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java",
+      "line": 46,
+      "title": "DoH blocking incomplete — DoT (853), DoQ (8853), Private Relay (port 443 via known CIDRs) not blocked",
+      "detail": "Chrome DoH bypass was patched but the block is DNS-name based only. Encrypted DNS over TLS (port 853), DNS over QUIC (port 8853/443 QUIC), and iCloud Private Relay bypass the VPN DNS entirely. Apps using system-level DoT/DoQ evade the blocker.",
+      "fixComplexity": "medium",
+      "fix": "Block TCP/UDP port 853 and UDP port 8853 at VPN layer via addRoute or iptables. Intercept and NXDOMAIN known DoH provider IPs.",
+      "impact": "Systematic bypass avenue for any app or OS feature using encrypted DNS"
+    },
+    {
+      "rank": 5,
+      "id": "AND-01",
+      "severity": "HIGH",
+      "category": "Android/Lifecycle",
+      "file": "app/src/main/java/org/adaway/ui/home/HomeViewModel.java",
+      "line": 35,
+      "title": "Static final AppExecutors field calls Looper.getMainLooper() at class-load time — breaks unit tests",
+      "detail": "HomeViewModel declares 'private static final AppExecutors EXECUTORS = new AppExecutors()'. AppExecutors constructor calls Looper.getMainLooper() which throws RuntimeException in Robolectric/JVM unit test environments. This is why any test that touches HomeViewModel crashes at class-load.",
+      "fixComplexity": "small",
+      "fix": "Inject AppExecutors via constructor or use lazy initialization: 'private AppExecutors mExecutors;' initialized in constructor",
+      "impact": "All HomeViewModel unit tests are permanently broken; forces integration-only testing"
+    },
+    {
+      "rank": 6,
+      "id": "AND-02",
+      "severity": "HIGH",
+      "category": "Android/Lifecycle",
+      "file": "app/src/main/java/org/adaway/ui/lists/DiscoverFilterListsFragment.java",
+      "line": 556,
+      "title": "existingUrls HashSet mutated on networkIO thread and read on main thread — unsynchronized data race",
+      "detail": "DiscoverFilterListsFragment populates existingUrls on a networkIO background thread (line 556) and reads it on the main thread (line 563) with no synchronization primitive. HashMap/HashSet are not thread-safe; concurrent modification causes ConcurrentModificationException or silent corruption.",
+      "fixComplexity": "small",
+      "fix": "Replace HashSet with ConcurrentHashMap.newKeySet() or confine population to main thread via LiveData/postValue",
+      "impact": "Intermittent crashes in Discover tab on slower devices where background task hasn't finished"
+    },
+    {
+      "rank": 7,
+      "id": "AND-03",
+      "severity": "HIGH",
+      "category": "Android/Lifecycle",
+      "file": "app/src/main/java/org/adaway/ui/lists/DiscoverCatalogFragment.java",
+      "line": 48,
+      "title": "Static Executor field + existingUrls HashSet race on background thread — same pattern as AND-02",
+      "detail": "DiscoverCatalogFragment has a static Executor (line 48) shared across all fragment instances, and existingUrls is populated on that background thread (line 261) then read at line 294 on main thread. Static executor leaks across Activity recreations; HashSet race is identical to AND-02.",
+      "fixComplexity": "small",
+      "fix": "Remove static Executor, use shared AppExecutors. Use ConcurrentHashMap.newKeySet() for existingUrls.",
+      "impact": "Crash or silent wrong state in Catalog tab; static executor retains old fragment references (memory leak)"
+    },
+    {
+      "rank": 8,
+      "id": "PL-01",
+      "severity": "HIGH",
+      "category": "Parser/Logic",
+      "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+      "line": null,
+      "title": "CRLF line endings not stripped — Windows-format filter lists leave \\r in extracted hostnames",
+      "detail": "BufferedReader.readLine() strips \\n but not \\r on CRLF streams when the underlying InputStream is not configured with a CRLF-aware reader. If a filter list is served with CRLF endings, extracted hostnames contain trailing \\r (e.g., 'ads.example.com\\r'), which fails isValidHostname silently — the domain is parsed but never matches DNS queries.",
+      "fixComplexity": "1-line",
+      "fix": "After readLine(), add: line = line != null ? line.stripTrailing() : null; OR use line.replace(\"\\r\", \"\") before processing",
+      "impact": "Systematic false negatives: entire Windows-format filter lists produce zero effective blocks"
+    },
+    {
+      "rank": 9,
+      "id": "PERF-01",
+      "severity": "HIGH",
+      "category": "Performance",
+      "file": "app/src/main/java/org/adaway/model/source/SourceUpdateService.java",
+      "line": 97,
+      "title": "syncPreferences() uses KEEP policy — interval changes never applied to existing periodic work",
+      "detail": "WorkManager.enqueueUniquePeriodicWork() with ExistingPeriodicWorkPolicy.KEEP means: if work already exists, do nothing. User changes from 24h to 1h update interval in Settings → syncPreferences() is called → KEEP ignores the new interval until the app is reinstalled or the work is manually cancelled. The setting appears to work but has no effect.",
+      "fixComplexity": "1-line",
+      "fix": "Change KEEP to UPDATE: enqueueUniquePeriodicWork(WORK_NAME, UPDATE, req). UPDATE replaces the existing work with new parameters.",
+      "impact": "User-visible: schedule changes silently ignored; users think they changed the interval but nothing changes"
+    },
+    {
+      "rank": 10,
+      "id": "PL-02",
+      "severity": "HIGH",
+      "category": "Parser/Logic",
+      "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+      "line": null,
+      "title": "Global dedup Set can suppress allowlist entries if same domain appears in an earlier block source",
+      "detail": "SourceLoader maintains a global seen-hostnames Set across all sources during a bulk update. If domain 'example.com' appears in a block list (added to Set), and the user has 'example.com' in their allowlist source processed later, the allowlist entry is silently dropped because the Set reports 'already seen'. Block wins by accident of processing order.",
+      "fixComplexity": "medium",
+      "fix": "Maintain separate dedup Sets per ListType (ALLOWED, BLOCKED, REDIRECTED) or exempt ALLOWED entries from global dedup entirely",
+      "impact": "User allowlist entries silently suppressed — sites remain blocked despite explicit user allowlist — data correctness bug"
+    }
+  ],
+
+  "quickWins": [
+    {
+      "id": "QW-01",
+      "title": "Fix CommandReceiver permission enforcement",
+      "file": "app/src/main/AndroidManifest.xml",
+      "line": 170,
+      "fix": "Add android:permission=\"org.adaway.permission.SEND_COMMAND\" to the CommandReceiver <receiver> tag",
+      "impact": "Closes CRITICAL security hole — prevents any app from toggling ad-blocking. 1 attribute addition.",
+      "effort": "1 line"
+    },
+    {
+      "id": "QW-02",
+      "title": "Strip CRLF from parsed lines in SourceLoader",
+      "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+      "line": null,
+      "fix": "Find the readLine() call in the parsing loop and add: if (line != null) line = line.replace(\"\\r\", \"\");",
+      "impact": "Fixes systematic false negatives for all Windows-format (CRLF) filter lists",
+      "effort": "1 line"
+    },
+    {
+      "id": "QW-03",
+      "title": "Fix WorkManager KEEP → UPDATE for schedule changes",
+      "file": "app/src/main/java/org/adaway/model/source/SourceUpdateService.java",
+      "line": 99,
+      "fix": "Change 'KEEP' to 'UPDATE' in enqueueWork() call",
+      "impact": "User-visible: update interval setting now actually takes effect immediately",
+      "effort": "1 word change"
+    },
+    {
+      "id": "QW-04",
+      "title": "Remove REQUEST_INSTALL_PACKAGES permission",
+      "file": "app/src/main/AndroidManifest.xml",
+      "line": 38,
+      "fix": "Delete the <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/> line",
+      "impact": "Reduces attack surface; removes Play Store flag for dangerous permissions",
+      "effort": "1 line deletion"
+    },
+    {
+      "id": "QW-05",
+      "title": "Remove hardcoded upstream Sentry DSN from manifest",
+      "file": "app/src/main/AndroidManifest.xml",
+      "line": 188,
+      "fix": "Remove or blank the io.sentry.dsn meta-data entry since Sentry is already disabled (auto-init=false)",
+      "impact": "Stops leaking upstream project credentials; reduces confusion",
+      "effort": "1 line deletion"
+    },
+    {
+      "id": "QW-06",
+      "title": "Fix perfLog hardcoded true in SourceLoader",
+      "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+      "line": 594,
+      "fix": "Change 'perfLog = true' to read from BuildConfig.DEBUG or a system property",
+      "impact": "Eliminates log spam in production builds; performance micro-improvement from skipping log formatting",
+      "effort": "1 line"
+    }
+  ],
+
+  "clustersByCategory": {
+    "Security": [
+      {
+        "id": "SEC-01",
+        "severity": "CRITICAL",
+        "file": "app/src/main/AndroidManifest.xml",
+        "line": 170,
+        "title": "CommandReceiver exported with no android:permission — any app can toggle ad-blocking",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "SEC-02",
+        "severity": "CRITICAL",
+        "file": "app/src/main/java/org/adaway/db/AppDatabase.java",
+        "line": 129,
+        "title": "initializeFacebookWhitelist() skips wildcard allowlist entries — WA/TG subdomain vulnerability survives DB upgrade path",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "SEC-03",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/vpn/VpnBuilder.java",
+        "line": 60,
+        "title": "allowBypass() unconditional — VPN-aware apps escape DNS tunnel",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "SEC-04",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java",
+        "line": 46,
+        "title": "DoH blocking incomplete — DoT/DoQ/Private Relay not blocked",
+        "fixComplexity": "medium"
+      },
+      {
+        "id": "SEC-05",
+        "severity": "HIGH",
+        "file": "app/src/main/AndroidManifest.xml",
+        "line": 38,
+        "title": "REQUEST_INSTALL_PACKAGES unused — unnecessary attack surface expansion",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "SEC-06",
+        "severity": "HIGH",
+        "file": "app/src/main/res/xml/network_security_config.xml",
+        "line": 5,
+        "title": "All user CAs trusted for localhost — rogue CA can MITM local webserver",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "SEC-07",
+        "severity": "HIGH",
+        "file": "app/src/main/AndroidManifest.xml",
+        "line": 188,
+        "title": "Upstream Sentry DSN hardcoded — leaks upstream project identifier",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "SEC-08",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/db/dao/HostEntryDao.java",
+        "line": null,
+        "title": "LIKE wildcard metachar escaping missing — literal % and _ in host values match unintended domains",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "SEC-09",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/vpn/dns/DnsPacketProxy.java",
+        "line": 242,
+        "title": "Fail-open to ALLOWED before first sync — VPN starts permissive, undocumented",
+        "fixComplexity": "small"
+      }
+    ],
+
+    "Android/Lifecycle": [
+      {
+        "id": "AND-01",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/ui/home/HomeViewModel.java",
+        "line": 35,
+        "title": "Static final AppExecutors calls Looper.getMainLooper() at class-load time — breaks all unit tests",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "AND-02",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/ui/lists/DiscoverFilterListsFragment.java",
+        "line": 556,
+        "title": "existingUrls HashSet mutated on networkIO thread, read on main thread — unsynchronized data race",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "AND-03",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/ui/lists/DiscoverCatalogFragment.java",
+        "line": 48,
+        "title": "Static Executor field + existingUrls HashSet race — fragment leak + data race",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "AND-04",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/WaTgSafetyAllowlist.java",
+        "line": 64,
+        "title": "Double-async diskIO dispatch in WaTgSafetyAllowlist — allowlist insert deferred unpredictably on fresh install",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "AND-05",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/ui/home/HomeFragment.java",
+        "line": 432,
+        "title": "requireContext() called on background diskIO thread — IllegalStateException on fragment detach",
+        "fixComplexity": "small",
+        "additionalLines": [592, 664]
+      },
+      {
+        "id": "AND-06",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/ui/lists/DiscoverCatalogFragment.java",
+        "line": 331,
+        "title": "requireContext() in adapter bind callback — IllegalStateException if fragment detaches during RecyclerView bind",
+        "fixComplexity": "small"
+      }
+    ],
+
+    "Performance": [
+      {
+        "id": "PERF-01",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/SourceUpdateService.java",
+        "line": 99,
+        "title": "WorkManager KEEP policy — update interval changes never applied to existing periodic work",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "PERF-02",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/SourceModel.java",
+        "line": 1197,
+        "title": "ETag trusted indefinitely with no max-age fallback — stale filter data persists forever if server stops sending ETag",
+        "fixComplexity": "medium"
+      },
+      {
+        "id": "PERF-03",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": 594,
+        "title": "perfLog = true hardcoded — performance logging always on in production",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "PERF-04",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": 727,
+        "title": "bulkInsert() bypasses Room entity type converters — schema drift risk if entity changes",
+        "fixComplexity": "medium"
+      }
+    ],
+
+    "Parser/Logic": [
+      {
+        "id": "PL-01",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": null,
+        "title": "CRLF line endings not stripped — Windows-format filter lists produce hostnames with trailing \\r",
+        "fixComplexity": "1-line"
+      },
+      {
+        "id": "PL-02",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": null,
+        "title": "Global dedup Set suppresses allowlist entries when same domain appears in earlier block source",
+        "fixComplexity": "medium"
+      },
+      {
+        "id": "PL-03",
+        "severity": "HIGH",
+        "file": "app/src/main/java/org/adaway/model/source/FilterListsDirectoryApi.java",
+        "line": null,
+        "title": "First boot no network: silent IOException — zero user feedback, no retry state",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "PL-04",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": null,
+        "title": "Unicode/punycode domains not normalized — xn-- domains pass validation but may not match runtime DNS",
+        "fixComplexity": "medium"
+      },
+      {
+        "id": "PL-05",
+        "severity": "MEDIUM",
+        "file": "app/src/main/java/org/adaway/model/source/SourceLoader.java",
+        "line": null,
+        "title": "Trailing dots in FQDNs (example.com.) not stripped — FQDN format domains produce false negatives",
+        "fixComplexity": "1-line"
+      }
+    ],
+
+    "Native/C": [
+      {
+        "id": "NAT-01",
+        "severity": "HIGH",
+        "file": "tcpdump/tcpdump.c",
+        "line": 2606,
+        "title": "SIGALRM handler calls fprintf() — async-signal-safety violation, can deadlock on Android/bionic",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "NAT-02",
+        "severity": "HIGH",
+        "file": "tcpdump/tcpdump.c",
+        "line": 834,
+        "title": "strncpy NUL termination gap in MakeFilename() — potential unterminated string read",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "NAT-03",
+        "severity": "MEDIUM",
+        "file": "tcpdump/addrtoname.c",
+        "line": 122,
+        "title": "Unbounded strcpy from getnameinfo into fixed struct — long DNS names overflow buffer",
+        "fixComplexity": "small"
+      },
+      {
+        "id": "NAT-04",
+        "severity": "MEDIUM",
+        "file": "tcpdump/missing/getnameinfo.c",
+        "line": 155,
+        "title": "strcpy ignoring bounds in getnameinfo fallback — multiple sites",
+        "fixComplexity": "small",
+        "additionalLines": [160, 216, 260, 272]
+      }
+    ],
+
+    "Testing": [
+      {
+        "id": "TEST-01",
+        "severity": "LOW",
+        "file": "app/src/test/",
+        "line": null,
+        "title": "RPZ/BIND/Surge/Unbound parser patterns tested — good coverage confirmed by Phase 4",
+        "fixComplexity": "none",
+        "note": "PASS: SourceLoaderParserPatternsTest covers major format families. No action needed."
+      }
+    ],
+
+    "Git": []
+  },
+
+  "reclassificationNotes": [
+    {
+      "originalSeverity": "HIGH",
+      "newSeverity": "CRITICAL",
+      "id": "SEC-01",
+      "reason": "No exploitable conditions required — any installed app, zero permissions needed, trivially weaponized by ad SDKs already present on device"
+    },
+    {
+      "originalSeverity": "HIGH",
+      "newSeverity": "CRITICAL",
+      "id": "SEC-02",
+      "reason": "The WA/TG subdomain blocking vulnerability was considered fixed (v13.1.1) but this code path reintroduces it silently for DB upgrade users. Data correctness + user-trust regression."
+    },
+    {
+      "originalSeverity": "MEDIUM",
+      "newSeverity": "HIGH",
+      "id": "PL-02",
+      "reason": "Allowlist entries being silently suppressed is a data correctness bug with direct user impact — user explicitly allowlisted a site, it remains blocked"
+    },
+    {
+      "originalSeverity": "MEDIUM",
+      "newSeverity": "HIGH",
+      "id": "PL-03",
+      "reason": "Silent failure with zero UI feedback on first boot is user-visible; new users see a broken/empty state with no explanation"
+    }
+  ],
+
+  "confirmedPassFindings": [
+    {
+      "id": "PASS-01",
+      "title": "WAL mode active on app.db",
+      "detail": "Phase 4 confirmed WAL journal_mode enabled. No action needed."
+    },
+    {
+      "id": "PASS-02",
+      "title": "WaTgSafetyAllowlist: 8 wildcard entries confirmed in DB via DefaultListsSubscriber path",
+      "detail": "Phase 4 confirmed *.whatsapp.net, *.whatsapp.com, *.fbcdn.net, *.facebook.com, *.telegram.org, *.telegram.me, *.t.me present. This path is correct. SEC-02 applies only to the AppDatabase.initializeFacebookWhitelist() code path."
+    },
+    {
+      "id": "PASS-03",
+      "title": "HostEntryDao WaTg wildcard SQL expansion verified correct",
+      "detail": "*.whatsapp.net expands via LIKE '%whatsapp.net' with subdomain prefix guard. Logic is sound."
+    },
+    {
+      "id": "PASS-04",
+      "title": "110/110 unit tests green",
+      "detail": "All existing tests pass. AND-01 prevents adding new HomeViewModel tests but doesn't break existing ones."
+    }
+  ]
+}
