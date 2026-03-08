@@ -13,6 +13,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 import org.adaway.R;
@@ -60,7 +61,7 @@ public class MoreFragment extends Fragment {
     private void bindRows() {
         // Domain Checker
         this.binding.domainCheckerCard.setOnClickListener(v -> {
-            requireActivity().getSupportFragmentManager()
+            getParentFragmentManager()
                     .beginTransaction()
                     .replace(R.id.nav_fragment_container, new DomainCheckerFragment())
                     .addToBackStack(null)
@@ -105,13 +106,18 @@ public class MoreFragment extends Fragment {
         // AdwareFragment is a standalone Fragment; show it by navigating to a dedicated
         // container inside the activity. If the adware fragment is already on the back
         // stack we don't push it again.
-        if (getParentFragmentManager().findFragmentByTag("adware") != null) return;
+        // Guard by back-stack name — findFragmentByTag() only finds currently-attached
+        // fragments and misses entries that were detached by a tab switch.
+        FragmentManager fm = getParentFragmentManager();
+        for (int i = 0; i < fm.getBackStackEntryCount(); i++) {
+            if ("adware".equals(fm.getBackStackEntryAt(i).getName())) return;
+        }
 
         AdwareFragment fragment = new AdwareFragment();
-        getParentFragmentManager().beginTransaction()
+        fm.beginTransaction()
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .replace(R.id.nav_fragment_container, fragment, "adware")
-                .addToBackStack(null)
+                .addToBackStack("adware")
                 .commit();
     }
 }

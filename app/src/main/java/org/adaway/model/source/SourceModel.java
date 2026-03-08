@@ -567,7 +567,10 @@ public class SourceModel {
                         failedCount.incrementAndGet();
                         String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
                         hostsSourceDao.updateDownloadError(result.source.getId(), errMsg);
-                    } else if (!result.notModified) {
+                    } else if (result.notModified) {
+                        // 304 Not Modified — source is up-to-date; clear any stale error
+                        hostsSourceDao.clearDownloadError(result.source.getId());
+                    } else {
                         // Queue parsing in background with semaphore-bounded concurrency
                         final DownloadResult finalResult = result;
                         parseFutures.add(parsePool.submit(() -> {
@@ -823,7 +826,8 @@ public class SourceModel {
                             DownloadResult result = dlFuture.get();
 
                             if (result.notModified) {
-                                // 304 Not Modified - source is up-to-date
+                                // 304 Not Modified - source is up-to-date; clear any stale error
+                                hostsSourceDao.clearDownloadError(result.source.getId());
                                 upToDateCount.incrementAndGet();
                                 progressBuilder.incrementChecked(); // Count as checked
                                 progressBuilder.incrementDownloaded(); // Count as processed in "download" stage
@@ -1309,7 +1313,7 @@ public class SourceModel {
             }
             ResponseBody body = response.body();
             if (body == null) {
-                return DownloadResult.failed(source);
+                return DownloadResult.failed(source, "Empty response body");
             }
 
             String entityTag = response.header(ENTITY_TAG_HEADER);

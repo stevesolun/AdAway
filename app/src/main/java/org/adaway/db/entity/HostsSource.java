@@ -212,6 +212,7 @@ public class HostsSource {
         result = 31 * result + (enabled ? 1 : 0);
         result = 31 * result + (localModificationDate != null ? localModificationDate.hashCode() : 0);
         result = 31 * result + (onlineModificationDate != null ? onlineModificationDate.hashCode() : 0);
+        result = 31 * result + (lastDownloadError != null ? lastDownloadError.hashCode() : 0);
         return result;
     }
 }

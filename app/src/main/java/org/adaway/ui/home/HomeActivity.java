@@ -116,7 +116,9 @@ public class HomeActivity extends AppCompatActivity {
     public void onBackPressed() {
         FragmentManager fm = getSupportFragmentManager();
         if (fm.getBackStackEntryCount() > 0) {
-            fm.popBackStack();
+            // popBackStackImmediate() is synchronous — the back stack entry is removed
+            // before showTab() commits its replace(), preventing a transaction ordering race.
+            fm.popBackStackImmediate();
             // Re-seat the current tab fragment since replace() without backstack
             // leaves the container empty after AdwareFragment is popped.
             showTab(this.currentSelectedId);

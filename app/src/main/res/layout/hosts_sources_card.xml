@@ -79,7 +79,7 @@
                 android:layout_marginBottom="8dp"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:textColor="#B71C1C"
+                android:textColor="?attr/colorError"
                 android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
                 android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="parent"

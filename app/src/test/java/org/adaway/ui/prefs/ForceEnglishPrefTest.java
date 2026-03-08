@@ -42,11 +42,4 @@ public class ForceEnglishPrefTest {
         assertTrue("Locale list must be empty to follow system language", locales.isEmpty());
     }
 
-    @Test
-    public void prefKeyConstant_isForceEnglish() {
-        // The shared preference key must match what is stored in preferences.xml
-        // This acts as a contract test: the literal key value is load-bearing (users'
-        // persisted preferences survive updates only if the key never changes).
-        assertEquals("forceEnglish", "forceEnglish");
-    }
 }
