@@ -1,5 +1,6 @@
 package org.adaway.model.git;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -49,6 +50,15 @@ public class GitHostsSourceTest {
         this.label = label;
         this.url = url;
         this.expectedClass = expectedClass;
+    }
+
+    /**
+     * A plain HTTPS URL for a non-Git-hosting domain must NOT be detected as git-hosted.
+     * Guards against isHostedOnGit() returning true for arbitrary HTTPS URLs.
+     */
+    @Test
+    public void testIsNotHostedOnGit_forPlainHttpsUrl() {
+        assertFalse(GitHostsSource.isHostedOnGit("https://example.com/hosts.txt"));
     }
 
     /**

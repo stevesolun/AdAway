@@ -50,11 +50,25 @@ public class DownloadErrorTrackingTest {
     // -------------------------------------------------------------------------
 
     @Test
-    public void hostsSource_errorMessage_truncationTest() {
-        // Simulate what the UI does: truncate to 80 chars
-        String longError = "a".repeat(120);
-        String truncated = longError.length() > 80 ? longError.substring(0, 80) : longError;
-        assertEquals(80, truncated.length());
+    public void hostsSource_setLastDownloadError_gettableBack() {
+        HostsSource source = new HostsSource();
+        String errorMsg = "Connection timed out after 30000ms";
+        source.setLastDownloadError(errorMsg);
+        assertEquals(errorMsg, source.getLastDownloadError());
+    }
+
+    @Test
+    public void hostsSource_clearLastDownloadError_setsNull() {
+        HostsSource source = new HostsSource();
+        source.setLastDownloadError("some error");
+        source.setLastDownloadError(null);
+        assertNull(source.getLastDownloadError());
+    }
+
+    @Test
+    public void hostsSource_initialLastDownloadError_isNull() {
+        HostsSource source = new HostsSource();
+        assertNull(source.getLastDownloadError());
     }
 
     @Test

@@ -38,29 +38,6 @@ public class DefaultListsSubscriberTest {
     }
 
     /**
-     * subscribeLogic returns true (inserted) when existing source count is 0.
-     */
-    @Test
-    public void subscribeLogic_returnsTrue_whenNoExistingSources() {
-        int existingCount = 0;
-        List<FilterListCatalog.CatalogEntry> defaults = FilterListCatalog.getDefaults();
-        // Simulate the guard
-        boolean shouldInsert = existingCount == 0 && !defaults.isEmpty();
-        assertTrue("Should insert when database has no sources", shouldInsert);
-    }
-
-    /**
-     * subscribeLogic returns false (skipped) when sources already exist.
-     */
-    @Test
-    public void subscribeLogic_returnsFalse_whenSourcesAlreadyExist() {
-        int existingCount = 3;
-        // Simulate the guard
-        boolean shouldInsert = existingCount == 0;
-        assertFalse("Should skip when database already has sources", shouldInsert);
-    }
-
-    /**
      * The converted list for bulk-insert contains the same count as getDefaults().
      */
     @Test
