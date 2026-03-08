@@ -87,6 +87,12 @@ public interface HostsSourceDao {
     @Query("UPDATE hosts_sources SET skipped_count = :skippedCount WHERE id = :id")
     void updateSkippedCount(int id, int skippedCount);
 
+    @Query("UPDATE hosts_sources SET last_download_error = :error WHERE id = :id")
+    void updateDownloadError(int id, String error);
+
+    @Query("UPDATE hosts_sources SET last_download_error = NULL WHERE id = :id")
+    void clearDownloadError(int id);
+
     @Query("DELETE FROM hosts_sources WHERE id != 1")
     void deleteAll();
 }

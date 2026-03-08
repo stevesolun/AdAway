@@ -3,6 +3,7 @@ package org.adaway.db.entity;
 import android.webkit.URLUtil;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.Index;
@@ -60,6 +61,12 @@ public class HostsSource {
      */
     @ColumnInfo(name = "skipped_count")
     private int skippedCount;
+    /**
+     * The last download error message, or {@code null} if the last download succeeded.
+     */
+    @ColumnInfo(name = "last_download_error")
+    @Nullable
+    private String lastDownloadError;
 
     /**
      * Check whether an URL is valid for as host source.<br>
@@ -172,6 +179,15 @@ public class HostsSource {
         this.skippedCount = skippedCount;
     }
 
+    @Nullable
+    public String getLastDownloadError() {
+        return this.lastDownloadError;
+    }
+
+    public void setLastDownloadError(@Nullable String lastDownloadError) {
+        this.lastDownloadError = lastDownloadError;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -184,7 +200,8 @@ public class HostsSource {
         if (!url.equals(that.url)) return false;
         if (!Objects.equals(localModificationDate, that.localModificationDate))
             return false;
-        return Objects.equals(onlineModificationDate, that.onlineModificationDate);
+        if (!Objects.equals(onlineModificationDate, that.onlineModificationDate)) return false;
+        return Objects.equals(lastDownloadError, that.lastDownloadError);
 
     }
 

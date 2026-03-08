@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
@@ -38,6 +40,7 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         bindAdBlockMethod();
         bindTelemetryPrefAction();
         bindToolsAndSupportActions();
+        bindLanguagePref();
     }
 
     @Override
@@ -83,6 +86,19 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
             enableTelemetryPref.setEnabled(false);
             enableTelemetryPref.setSummary(R.string.pref_enable_telemetry_disabled_summary);
         }
+    }
+
+    private void bindLanguagePref() {
+        Preference langPref = findPreference(getString(R.string.pref_force_english_key));
+        assert langPref != null : PREFERENCE_NOT_FOUND;
+        langPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            boolean forceEnglish = (boolean) newValue;
+            LocaleListCompat locales = forceEnglish
+                    ? LocaleListCompat.forLanguageTags("en")
+                    : LocaleListCompat.getEmptyLocaleList();
+            AppCompatDelegate.setApplicationLocales(locales);
+            return true;
+        });
     }
 
     private void bindToolsAndSupportActions() {

@@ -122,6 +122,15 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
         } else {
             holder.sizeTextView.setTextColor(Color.GRAY);
         }
+        // Show download error if present
+        String error = source.getLastDownloadError();
+        if (error != null && !error.isEmpty()) {
+            String displayError = error.length() > 80 ? error.substring(0, 80) : error;
+            holder.errorTextView.setText(displayError);
+            holder.errorTextView.setVisibility(View.VISIBLE);
+        } else {
+            holder.errorTextView.setVisibility(View.GONE);
+        }
         holder.itemView.setOnClickListener(view -> viewCallback.edit(source));
     }
 
@@ -205,6 +214,7 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
         final TextView labelTextView;
         final TextView urlTextView;
         final TextView updateTextView;
+        final TextView errorTextView;
         final TextView sizeTextView;
 
         /**
@@ -218,6 +228,7 @@ class HostsSourcesAdapter extends ListAdapter<HostsSource, HostsSourcesAdapter.V
             this.labelTextView = itemView.findViewById(R.id.sourceLabelTextView);
             this.urlTextView = itemView.findViewById(R.id.sourceUrlTextView);
             this.updateTextView = itemView.findViewById(R.id.sourceUpdateTextView);
+            this.errorTextView = itemView.findViewById(R.id.sourceErrorTextView);
             this.sizeTextView = itemView.findViewById(R.id.sourceSizeTextView);
         }
     }

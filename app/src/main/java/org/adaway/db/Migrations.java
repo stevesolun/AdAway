@@ -164,4 +164,15 @@ final class Migrations {
             database.execSQL("ALTER TABLE `hosts_sources` ADD COLUMN `skipped_count` INTEGER NOT NULL DEFAULT 0");
         }
     };
+
+    /**
+     * Migration script from v10 to v11.
+     * Adds last_download_error column to hosts_sources to surface download failures in UI.
+     */
+    static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `hosts_sources` ADD COLUMN `last_download_error` TEXT");
+        }
+    };
 }

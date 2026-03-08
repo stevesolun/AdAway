@@ -565,6 +565,8 @@ public class SourceModel {
 
                     if (!result.success) {
                         failedCount.incrementAndGet();
+                        String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
+                        hostsSourceDao.updateDownloadError(result.source.getId(), errMsg);
                     } else if (!result.notModified) {
                         // Queue parsing in background with semaphore-bounded concurrency
                         final DownloadResult finalResult = result;
@@ -594,6 +596,7 @@ public class SourceModel {
                             ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
                             hostsSourceDao.updateModificationDates(finalResult.source.getId(), localMod, onlineMod);
                             hostsSourceDao.updateSize(finalResult.source.getId());
+                            hostsSourceDao.clearDownloadError(finalResult.source.getId());
                         }));
                     }
 
@@ -851,6 +854,7 @@ public class SourceModel {
                                         ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
                                         hostsSourceDao.updateModificationDates(result.source.getId(), localMod, onlineMod);
                                         hostsSourceDao.updateSize(result.source.getId());
+                                        hostsSourceDao.clearDownloadError(result.source.getId());
                                     } catch (Exception e) {
                                         Timber.w(e, "Failed to parse %s", result.source.getUrl());
                                         failedCount.incrementAndGet();
@@ -872,6 +876,8 @@ public class SourceModel {
                                 progressBuilder.incrementParsed(); // Count as done for parse phase (failed)
                                 Timber.d("Source %s download failed (success=%b, notModified=%b)",
                                         result.source.getLabel(), result.success, result.notModified);
+                                String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
+                                hostsSourceDao.updateDownloadError(result.source.getId(), errMsg);
                             }
                             postMultiPhaseProgress(progressBuilder.build());
                         }
@@ -1340,7 +1346,8 @@ public class SourceModel {
                 //noinspection ResultOfMethodCallIgnored
                 tmp.delete();
             }
-            return DownloadResult.failed(source);
+            String errMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return DownloadResult.failed(source, errMsg);
         }
     }
 
@@ -1358,13 +1365,16 @@ public class SourceModel {
         final String entityTag;
         @Nullable
         final ZonedDateTime onlineModificationDate;
+        @Nullable
+        final String errorMessage;
 
         private DownloadResult(@Nullable HostsSource source,
                                boolean success,
                                boolean notModified,
                                @Nullable File tmpFile,
                                @Nullable String entityTag,
-                               @Nullable ZonedDateTime onlineModificationDate) {
+                               @Nullable ZonedDateTime onlineModificationDate,
+                               @Nullable String errorMessage) {
             this.source = source;
             this.sourceId = source != null ? source.getId() : -1;  // -1 for sentinel
             this.success = success;
@@ -1372,28 +1382,33 @@ public class SourceModel {
             this.tmpFile = tmpFile;
             this.entityTag = entityTag;
             this.onlineModificationDate = onlineModificationDate;
+            this.errorMessage = errorMessage;
         }
 
         /**
          * Creates a sentinel result used to signal parse workers to stop.
          */
         static DownloadResult sentinel() {
-            return new DownloadResult(null, false, false, null, null, null);
+            return new DownloadResult(null, false, false, null, null, null, null);
         }
 
         static DownloadResult notModified(@NonNull HostsSource source) {
-            return new DownloadResult(source, true, true, null, null, source.getOnlineModificationDate());
+            return new DownloadResult(source, true, true, null, null, source.getOnlineModificationDate(), null);
         }
 
         static DownloadResult failed(@NonNull HostsSource source) {
-            return new DownloadResult(source, false, false, null, null, null);
+            return new DownloadResult(source, false, false, null, null, null, null);
+        }
+
+        static DownloadResult failed(@NonNull HostsSource source, @NonNull String errorMsg) {
+            return new DownloadResult(source, false, false, null, null, null, errorMsg);
         }
 
         static DownloadResult success(@NonNull HostsSource source,
                                       @NonNull File tmpFile,
                                       @Nullable String entityTag,
                                       @Nullable ZonedDateTime onlineModificationDate) {
-            return new DownloadResult(source, true, false, tmpFile, entityTag, onlineModificationDate);
+            return new DownloadResult(source, true, false, tmpFile, entityTag, onlineModificationDate, null);
         }
 
         BufferedReader openReader() throws IOException {

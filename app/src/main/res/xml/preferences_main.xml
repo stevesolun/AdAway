@@ -15,6 +15,12 @@
             app:fragment="org.adaway.ui.prefs.PrefsUpdateFragment"
             app:icon="@drawable/ic_sync_24dp"
             app:title="@string/pref_update_configuration" />
+        <SwitchPreferenceCompat
+            app:defaultValue="@bool/pref_force_english_def"
+            app:icon="@drawable/ic_language_24dp"
+            app:key="@string/pref_force_english_key"
+            app:title="@string/pref_force_english"
+            app:summary="@string/pref_force_english_summary" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_ad_block_category">

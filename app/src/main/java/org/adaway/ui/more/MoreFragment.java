@@ -111,6 +111,7 @@ public class MoreFragment extends Fragment {
         getParentFragmentManager().beginTransaction()
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .replace(R.id.nav_fragment_container, fragment, "adware")
+                .addToBackStack(null)
                 .commit();
     }
 }
