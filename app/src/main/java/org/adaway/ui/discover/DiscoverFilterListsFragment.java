@@ -618,9 +618,9 @@ public class DiscoverFilterListsFragment extends Fragment {
         binding.filterlistsSubscribeAllSwitch.setEnabled(false);
         AppExecutors.getInstance().diskIO().execute(() -> {
             hostsSourceDao.deleteAll();
-            existingUrls.clear();
             AppExecutors.getInstance().mainThread().execute(() -> {
                 if (this.binding == null) return;
+                existingUrls.clear();
                 binding.filterlistsSubscribeAllSwitch.setEnabled(true);
                 if (adapter != null) adapter.notifyDataSetChanged();
                 showSnackbar("Unsubscribed from all lists");

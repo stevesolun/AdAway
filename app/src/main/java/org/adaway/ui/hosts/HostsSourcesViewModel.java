@@ -12,7 +12,6 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.util.AppExecutors;
 
 import java.util.List;
-import java.util.concurrent.Executor;
 
 /**
  * This class is an {@link AndroidViewModel} for the {@link HostsSourcesFragment}.
@@ -20,7 +19,6 @@ import java.util.concurrent.Executor;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class HostsSourcesViewModel extends AndroidViewModel {
-    private static final Executor EXECUTOR = AppExecutors.getInstance().diskIO();
     private final HostsSourceDao hostsSourceDao;
 
     public HostsSourcesViewModel(@NonNull Application application) {
@@ -33,11 +31,11 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     }
 
     public void toggleSourceEnabled(HostsSource source) {
-        EXECUTOR.execute(() -> this.hostsSourceDao.toggleEnabled(source));
+        AppExecutors.getInstance().diskIO().execute(() -> this.hostsSourceDao.toggleEnabled(source));
     }
 
     public void setSourceEnabled(HostsSource source, boolean enabled) {
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             source.setEnabled(enabled);
             this.hostsSourceDao.setSourceEnabled(source.getId(), enabled);
             this.hostsSourceDao.setSourceItemsEnabled(source.getId(), enabled);

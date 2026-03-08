@@ -254,7 +254,8 @@ public class DiscoverCatalogFragment extends Fragment {
         AppExecutors.getInstance().diskIO().execute(() -> {
             int added = 0;
             List<String> addedUrls = new ArrayList<>();
-            for (FilterListCatalog.CatalogEntry entry : selectedEntries) {
+            for (FilterListCatalog.CatalogEntry entry : FilterListCatalog.getAll()) {
+                if (!selectedUrls.contains(entry.url)) continue;
                 if (!existingUrls.contains(entry.url)) {
                     HostsSource source = entry.toHostsSource();
                     source.setEnabled(true);

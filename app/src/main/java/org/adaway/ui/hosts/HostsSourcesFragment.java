@@ -397,7 +397,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void runCheckUpdates() {
         Snackbar info = Snackbar.make(coordinatorLayout, R.string.status_check, Snackbar.LENGTH_LONG);
         info.show();
-        AppExecutors.getInstance().diskIO().execute(() -> {
+        AppExecutors.getInstance().networkIO().execute(() -> {
             AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
             SourceModel sourceModel = application.getSourceModel();
             try {
@@ -420,7 +420,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         );
         waitSnackbar.show();
 
-        AppExecutors.getInstance().diskIO().execute(() -> {
+        AppExecutors.getInstance().networkIO().execute(() -> {
             AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
             SourceModel sourceModel = application.getSourceModel();
             AdBlockModel adBlockModel = application.getAdBlockModel();

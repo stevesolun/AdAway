@@ -15,6 +15,8 @@ import org.adaway.helper.PreferenceHelper;
 import java.util.Arrays;
 import java.util.Objects;
 
+import timber.log.Timber;
+
 /**
  * This utility class allows controlling (start and stop) the AdAway VPN
  * service.
@@ -63,17 +65,17 @@ public final class VpnServiceControls {
      * @return {@code true} if the service is started, {@code false} otherwise.
      */
     public static boolean start(Context context) {
-        android.util.Log.e("VPN_DEBUG", "VpnServiceControls.start() called");
+        Timber.d("VpnServiceControls.start() called");
         // Check if VPN is already running
         if (isRunning(context)) {
-            android.util.Log.e("VPN_DEBUG", "VPN already running");
+            Timber.d("VPN already running");
             return true;
         }
         // Start the VPN service
         Intent intent = new Intent(context, VpnService.class);
         START.appendToIntent(intent);
         try {
-            android.util.Log.e("VPN_DEBUG", "Attempting to launch service intent");
+            Timber.d("Attempting to launch service intent");
             android.content.ComponentName component;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 component = context.startForegroundService(intent);
@@ -82,7 +84,7 @@ public final class VpnServiceControls {
             }
 
             boolean started = component != null;
-            android.util.Log.e("VPN_DEBUG", "Service launch result: " + component);
+            Timber.d("Service launch result: %s", component);
 
             if (started) {
                 // Start the heartbeat
@@ -90,7 +92,7 @@ public final class VpnServiceControls {
             }
             return started;
         } catch (Exception e) {
-            android.util.Log.e("VPN_DEBUG", "Failed to start service with exception", e);
+            Timber.d(e, "Failed to start service with exception");
             return false;
         }
     }
