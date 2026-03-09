@@ -102,37 +102,39 @@
             android:textStyle="italic"
             android:layout_marginBottom="12dp" />
 
-        <!-- Category chips -->
+        <!-- Planned actions label -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/ai_suggest_categories_label"
+            android:text="@string/ai_agent_actions_label"
             android:textSize="13sp"
             android:textColor="@color/ui_text_secondary"
             android:layout_marginBottom="6dp" />
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/aiCategoryChipGroup"
+        <!-- Actions container — populated programmatically -->
+        <LinearLayout
+            android:id="@+id/aiActionsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:singleSelection="false"
+            android:orientation="vertical"
             android:layout_marginBottom="12dp" />
 
-        <!-- Summary count -->
+        <!-- Execution results (hidden until Execute is tapped) -->
         <TextView
             android:id="@+id/aiSummaryText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="13sp"
             android:textColor="@color/ui_text_secondary"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
 
-        <!-- Apply button -->
+        <!-- Execute button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/aiApplyButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/ai_suggest_apply_button" />
+            android:text="@string/ai_agent_execute_button" />
 
     </LinearLayout>
 

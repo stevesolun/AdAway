@@ -91,4 +91,17 @@
     <!-- Provider · model label shown in bottom sheet header -->
     <!-- %1$s = provider display name (e.g. "Claude"), %2$s = model display name (e.g. "Sonnet 4.6") -->
     <string name="ai_provider_model_label">%1$s · %2$s</string>
+
+    <!-- Agent mode strings -->
+    <string name="ai_agent_actions_label">Planned actions:</string>
+    <string name="ai_agent_execute_button">Execute</string>
+    <string name="ai_action_subscribe_category">Subscribe %s filter lists</string>
+    <string name="ai_action_enable_category">Enable %s filters</string>
+    <string name="ai_action_disable_category">Disable %s filters</string>
+    <string name="ai_action_update_sources">Update all enabled filter lists</string>
+    <string name="ai_action_check_domain">Check if %s is blocked</string>
+    <string name="ai_action_allow_domain">Allow %s (add to allowlist)</string>
+    <string name="ai_action_block_domain">Block %s</string>
+    <string name="ai_suggest_no_actions">No actions to execute</string>
+    <string name="ai_suggest_no_actions_available">No actions available for this request</string>
 </resources>

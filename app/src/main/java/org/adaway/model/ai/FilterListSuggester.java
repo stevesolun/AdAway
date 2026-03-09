@@ -88,6 +88,36 @@ public final class FilterListSuggester {
             + "Respond with ONLY valid JSON, no markdown, no extra text:\n"
             + "{\"categories\": [\"ADS\", \"PRIVACY\"], \"reasoning\": \"Brief explanation.\"}";
 
+    /**
+     * System prompt template for the agent mode ({@link #execute}).
+     * The {@code {STATE}} placeholder is replaced at call time with the JSON from
+     * {@link AppStateContext#build(android.content.Context)}.
+     */
+    private static final String AGENT_SYSTEM_PROMPT_TEMPLATE =
+            "You are an AI assistant embedded in AdAway, an Android ad-blocking app.\n"
+            + "You ONLY manage ad-blocking filters. Do NOT answer general questions, "
+            + "hold conversations, or perform any task unrelated to AdAway filter management.\n\n"
+            + "Current app state:\n{STATE}\n\n"
+            + "Available categories: ADS, YOUTUBE, PRIVACY, MALWARE, CRYPTO, SOCIAL, "
+            + "DEVICE, SERVICE, ANNOYANCES, REGIONAL\n\n"
+            + "Available action types:\n"
+            + "- SUBSCRIBE_CATEGORY: add and enable all lists in a category\n"
+            + "- ENABLE_CATEGORY: turn on already-subscribed lists in a category\n"
+            + "- DISABLE_CATEGORY: turn off lists in a category (without deleting)\n"
+            + "- UPDATE_SOURCES: trigger an immediate update of all enabled filter lists\n"
+            + "- CHECK_DOMAIN: check if a specific domain is currently blocked\n"
+            + "- ALLOW_DOMAIN: add a domain to the user allowlist (unblock it)\n"
+            + "- BLOCK_DOMAIN: add a domain to the user blocklist\n\n"
+            + "RULES:\n"
+            + "1. payload for category actions MUST be one of the listed category names (uppercase).\n"
+            + "2. payload for domain actions MUST be a plain hostname — no scheme, no path, no port.\n"
+            + "3. For off-topic or general requests respond with: "
+            + "{\"reasoning\":\"I can only help with AdAway filter management.\",\"actions\":[]}\n"
+            + "4. Keep reasoning to one sentence.\n\n"
+            + "Respond with ONLY valid JSON, no markdown, no extra text:\n"
+            + "{\"reasoning\":\"Brief explanation.\","
+            + "\"actions\":[{\"type\":\"SUBSCRIBE_CATEGORY\",\"payload\":\"ADS\"}]}";
+
     private final OkHttpClient httpClient;
 
     public FilterListSuggester() {
@@ -165,13 +195,13 @@ public final class FilterListSuggester {
         String responseJson;
         switch (provider) {
             case CLAUDE:
-                responseJson = callClaude(apiKey, modelId, safeQuery);
+                responseJson = callClaude(apiKey, modelId, SYSTEM_PROMPT, safeQuery);
                 break;
             case GEMINI:
-                responseJson = callGemini(apiKey, modelId, safeQuery);
+                responseJson = callGemini(apiKey, modelId, SYSTEM_PROMPT, safeQuery);
                 break;
             case OPENAI:
-                responseJson = callOpenAi(apiKey, modelId, safeQuery);
+                responseJson = callOpenAi(apiKey, modelId, SYSTEM_PROMPT, safeQuery);
                 break;
             default:
                 throw new IllegalStateException("Unknown provider: " + provider);
@@ -180,17 +210,65 @@ public final class FilterListSuggester {
         return parseSuggestion(responseJson);
     }
 
+    /**
+     * Sends {@code query} to the configured LLM as an agent-mode request.
+     * The LLM sees the current app state (which filter categories are subscribed/enabled)
+     * and returns an {@link AiAgentResponse} containing structured actions to execute.
+     *
+     * <p>The AI is constrained by system prompt to only act within AdAway's filter management
+     * domain. Off-topic queries return an empty action list.
+     *
+     * <p>Must be called on a background thread.
+     */
+    @WorkerThread
+    @NonNull
+    public AiAgentResponse execute(@NonNull Context context, @NonNull String query)
+            throws IOException, GeneralSecurityException {
+        LlmProvider provider = getSelectedProvider(context);
+        int modelIndex = getSelectedModelIndex(context);
+        String modelId = provider.getModelId(modelIndex);
+
+        SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
+        String apiKey = keyStore.getApiKey(provider.getApiKeyName());
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("No API key configured for " + provider.getDisplayName());
+        }
+
+        String safeQuery = sanitizeQuery(query);
+        // Build current app state — safe to inject (only enum names + counts)
+        String stateJson = AppStateContext.build(context);
+        String systemPrompt = AGENT_SYSTEM_PROMPT_TEMPLATE.replace("{STATE}", stateJson);
+
+        String responseJson;
+        switch (provider) {
+            case CLAUDE:
+                responseJson = callClaude(apiKey, modelId, systemPrompt, safeQuery);
+                break;
+            case GEMINI:
+                responseJson = callGemini(apiKey, modelId, systemPrompt, safeQuery);
+                break;
+            case OPENAI:
+                responseJson = callOpenAi(apiKey, modelId, systemPrompt, safeQuery);
+                break;
+            default:
+                throw new IllegalStateException("Unknown provider: " + provider);
+        }
+
+        return parseAgentResponse(responseJson);
+    }
+
     // -------------------------------------------------------------------------
     // Provider-specific HTTP calls
     // -------------------------------------------------------------------------
 
     @WorkerThread
-    private String callClaude(String apiKey, String model, String userQuery) throws IOException {
+    private String callClaude(String apiKey, String model, String systemPrompt, String userQuery)
+            throws IOException {
         JSONObject body = new JSONObject();
         try {
             body.put("model", model);
             body.put("max_tokens", 512);
-            body.put("system", SYSTEM_PROMPT);
+            body.put("system", systemPrompt);
             JSONArray messages = new JSONArray();
             JSONObject userMsg = new JSONObject();
             userMsg.put("role", "user");
@@ -225,12 +303,13 @@ public final class FilterListSuggester {
     }
 
     @WorkerThread
-    private String callGemini(String apiKey, String model, String userQuery) throws IOException {
+    private String callGemini(String apiKey, String model, String systemPrompt, String userQuery)
+            throws IOException {
         JSONObject body = new JSONObject();
         try {
             JSONObject sysInstruction = new JSONObject();
             JSONObject sysPart = new JSONObject();
-            sysPart.put("text", SYSTEM_PROMPT);
+            sysPart.put("text", systemPrompt);
             sysInstruction.put("parts", sysPart);
             body.put("systemInstruction", sysInstruction);
 
@@ -280,7 +359,8 @@ public final class FilterListSuggester {
     }
 
     @WorkerThread
-    private String callOpenAi(String apiKey, String model, String userQuery) throws IOException {
+    private String callOpenAi(String apiKey, String model, String systemPrompt, String userQuery)
+            throws IOException {
         JSONObject body = new JSONObject();
         try {
             body.put("model", model);
@@ -288,7 +368,7 @@ public final class FilterListSuggester {
             JSONArray messages = new JSONArray();
             JSONObject system = new JSONObject();
             system.put("role", "system");
-            system.put("content", SYSTEM_PROMPT);
+            system.put("content", systemPrompt);
             messages.put(system);
             JSONObject user = new JSONObject();
             user.put("role", "user");
@@ -416,18 +496,36 @@ public final class FilterListSuggester {
         }
     }
 
+    /**
+     * Parses an agent-mode LLM response into an {@link AiAgentResponse}.
+     */
+    @NonNull
+    private static AiAgentResponse parseAgentResponse(@NonNull String llmText) throws IOException {
+        String cleaned = stripMarkdownFences(llmText);
+        try {
+            JSONObject json = new JSONObject(cleaned);
+            return AiAgentResponse.fromJson(json);
+        } catch (JSONException e) {
+            Timber.d("Agent LLM response was not valid JSON");
+            throw new IOException("Agent LLM response was not valid JSON", e);
+        }
+    }
+
+    /** Strips {@code ```json ... ``` } fences from LLM output, if present. */
+    @NonNull
+    private static String stripMarkdownFences(@NonNull String text) {
+        String s = text.trim();
+        if (s.startsWith("```")) {
+            int start = s.indexOf('\n');
+            int end = s.lastIndexOf("```");
+            if (start != -1 && end > start) s = s.substring(start, end).trim();
+        }
+        return s;
+    }
+
     @NonNull
     private static LlmSuggestion parseSuggestion(@NonNull String llmText) throws IOException {
-        // Strip markdown code fences if present (```json ... ```)
-        String cleaned = llmText.trim();
-        if (cleaned.startsWith("```")) {
-            int start = cleaned.indexOf('\n');
-            int end = cleaned.lastIndexOf("```");
-            if (start != -1 && end > start) {
-                cleaned = cleaned.substring(start, end).trim();
-            }
-        }
-
+        String cleaned = stripMarkdownFences(llmText);
         try {
             JSONObject json = new JSONObject(cleaned);
             JSONArray catArray = json.optJSONArray("categories");

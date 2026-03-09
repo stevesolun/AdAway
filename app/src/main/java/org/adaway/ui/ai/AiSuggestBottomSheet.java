@@ -7,24 +7,22 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
-import com.google.android.material.chip.Chip;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.BottomSheetAiSuggestBinding;
-import org.adaway.db.AppDatabase;
-import org.adaway.db.entity.HostsSource;
+import org.adaway.model.ai.AiActionExecutor;
+import org.adaway.model.ai.AiAgentAction;
+import org.adaway.model.ai.AiAgentResponse;
 import org.adaway.model.ai.FilterListSuggester;
 import org.adaway.model.ai.LlmApiException;
 import org.adaway.model.ai.LlmProvider;
-import org.adaway.model.ai.LlmSuggestion;
-import org.adaway.model.source.FilterListCatalog;
-import org.adaway.model.source.FilterListCategory;
 import org.adaway.util.AppExecutors;
 
 import java.util.ArrayList;
@@ -34,14 +32,15 @@ import timber.log.Timber;
 
 /**
  * BottomSheet that lets users describe their privacy intent in natural language
- * and receive AI-powered filter list recommendations.
+ * and receive AI-powered filter management actions (subscribe, enable/disable categories,
+ * block/allow domains, trigger updates).
  *
  * <p>Flow:
  * <ol>
  *   <li>User types a query ("block ads, protect privacy, keep WhatsApp working")</li>
- *   <li>Tap Ask → LLM call on networkIO thread</li>
- *   <li>Results shown as checkable category chips</li>
- *   <li>Tap Apply → insert selected filter lists into DB</li>
+ *   <li>Tap Ask → LLM agent call on networkIO thread</li>
+ *   <li>Planned actions shown as text items in the actions container</li>
+ *   <li>Tap Execute → actions run on diskIO thread, results shown inline</li>
  * </ol>
  */
 public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
@@ -68,8 +67,8 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
     private BottomSheetAiSuggestBinding binding;
     private final FilterListSuggester suggester = new FilterListSuggester();
 
-    /** Currently displayed suggestion (set after LLM responds). */
-    private LlmSuggestion currentSuggestion;
+    /** Currently displayed agent response (set after LLM responds). */
+    private AiAgentResponse currentResponse;
 
     @Nullable
     @Override
@@ -119,8 +118,8 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
             return false;
         });
 
-        // Apply button
-        this.binding.aiApplyButton.setOnClickListener(v -> onApplyClicked());
+        // Execute button
+        this.binding.aiApplyButton.setOnClickListener(v -> onExecuteClicked());
     }
 
     @Override
@@ -158,18 +157,18 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
             try {
-                LlmSuggestion suggestion = suggester.suggest(appContext, query);
+                AiAgentResponse response = suggester.execute(appContext, query);
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (binding == null) return;
                     setLoadingState(false);
-                    showSuggestion(suggestion);
+                    showResponse(response);
                 });
             } catch (Exception e) {
                 // ATK-19: log only class name + code, not raw message (may contain API response data)
                 String errDetail = (e instanceof LlmApiException)
                         ? "HTTP " + ((LlmApiException) e).getHttpCode()
                         : e.getClass().getSimpleName();
-                Timber.w("LLM suggestion failed: %s", errDetail);
+                Timber.w("LLM agent call failed: %s", errDetail);
                 // ATK-16: Only show user-friendly messages from LlmApiException; fall back to
                 // generic string for all other exceptions to avoid leaking internal details.
                 final String userMessage = (e instanceof LlmApiException && e.getMessage() != null)
@@ -184,61 +183,32 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         });
     }
 
-    private void onApplyClicked() {
+    private void onExecuteClicked() {
         if (binding == null) return; // QA-13: guard against view destroyed before click handled
-        if (currentSuggestion == null) return;
-
-        // Collect checked categories from chip group
-        List<FilterListCategory> selectedCategories = new ArrayList<>();
-        for (int i = 0; i < binding.aiCategoryChipGroup.getChildCount(); i++) {
-            View child = binding.aiCategoryChipGroup.getChildAt(i);
-            if (child instanceof Chip) {
-                Chip chip = (Chip) child;
-                if (chip.isChecked()) {
-                    selectedCategories.add((FilterListCategory) chip.getTag());
-                }
-            }
-        }
-
-        if (selectedCategories.isEmpty()) {
+        if (currentResponse == null) return;
+        if (currentResponse.actions.isEmpty()) {
             Snackbar.make(binding.getRoot(),
-                    R.string.ai_suggest_no_categories_selected, Snackbar.LENGTH_SHORT).show();
+                    R.string.ai_suggest_no_actions, Snackbar.LENGTH_SHORT).show();
             return;
         }
 
         binding.aiApplyButton.setEnabled(false);
         final Context appContext = requireContext().getApplicationContext();
+        final List<AiAgentAction> actionsSnapshot = new ArrayList<>(currentResponse.actions);
 
         AppExecutors.getInstance().diskIO().execute(() -> {
-            AppDatabase db = AppDatabase.getInstance(appContext);
-            int added = 0;
-            for (FilterListCategory category : selectedCategories) {
-                List<FilterListCatalog.CatalogEntry> entries =
-                        FilterListCatalog.getByCategory(category);
-                for (FilterListCatalog.CatalogEntry entry : entries) {
-                    if (!db.hostsSourceDao().getByUrl(entry.url).isPresent()) {
-                        HostsSource source = entry.toHostsSource();
-                        source.setEnabled(true);
-                        db.hostsSourceDao().insert(source);
-                        added++;
-                    }
-                }
+            AiActionExecutor executor = new AiActionExecutor(appContext);
+            List<String> results = new ArrayList<>();
+            for (AiAgentAction action : actionsSnapshot) {
+                results.add(executor.execute(action));
             }
 
-            final int finalAdded = added;
+            final String resultText = joinResults(results);
             AppExecutors.getInstance().mainThread().execute(() -> {
                 if (binding == null) return;
-                if (finalAdded > 0) {
-                    Snackbar.make(binding.getRoot(),
-                            getResources().getQuantityString(
-                                    R.plurals.ai_suggest_applied, finalAdded, finalAdded),
-                            Snackbar.LENGTH_SHORT).show();
-                } else {
-                    Snackbar.make(binding.getRoot(),
-                            R.string.ai_suggest_already_subscribed,
-                            Snackbar.LENGTH_SHORT).show();
-                }
-                dismiss();
+                binding.aiSummaryText.setText(resultText);
+                binding.aiSummaryText.setVisibility(View.VISIBLE);
+                // Keep Execute disabled — actions already run
             });
         });
     }
@@ -258,48 +228,37 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         }
     }
 
-    private void showSuggestion(@NonNull LlmSuggestion suggestion) {
+    private void showResponse(@NonNull AiAgentResponse response) {
         if (binding == null) return;
-        currentSuggestion = suggestion;
+        currentResponse = response;
 
         // Reasoning text
-        binding.aiReasoningText.setText(suggestion.reasoning);
+        binding.aiReasoningText.setText(response.reasoning);
 
-        // Category chips
-        binding.aiCategoryChipGroup.removeAllViews();
-        for (FilterListCategory category : suggestion.categories) {
-            Chip chip = new Chip(requireContext());
-            chip.setText(getCategoryDisplayName(category));
-            chip.setCheckable(true);
-            chip.setChecked(true);
-            chip.setTag(category);
-            if (category.mayBreakServices()) {
-                chip.setChipBackgroundColorResource(
-                        com.google.android.material.R.color.design_default_color_error);
+        // Populate action items
+        binding.aiActionsContainer.removeAllViews();
+        if (response.actions.isEmpty()) {
+            TextView emptyView = new TextView(requireContext());
+            emptyView.setText(R.string.ai_suggest_no_actions_available);
+            emptyView.setTextSize(13);
+            binding.aiActionsContainer.addView(emptyView);
+        } else {
+            for (AiAgentAction action : response.actions) {
+                TextView tv = new TextView(requireContext());
+                tv.setText("• " + describeAction(action));
+                tv.setTextSize(13);
+                tv.setPadding(0, 4, 0, 4);
+                binding.aiActionsContainer.addView(tv);
             }
-            chip.setOnCheckedChangeListener((c, checked) -> updateSummary(suggestion.categories));
-            binding.aiCategoryChipGroup.addView(chip);
         }
 
-        updateSummary(suggestion.categories);
+        // Reset results area
+        binding.aiSummaryText.setVisibility(View.GONE);
+        binding.aiSummaryText.setText("");
+        binding.aiApplyButton.setEnabled(!response.actions.isEmpty());
+
         binding.aiResultsLayout.setVisibility(View.VISIBLE);
         binding.aiErrorText.setVisibility(View.GONE);
-    }
-
-    private void updateSummary(List<FilterListCategory> allCategories) {
-        if (binding == null) return;
-
-        // Count total entries across selected categories
-        int total = 0;
-        for (int i = 0; i < binding.aiCategoryChipGroup.getChildCount(); i++) {
-            View child = binding.aiCategoryChipGroup.getChildAt(i);
-            if (child instanceof Chip && ((Chip) child).isChecked()) {
-                FilterListCategory cat = (FilterListCategory) child.getTag();
-                total += FilterListCatalog.getByCategory(cat).size();
-            }
-        }
-        binding.aiSummaryText.setText(
-                getResources().getQuantityString(R.plurals.ai_suggest_summary, total, total));
     }
 
     private void showError(String message) {
@@ -309,11 +268,34 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         binding.aiResultsLayout.setVisibility(View.GONE);
     }
 
-    private String getCategoryDisplayName(FilterListCategory category) {
-        try {
-            return getString(category.getLabelResId());
-        } catch (Exception e) {
-            return category.name();
+    /** Returns a human-readable description of a planned action (shown before execution). */
+    private String describeAction(@NonNull AiAgentAction action) {
+        switch (action.type) {
+            case SUBSCRIBE_CATEGORY:
+                return getString(R.string.ai_action_subscribe_category, action.payload);
+            case ENABLE_CATEGORY:
+                return getString(R.string.ai_action_enable_category, action.payload);
+            case DISABLE_CATEGORY:
+                return getString(R.string.ai_action_disable_category, action.payload);
+            case UPDATE_SOURCES:
+                return getString(R.string.ai_action_update_sources);
+            case CHECK_DOMAIN:
+                return getString(R.string.ai_action_check_domain, action.payload);
+            case ALLOW_DOMAIN:
+                return getString(R.string.ai_action_allow_domain, action.payload);
+            case BLOCK_DOMAIN:
+                return getString(R.string.ai_action_block_domain, action.payload);
+            default:
+                return action.toString();
         }
+    }
+
+    private static String joinResults(@NonNull List<String> results) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < results.size(); i++) {
+            if (i > 0) sb.append('\n');
+            sb.append("• ").append(results.get(i));
+        }
+        return sb.toString();
     }
 }
