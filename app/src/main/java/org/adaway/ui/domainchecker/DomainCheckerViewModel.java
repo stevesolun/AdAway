@@ -58,7 +58,9 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             return;
         }
 
-        loading.setValue(true);
+        // Use postValue so checkDomain() is safe to call from any thread (e.g. diskIO callbacks
+        // in unblockDomain/blockDomain/deleteRule). setValue() throws on non-main threads.
+        loading.postValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
             // Fetch only the rows for this specific host — O(hosts) not O(all entries)
             List<HostListItem> entries = mHostListItemDao.getEntriesForHost(domain);
@@ -98,13 +100,15 @@ public class DomainCheckerViewModel extends AndroidViewModel {
      * the write so the UI refreshes automatically.
      */
     public void unblockDomain(String domain) {
-        if (domain == null || domain.isEmpty()) {
+        // ATK-01: re-normalize and validate at write boundary (defense-in-depth)
+        final String normalizedDomain = DomainNormalizer.normalize(domain);
+        if (normalizedDomain == null || normalizedDomain.isEmpty()) {
             return;
         }
         loading.setValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
             HostListItem item = new HostListItem();
-            item.setHost(domain);
+            item.setHost(normalizedDomain);
             item.setType(ListType.ALLOWED);
             item.setEnabled(true);
             item.setSourceId(USER_SOURCE_ID);
@@ -112,7 +116,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
 
             // Refresh the check so UI reflects the new allow rule
             loading.postValue(false);
-            checkDomain(domain);
+            checkDomain(normalizedDomain);
         });
     }
 
@@ -135,18 +139,20 @@ public class DomainCheckerViewModel extends AndroidViewModel {
      * Posts an updated {@link DomainCheckResult} to {@link #checkResult} after the write.
      */
     public void blockDomain(String domain) {
-        if (domain == null || domain.isEmpty()) return;
+        // ATK-01: normalize + validate at write boundary (rejects IPs, localhost, garbage)
+        final String normalizedDomain = DomainNormalizer.normalize(domain);
+        if (normalizedDomain == null || normalizedDomain.isEmpty()) return;
         loading.setValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            mHostListItemDao.deleteUserFromHost(domain);
+            mHostListItemDao.deleteUserFromHost(normalizedDomain);
             HostListItem item = new HostListItem();
-            item.setHost(domain);
+            item.setHost(normalizedDomain);
             item.setType(ListType.BLOCKED);
             item.setEnabled(true);
             item.setSourceId(USER_SOURCE_ID);
             mHostListItemDao.insert(item);
             loading.postValue(false);
-            checkDomain(domain);
+            checkDomain(normalizedDomain);
         });
     }
 
@@ -155,10 +161,12 @@ public class DomainCheckerViewModel extends AndroidViewModel {
      * Finds and deletes the first ALLOWED entry with source_id=1 for this host.
      */
     public void removeUserAllowRule(String domain) {
-        if (domain == null || domain.isEmpty()) return;
+        // ATK-01: normalize + validate at write boundary
+        final String normalizedDomain = DomainNormalizer.normalize(domain);
+        if (normalizedDomain == null || normalizedDomain.isEmpty()) return;
         loading.setValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            List<HostListItem> entries = mHostListItemDao.getEntriesForHost(domain);
+            List<HostListItem> entries = mHostListItemDao.getEntriesForHost(normalizedDomain);
             for (HostListItem item : entries) {
                 if (item.getSourceId() == USER_SOURCE_ID && item.getType() == ListType.ALLOWED) {
                     mHostListItemDao.deleteById(item.getId());
@@ -166,7 +174,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                 }
             }
             loading.postValue(false);
-            checkDomain(domain);
+            checkDomain(normalizedDomain);
         });
     }
 

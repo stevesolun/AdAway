@@ -329,24 +329,61 @@ public final class FilterListSuggester {
         String toolResultMsg = toolResults.toString().trim();
 
         // ── Turn 2 ───────────────────────────────────────────────────────────
+        // ATK-09/ATK-15: Re-serialize only the *validated* first response fields (reasoning already
+        // HTML-stripped + capped; action types from closed enum; payloads trimmed by AiAgentResponse).
+        // Never inject firstRaw directly — an adversarial provider could craft Turn-1 text that
+        // manipulates the Turn-2 conversation context.
+        String safeAssistantMsg = serializeResponseSafe(firstResponse);
+
         String secondRaw;
         switch (provider) {
             case CLAUDE:
                 secondRaw = callClaudeMultiTurn(apiKey, modelId, systemPrompt,
-                        safeQuery, firstRaw, toolResultMsg);
+                        safeQuery, safeAssistantMsg, toolResultMsg);
                 break;
             case GEMINI:
                 secondRaw = callGeminiMultiTurn(apiKey, modelId, systemPrompt,
-                        safeQuery, firstRaw, toolResultMsg);
+                        safeQuery, safeAssistantMsg, toolResultMsg);
                 break;
             case OPENAI:
                 secondRaw = callOpenAiMultiTurn(apiKey, modelId, systemPrompt,
-                        safeQuery, firstRaw, toolResultMsg);
+                        safeQuery, safeAssistantMsg, toolResultMsg);
                 break;
             default: throw new IllegalStateException("Unknown provider: " + provider);
         }
 
         return parseAgentResponse(secondRaw);
+    }
+
+    /**
+     * Re-serializes a validated {@link AiAgentResponse} into a compact JSON string safe to inject
+     * as the "assistant" message in a multi-turn Turn-2 call.
+     *
+     * <p>Only uses pre-validated fields: {@code reasoning} (HTML-stripped, ≤300 chars by
+     * {@link AiAgentResponse#fromJson}), {@code type} (closed enum), {@code payload} (trimmed).
+     * Raw LLM text ({@code firstRaw}) is intentionally discarded (ATK-09 guard).
+     */
+    @NonNull
+    private static String serializeResponseSafe(@NonNull AiAgentResponse response) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("reasoning", response.reasoning);
+            JSONArray actions = new JSONArray();
+            // Cap action list to MAX_LOOP_CHECK_ACTIONS to prevent context bloat
+            int limit = Math.min(response.actions.size(), MAX_LOOP_CHECK_ACTIONS);
+            for (int i = 0; i < limit; i++) {
+                AiAgentAction a = response.actions.get(i);
+                JSONObject obj = new JSONObject();
+                obj.put("type", a.type.name());
+                obj.put("payload", a.payload);
+                actions.put(obj);
+            }
+            json.put("actions", actions);
+            return json.toString();
+        } catch (JSONException e) {
+            // Should never happen with validated inputs; return empty-action JSON as fallback
+            return "{\"reasoning\":\"\",\"actions\":[]}";
+        }
     }
 
     /** Maximum number of CHECK_DOMAIN actions auto-executed per loop (prevents context stuffing). */
@@ -394,7 +431,9 @@ public final class FilterListSuggester {
                         .getString("text");
             } catch (JSONException e) {
                 // ATK-04 variant: truncate to 100 chars — full body may echo request headers containing API key on proxy errors.
-                Timber.d("Unexpected Claude response (truncated): %s", bodyStr.length() > 100 ? bodyStr.substring(0, 100) + "…" : bodyStr);
+                // ATK-16: log at most 40 chars — shorter than any reflected API key prefix
+                Timber.d("Unexpected Claude response format (truncated)");
+
                 throw new IOException("Unexpected Claude response format", e);
             }
         }
