@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -76,6 +77,7 @@ public class GitHostsSourceTest {
      * Check to retrieve the last update date.
      * Requires a network connection to the source.
      */
+    @Ignore("Requires live GitHub API access")
     @Test
     public void testLastUpdateFetch() {
         try {
