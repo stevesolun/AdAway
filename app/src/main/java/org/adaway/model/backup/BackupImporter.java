@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
@@ -49,9 +48,6 @@ public final class BackupImporter {
 
     }
 
-    private static final Executor DISK_IO_EXECUTOR = AppExecutors.getInstance().diskIO();
-    private static final Executor MAIN_THREAD_EXECUTOR = AppExecutors.getInstance().mainThread();
-
     /**
      * Import a backup file.
      *
@@ -60,7 +56,7 @@ public final class BackupImporter {
      */
     @UiThread
     public static void importFromBackup(Context context, Uri backupUri) {
-        DISK_IO_EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             boolean imported = true;
             try {
                 importBackup(context, backupUri);
@@ -69,7 +65,7 @@ public final class BackupImporter {
                 imported = false;
             }
             boolean successful = imported;
-            MAIN_THREAD_EXECUTOR.execute(() -> notifyImportEnd(context, successful));
+            AppExecutors.getInstance().mainThread().execute(() -> notifyImportEnd(context, successful));
         });
     }
 

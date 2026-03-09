@@ -24,7 +24,6 @@ import org.adaway.util.AppExecutors;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.Executor;
 
 import timber.log.Timber;
 
@@ -34,7 +33,6 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class UpdateViewModel extends AdwareViewModel {
-    private static final Executor NETWORK_IO = AppExecutors.getInstance().networkIO();
     private static final long TRACKING_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(15);
     private final UpdateModel updateModel;
     private final MutableLiveData<DownloadStatus> downloadProgress;
@@ -54,7 +52,7 @@ public class UpdateViewModel extends AdwareViewModel {
     public void update() {
         long downloadId = this.updateModel.update();
         if (downloadId != -1) {
-            NETWORK_IO.execute(() -> trackProgress(downloadId));
+            AppExecutors.getInstance().networkIO().execute(() -> trackProgress(downloadId));
         } else {
             this.downloadProgress.postValue(null);
         }

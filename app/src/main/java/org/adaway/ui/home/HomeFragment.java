@@ -52,7 +52,6 @@ import org.adaway.ui.hosts.HostsSourcesActivity;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.util.AppExecutors;
 
-import java.util.concurrent.Executor;
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -81,8 +80,6 @@ public class HomeFragment extends Fragment {
     private long initialBlockedCount = -1;
 
     private static final NumberFormat COUNT_FORMAT = NumberFormat.getIntegerInstance(Locale.US);
-    private static final Executor COUNTS_EXECUTOR = AppExecutors.getInstance().diskIO();
-
     @Nullable
     private LiveData<Integer> blockedHostCountLiveData;
     @Nullable
@@ -429,7 +426,7 @@ public class HomeFragment extends Fragment {
 
                 if (initialBlockedCount <= 0) {
                     final Context appContext = requireContext().getApplicationContext();
-                    COUNTS_EXECUTOR.execute(() -> {
+                    AppExecutors.getInstance().diskIO().execute(() -> {
                         try {
                             int blockedNow = AppDatabase.getInstance(appContext)
                                     .hostEntryDao().getBlockedEntryCountNow();
@@ -589,7 +586,7 @@ public class HomeFragment extends Fragment {
         if (hostCountersPrimedDuringImport) return;
         hostCountersPrimedDuringImport = true;
         final Context appContext = requireContext().getApplicationContext();
-        COUNTS_EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 int allowedNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getAllowedHostCountNow();
@@ -663,7 +660,7 @@ public class HomeFragment extends Fragment {
         if (blocked != null && allowed != null && redirected != null) return;
 
         final Context appContext = requireContext().getApplicationContext();
-        COUNTS_EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 int allowedNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getAllowedHostCountNow();

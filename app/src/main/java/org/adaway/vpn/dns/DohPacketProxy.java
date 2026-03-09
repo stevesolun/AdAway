@@ -38,7 +38,6 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import okhttp3.Cache;
 import okhttp3.HttpUrl;
@@ -53,8 +52,6 @@ public class DohPacketProxy {
     // Choose a value that is smaller than the time needed to unblock a host.
     private static final int NEGATIVE_CACHE_TTL_SECONDS = 5;
     private static final SOARecord NEGATIVE_CACHE_SOA_RECORD;
-
-    private static final Executor EXECUTOR = AppExecutors.getInstance().networkIO();
 
     static {
         try {
@@ -226,7 +223,7 @@ public class DohPacketProxy {
                 break;
             case ALLOWED:
                 Timber.i("handleDnsRequest: DNS Name %s allowed, sending to %s.", dnsQueryName, dnsAddress);
-                EXECUTOR.execute(() -> queryDohServer(ipPacket, dnsMsg, name));
+                AppExecutors.getInstance().networkIO().execute(() -> queryDohServer(ipPacket, dnsMsg, name));
                 break;
             case REDIRECTED:
                 Timber.i("handleDnsRequest: DNS Name %s redirected to %s.", dnsQueryName, entry.getRedirection());

@@ -26,7 +26,6 @@ import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 import static android.view.View.INVISIBLE;
@@ -58,9 +57,6 @@ public class SourceEditActivity extends AppCompatActivity {
      * The any type mime type.
      */
     private static final String ANY_MIME_TYPE = "*/*";
-    private static final Executor DISK_IO_EXECUTOR = AppExecutors.getInstance().diskIO();
-    private static final Executor MAIN_THREAD_EXECUTOR = AppExecutors.getInstance().mainThread();
-
     private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
     private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
@@ -126,11 +122,11 @@ public class SourceEditActivity extends AppCompatActivity {
         int sourceId = intent.getIntExtra(SOURCE_ID, -1);
         this.editing = sourceId != -1;
         if (this.editing) {
-            DISK_IO_EXECUTOR.execute(() -> {
+            AppExecutors.getInstance().diskIO().execute(() -> {
                 Optional<HostsSource> hostsSource = this.hostsSourceDao.getById(sourceId);
                 hostsSource.ifPresent(source -> {
                     this.edited = source;
-                    MAIN_THREAD_EXECUTOR.execute(() -> {
+                    AppExecutors.getInstance().mainThread().execute(() -> {
                         applyInitialValues(source);
                         bindLocation();
                         bindFormats();
@@ -230,7 +226,7 @@ public class SourceEditActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         // Check item identifier
         if (item.getItemId() == R.id.delete_action) {
-            DISK_IO_EXECUTOR.execute(() -> this.hostsSourceDao.delete(this.edited));
+            AppExecutors.getInstance().diskIO().execute(() -> this.hostsSourceDao.delete(this.edited));
             finish();
             return true;
         } else if (item.getItemId() == R.id.apply_action) {
@@ -238,7 +234,7 @@ public class SourceEditActivity extends AppCompatActivity {
             if (source == null) {
                 return false;
             }
-            DISK_IO_EXECUTOR.execute(() -> {
+            AppExecutors.getInstance().diskIO().execute(() -> {
                 if (this.editing) {
                     this.hostsSourceDao.delete(this.edited);
                 }

@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 import static java.util.stream.Collectors.toList;
 import static org.adaway.db.entity.ListType.ALLOWED;
@@ -44,9 +43,6 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class BackupExporter {
-    private static final Executor DISK_IO_EXECUTOR = AppExecutors.getInstance().diskIO();
-    private static final Executor MAIN_THREAD_EXECUTOR = AppExecutors.getInstance().mainThread();
-
     private BackupExporter() {
 
     }
@@ -57,7 +53,7 @@ public class BackupExporter {
      * @param context The application context.
      */
     public static void exportToBackup(Context context, Uri backupUri) {
-        DISK_IO_EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             boolean imported = true;
             try {
                 exportBackup(context, backupUri);
@@ -67,7 +63,7 @@ public class BackupExporter {
             }
             boolean successful = imported;
             String fileName = getFileNameFromUri(backupUri);
-            MAIN_THREAD_EXECUTOR.execute(() -> notifyExportEnd(context, successful, fileName));
+            AppExecutors.getInstance().mainThread().execute(() -> notifyExportEnd(context, successful, fileName));
         });
     }
 

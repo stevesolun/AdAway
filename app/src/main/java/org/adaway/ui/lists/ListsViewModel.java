@@ -18,7 +18,6 @@ import org.adaway.ui.lists.type.AbstractListFragment;
 import org.adaway.util.AppExecutors;
 
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import static androidx.lifecycle.Transformations.switchMap;
 import static androidx.paging.PagingLiveData.getLiveData;
@@ -35,7 +34,6 @@ import static org.adaway.ui.lists.ListsFilter.ALL;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class ListsViewModel extends AndroidViewModel {
-    private static final Executor EXECUTOR = AppExecutors.getInstance().diskIO();
     private final HostListItemDao hostListItemDao;
     private final MutableLiveData<ListsFilter> filter;
     private final LiveData<PagingData<HostListItem>> blockedListItems;
@@ -81,7 +79,7 @@ public class ListsViewModel extends AndroidViewModel {
 
     public void toggleItemEnabled(HostListItem item) {
         item.setEnabled(!item.isEnabled());
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.update(item);
             this.modelChanged.postValue(true);
         });
@@ -94,7 +92,7 @@ public class ListsViewModel extends AndroidViewModel {
         item.setRedirection(redirection);
         item.setEnabled(true);
         item.setSourceId(USER_SOURCE_ID);
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             addOrUpdateItemInternal(item);
             this.modelChanged.postValue(true);
             this.refresh();
@@ -114,7 +112,7 @@ public class ListsViewModel extends AndroidViewModel {
     public void updateListItem(@NonNull HostListItem item, @NonNull String host, String redirection) {
         item.setHost(host);
         item.setRedirection(redirection);
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.update(item);
             this.modelChanged.postValue(true);
             this.refresh();
@@ -122,7 +120,7 @@ public class ListsViewModel extends AndroidViewModel {
     }
 
     public void removeListItem(HostListItem list) {
-        EXECUTOR.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.delete(list);
             this.modelChanged.postValue(true);
         });
@@ -140,7 +138,7 @@ public class ListsViewModel extends AndroidViewModel {
 
         if (item.getSourceId() == USER_SOURCE_ID) {
             item.setType(newType);
-            EXECUTOR.execute(() -> {
+            AppExecutors.getInstance().diskIO().execute(() -> {
                 this.hostListItemDao.update(item);
                 this.modelChanged.postValue(true);
                 this.refresh();
@@ -155,7 +153,7 @@ public class ListsViewModel extends AndroidViewModel {
             newItem.setSourceId(USER_SOURCE_ID);
 
             // Execute as atomic transaction block
-            EXECUTOR.execute(() -> {
+            AppExecutors.getInstance().diskIO().execute(() -> {
                 // 1. Add/Update the User Override Rule
                 addOrUpdateItemInternal(newItem);
 
