@@ -1,6 +1,10 @@
 package org.adaway;
 
 import android.app.Application;
+import android.content.SharedPreferences;
+
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 
 import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
@@ -10,6 +14,7 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
+import org.adaway.util.Constants;
 import org.adaway.util.log.ApplicationLog;
 
 /**
@@ -35,6 +40,13 @@ public class AdAwayApplication extends Application {
     public void onCreate() {
         // Delegate application creation
         super.onCreate();
+        // Re-apply locale on startup — AppCompatDelegate does not auto-restore on Android <13
+        SharedPreferences prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE);
+        boolean forceEnglish = prefs.getBoolean("forceEnglish", false);
+        LocaleListCompat locales = forceEnglish
+                ? LocaleListCompat.forLanguageTags("en")
+                : LocaleListCompat.getEmptyLocaleList();
+        AppCompatDelegate.setApplicationLocales(locales);
         // Initialize logging
         ApplicationLog.init(this);
         // Create notification channels
