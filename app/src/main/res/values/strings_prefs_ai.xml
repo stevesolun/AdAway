@@ -83,4 +83,12 @@
 
     <!-- Discover tab button -->
     <string name="discover_ask_ai">Ask AI</string>
+
+    <!-- Home screen AI box -->
+    <string name="home_ai_box_hint">Ask AI to configure filters…</string>
+    <string name="home_ai_title">AI Filter Assistant</string>
+
+    <!-- Provider · model label shown in bottom sheet header -->
+    <!-- %1$s = provider display name (e.g. "Claude"), %2$s = model display name (e.g. "Sonnet 4.6") -->
+    <string name="ai_provider_model_label">%1$s · %2$s</string>
 </resources>

@@ -12,6 +12,7 @@ import static org.adaway.ui.lists.ListsActivity.TAB;
 
 import android.content.Context;
 import android.content.Intent;
+import android.view.inputmethod.EditorInfo;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.net.VpnService;
@@ -40,6 +41,7 @@ import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.FragmentHomeBinding;
+import org.adaway.ui.ai.AiSuggestBottomSheet;
 import org.adaway.db.AppDatabase;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
@@ -126,6 +128,7 @@ public class HomeFragment extends Fragment {
         bindMultiPhaseProgress();
 
         bindDiscoverCta();
+        bindHomeAiBox();
 
         this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
             if (result.getResultCode() == RESULT_OK) {
@@ -515,6 +518,33 @@ public class HomeFragment extends Fragment {
                 this.binding.content.pauseResumeButton
                         .setContentDescription(getString(R.string.pause_update));
             }
+        });
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Home AI Box
+    // -----------------------------------------------------------------------------------------
+
+    private void bindHomeAiBox() {
+        // "Ask" button: grab the typed query and open the bottom sheet with it pre-filled.
+        // The sheet handles validation (empty query, missing API key, etc.).
+        this.binding.content.homeAiAskButton.setOnClickListener(v -> {
+            String query = this.binding.content.homeAiQueryEditText.getText() == null ? ""
+                    : this.binding.content.homeAiQueryEditText.getText().toString().trim();
+            AiSuggestBottomSheet sheet = AiSuggestBottomSheet.newInstance(
+                    query.isEmpty() ? null : query);
+            sheet.show(getChildFragmentManager(), AiSuggestBottomSheet.TAG);
+            // Clear the input field after launching so re-opening Home is clean
+            this.binding.content.homeAiQueryEditText.setText("");
+        });
+
+        // Allow "Done" keyboard action to trigger Ask
+        this.binding.content.homeAiQueryEditText.setOnEditorActionListener((tv, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                this.binding.content.homeAiAskButton.performClick();
+                return true;
+            }
+            return false;
         });
     }
 

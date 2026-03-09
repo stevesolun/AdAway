@@ -303,9 +303,58 @@ public final class FilterListSuggester {
         if (body == null) throw new IOException(providerName + " returned empty response");
         String text = body.string();
         if (!response.isSuccessful()) {
-            throw new IOException(providerName + " API error HTTP " + response.code() + ": " + text);
+            int code = response.code();
+            String userMessage = extractProviderError(text, code, providerName);
+            throw new LlmApiException(code, userMessage);
         }
         return text;
+    }
+
+    /**
+     * Attempts to parse a provider-specific JSON error body and return a user-friendly message.
+     * Falls back to a generic message based on the HTTP code.
+     *
+     * <p>Supported error formats:
+     * <ul>
+     *   <li>Claude: {@code {"error":{"message":"..."}}}</li>
+     *   <li>Gemini: {@code {"error":{"message":"..."}}}</li>
+     *   <li>OpenAI: {@code {"error":{"message":"...", "code":"..."}}}</li>
+     * </ul>
+     */
+    private static String extractProviderError(String body, int httpCode, String providerName) {
+        // Try to extract message from provider JSON error body
+        try {
+            JSONObject json = new JSONObject(body);
+            JSONObject error = json.optJSONObject("error");
+            if (error != null) {
+                String message = error.optString("message", null);
+                if (message != null && !message.isEmpty()) {
+                    // Prepend provider name and truncate long messages
+                    if (message.length() > 200) message = message.substring(0, 200) + "\u2026";
+                    return providerName + ": " + message;
+                }
+            }
+        } catch (JSONException ignored) {
+            // Body was not JSON — fall through to generic messages below
+        }
+
+        // Generic messages by HTTP code
+        switch (httpCode) {
+            case 401:
+            case 403:
+                return providerName + ": Invalid API key. Go to Settings \u2192 AI Assistant to update it.";
+            case 402:
+                return providerName + ": Payment required \u2014 add credits to your account.";
+            case 429:
+                return providerName + ": Rate limit or quota exceeded. Check your billing on the provider\u2019s dashboard.";
+            case 500:
+            case 502:
+            case 503:
+            case 529:
+                return providerName + ": Service temporarily unavailable. Try again in a moment.";
+            default:
+                return providerName + ": API error (HTTP " + httpCode + ").";
+        }
     }
 
     @NonNull
@@ -323,7 +372,10 @@ public final class FilterListSuggester {
         try {
             JSONObject json = new JSONObject(cleaned);
             JSONArray catArray = json.optJSONArray("categories");
-            String reasoning = json.optString("reasoning", "");
+            String rawReasoning = json.optString("reasoning", "");
+            // Sanitize: strip HTML-like tags, cap length to prevent injected content from displaying
+            String reasoning = rawReasoning.replaceAll("<[^>]*>", "").trim();
+            if (reasoning.length() > 300) reasoning = reasoning.substring(0, 300) + "\u2026";
 
             List<FilterListCategory> categories = new ArrayList<>();
             if (catArray != null) {

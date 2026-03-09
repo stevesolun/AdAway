@@ -46,6 +46,23 @@ import timber.log.Timber;
 public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
 
     public static final String TAG = "AiSuggestBottomSheet";
+    private static final String ARG_PREFILL_QUERY = "prefill_query";
+
+    /**
+     * Creates a new instance with an optional pre-filled query.
+     * Pass the user's typed text when launching from the Home screen AI box.
+     *
+     * @param prefillQuery text to pre-fill in the query field, or {@code null} for empty
+     */
+    public static AiSuggestBottomSheet newInstance(@Nullable String prefillQuery) {
+        AiSuggestBottomSheet sheet = new AiSuggestBottomSheet();
+        if (prefillQuery != null && !prefillQuery.isEmpty()) {
+            Bundle args = new Bundle();
+            args.putString(ARG_PREFILL_QUERY, prefillQuery);
+            sheet.setArguments(args);
+        }
+        return sheet;
+    }
 
     private BottomSheetAiSuggestBinding binding;
     private final FilterListSuggester suggester = new FilterListSuggester();
@@ -66,9 +83,26 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Show active provider name in header
+        // Show active provider · model in header
         LlmProvider provider = FilterListSuggester.getSelectedProvider(requireContext());
-        this.binding.aiProviderLabel.setText(provider.getDisplayName());
+        int modelIndex = FilterListSuggester.getSelectedModelIndex(requireContext());
+        String providerShort = provider.getDisplayName()
+                .replaceAll("\\s*\\(.*\\)", "").trim(); // "Claude (Anthropic)" → "Claude"
+        String modelShort = provider.getModelDisplayNames()[
+                Math.min(modelIndex, provider.getModelDisplayNames().length - 1)]
+                .replaceAll("\\s*\\(.*\\)", "").trim(); // "Sonnet 4.6 (balanced)" → "Sonnet 4.6"
+        this.binding.aiProviderLabel.setText(
+                getString(R.string.ai_provider_model_label, providerShort, modelShort));
+
+        // Pre-fill query if launched from Home screen AI box
+        Bundle args = getArguments();
+        if (args != null) {
+            String prefill = args.getString(ARG_PREFILL_QUERY);
+            if (prefill != null && !prefill.isEmpty()) {
+                this.binding.aiQueryEditText.setText(prefill);
+                this.binding.aiQueryEditText.setSelection(prefill.length());
+            }
+        }
 
         // Ask button
         this.binding.aiAskButton.setOnClickListener(v -> onAskClicked());
