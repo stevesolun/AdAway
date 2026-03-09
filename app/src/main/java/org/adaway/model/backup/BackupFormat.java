@@ -2,6 +2,7 @@ package org.adaway.model.backup;
 
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.util.RegexUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -75,7 +76,12 @@ final class BackupFormat {
         HostListItem host = new HostListItem();
         host.setHost(hostObject.getString(HOST_ATTRIBUTE));
         if (hostObject.has(REDIRECT_ATTRIBUTE)) {
-            host.setRedirection(hostObject.getString(REDIRECT_ATTRIBUTE));
+            String redirection = hostObject.getString(REDIRECT_ATTRIBUTE);
+            // ATK-23: reject private/reserved IPs as redirect targets (same as SourceLoader check).
+            if (!RegexUtils.isValidIP(redirection) || RegexUtils.isPrivateOrReservedIp(redirection)) {
+                throw new JSONException("Invalid or private redirect IP in backup: " + redirection);
+            }
+            host.setRedirection(redirection);
         }
         host.setEnabled(hostObject.getBoolean(ENABLED_ATTRIBUTE));
         host.setSourceId(USER_SOURCE_ID);

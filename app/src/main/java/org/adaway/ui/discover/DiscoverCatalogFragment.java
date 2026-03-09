@@ -124,7 +124,9 @@ public class DiscoverCatalogFragment extends Fragment {
             allEntries = FilterListCatalog.getAll();
             filteredEntries = new ArrayList<>(allEntries);
 
-            requireActivity().runOnUiThread(() -> {
+            // QA-07: use AppExecutors.mainThread() instead of requireActivity().runOnUiThread()
+            // to avoid IllegalStateException if the fragment detaches before this executes.
+            AppExecutors.getInstance().mainThread().execute(() -> {
                 if (this.binding == null) return;
                 // existingUrls mutations must happen on main thread — adapter reads it there.
                 existingUrls.clear();

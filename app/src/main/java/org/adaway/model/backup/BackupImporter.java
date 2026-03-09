@@ -45,6 +45,8 @@ import timber.log.Timber;
 public final class BackupImporter {
     /** Maximum number of sources that may be imported from a single backup file (ATK-05). */
     private static final int MAX_IMPORT_SOURCES = 200;
+    /** Maximum number of host list entries (blocked/allowed/redirected) per import (ATK-24). */
+    private static final int MAX_IMPORT_LIST_ITEMS = 50_000;
 
     private BackupImporter() {
 
@@ -127,7 +129,12 @@ public final class BackupImporter {
     }
 
     private static void importListBackup(HostListItemDao hostListItemDao, ListType type, JSONArray hosts) throws JSONException {
-        for (int index = 0; index < hosts.length(); index++) {
+        // Cap imports to prevent memory exhaustion from a crafted backup (ATK-24).
+        int limit = Math.min(hosts.length(), MAX_IMPORT_LIST_ITEMS);
+        if (hosts.length() > MAX_IMPORT_LIST_ITEMS) {
+            Timber.w("Backup %s list has %d entries; importing only the first %d.", type, hosts.length(), MAX_IMPORT_LIST_ITEMS);
+        }
+        for (int index = 0; index < limit; index++) {
             JSONObject hostObject = hosts.getJSONObject(index);
             HostListItem host = hostFromJson(hostObject);
             host.setType(type);

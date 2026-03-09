@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.text.Normalizer;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -216,7 +217,8 @@ public final class FilterListSuggester {
                         .getJSONObject(0)
                         .getString("text");
             } catch (JSONException e) {
-                Timber.d("Unexpected Claude response: %s", bodyStr);
+                // ATK-04 variant: truncate to 100 chars — full body may echo request headers containing API key on proxy errors.
+                Timber.d("Unexpected Claude response (truncated): %s", bodyStr.length() > 100 ? bodyStr.substring(0, 100) + "…" : bodyStr);
                 throw new IOException("Unexpected Claude response format", e);
             }
         }
@@ -337,6 +339,9 @@ public final class FilterListSuggester {
         String cleaned = raw.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "").trim();
         // Collapse newlines — prevent the user from injecting new "role" turns (ATK-09)
         cleaned = cleaned.replaceAll("[\\r\\n]+", " ");
+        // ATK-29: NFKC-normalise to defeat Unicode homoglyph bypass (e.g. dotless-i ı→i,
+        // zero-width joiners, look-alike Cyrillic letters in injection keywords).
+        cleaned = Normalizer.normalize(cleaned, Normalizer.Form.NFKC);
         // Neutralise known prompt-injection patterns (ATK-09)
         if (INJECTION_PATTERN.matcher(cleaned).find()) {
             Timber.w("Prompt injection pattern detected in query; replacing.");

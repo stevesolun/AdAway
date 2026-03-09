@@ -215,24 +215,32 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void applyFilterSet(String name) {
-        Set<String> enabledUrls = FilterSetStore.getSetUrls(requireContext(), name);
-        HostsSourceDao dao = AppDatabase.getInstance(requireContext()).hostsSourceDao();
+        // QA-27: capture Context and DAO on the main thread to avoid calling requireContext()
+        // from a background thread if the fragment detaches while the lambda is queued.
+        android.content.Context appCtx = requireContext().getApplicationContext();
+        Set<String> enabledUrls = FilterSetStore.getSetUrls(appCtx, name);
+        HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
 
         Snackbar waitSnackbar = Snackbar.make(coordinatorLayout, R.string.notification_configuration_installing, Snackbar.LENGTH_INDEFINITE);
         waitSnackbar.show();
 
+        // QA-04: snapshot lastSources on the main thread to avoid a data race with the
+        // LiveData observer that writes lastSources also on the main thread.
+        List<HostsSource> sourcesSnapshot = new ArrayList<>(lastSources);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            for (HostsSource s : lastSources) {
+            for (HostsSource s : sourcesSnapshot) {
                 if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
                 boolean shouldEnable = enabledUrls.contains(s.getUrl());
                 if (s.isEnabled() == shouldEnable) continue;
                 dao.setSourceEnabled(s.getId(), shouldEnable);
                 dao.setSourceItemsEnabled(s.getId(), shouldEnable);
             }
-            FilterSetUpdateService.enable(requireContext());
+            FilterSetUpdateService.enable(appCtx);
             AppExecutors.getInstance().mainThread().execute(() -> {
                 waitSnackbar.dismiss();
-                Snackbar.make(coordinatorLayout, R.string.filter_set_applied, Snackbar.LENGTH_SHORT).show();
+                if (isAdded()) {
+                    Snackbar.make(coordinatorLayout, R.string.filter_set_applied, Snackbar.LENGTH_SHORT).show();
+                }
             });
         });
     }
@@ -397,8 +405,9 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void runCheckUpdates() {
         Snackbar info = Snackbar.make(coordinatorLayout, R.string.status_check, Snackbar.LENGTH_LONG);
         info.show();
+        // QA-05: capture Context before background thread to avoid IllegalStateException on navigation.
+        AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
-            AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
             SourceModel sourceModel = application.getSourceModel();
             try {
                 sourceModel.checkForUpdate();
@@ -420,10 +429,11 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         );
         waitSnackbar.show();
 
+        // QA-06: capture Context before background thread to avoid IllegalStateException on navigation.
+        AdAwayApplication app = (AdAwayApplication) requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
-            AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
-            SourceModel sourceModel = application.getSourceModel();
-            AdBlockModel adBlockModel = application.getAdBlockModel();
+            SourceModel sourceModel = app.getSourceModel();
+            AdBlockModel adBlockModel = app.getAdBlockModel();
             boolean ok = true;
             try {
                 if (source == null) {

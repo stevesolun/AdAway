@@ -185,6 +185,7 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void onApplyClicked() {
+        if (binding == null) return; // QA-13: guard against view destroyed before click handled
         if (currentSuggestion == null) return;
 
         // Collect checked categories from chip group
