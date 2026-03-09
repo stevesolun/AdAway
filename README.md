@@ -1,8 +1,8 @@
-# ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway — Enhanced Fork
+# ![AdsAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdsAway
 
-**AdAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
+**AdsAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
 
-This fork supercharges AdAway with a modernized Material 3 UI, deep FilterLists.com integration, an AI-powered filter assistant (Claude / Gemini / ChatGPT), categorized filter management, one-tap onboarding, and enterprise-grade API key encryption.
+AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration, an AI-powered filter assistant (Claude / Gemini / ChatGPT), categorized filter management, one-tap onboarding, and enterprise-grade API key encryption.
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/stevesolun/adaway/total?logo=github)](https://github.com/stevesolun/AdAway/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](/LICENSE.md)
@@ -28,6 +28,15 @@ This fork supercharges AdAway with a modernized Material 3 UI, deep FilterLists.
 ---
 
 ## What's New
+
+### v13.4.4 — AI Conversational Agent
+
+Upgrades the AI layer from read-only category suggestions into a full conversational agent:
+
+- **Live app-state awareness** — AI reads which categories are subscribed/enabled and how many custom rules you have before responding
+- **Action execution** — AI can subscribe/enable/disable filter categories, block or allow specific domains, and trigger filter list updates
+- **Domain queries** — ask "is whatsapp blocked?" and get an instant answer; "unblock it" and the agent acts
+- **Security-first design** — only enum names and integer counts are injected into the prompt (no user labels or URLs); closed-enum gate silently drops hallucinated action types; all domain payloads validated before any DB write
 
 ### v13.4.2 — Security Hardening
 
@@ -106,8 +115,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 ### AI Filter Assistant
 
 - Natural language: "Block crypto miners but keep YouTube"
-- AI returns a ranked list of filter categories with brief reasoning
-- Checkable chip UI — deselect any category before applying
+- **Agent mode**: AI reads live app state, plans actions, and executes them on your approval
 - Supports **Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6**, **Gemini 2.5 Flash / Pro / Flash Lite**, **GPT-4.1 Mini / GPT-4.1 / GPT-4.1 Nano**
 - API keys encrypted on-device with AES-256-GCM backed by Android Keystore hardware (API 23+)
 - Configure at **Settings → AI Assistant**
@@ -154,10 +162,10 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 ### Download APK (Quickest)
 
 1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases/latest).
-2. Download `AdsAway_13.4.0.apk` (or whichever is latest).
+2. Download `AdsAway_13.4.4.apk` (or whichever is latest).
 3. **If you have the official AdAway installed**, uninstall it first — different signing key.
 4. Open the APK on your device → allow "Install unknown apps" if prompted.
-5. Open AdAway and complete one-tap onboarding.
+5. Open AdsAway and complete one-tap onboarding.
 
 ### Requirements
 
@@ -177,7 +185,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
    - **Claude**: [console.anthropic.com](https://console.anthropic.com) → API Keys
    - **Gemini**: [aistudio.google.com](https://aistudio.google.com) → Get API key
    - **ChatGPT**: [platform.openai.com](https://platform.openai.com) → API keys
-2. In AdAway: **More → Preferences → AI Assistant**
+2. In AdsAway: **More → Preferences → AI Assistant**
 3. Select your provider and model tier
 4. Tap the provider's API key row → paste your key → Save
 
@@ -190,16 +198,18 @@ Your key is **encrypted immediately** on-device using AES-256-GCM with a hardwar
 3. Type what you want in plain English, e.g.:
    - *"Block ads and protect privacy but keep WhatsApp working"*
    - *"Stop crypto miners and YouTube ads"*
+   - *"Is WhatsApp blocked? If so, unblock it"*
    - *"Maximum blocking — I don't care if some apps break"*
-4. Tap **Ask** — the AI responds with suggested categories + a brief explanation
-5. Review the chip list — deselect any you don't want
-6. Tap **Apply Selected** — lists are subscribed and ready to activate
+4. Tap **Ask** — the AI reads your current filter state and plans a set of actions
+5. Review the planned actions list + the AI's brief explanation
+6. Tap **Execute** — actions run immediately, results shown inline
 
 ### What gets sent to the AI
 
 The request contains:
-- Your typed query
-- The list of available filter category names and descriptions
+- Your typed query (sanitized — injection patterns neutralized)
+- Live app state: subscribed/enabled counts per filter category, user rule counts
+- The list of available action types
 
 **Nothing else** — no hostnames from your DB, no installed apps, no device info, no personal data.
 
@@ -243,7 +253,7 @@ No third-party crypto libs required. No EncryptedSharedPreferences (deprecated J
 ### Module Structure
 
 ```
-AdAway/
+AdsAway/
 ├── app/                    # Android application (Java 17)
 ├── tcpdump/                # Native packet capture (C, NDK)
 ├── webserver/              # Native HTTP server — mongoose (C, NDK)
@@ -266,10 +276,14 @@ app/src/main/java/org/adaway/
 │   ├── entity/                    # HostsSource, HostListItem, HostEntry, HostsMeta
 │   └── AppDatabase.java           # Room DB (WAL mode, v11, 10 migrations)
 ├── model/
-│   ├── ai/                        # ← NEW in v13.4.0
-│   │   ├── FilterListSuggester.java   # LLM orchestration + HTTP calls
+│   ├── ai/                        # ← NEW in v13.4.0, extended in v13.4.4
+│   │   ├── FilterListSuggester.java   # LLM orchestration + HTTP calls + agent execute()
+│   │   ├── AiAgentAction.java         # Action type enum + payload
+│   │   ├── AiAgentResponse.java       # Parsed LLM response (reasoning + actions)
+│   │   ├── AppStateContext.java       # Live app state JSON for system prompt
+│   │   ├── AiActionExecutor.java      # Validates + executes actions against DAOs
 │   │   ├── LlmProvider.java           # Claude / Gemini / OpenAI enum
-│   │   ├── LlmSuggestion.java         # Result data class
+│   │   ├── LlmSuggestion.java         # Legacy suggestion result data class
 │   │   └── SecureApiKeyStore.java     # AES-256-GCM keystore wrapper
 │   ├── source/
 │   │   ├── SourceModel.java           # Download → Parse → Insert pipeline
@@ -283,7 +297,7 @@ app/src/main/java/org/adaway/
 │   └── update/                    # APK self-update check
 ├── ui/
 │   ├── ai/
-│   │   └── AiSuggestBottomSheet.java  # ← NEW in v13.4.0
+│   │   └── AiSuggestBottomSheet.java  # Agent UI: action list + Execute button
 │   ├── home/                      # HomeActivity (nav shell) + HomeFragment + ViewModel
 │   ├── discover/                  # FilterLists.com browser + catalog + AI chip
 │   ├── more/                      # Tools & settings navigation
@@ -333,7 +347,7 @@ host_entries
 
 **HTTP 304 handling (v13.3.3 fix)**: When a server returns 304 Not Modified, existing entries are migrated from generation G → G+1 *before* cleanup runs, so nothing is deleted.
 
-### AI Request Lifecycle
+### AI Request Lifecycle (Agent Mode)
 
 ```
 User types query
@@ -342,22 +356,29 @@ AiSuggestBottomSheet.onAskClicked()
       ↓
 AppExecutors.networkIO()
       ↓
-FilterListSuggester.suggest(context, query)
+FilterListSuggester.execute(context, query)
+  ├── AppStateContext.build() → compact JSON state (diskIO-safe, called inline)
+  ├── Injects state into AGENT_SYSTEM_PROMPT_TEMPLATE
   ├── Reads selected provider + model from SharedPreferences
   ├── Reads encrypted API key from SecureApiKeyStore
   ├── Builds provider-specific JSON request body
   ├── POST to provider API endpoint (OkHttp, 15s connect / 60s read timeout)
-  └── Parses JSON response → LlmSuggestion(categories, reasoning)
+  └── Parses JSON response → AiAgentResponse(reasoning, List<AiAgentAction>)
       ↓
-mainThread() → show chips + reasoning text
+mainThread() → show action list + reasoning text
       ↓
-onApplyClicked()
+onExecuteClicked()
       ↓
 AppExecutors.diskIO()
       ↓
-FilterListCatalog.getByCategory() → HostsSourceDao.insert()
+AiActionExecutor.execute(action) for each action
+  ├── SUBSCRIBE_CATEGORY → FilterListCatalog → HostsSourceDao.insert()
+  ├── ENABLE/DISABLE_CATEGORY → HostsSourceDao.setSourceEnabled()
+  ├── UPDATE_SOURCES → SourceUpdateService.enqueueUpdateNow()
+  ├── CHECK_DOMAIN → HostListItemDao.getEntriesForHost()
+  └── ALLOW/BLOCK_DOMAIN → normalizeDomain() → HostListItemDao.insert()
       ↓
-mainThread() → dismiss sheet, snackbar confirmation
+mainThread() → show results inline
 ```
 
 ---
@@ -443,8 +464,8 @@ signingKeyPassword=your_key_password
 Push a version tag to trigger the release pipeline:
 
 ```bash
-git tag v13.4.0
-git push origin v13.4.0
+git tag v13.4.4
+git push origin v13.4.4
 ```
 
 GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
@@ -493,19 +514,18 @@ All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
 3. Under **API Keys**, tap your chosen provider → paste your key → tap **Save**.
 4. The key is encrypted immediately. The row now shows "Configured (tap to change)".
 
-### Ask AI for Filter Suggestions
+### Ask AI to Manage Your Filters
 
 1. Go to **Discover** tab.
 2. Tap **Ask AI** chip.
-3. Type a description of what you want, e.g.:
+3. Type what you want in plain English, e.g.:
    - "Block ads and trackers, keep WhatsApp working"
    - "Maximum privacy, I don't use Facebook"
-   - "Block YouTube ads and crypto miners"
+   - "Is YouTube blocked? If so, unblock it"
+   - "Subscribe to all ad-blocking lists and update them"
 4. Tap **Ask** and wait a few seconds.
-5. Review the suggested categories + the AI's reasoning.
-6. Deselect any chip you don't want.
-7. Tap **Apply Selected**.
-8. Go to Home → tap **Update** to activate the new lists.
+5. Review the **planned action list** + the AI's reasoning.
+6. Tap **Execute** — actions run immediately.
 
 ### Add a Filter List from FilterLists.com
 
@@ -534,6 +554,8 @@ All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
 2. Tap **+** → choose **Block** or **Allow** → enter the domain.
 3. Tap **Save**. Rules apply immediately (no update needed).
 
+Alternatively, ask the AI: *"Block ads.example.com"* → tap Execute.
+
 ### Batch Import Domains
 
 1. **More → Custom Rules → ⋮ → Batch Import**.
@@ -554,9 +576,14 @@ All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
 
 ### Check If a Domain Is Blocked
 
+**Option A — Domain Checker (no API key needed):**
 1. **More → Domain Checker**.
 2. Type any domain (or URL — port is stripped automatically).
 3. Tap **Check** → see BLOCKED / ALLOWED and which source blocked it.
+
+**Option B — Ask AI (natural language):**
+1. Open the AI sheet, type *"Is whatsapp.com blocked?"*.
+2. AI checks and reports; if blocked, say *"Unblock it"* to add an allowlist entry.
 
 ### Backup & Restore
 
@@ -566,7 +593,7 @@ All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
 
 ### Force English Locale
 
-Some Android versions override language settings. To lock AdAway in English:
+Some Android versions override language settings. To lock AdsAway in English:
 1. **More → Preferences → General → Force English**.
 2. Force-stop and relaunch the app.
 
