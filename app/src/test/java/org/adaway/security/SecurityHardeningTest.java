@@ -6,11 +6,12 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 /**
- * Security regression tests for hardening changes in v13.4.2.
+ * Security regression tests for hardening changes in v13.4.2 and v13.4.3.
  * Only tests that use pure-Java code live here; Android-framework-dependent tests
  * (e.g. HostsSource.isValidUrl which uses android.webkit.URLUtil) must go in androidTest.
  *
  * <p>Each test is labelled with the ATK-XX identifier it guards.
+ * ATK-23 tests live in BackupFormatSecurityTest (same package as BackupFormat).
  */
 public class SecurityHardeningTest {
 
@@ -63,7 +64,8 @@ public class SecurityHardeningTest {
     // Note: ATK-02 (HostsSource.isValidUrl) tests require android.webkit.URLUtil
     // and must live in the instrumented androidTest suite.
 
-    // ATK-09 tests are in FilterListSuggesterSanitizeTest (same package as FilterListSuggester)
+    // ATK-09 + ATK-29 tests are in FilterListSuggesterSanitizeTest (same package as FilterListSuggester)
+    // ATK-23 tests are in BackupFormatSecurityTest (same package as BackupFormat)
 
     // -------------------------------------------------------------------------
     // ATK-15: Negative modelIndex clamped to valid range

@@ -1,0 +1,79 @@
+package org.adaway.model.backup;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
+/**
+ * Security regression tests for {@link BackupFormat#hostFromJson(JSONObject)}.
+ *
+ * <p>Guards ATK-23: redirect IP validation in backup import must reject private/reserved IPs,
+ * matching the same check applied by SourceLoader (ATK-01).
+ *
+ * <p>Must live in the same package as BackupFormat because it is package-private.
+ */
+public class BackupFormatSecurityTest {
+
+    @Test
+    public void atk23_backupRedirectWithLoopbackRejected() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("redirect", "127.0.0.1");
+        obj.put("enabled", true);
+        try {
+            BackupFormat.hostFromJson(obj);
+            fail("Expected JSONException for loopback redirect in backup");
+        } catch (JSONException e) {
+            assertTrue("Error must mention invalid redirect", e.getMessage().contains("Invalid"));
+        }
+    }
+
+    @Test
+    public void atk23_backupRedirectWithPrivateIpRejected() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("redirect", "192.168.1.1");
+        obj.put("enabled", true);
+        try {
+            BackupFormat.hostFromJson(obj);
+            fail("Expected JSONException for private-IP redirect in backup");
+        } catch (JSONException e) {
+            assertTrue("Error must mention invalid redirect", e.getMessage().contains("Invalid"));
+        }
+    }
+
+    @Test
+    public void atk23_backupRedirectWithPublicIpAllowed() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("redirect", "8.8.8.8");
+        obj.put("enabled", true);
+        // Must NOT throw — public IP redirect is valid
+        BackupFormat.hostFromJson(obj);
+    }
+
+    @Test
+    public void atk23_backupRedirectWithNonIpStringRejected() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("redirect", "not-an-ip");
+        obj.put("enabled", true);
+        try {
+            BackupFormat.hostFromJson(obj);
+            fail("Expected JSONException for non-IP redirect string in backup");
+        } catch (JSONException e) {
+            assertTrue("Error must mention invalid redirect", e.getMessage().contains("Invalid"));
+        }
+    }
+
+    @Test
+    public void atk23_backupEntryWithNoRedirectAllowed() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("enabled", true);
+        // No redirect field — must NOT throw
+        BackupFormat.hostFromJson(obj);
+    }
+}

@@ -1,7 +1,7 @@
 [versions]
 # Build
-appName = "13.4.2"
-appCode = "130402" # Read x.yy.zz to match version name
+appName = "13.4.3"
+appCode = "130403" # Read x.yy.zz to match version name
 gradle = "8.7.2"
 # Common
 guava = "32.0.1-android"
