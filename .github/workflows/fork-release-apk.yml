@@ -134,7 +134,11 @@ jobs:
         id: apk
         shell: bash
         run: |
-          echo "path=app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+          VERSION="${GITHUB_REF_NAME#v}"
+          SRC="app/build/outputs/apk/release/app-release.apk"
+          DEST="app/build/outputs/apk/release/AdsAway_${VERSION}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=$DEST" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release + upload APK
         uses: softprops/action-gh-release@v2
