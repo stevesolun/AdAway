@@ -340,7 +340,7 @@ public class SourceEditActivity extends AppCompatActivity {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_url_location_required));
                 return null;
             }
-            if (!HostsSource.isValidUrl(url)) {
+            if (url.contains(" ") || !HostsSource.isValidUrl(url)) {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_location_invalid));
                 return null;
             }

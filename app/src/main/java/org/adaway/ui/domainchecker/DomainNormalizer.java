@@ -52,6 +52,12 @@ public class DomainNormalizer {
             host = host.substring(0, fragmentIdx);
         }
 
-        return host.toLowerCase();
+        // Strip port number (e.g. example.com:8080 → example.com)
+        int colonIdx = host.indexOf(':');
+        if (colonIdx != -1) {
+            host = host.substring(0, colonIdx);
+        }
+
+        return host.isEmpty() ? null : host.toLowerCase();
     }
 }

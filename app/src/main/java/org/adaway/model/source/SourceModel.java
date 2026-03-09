@@ -1219,7 +1219,8 @@ public class SourceModel {
         // is changed and the old cache metadata no longer matches the new content.
         ZonedDateTime localModificationDate = source.getLocalModificationDate();
         boolean cacheExpired = localModificationDate == null ||
-                localModificationDate.isBefore(ZonedDateTime.now().minusDays(7));
+                localModificationDate.isBefore(ZonedDateTime.now().minusDays(7)) ||
+                source.getLastDownloadError() != null;
         if (!cacheExpired && source.getEntityTag() != null) {
             request = request.header(IF_NONE_MATCH_HEADER, source.getEntityTag());
         }
@@ -1246,12 +1247,12 @@ public class SourceModel {
         Request request = getRequestFor(source).build();
         // Request hosts file and open byte stream
         try (Response response = getHttpClient().newCall(request).execute()) {
-            ResponseBody rawBody = requireNonNull(response.body());
-            // Skip source parsing if not modified
+            // Skip source parsing if not modified (304 responses have no body — check BEFORE body access)
             if (response.code() == HTTP_NOT_MODIFIED) {
                 Timber.d("Source %s was not updated since last fetch.", source.getUrl());
                 return;
             }
+            ResponseBody rawBody = requireNonNull(response.body());
             // Extract ETag if present
             String entityTag = response.header(ENTITY_TAG_HEADER);
             if (entityTag != null) {

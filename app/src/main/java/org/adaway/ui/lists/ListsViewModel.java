@@ -86,6 +86,9 @@ public class ListsViewModel extends AndroidViewModel {
     }
 
     public void addListItem(@NonNull ListType type, @NonNull String host, String redirection) {
+        if (host.isEmpty() || host.length() > 253) {
+            return; // DNS hostname max is 253 characters
+        }
         HostListItem item = new HostListItem();
         item.setType(type);
         item.setHost(host);
