@@ -45,6 +45,14 @@
             app:title="@string/pref_backup_restore" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_ai_category">
+        <Preference
+            app:fragment="org.adaway.ui.prefs.PrefsAiFragment"
+            app:icon="@drawable/ic_category_custom"
+            app:title="@string/pref_ai_entry_title"
+            app:summary="@string/pref_ai_entry_summary" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_debug_category">
         <SwitchPreferenceCompat
             app:defaultValue="@bool/pref_enable_telemetry_def"

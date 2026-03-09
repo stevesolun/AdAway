@@ -1,0 +1,355 @@
+package org.adaway.model.ai;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
+
+import org.adaway.model.source.FilterListCategory;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import timber.log.Timber;
+
+/**
+ * Sends a natural language query to the configured LLM and maps its response
+ * to a set of {@link FilterListCategory} values.
+ *
+ * <p>Must be called on a background thread ({@link android.annotation.WorkerThread}).
+ *
+ * <p>Prompt strategy: the system prompt is a compact description of each category.
+ * The LLM returns a JSON object {"categories": [...], "reasoning": "..."}.
+ * We parse the category names and return them as an {@link LlmSuggestion}.
+ */
+public final class FilterListSuggester {
+
+    private static final String PREFS_AI = "ai_preferences";
+    private static final String KEY_PROVIDER = "provider_ordinal";
+    private static final String KEY_MODEL_INDEX = "model_index";
+
+    private static final MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
+
+    private static final int TIMEOUT_CONNECT_SEC = 15;
+    private static final int TIMEOUT_READ_SEC = 60;
+
+    private static final String SYSTEM_PROMPT =
+            "You are an expert helping configure the AdAway Android ad-blocker. "
+            + "Based on the user's intent, select the most appropriate filter categories.\n\n"
+            + "Available categories:\n"
+            + "- ADS: Block advertisement servers (safe, recommended for everyone)\n"
+            + "- YOUTUBE: Block YouTube in-stream ads (safe)\n"
+            + "- PRIVACY: Block trackers, analytics, fingerprinting (safe)\n"
+            + "- MALWARE: Block malware, phishing, ransomware domains (safe, recommended)\n"
+            + "- CRYPTO: Block cryptomining scripts (safe)\n"
+            + "- SOCIAL: Block social media trackers [WARNING: may break Facebook, Instagram, WhatsApp]\n"
+            + "- DEVICE: Block manufacturer telemetry (Samsung/Xiaomi) [WARNING: may break OEM features]\n"
+            + "- SERVICE: Block in-app ads (Spotify, etc.) [WARNING: may break those apps]\n"
+            + "- ANNOYANCES: Block cookie banners, popup overlays (safe)\n"
+            + "- REGIONAL: Block region-specific ad networks (safe)\n\n"
+            + "Rules:\n"
+            + "1. Only include SOCIAL, DEVICE, SERVICE if the user explicitly asks for aggressive blocking or to block specific services.\n"
+            + "2. Always include ADS and MALWARE unless the user explicitly says they don't want them.\n"
+            + "3. Keep reasoning concise (1-2 sentences).\n\n"
+            + "Respond with ONLY valid JSON, no markdown, no extra text:\n"
+            + "{\"categories\": [\"ADS\", \"PRIVACY\"], \"reasoning\": \"Brief explanation.\"}";
+
+    private final OkHttpClient httpClient;
+
+    public FilterListSuggester() {
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(TIMEOUT_CONNECT_SEC, TimeUnit.SECONDS)
+                .readTimeout(TIMEOUT_READ_SEC, TimeUnit.SECONDS)
+                .build();
+    }
+
+    /**
+     * Returns the current active provider, or {@code null} if no provider is configured.
+     */
+    @NonNull
+    public static LlmProvider getSelectedProvider(@NonNull Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE);
+        int ordinal = prefs.getInt(KEY_PROVIDER, LlmProvider.CLAUDE.ordinal());
+        return LlmProvider.fromOrdinal(ordinal);
+    }
+
+    public static void setSelectedProvider(@NonNull Context context, @NonNull LlmProvider provider) {
+        context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_PROVIDER, provider.ordinal())
+                .apply();
+    }
+
+    public static int getSelectedModelIndex(@NonNull Context context) {
+        return context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
+                .getInt(KEY_MODEL_INDEX, 0);
+    }
+
+    public static void setSelectedModelIndex(@NonNull Context context, int index) {
+        context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_MODEL_INDEX, index)
+                .apply();
+    }
+
+    /**
+     * Checks whether an API key is configured for the currently selected provider.
+     */
+    public static boolean hasApiKey(@NonNull Context context) {
+        LlmProvider provider = getSelectedProvider(context);
+        try {
+            SecureApiKeyStore store = SecureApiKeyStore.getInstance(context);
+            return store.hasApiKey(provider.getApiKeyName());
+        } catch (GeneralSecurityException | IOException e) {
+            Timber.w(e, "Failed to check API key");
+            return false;
+        }
+    }
+
+    /**
+     * Sends {@code query} to the configured LLM and returns a {@link LlmSuggestion}.
+     * Throws {@link IOException} on network/HTTP failure or {@link IllegalStateException}
+     * if no API key is configured.
+     *
+     * <p>Must be called on a background thread.
+     */
+    @WorkerThread
+    @NonNull
+    public LlmSuggestion suggest(@NonNull Context context, @NonNull String query)
+            throws IOException, GeneralSecurityException {
+        LlmProvider provider = getSelectedProvider(context);
+        int modelIndex = getSelectedModelIndex(context);
+        String modelId = provider.getModelId(modelIndex);
+
+        SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
+        String apiKey = keyStore.getApiKey(provider.getApiKeyName());
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("No API key configured for " + provider.getDisplayName());
+        }
+
+        String responseJson;
+        switch (provider) {
+            case CLAUDE:
+                responseJson = callClaude(apiKey, modelId, query);
+                break;
+            case GEMINI:
+                responseJson = callGemini(apiKey, modelId, query);
+                break;
+            case OPENAI:
+                responseJson = callOpenAi(apiKey, modelId, query);
+                break;
+            default:
+                throw new IllegalStateException("Unknown provider: " + provider);
+        }
+
+        return parseSuggestion(responseJson);
+    }
+
+    // -------------------------------------------------------------------------
+    // Provider-specific HTTP calls
+    // -------------------------------------------------------------------------
+
+    @WorkerThread
+    private String callClaude(String apiKey, String model, String userQuery) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("model", model);
+            body.put("max_tokens", 512);
+            body.put("system", SYSTEM_PROMPT);
+            JSONArray messages = new JSONArray();
+            JSONObject userMsg = new JSONObject();
+            userMsg.put("role", "user");
+            userMsg.put("content", userQuery);
+            messages.put(userMsg);
+            body.put("messages", messages);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build Claude request", e);
+        }
+
+        Request request = new Request.Builder()
+                .url("https://api.anthropic.com/v1/messages")
+                .addHeader("x-api-key", apiKey)
+                .addHeader("anthropic-version", "2023-06-01")
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "Claude");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("content")
+                        .getJSONObject(0)
+                        .getString("text");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected Claude response format: " + bodyStr, e);
+            }
+        }
+    }
+
+    @WorkerThread
+    private String callGemini(String apiKey, String model, String userQuery) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            JSONObject sysInstruction = new JSONObject();
+            JSONObject sysPart = new JSONObject();
+            sysPart.put("text", SYSTEM_PROMPT);
+            sysInstruction.put("parts", sysPart);
+            body.put("systemInstruction", sysInstruction);
+
+            JSONArray contents = new JSONArray();
+            JSONObject content = new JSONObject();
+            content.put("role", "user");
+            JSONArray parts = new JSONArray();
+            JSONObject part = new JSONObject();
+            part.put("text", userQuery);
+            parts.put(part);
+            content.put("parts", parts);
+            contents.put(content);
+            body.put("contents", contents);
+
+            JSONObject genConfig = new JSONObject();
+            genConfig.put("maxOutputTokens", 512);
+            body.put("generationConfig", genConfig);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build Gemini request", e);
+        }
+
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + model + ":generateContent?key=" + apiKey;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "Gemini");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected Gemini response format: " + bodyStr, e);
+            }
+        }
+    }
+
+    @WorkerThread
+    private String callOpenAi(String apiKey, String model, String userQuery) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("model", model);
+            body.put("max_completion_tokens", 512);
+            JSONArray messages = new JSONArray();
+            JSONObject system = new JSONObject();
+            system.put("role", "system");
+            system.put("content", SYSTEM_PROMPT);
+            messages.put(system);
+            JSONObject user = new JSONObject();
+            user.put("role", "user");
+            user.put("content", userQuery);
+            messages.put(user);
+            body.put("messages", messages);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build OpenAI request", e);
+        }
+
+        Request request = new Request.Builder()
+                .url("https://api.openai.com/v1/chat/completions")
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "OpenAI");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("choices")
+                        .getJSONObject(0)
+                        .getJSONObject("message")
+                        .getString("content");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected OpenAI response format: " + bodyStr, e);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Response parsing
+    // -------------------------------------------------------------------------
+
+    private static String requireBody(Response response, String providerName) throws IOException {
+        ResponseBody body = response.body();
+        if (body == null) throw new IOException(providerName + " returned empty response");
+        String text = body.string();
+        if (!response.isSuccessful()) {
+            throw new IOException(providerName + " API error HTTP " + response.code() + ": " + text);
+        }
+        return text;
+    }
+
+    @NonNull
+    private static LlmSuggestion parseSuggestion(@NonNull String llmText) throws IOException {
+        // Strip markdown code fences if present (```json ... ```)
+        String cleaned = llmText.trim();
+        if (cleaned.startsWith("```")) {
+            int start = cleaned.indexOf('\n');
+            int end = cleaned.lastIndexOf("```");
+            if (start != -1 && end > start) {
+                cleaned = cleaned.substring(start, end).trim();
+            }
+        }
+
+        try {
+            JSONObject json = new JSONObject(cleaned);
+            JSONArray catArray = json.optJSONArray("categories");
+            String reasoning = json.optString("reasoning", "");
+
+            List<FilterListCategory> categories = new ArrayList<>();
+            if (catArray != null) {
+                for (int i = 0; i < catArray.length(); i++) {
+                    String name = catArray.getString(i).toUpperCase().trim();
+                    try {
+                        FilterListCategory cat = FilterListCategory.valueOf(name);
+                        // Skip USER and CUSTOM — those are user-managed, not AI-suggested
+                        if (cat != FilterListCategory.USER && cat != FilterListCategory.CUSTOM) {
+                            categories.add(cat);
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                        Timber.d("LLM returned unknown category: %s", name);
+                    }
+                }
+            }
+
+            if (categories.isEmpty()) {
+                // Fallback: safe defaults if LLM returned nothing usable
+                categories.add(FilterListCategory.ADS);
+                categories.add(FilterListCategory.MALWARE);
+            }
+
+            return new LlmSuggestion(categories, reasoning);
+        } catch (JSONException e) {
+            throw new IOException("LLM response was not valid JSON: " + llmText, e);
+        }
+    }
+}

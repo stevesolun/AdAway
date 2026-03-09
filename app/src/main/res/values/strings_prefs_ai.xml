@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AI settings screen title -->
+    <string name="pref_ai_title">AI Assistant</string>
+
+    <!-- Category headers -->
+    <string name="pref_ai_provider_category">Model</string>
+    <string name="pref_ai_keys_category">API Keys</string>
+    <string name="pref_ai_about_category">About</string>
+
+    <!-- Provider and model prefs -->
+    <string name="pref_ai_provider">Provider</string>
+    <string name="pref_ai_model">Model</string>
+
+    <!-- Provider list entries -->
+    <string-array name="pref_ai_provider_entries">
+        <item>Claude (Anthropic)</item>
+        <item>Gemini (Google)</item>
+        <item>ChatGPT (OpenAI)</item>
+    </string-array>
+    <string-array name="pref_ai_provider_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <!-- Model index values (entries set dynamically) -->
+    <string-array name="pref_ai_model_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <!-- Default model entries per provider (shown before dynamic update) -->
+    <string-array name="pref_ai_model_claude_entries">
+        <item>Haiku 4.5 (fast, cheap)</item>
+        <item>Sonnet 4.6 (balanced)</item>
+        <item>Opus 4.6 (best quality)</item>
+    </string-array>
+
+    <!-- API key prefs -->
+    <string name="pref_ai_key_claude">Claude (Anthropic) API Key</string>
+    <string name="pref_ai_key_gemini">Gemini (Google) API Key</string>
+    <string name="pref_ai_key_openai">OpenAI API Key</string>
+    <string name="pref_ai_key_not_set">Not configured — tap to set</string>
+    <string name="pref_ai_key_set">Configured (tap to change)</string>
+    <string name="pref_ai_key_dialog_title">Set %s API Key</string>
+    <string name="pref_ai_key_dialog_hint">Paste your API key here</string>
+    <string name="pref_ai_key_dialog_message">Your key is stored encrypted on-device using Android Keystore. It is never shared.</string>
+    <string name="pref_ai_key_clear">Clear</string>
+    <string name="pref_ai_key_saved">API key saved</string>
+    <string name="pref_ai_key_cleared">API key cleared</string>
+    <string name="pref_ai_key_save_error">Failed to save API key</string>
+
+    <!-- Privacy disclosure -->
+    <string name="pref_ai_privacy_title">Privacy</string>
+    <string name="pref_ai_privacy_summary">API keys are encrypted with AES-256-GCM and stored in the Android Keystore. Queries sent to the AI include only your text and the list of available filter categories — no personal data.</string>
+
+    <!-- Settings entry in main prefs -->
+    <string name="pref_ai_category">AI Assistant</string>
+    <string name="pref_ai_entry_title">AI filter suggestions</string>
+    <string name="pref_ai_entry_summary">Configure Claude, Gemini, or ChatGPT to suggest filter lists in natural language</string>
+
+    <!-- Bottom sheet strings -->
+    <string name="ai_suggest_title">Ask AI</string>
+    <string name="ai_suggest_hint">e.g. Block ads, protect privacy, keep WhatsApp working</string>
+    <string name="ai_suggest_ask_button">Ask</string>
+    <string name="ai_suggest_apply_button">Apply Selected</string>
+    <string name="ai_suggest_categories_label">Suggested categories:</string>
+    <string name="ai_suggest_query_empty">Please enter a question</string>
+    <string name="ai_suggest_no_api_key">No API key set. Configure one in Settings → AI Assistant.</string>
+    <string name="ai_suggest_error_generic">Something went wrong. Check your API key and try again.</string>
+    <string name="ai_suggest_no_categories_selected">Select at least one category</string>
+    <string name="ai_suggest_already_subscribed">Already subscribed to these lists</string>
+    <plurals name="ai_suggest_summary">
+        <item quantity="one">Will add ~%d filter list</item>
+        <item quantity="other">Will add ~%d filter lists</item>
+    </plurals>
+    <plurals name="ai_suggest_applied">
+        <item quantity="one">Added %d filter list</item>
+        <item quantity="other">Added %d filter lists</item>
+    </plurals>
+
+    <!-- Discover tab button -->
+    <string name="discover_ask_ai">Ask AI</string>
+</resources>

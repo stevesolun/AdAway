@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="@string/pref_ai_title">
+
+    <PreferenceCategory app:title="@string/pref_ai_provider_category">
+
+        <!-- Provider selection -->
+        <ListPreference
+            app:key="pref_ai_provider"
+            app:title="@string/pref_ai_provider"
+            app:summary="%s"
+            app:icon="@drawable/ic_category_custom"
+            app:entries="@array/pref_ai_provider_entries"
+            app:entryValues="@array/pref_ai_provider_values"
+            app:defaultValue="0" />
+
+        <!-- Model selection (updated dynamically based on provider) -->
+        <ListPreference
+            app:key="pref_ai_model"
+            app:title="@string/pref_ai_model"
+            app:summary="%s"
+            app:icon="@drawable/ic_category_custom"
+            app:entries="@array/pref_ai_model_claude_entries"
+            app:entryValues="@array/pref_ai_model_values"
+            app:defaultValue="0" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_ai_keys_category">
+
+        <!-- Claude API key -->
+        <Preference
+            app:key="pref_ai_key_claude"
+            app:title="@string/pref_ai_key_claude"
+            app:summary="@string/pref_ai_key_not_set"
+            app:icon="@drawable/ic_vpn_key_24dp" />
+
+        <!-- Gemini API key -->
+        <Preference
+            app:key="pref_ai_key_gemini"
+            app:title="@string/pref_ai_key_gemini"
+            app:summary="@string/pref_ai_key_not_set"
+            app:icon="@drawable/ic_vpn_key_24dp" />
+
+        <!-- OpenAI API key -->
+        <Preference
+            app:key="pref_ai_key_openai"
+            app:title="@string/pref_ai_key_openai"
+            app:summary="@string/pref_ai_key_not_set"
+            app:icon="@drawable/ic_vpn_key_24dp" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_ai_about_category">
+
+        <Preference
+            app:key="pref_ai_privacy"
+            app:title="@string/pref_ai_privacy_title"
+            app:summary="@string/pref_ai_privacy_summary"
+            app:icon="@drawable/ic_info_24dp"
+            app:selectable="false" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

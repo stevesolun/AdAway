@@ -20,6 +20,7 @@ import org.adaway.databinding.FragmentDiscoverBinding;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.ui.ai.AiSuggestBottomSheet;
 import org.adaway.util.AppExecutors;
 
 import java.util.List;
@@ -58,6 +59,12 @@ public class DiscoverFragment extends Fragment {
         this.binding.chipDiscoverSafe.setOnClickListener(v -> applyPreset("safe"));
         this.binding.chipDiscoverBalanced.setOnClickListener(v -> applyPreset("balanced"));
         this.binding.chipDiscoverAggressive.setOnClickListener(v -> applyPreset("aggressive"));
+
+        // AI chip — open natural language filter suggestion sheet
+        this.binding.chipDiscoverAskAi.setOnClickListener(v -> {
+            AiSuggestBottomSheet sheet = new AiSuggestBottomSheet();
+            sheet.show(getChildFragmentManager(), AiSuggestBottomSheet.TAG);
+        });
     }
 
     @Override
