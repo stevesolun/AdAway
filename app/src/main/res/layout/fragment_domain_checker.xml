@@ -30,7 +30,7 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingBottom="16dp"
-            android:text="Check if AdAway blocks a site and unblock it instantly"
+            android:text="@string/domain_checker_subtitle"
             android:textSize="13sp"
             android:textColor="@color/ui_text_secondary" />
 
@@ -126,11 +126,32 @@
                     android:paddingBottom="8dp"
                     android:visibility="gone" />
 
+                <!-- Shown when blocked but no user allow rule yet -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/unblockButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Add to Allow List"
+                    android:text="@string/domain_checker_allow_button"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <!-- Shown when blocked AND user already has an allow rule -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/removeAllowButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/domain_checker_remove_allow_button"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <!-- Shown when NOT blocked -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/blockButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/domain_checker_block_button"
                     android:layout_marginTop="8dp"
                     android:visibility="gone" />
 
@@ -138,7 +159,7 @@
                     android:id="@+id/alreadyAllowedLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="You already have an allow rule for this domain"
+                    android:text="@string/domain_checker_already_allowed"
                     android:textSize="12sp"
                     android:textColor="@color/ui_text_secondary"
                     android:gravity="center"
@@ -149,7 +170,7 @@
                     android:id="@+id/notBlockedLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="This domain is not in any blocked list"
+                    android:text="@string/domain_checker_not_blocked"
                     android:textSize="12sp"
                     android:textColor="@color/ui_text_secondary"
                     android:gravity="center"

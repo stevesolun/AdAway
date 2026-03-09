@@ -257,6 +257,104 @@ public final class FilterListSuggester {
         return parseAgentResponse(responseJson);
     }
 
+    /**
+     * Agentic loop variant: sends {@code query} to the LLM, auto-executes any {@code CHECK_DOMAIN}
+     * actions from the first response (read-only, no user approval needed), then feeds the results
+     * back to the LLM for a second call that returns the final write-action plan.
+     *
+     * <p>Write-actions (SUBSCRIBE_CATEGORY, ALLOW_DOMAIN, BLOCK_DOMAIN, etc.) are NEVER
+     * auto-executed — they are returned in the final {@link AiAgentResponse} for the user to
+     * review and approve with a single Execute tap.
+     *
+     * <p>Maximum two LLM turns. If the first response contains no CHECK_DOMAIN actions the first
+     * response is returned directly (no second call).
+     *
+     * <p>Must be called on a background thread (networkIO is fine — Room is called inline but not
+     * on the main thread).
+     */
+    @WorkerThread
+    @NonNull
+    public AiAgentResponse executeWithLoop(@NonNull Context context, @NonNull String query)
+            throws IOException, GeneralSecurityException {
+        LlmProvider provider = getSelectedProvider(context);
+        int modelIndex = getSelectedModelIndex(context);
+        String modelId = provider.getModelId(modelIndex);
+
+        SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
+        String apiKey = keyStore.getApiKey(provider.getApiKeyName());
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("No API key configured for " + provider.getDisplayName());
+        }
+
+        String safeQuery = sanitizeQuery(query);
+        String stateJson = AppStateContext.build(context);
+        String systemPrompt = AGENT_SYSTEM_PROMPT_TEMPLATE.replace("{STATE}", stateJson);
+
+        // ── Turn 1 ───────────────────────────────────────────────────────────
+        String firstRaw;
+        switch (provider) {
+            case CLAUDE:  firstRaw = callClaude(apiKey, modelId, systemPrompt, safeQuery);  break;
+            case GEMINI:  firstRaw = callGemini(apiKey, modelId, systemPrompt, safeQuery);  break;
+            case OPENAI:  firstRaw = callOpenAi(apiKey, modelId, systemPrompt, safeQuery);  break;
+            default: throw new IllegalStateException("Unknown provider: " + provider);
+        }
+
+        AiAgentResponse firstResponse = parseAgentResponse(firstRaw);
+
+        // Partition: only CHECK_DOMAIN auto-executes (read-only, no DB write)
+        List<AiAgentAction> checkActions = new ArrayList<>();
+        for (AiAgentAction action : firstResponse.actions) {
+            if (action.type == AiAgentAction.Type.CHECK_DOMAIN) {
+                checkActions.add(action);
+            }
+        }
+
+        // No read queries → first response is the final plan, skip second call
+        if (checkActions.isEmpty()) return firstResponse;
+
+        // ── Auto-execute CHECK_DOMAIN ─────────────────────────────────────────
+        // Security: AiActionExecutor validates each domain via normalizeDomain() before any
+        // DB access. Result strings are code-controlled ("X is blocked", "Invalid domain: X").
+        // Cap at 5 domains and 100 chars/result to prevent context stuffing.
+        AiActionExecutor executor = new AiActionExecutor(context);
+        StringBuilder toolResults = new StringBuilder("Domain check results:\n");
+        int limit = Math.min(checkActions.size(), MAX_LOOP_CHECK_ACTIONS);
+        for (int i = 0; i < limit; i++) {
+            String result = executor.execute(checkActions.get(i));
+            if (result.length() > MAX_TOOL_RESULT_CHARS) {
+                result = result.substring(0, MAX_TOOL_RESULT_CHARS);
+            }
+            toolResults.append("• ").append(result).append("\n");
+        }
+        String toolResultMsg = toolResults.toString().trim();
+
+        // ── Turn 2 ───────────────────────────────────────────────────────────
+        String secondRaw;
+        switch (provider) {
+            case CLAUDE:
+                secondRaw = callClaudeMultiTurn(apiKey, modelId, systemPrompt,
+                        safeQuery, firstRaw, toolResultMsg);
+                break;
+            case GEMINI:
+                secondRaw = callGeminiMultiTurn(apiKey, modelId, systemPrompt,
+                        safeQuery, firstRaw, toolResultMsg);
+                break;
+            case OPENAI:
+                secondRaw = callOpenAiMultiTurn(apiKey, modelId, systemPrompt,
+                        safeQuery, firstRaw, toolResultMsg);
+                break;
+            default: throw new IllegalStateException("Unknown provider: " + provider);
+        }
+
+        return parseAgentResponse(secondRaw);
+    }
+
+    /** Maximum number of CHECK_DOMAIN actions auto-executed per loop (prevents context stuffing). */
+    static final int MAX_LOOP_CHECK_ACTIONS = 5;
+
+    /** Maximum characters per tool-result string injected into Turn 2 prompt. */
+    static final int MAX_TOOL_RESULT_CHARS = 100;
+
     // -------------------------------------------------------------------------
     // Provider-specific HTTP calls
     // -------------------------------------------------------------------------
@@ -399,6 +497,153 @@ public final class FilterListSuggester {
                 throw new IOException("Unexpected OpenAI response format", e);
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-turn provider calls (agentic loop — Turn 2)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Claude Turn 2: 3-message conversation (user → assistant → user with tool results).
+     * System prompt stays top-level; messages array contains all turns.
+     */
+    @WorkerThread
+    private String callClaudeMultiTurn(String apiKey, String model, String systemPrompt,
+            String userQuery, String assistantReply, String toolResultMsg) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("model", model);
+            body.put("max_tokens", 512);
+            body.put("system", systemPrompt);
+            JSONArray messages = new JSONArray();
+            messages.put(buildClaudeMsg("user", userQuery));
+            messages.put(buildClaudeMsg("assistant", assistantReply));
+            messages.put(buildClaudeMsg("user", toolResultMsg));
+            body.put("messages", messages);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build Claude multi-turn request", e);
+        }
+        Request request = new Request.Builder()
+                .url("https://api.anthropic.com/v1/messages")
+                .addHeader("x-api-key", apiKey)
+                .addHeader("anthropic-version", "2023-06-01")
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "Claude");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("content").getJSONObject(0).getString("text");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected Claude multi-turn response format", e);
+            }
+        }
+    }
+
+    /**
+     * Gemini Turn 2: contents array with user/model/user turns.
+     * Note: Gemini uses "model" (not "assistant") for the AI role.
+     */
+    @WorkerThread
+    private String callGeminiMultiTurn(String apiKey, String model, String systemPrompt,
+            String userQuery, String modelReply, String toolResultMsg) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            JSONObject sysInstruction = new JSONObject();
+            JSONObject sysPart = new JSONObject();
+            sysPart.put("text", systemPrompt);
+            sysInstruction.put("parts", sysPart);
+            body.put("systemInstruction", sysInstruction);
+
+            JSONArray contents = new JSONArray();
+            contents.put(buildGeminiContent("user", userQuery));
+            contents.put(buildGeminiContent("model", modelReply));
+            contents.put(buildGeminiContent("user", toolResultMsg));
+            body.put("contents", contents);
+
+            JSONObject genConfig = new JSONObject();
+            genConfig.put("maxOutputTokens", 512);
+            body.put("generationConfig", genConfig);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build Gemini multi-turn request", e);
+        }
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + model + ":generateContent";
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("x-goog-api-key", apiKey)
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "Gemini");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("candidates").getJSONObject(0)
+                        .getJSONObject("content").getJSONArray("parts")
+                        .getJSONObject(0).getString("text");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected Gemini multi-turn response format", e);
+            }
+        }
+    }
+
+    /**
+     * OpenAI Turn 2: messages array including system, user, assistant, user.
+     */
+    @WorkerThread
+    private String callOpenAiMultiTurn(String apiKey, String model, String systemPrompt,
+            String userQuery, String assistantReply, String toolResultMsg) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("model", model);
+            body.put("max_completion_tokens", 512);
+            JSONArray messages = new JSONArray();
+            messages.put(buildClaudeMsg("system", systemPrompt));
+            messages.put(buildClaudeMsg("user", userQuery));
+            messages.put(buildClaudeMsg("assistant", assistantReply));
+            messages.put(buildClaudeMsg("user", toolResultMsg));
+            body.put("messages", messages);
+        } catch (JSONException e) {
+            throw new IOException("Failed to build OpenAI multi-turn request", e);
+        }
+        Request request = new Request.Builder()
+                .url("https://api.openai.com/v1/chat/completions")
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("content-type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON_TYPE))
+                .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            String bodyStr = requireBody(response, "OpenAI");
+            try {
+                return new JSONObject(bodyStr)
+                        .getJSONArray("choices").getJSONObject(0)
+                        .getJSONObject("message").getString("content");
+            } catch (JSONException e) {
+                throw new IOException("Unexpected OpenAI multi-turn response format", e);
+            }
+        }
+    }
+
+    /** Builds a {role, content} JSON object for Claude / OpenAI message format. */
+    private static JSONObject buildClaudeMsg(String role, String content) throws JSONException {
+        JSONObject msg = new JSONObject();
+        msg.put("role", role);
+        msg.put("content", content);
+        return msg;
+    }
+
+    /** Builds a {role, parts:[{text}]} JSON object for Gemini contents format. */
+    private static JSONObject buildGeminiContent(String role, String text) throws JSONException {
+        JSONObject content = new JSONObject();
+        content.put("role", role);
+        JSONArray parts = new JSONArray();
+        JSONObject part = new JSONObject();
+        part.put("text", text);
+        parts.put(part);
+        content.put("parts", parts);
+        return content;
     }
 
     // -------------------------------------------------------------------------

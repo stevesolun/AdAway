@@ -47,6 +47,8 @@ public class DomainCheckerFragment extends Fragment {
         TextView sourcesLabel = view.findViewById(R.id.sourcesLabel);
         LinearLayout sourcesContainer = view.findViewById(R.id.sourcesContainer);
         MaterialButton unblockButton = view.findViewById(R.id.unblockButton);
+        MaterialButton removeAllowButton = view.findViewById(R.id.removeAllowButton);
+        MaterialButton blockButton = view.findViewById(R.id.blockButton);
         TextView alreadyAllowedLabel = view.findViewById(R.id.alreadyAllowedLabel);
         TextView notBlockedLabel = view.findViewById(R.id.notBlockedLabel);
 
@@ -79,6 +81,8 @@ public class DomainCheckerFragment extends Fragment {
             sourcesLabel.setVisibility(View.GONE);
             sourcesContainer.setVisibility(View.GONE);
             unblockButton.setVisibility(View.GONE);
+            removeAllowButton.setVisibility(View.GONE);
+            blockButton.setVisibility(View.GONE);
             alreadyAllowedLabel.setVisibility(View.GONE);
             notBlockedLabel.setVisibility(View.GONE);
             sourcesContainer.removeAllViews();
@@ -107,11 +111,11 @@ public class DomainCheckerFragment extends Fragment {
                     if (src.isUserRule) {
                         MaterialButton del = new MaterialButton(requireContext(),
                                 null, com.google.android.material.R.attr.borderlessButtonStyle);
-                        del.setText("Delete Rule");
+                        del.setText(R.string.domain_checker_delete_rule);
                         del.setTextSize(11f);
                         del.setOnClickListener(v2 -> {
                             viewModel.deleteRule(src.itemId, result.domain);
-                            Snackbar.make(view, "Rule deleted", Snackbar.LENGTH_SHORT).show();
+                            Snackbar.make(view, R.string.domain_checker_rule_deleted, Snackbar.LENGTH_SHORT).show();
                         });
                         row.addView(del);
                     }
@@ -120,17 +124,29 @@ public class DomainCheckerFragment extends Fragment {
 
                 if (result.userAllowed) {
                     alreadyAllowedLabel.setVisibility(View.VISIBLE);
+                    removeAllowButton.setVisibility(View.VISIBLE);
+                    removeAllowButton.setOnClickListener(v -> {
+                        viewModel.removeUserAllowRule(result.domain);
+                        Snackbar.make(view, R.string.domain_checker_allow_removed, Snackbar.LENGTH_SHORT).show();
+                    });
                 } else {
                     unblockButton.setVisibility(View.VISIBLE);
                     unblockButton.setOnClickListener(v -> {
                         viewModel.unblockDomain(result.domain);
-                        Snackbar.make(view, "Added " + result.domain + " to allow list", Snackbar.LENGTH_SHORT).show();
+                        Snackbar.make(view, getString(R.string.domain_checker_allowed_snack, result.domain),
+                                Snackbar.LENGTH_SHORT).show();
                     });
                 }
             } else {
                 statusBadge.setText("\uD83D\uDFE2 NOT BLOCKED");
                 statusBadge.setTextColor(getResources().getColor(android.R.color.holo_green_dark, null));
                 notBlockedLabel.setVisibility(View.VISIBLE);
+                blockButton.setVisibility(View.VISIBLE);
+                blockButton.setOnClickListener(v -> {
+                    viewModel.blockDomain(result.domain);
+                    Snackbar.make(view, getString(R.string.domain_checker_blocked_snack, result.domain),
+                            Snackbar.LENGTH_SHORT).show();
+                });
             }
         });
     }

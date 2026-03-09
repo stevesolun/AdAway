@@ -130,6 +130,47 @@ public class DomainCheckerViewModel extends AndroidViewModel {
     }
 
     /**
+     * Add {@code domain} to the user block list (source_id=1, type=BLOCKED).
+     * Any existing user entry for this host is removed first to prevent duplicates.
+     * Posts an updated {@link DomainCheckResult} to {@link #checkResult} after the write.
+     */
+    public void blockDomain(String domain) {
+        if (domain == null || domain.isEmpty()) return;
+        loading.setValue(true);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            mHostListItemDao.deleteUserFromHost(domain);
+            HostListItem item = new HostListItem();
+            item.setHost(domain);
+            item.setType(ListType.BLOCKED);
+            item.setEnabled(true);
+            item.setSourceId(USER_SOURCE_ID);
+            mHostListItemDao.insert(item);
+            loading.postValue(false);
+            checkDomain(domain);
+        });
+    }
+
+    /**
+     * Remove the user's allow-list exception for {@code domain} and refresh the check.
+     * Finds and deletes the first ALLOWED entry with source_id=1 for this host.
+     */
+    public void removeUserAllowRule(String domain) {
+        if (domain == null || domain.isEmpty()) return;
+        loading.setValue(true);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            List<HostListItem> entries = mHostListItemDao.getEntriesForHost(domain);
+            for (HostListItem item : entries) {
+                if (item.getSourceId() == USER_SOURCE_ID && item.getType() == ListType.ALLOWED) {
+                    mHostListItemDao.deleteById(item.getId());
+                    break;
+                }
+            }
+            loading.postValue(false);
+            checkDomain(domain);
+        });
+    }
+
+    /**
      * Build a human-readable advice string for the given state.
      *
      * Exposed as package-visible static so unit tests can exercise it without

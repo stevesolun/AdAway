@@ -25,6 +25,18 @@
     <string name="more_github">GitHub / Help</string>
     <string name="more_domain_checker">Domain Checker</string>
     <string name="more_domain_checker_desc">Test if a site is blocked — unblock instantly</string>
+    <!-- Domain Checker screen -->
+    <string name="domain_checker_subtitle">Check if AdsAway blocks a site, then allow or block it instantly</string>
+    <string name="domain_checker_allow_button">Add to Allow List</string>
+    <string name="domain_checker_remove_allow_button">Remove Allow Rule</string>
+    <string name="domain_checker_block_button">Block it</string>
+    <string name="domain_checker_already_allowed">You already have an allow rule for this domain</string>
+    <string name="domain_checker_not_blocked">This domain is not in any blocked list</string>
+    <string name="domain_checker_delete_rule">Delete Rule</string>
+    <string name="domain_checker_rule_deleted">Rule deleted</string>
+    <string name="domain_checker_allow_removed">Allow rule removed</string>
+    <string name="domain_checker_allowed_snack">Added %1$s to allow list</string>
+    <string name="domain_checker_blocked_snack">Blocked %1$s</string>
     <!-- Discover fragment labels -->
     <string name="discover_tab_curated">Curated</string>
     <string name="discover_tab_filterlists">FilterLists.com</string>

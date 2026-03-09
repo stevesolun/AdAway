@@ -157,7 +157,7 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
             try {
-                AiAgentResponse response = suggester.execute(appContext, query);
+                AiAgentResponse response = suggester.executeWithLoop(appContext, query);
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (binding == null) return;
                     setLoadingState(false);
