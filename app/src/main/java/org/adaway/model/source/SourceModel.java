@@ -828,6 +828,13 @@ public class SourceModel {
                             if (result.notModified) {
                                 // 304 Not Modified - source is up-to-date; clear any stale error
                                 hostsSourceDao.clearDownloadError(result.source.getId());
+                                // Migrate this source's existing rows to the new generation so they
+                                // survive cleanupNonActiveGenerations() at the end of the pipeline.
+                                // Without this, a 304 response on any run after the first would cause
+                                // all of that source's entries to be silently deleted.
+                                int oldGeneration = currentImportGeneration - 1;
+                                hostListItemDao.migrateSourceGeneration(
+                                        result.source.getId(), oldGeneration, currentImportGeneration);
                                 upToDateCount.incrementAndGet();
                                 progressBuilder.incrementChecked(); // Count as checked
                                 progressBuilder.incrementDownloaded(); // Count as processed in "download" stage

@@ -78,6 +78,15 @@ public interface HostListItemDao {
     @Query("DELETE FROM hosts_lists WHERE source_id = :sourceId AND generation = :generation")
     void clearSourceHostsForGeneration(int sourceId, int generation);
 
+    /**
+     * Re-tag a source's existing hosts_lists rows from oldGeneration to newGeneration.
+     * Used when a source returns HTTP 304 (not modified): its content hasn't changed but
+     * cleanupNonActiveGenerations() would otherwise delete it because its rows still carry
+     * the previous generation number.
+     */
+    @Query("UPDATE hosts_lists SET generation = :newGeneration WHERE source_id = :sourceId AND generation = :oldGeneration")
+    void migrateSourceGeneration(int sourceId, int oldGeneration, int newGeneration);
+
     @Query("SELECT * FROM hosts_lists WHERE host = :host AND " +
            "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     List<HostListItem> getEntriesForHost(String host);
