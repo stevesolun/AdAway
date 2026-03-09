@@ -3,6 +3,7 @@ package org.adaway.ui.prefs;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -17,6 +18,7 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.about.AboutActivity;
+import org.adaway.ui.onboarding.OnboardingActivity;
 import org.adaway.util.log.SentryLog;
 
 import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
@@ -71,8 +73,33 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         Preference vpnPreference = findPreference(getString(R.string.pref_vpn_ad_block_method_key));
         assert vpnPreference != null : PREFERENCE_NOT_FOUND;
         AdBlockMethod adBlockMethod = PreferenceHelper.getAdBlockMethod(requireContext());
-        rootPreference.setEnabled(adBlockMethod == ROOT);
-        vpnPreference.setEnabled(adBlockMethod == VPN);
+        // Both preferences are always enabled so the user can switch modes
+        rootPreference.setEnabled(true);
+        vpnPreference.setEnabled(true);
+        // Show which mode is currently active
+        rootPreference.setSummary(adBlockMethod == ROOT ? R.string.pref_ad_block_method_active : R.string.pref_ad_block_method_switch);
+        vpnPreference.setSummary(adBlockMethod == VPN ? R.string.pref_ad_block_method_active : R.string.pref_ad_block_method_switch);
+        // Tap the active mode → toast; tap the other mode → launch onboarding to switch
+        rootPreference.setOnPreferenceClickListener(preference -> {
+            if (PreferenceHelper.getAdBlockMethod(requireContext()) == ROOT) {
+                Toast.makeText(requireContext(), R.string.pref_ad_block_method_already_active, Toast.LENGTH_SHORT).show();
+            } else {
+                Intent intent = new Intent(requireContext(), OnboardingActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+            }
+            return true;
+        });
+        vpnPreference.setOnPreferenceClickListener(preference -> {
+            if (PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
+                Toast.makeText(requireContext(), R.string.pref_ad_block_method_already_active, Toast.LENGTH_SHORT).show();
+            } else {
+                Intent intent = new Intent(requireContext(), OnboardingActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+            }
+            return true;
+        });
     }
 
     private void bindTelemetryPrefAction() {

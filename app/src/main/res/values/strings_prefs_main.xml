@@ -14,6 +14,9 @@
     <string name="pref_ad_block_category">Ad blocking</string>
     <string name="pref_root_ad_blocker_configuration">Root based ad blocker</string>
     <string name="pref_vpn_ad_blocker_configuration">VPN based ad blocker</string>
+    <string name="pref_ad_block_method_active">Currently active</string>
+    <string name="pref_ad_block_method_switch">Tap to switch to this mode</string>
+    <string name="pref_ad_block_method_already_active">Already using this mode</string>
     <string name="pref_enable_ipv6">Enable IPv6 support</string>
     <string name="pref_backup_restore">Backup / restore block rules</string>
     <!-- Debug category -->
