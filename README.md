@@ -29,6 +29,31 @@ This fork supercharges AdAway with a modernized Material 3 UI, deep FilterLists.
 
 ## What's New
 
+### v13.4.2 — Security Hardening
+
+Comprehensive security audit with 22 attack vectors identified and fixed:
+
+| Category | Fixes |
+|----------|-------|
+| **DNS Safety** | Private/reserved IPs (RFC 1918, loopback, link-local, multicast) blocked as redirect targets |
+| **SSRF** | Internal IPs rejected as filter source URLs (prevents local network probing) |
+| **Permissions** | `CommandReceiver` permission upgraded from `dangerous` → `signature` (only same-signed apps can toggle ad-blocking) |
+| **Data Leakage** | Raw API response bodies stripped from exception messages (prevents Sentry exfiltration) |
+| **Backup Security** | Import capped at 200 sources; `redirectEnabled` flag always disabled on import |
+| **ADB Backup** | `android:allowBackup="false"` — ADB backup can no longer extract the database |
+| **Certificate Trust** | AI API endpoints (Anthropic, OpenAI, Google) restricted to system CAs only — blocks user-installed CA MitM attacks |
+| **Prompt Injection** | 7 injection patterns detected and neutralised in AI queries (ATK-09) |
+| **Cache Poisoning** | Redirect-enabled sources always fetched fresh from network (bypass OkHttp disk cache) |
+| **Export Surface** | `UpdateReceiver` no longer exported; `QUERY_ALL_PACKAGES` replaced with scoped `<queries>` element |
+| **Sentry Telemetry** | `FragmentLifecycleIntegration` removed; only `ERROR`-level logs sent to Sentry |
+| **AI Robustness** | Encrypted key blob length validated; model index clamped to `[0, len)` range |
+
+### v13.4.1 — AI Error UX + Model Header
+
+- Error messages shown to user are provider-specific (auth, quota, billing, server errors)
+- Active provider · model shown in AI bottom sheet header
+- Home screen AI quick-access box pre-fills the query field
+
 ### v13.4.0 — AI Filter Assistant
 
 The biggest feature addition: an AI-powered natural language interface for filter configuration.

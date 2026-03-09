@@ -1213,6 +1213,14 @@ public class SourceModel {
      */
     private Request.Builder getRequestFor(HostsSource source) {
         Request.Builder request = new Request.Builder().url(source.getUrl());
+        // ATK-10: Redirect-enabled sources must always be fetched fresh from the network.
+        // An on-disk OkHttp cache file could be replaced by an attacker on a rooted device,
+        // poisoning the redirect table. Force-network for these sources; ETag caching is
+        // irrelevant since the content changes (redirect IPs can change any time).
+        if (source.isRedirectEnabled()) {
+            request = request.cacheControl(okhttp3.CacheControl.FORCE_NETWORK);
+            return request;
+        }
         // Max-age guard: if the source has not been successfully fetched in over 7 days,
         // skip cached ETag/Last-Modified headers and force a full re-fetch. This prevents
         // stale data persisting indefinitely when a server sends bad ETags or a source URL

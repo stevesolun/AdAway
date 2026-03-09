@@ -23,6 +23,7 @@ package org.adaway.util;
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
 
+import java.net.InetAddress;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -141,6 +142,30 @@ public class RegexUtils {
             InetAddresses.forString(ip);
             return true;
         } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if an IP address is private, loopback, link-local, multicast, or otherwise
+     * non-routable. Used to block DNS redirect attacks that route traffic to internal hosts.
+     *
+     * <p>Covers: RFC 1918 (10/8, 172.16/12, 192.168/16), loopback (127/8, ::1),
+     * link-local (169.254/16, fe80::/10), site-local, multicast, and broadcast (0.0.0.0/255.255.255.255).
+     *
+     * @param ip The IP string to check.
+     * @return {@code true} if the IP is private/reserved and must NOT be used as a redirect target.
+     */
+    public static boolean isPrivateOrReservedIp(String ip) {
+        try {
+            InetAddress addr = InetAddresses.forString(ip);
+            return addr.isLoopbackAddress()
+                    || addr.isLinkLocalAddress()
+                    || addr.isSiteLocalAddress()
+                    || addr.isMulticastAddress()
+                    || addr.isAnyLocalAddress();
+        } catch (IllegalArgumentException e) {
+            // Not a valid IP — caller's isValidIP() will reject it separately
             return false;
         }
     }

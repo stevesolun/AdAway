@@ -15,7 +15,9 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -45,6 +47,24 @@ public final class FilterListSuggester {
 
     private static final int TIMEOUT_CONNECT_SEC = 15;
     private static final int TIMEOUT_READ_SEC = 60;
+
+    /** Maximum user query length accepted before truncation. */
+    static final int MAX_QUERY_LENGTH = 500;
+
+    /**
+     * Patterns that indicate an attempt to hijack the system prompt (ATK-09).
+     * If detected we substitute "[filtered]" so the query is still processed
+     * but the injection payload is neutralised.
+     */
+    private static final Pattern INJECTION_PATTERN = Pattern.compile(
+            "(?i)(?:"
+            + "ignore\\s+(?:all\\s+)?(?:previous|above|prior)\\s+(?:instructions?|prompts?|context)"
+            + "|system\\s*prompt"
+            + "|<\\s*/?\\s*(?:system|assistant|user)\\s*>"
+            + "|\\[INST]"
+            + "|###\\s*(?:System|Assistant|User)"
+            + "|(?:act|pretend|roleplay|simulate)\\s+as(?:\\s+if\\s+you\\s+are)?"
+            + ")");
 
     private static final String SYSTEM_PROMPT =
             "You are an expert helping configure the AdAway Android ad-blocker. "
@@ -140,16 +160,17 @@ public final class FilterListSuggester {
             throw new IllegalStateException("No API key configured for " + provider.getDisplayName());
         }
 
+        String safeQuery = sanitizeQuery(query);
         String responseJson;
         switch (provider) {
             case CLAUDE:
-                responseJson = callClaude(apiKey, modelId, query);
+                responseJson = callClaude(apiKey, modelId, safeQuery);
                 break;
             case GEMINI:
-                responseJson = callGemini(apiKey, modelId, query);
+                responseJson = callGemini(apiKey, modelId, safeQuery);
                 break;
             case OPENAI:
-                responseJson = callOpenAi(apiKey, modelId, query);
+                responseJson = callOpenAi(apiKey, modelId, safeQuery);
                 break;
             default:
                 throw new IllegalStateException("Unknown provider: " + provider);
@@ -195,7 +216,8 @@ public final class FilterListSuggester {
                         .getJSONObject(0)
                         .getString("text");
             } catch (JSONException e) {
-                throw new IOException("Unexpected Claude response format: " + bodyStr, e);
+                Timber.d("Unexpected Claude response: %s", bodyStr);
+                throw new IOException("Unexpected Claude response format", e);
             }
         }
     }
@@ -229,10 +251,11 @@ public final class FilterListSuggester {
         }
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                + model + ":generateContent?key=" + apiKey;
+                + model + ":generateContent";
 
         Request request = new Request.Builder()
                 .url(url)
+                .addHeader("x-goog-api-key", apiKey)
                 .addHeader("content-type", "application/json")
                 .post(RequestBody.create(body.toString(), JSON_TYPE))
                 .build();
@@ -248,7 +271,8 @@ public final class FilterListSuggester {
                         .getJSONObject(0)
                         .getString("text");
             } catch (JSONException e) {
-                throw new IOException("Unexpected Gemini response format: " + bodyStr, e);
+                Timber.d("Unexpected Gemini response shape");
+                throw new IOException("Unexpected Gemini response format", e);
             }
         }
     }
@@ -289,9 +313,39 @@ public final class FilterListSuggester {
                         .getJSONObject("message")
                         .getString("content");
             } catch (JSONException e) {
-                throw new IOException("Unexpected OpenAI response format: " + bodyStr, e);
+                Timber.d("Unexpected OpenAI response shape");
+                throw new IOException("Unexpected OpenAI response format", e);
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Input sanitization
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sanitizes and caps the user's query before it is sent to any LLM.
+     *
+     * <ul>
+     *   <li>Strips ASCII control characters (prevents newline injection into JSON strings)</li>
+     *   <li>Truncates to {@link #MAX_QUERY_LENGTH} characters</li>
+     * </ul>
+     */
+    @NonNull
+    static String sanitizeQuery(@NonNull String raw) {
+        // Remove ASCII control characters (0x00-0x1F except printable whitespace 0x09, 0x0A, 0x0D)
+        String cleaned = raw.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "").trim();
+        // Collapse newlines — prevent the user from injecting new "role" turns (ATK-09)
+        cleaned = cleaned.replaceAll("[\\r\\n]+", " ");
+        // Neutralise known prompt-injection patterns (ATK-09)
+        if (INJECTION_PATTERN.matcher(cleaned).find()) {
+            Timber.w("Prompt injection pattern detected in query; replacing.");
+            cleaned = INJECTION_PATTERN.matcher(cleaned).replaceAll("[filtered]");
+        }
+        if (cleaned.length() > MAX_QUERY_LENGTH) {
+            cleaned = cleaned.substring(0, MAX_QUERY_LENGTH);
+        }
+        return cleaned;
     }
 
     // -------------------------------------------------------------------------
@@ -401,7 +455,8 @@ public final class FilterListSuggester {
 
             return new LlmSuggestion(categories, reasoning);
         } catch (JSONException e) {
-            throw new IOException("LLM response was not valid JSON: " + llmText, e);
+            Timber.d("LLM response was not valid JSON");
+            throw new IOException("LLM response was not valid JSON", e);
         }
     }
 }

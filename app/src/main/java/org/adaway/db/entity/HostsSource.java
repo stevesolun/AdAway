@@ -9,6 +9,10 @@ import androidx.room.Entity;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
+import org.adaway.util.RegexUtils;
+
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
@@ -76,7 +80,18 @@ public class HostsSource {
      * @return {@code true} if the URL is valid, {@code false} otherwise.
      */
     public static boolean isValidUrl(String url) {
-        return (!"https://".equals(url) && URLUtil.isHttpsUrl(url)) || URLUtil.isContentUrl(url);
+        if (URLUtil.isContentUrl(url)) return true;
+        if ("https://".equals(url) || !URLUtil.isHttpsUrl(url)) return false;
+        // Block SSRF: reject URLs whose host is a private/reserved IP (ATK-02).
+        try {
+            String host = new URL(url).getHost();
+            if (RegexUtils.isValidIP(host) && RegexUtils.isPrivateOrReservedIp(host)) {
+                return false;
+            }
+        } catch (MalformedURLException ignored) {
+            return false;
+        }
+        return true;
     }
 
     public int getId() {

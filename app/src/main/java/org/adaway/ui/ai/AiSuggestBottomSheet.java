@@ -20,6 +20,7 @@ import org.adaway.databinding.BottomSheetAiSuggestBinding;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.ai.FilterListSuggester;
+import org.adaway.model.ai.LlmApiException;
 import org.adaway.model.ai.LlmProvider;
 import org.adaway.model.ai.LlmSuggestion;
 import org.adaway.model.source.FilterListCatalog;
@@ -88,8 +89,10 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         int modelIndex = FilterListSuggester.getSelectedModelIndex(requireContext());
         String providerShort = provider.getDisplayName()
                 .replaceAll("\\s*\\(.*\\)", "").trim(); // "Claude (Anthropic)" → "Claude"
-        String modelShort = provider.getModelDisplayNames()[
-                Math.min(modelIndex, provider.getModelDisplayNames().length - 1)]
+        // ATK-15: modelIndex could be negative if SharedPreferences is corrupted; clamp to [0, len).
+        String[] modelNames = provider.getModelDisplayNames();
+        int safeIndex = Math.max(0, Math.min(modelIndex, modelNames.length - 1));
+        String modelShort = modelNames[safeIndex]
                 .replaceAll("\\s*\\(.*\\)", "").trim(); // "Sonnet 4.6 (balanced)" → "Sonnet 4.6"
         this.binding.aiProviderLabel.setText(
                 getString(R.string.ai_provider_model_label, providerShort, modelShort));
@@ -162,12 +165,20 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
                     showSuggestion(suggestion);
                 });
             } catch (Exception e) {
-                Timber.e(e, "LLM suggestion failed");
+                // ATK-19: log only class name + code, not raw message (may contain API response data)
+                String errDetail = (e instanceof LlmApiException)
+                        ? "HTTP " + ((LlmApiException) e).getHttpCode()
+                        : e.getClass().getSimpleName();
+                Timber.w("LLM suggestion failed: %s", errDetail);
+                // ATK-16: Only show user-friendly messages from LlmApiException; fall back to
+                // generic string for all other exceptions to avoid leaking internal details.
+                final String userMessage = (e instanceof LlmApiException && e.getMessage() != null)
+                        ? e.getMessage()
+                        : getString(R.string.ai_suggest_error_generic);
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (binding == null) return;
                     setLoadingState(false);
-                    showError(e.getMessage() != null ? e.getMessage()
-                            : getString(R.string.ai_suggest_error_generic));
+                    showError(userMessage);
                 });
             }
         });

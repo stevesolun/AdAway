@@ -548,7 +548,14 @@ class SourceLoader {
         }
 
         private boolean isRedirectionValid(HostListItem item) {
-            return item.getType() != REDIRECTED || RegexUtils.isValidIP(item.getRedirection());
+            if (item.getType() != REDIRECTED) return true;
+            String ip = item.getRedirection();
+            // Reject private/reserved IPs to prevent DNS redirect attacks routing traffic
+            // to router admin pages, internal services, or loopback (ATK-01).
+            if (!RegexUtils.isValidIP(ip) || RegexUtils.isPrivateOrReservedIp(ip)) {
+                return false;
+            }
+            return true;
         }
 
         private boolean isHostValid(HostListItem item) {

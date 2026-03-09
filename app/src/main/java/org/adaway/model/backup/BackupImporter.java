@@ -43,6 +43,8 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public final class BackupImporter {
+    /** Maximum number of sources that may be imported from a single backup file (ATK-05). */
+    private static final int MAX_IMPORT_SOURCES = 200;
 
     private BackupImporter() {
 
@@ -109,9 +111,18 @@ public final class BackupImporter {
     }
 
     private static void importSourceBackup(HostsSourceDao hostsSourceDao, JSONArray sources) throws JSONException {
-        for (int index = 0; index < sources.length(); index++) {
+        // Cap imports to prevent a crafted backup from adding thousands of hostile sources (ATK-05).
+        int limit = Math.min(sources.length(), MAX_IMPORT_SOURCES);
+        if (sources.length() > MAX_IMPORT_SOURCES) {
+            Timber.w("Backup contains %d sources; importing only the first %d.", sources.length(), MAX_IMPORT_SOURCES);
+        }
+        for (int index = 0; index < limit; index++) {
             JSONObject sourceObject = sources.getJSONObject(index);
-            hostsSourceDao.insert(sourceFromJson(sourceObject));
+            org.adaway.db.entity.HostsSource source = sourceFromJson(sourceObject);
+            // Never trust redirect-enabled flag from an external backup — disable it
+            // to prevent a crafted backup from injecting redirect-enabled sources (ATK-05).
+            source.setRedirectEnabled(false);
+            hostsSourceDao.insert(source);
         }
     }
 

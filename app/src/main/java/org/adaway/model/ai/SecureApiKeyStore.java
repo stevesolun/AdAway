@@ -157,6 +157,11 @@ public final class SecureApiKeyStore {
     @NonNull
     private String decrypt(@NonNull String encoded) throws GeneralSecurityException, IOException {
         byte[] data = Base64.decode(encoded, Base64.NO_WRAP);
+        // ATK-14: Guard against truncated/corrupted stored ciphertext.
+        // Minimum valid blob = GCM IV (12 bytes) + GCM tag (16 bytes) = 28 bytes.
+        if (data.length < GCM_IV_LENGTH + 16) {
+            throw new GeneralSecurityException("Stored key is corrupted");
+        }
         ByteBuffer buf = ByteBuffer.wrap(data);
         byte[] iv = new byte[GCM_IV_LENGTH];
         buf.get(iv);

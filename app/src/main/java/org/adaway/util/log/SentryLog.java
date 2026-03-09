@@ -10,7 +10,6 @@ import org.adaway.helper.PreferenceHelper;
 import io.sentry.Breadcrumb;
 import io.sentry.Sentry;
 import io.sentry.android.core.SentryAndroid;
-import io.sentry.android.fragment.FragmentLifecycleIntegration;
 import io.sentry.android.timber.SentryTimberIntegration;
 
 /**
@@ -45,8 +44,10 @@ public final class SentryLog {
         if (enabled) {
             // Initialize sentry client manually and bind it to logging
             SentryAndroid.init(application, options -> {
-                options.addIntegration(new SentryTimberIntegration(ERROR, INFO));
-                options.addIntegration(new FragmentLifecycleIntegration(application, true, false));
+                // Only ERROR-level logs are shipped to Sentry (ATK-12: removed
+                // FragmentLifecycleIntegration which was sending all navigation events
+                // and INFO-level logs to Sentry cloud).
+                options.addIntegration(new SentryTimberIntegration(ERROR, ERROR));
             });
         }
     }

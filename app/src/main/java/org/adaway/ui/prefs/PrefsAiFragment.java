@@ -143,26 +143,31 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
         }
     }
 
+    /** Placeholder shown in the EditText when a key already exists (never the actual key). */
+    private static final String KEY_PLACEHOLDER = "••••••••••••••••";
+
     private void showApiKeyDialog(LlmProvider provider) {
         EditText input = new EditText(requireContext());
         input.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         input.setHint(getString(R.string.pref_ai_key_dialog_hint));
 
-        // Pre-fill with masked indicator if key exists
+        // Pre-fill with a visual placeholder so the user knows a key is stored.
+        // We deliberately do NOT put the actual key into the field.
         AppExecutors.getInstance().diskIO().execute(() -> {
-            String existingKey = null;
+            boolean hasKey = false;
             try {
                 SecureApiKeyStore store = SecureApiKeyStore.getInstance(requireContext());
-                existingKey = store.getApiKey(provider.getApiKeyName());
+                hasKey = store.hasApiKey(provider.getApiKeyName());
             } catch (GeneralSecurityException | IOException e) {
-                Timber.w(e, "Failed to read API key for %s", provider);
+                Timber.w(e, "Failed to check API key for %s", provider);
             }
-            final String finalKey = existingKey;
+            final boolean finalHasKey = hasKey;
             AppExecutors.getInstance().mainThread().execute(() -> {
                 if (!isAdded()) return;
-                if (finalKey != null && !finalKey.isEmpty()) {
-                    input.setText(finalKey); // show actual key for editing
+                if (finalHasKey) {
+                    input.setText(KEY_PLACEHOLDER);
+                    input.selectAll(); // select all so first keystroke replaces placeholder
                 }
             });
         });
@@ -172,8 +177,10 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
                 .setMessage(R.string.pref_ai_key_dialog_message)
                 .setView(input)
                 .setPositiveButton(R.string.button_save, (dialog, which) -> {
-                    String key = input.getText().toString().trim();
-                    saveApiKey(provider, key.isEmpty() ? null : key);
+                    String typed = input.getText().toString().trim();
+                    // If the user left the placeholder unchanged, treat as "keep existing key"
+                    if (KEY_PLACEHOLDER.equals(typed)) return;
+                    saveApiKey(provider, typed.isEmpty() ? null : typed);
                 })
                 .setNeutralButton(R.string.pref_ai_key_clear, (dialog, which) ->
                         saveApiKey(provider, null))

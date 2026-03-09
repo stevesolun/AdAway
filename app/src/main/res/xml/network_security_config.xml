@@ -1,9 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Allow user CAs for localhost only (filter list web server preview) -->
     <domain-config>
         <domain includeSubdomains="true">localhost</domain>
         <trust-anchors>
             <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+
+    <!--
+      ATK-07: Restrict AI API endpoints to system CAs only.
+      This prevents MitM attacks via user-installed or attacker-installed CA certificates
+      intercepting API traffic that includes the API key in headers.
+      On Android >= 24 user CAs are already excluded from default trust; this config makes
+      the restriction explicit and enforces it on Android 21-23 as well.
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.anthropic.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.openai.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">generativelanguage.googleapis.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
         </trust-anchors>
     </domain-config>
 </network-security-config>

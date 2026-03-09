@@ -19,7 +19,7 @@
         android:description="@string/permission_send_command_description"
         android:label="@string/permission_send_command_label"
         android:permissionGroup="org.adaway.permission-group.API"
-        android:protectionLevel="dangerous" />
+        android:protectionLevel="signature" />
 
     <supports-screens
         android:anyDensity="true"
@@ -35,13 +35,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <!-- VPN excluded-apps picker: enumerate installed apps (ATK-13) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".AdAwayApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:backupAgent=".model.backup.AppBackupAgent"
         android:fullBackupOnly="false"
         android:icon="@mipmap/icon"
@@ -174,7 +178,7 @@
         </receiver>
         <receiver
             android:name=".broadcast.UpdateReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
