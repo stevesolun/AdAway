@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="update_title">AdAway update</string>
+    <string name="update_title">AdsAway update</string>
     <!-- Home screen -->
     <string name="update_available">Update available!</string>
 
     <!-- Update activity -->
     <string name="update_up_to_date_header">You are up-to-date</string>
     <string name="update_update_available_header">Update available</string>
-    <string name="update_updating_header">Updating AdAway</string>
+    <string name="update_updating_header">Updating AdsAway</string>
     <string name="update_update_button">Update now</string>
     <string name="update_progress_label">%1$s / %2$s</string>
     <string name="update_complete_label">Complete</string>
@@ -18,5 +18,5 @@
     <string name="update_sponsor_button">Sponsor</string>
 
     <!-- Notification -->
-    <string name="update_notification_description">Downloading latest AdAway version…</string>
+    <string name="update_notification_description">Downloading latest AdsAway version…</string>
 </resources>
