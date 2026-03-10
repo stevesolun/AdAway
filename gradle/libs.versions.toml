@@ -1,7 +1,7 @@
 [versions]
 # Build
-appName = "13.4.5"
-appCode = "130405" # Read x.yy.zz to match version name
+appName = "13.4.6"
+appCode = "130406" # Read x.yy.zz to match version name
 gradle = "8.7.2"
 # Common
 guava = "32.0.1-android"
@@ -41,6 +41,7 @@ okhttp-dnsoverhttps = { module = "com.squareup.okhttp3:okhttp-dnsoverhttps", ver
 # Test
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
+okhttp3-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 androidx-test-core-testing = { module = "androidx.arch.core:core-testing", version.ref = "androidXCoreTesting" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }

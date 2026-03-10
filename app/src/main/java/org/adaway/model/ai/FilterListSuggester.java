@@ -703,9 +703,12 @@ public final class FilterListSuggester {
         String cleaned = raw.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "").trim();
         // Collapse newlines — prevent the user from injecting new "role" turns (ATK-09)
         cleaned = cleaned.replaceAll("[\\r\\n]+", " ");
-        // ATK-29: NFKC-normalise to defeat Unicode homoglyph bypass (e.g. dotless-i ı→i,
+        // ATK-29: NFKC-normalise to defeat Unicode homoglyph bypass (e.g. full-width letters,
         // zero-width joiners, look-alike Cyrillic letters in injection keywords).
         cleaned = Normalizer.normalize(cleaned, Normalizer.Form.NFKC);
+        // ATK-29b: NFKC does NOT map dotless-i (U+0131 ı) or dotted-I (U+0130 İ) to ASCII.
+        // Replace them explicitly so "ıgnore" / "İgnore" cannot bypass the injection regex.
+        cleaned = cleaned.replace('\u0131', 'i').replace('\u0130', 'I');
         // Neutralise known prompt-injection patterns (ATK-09)
         if (INJECTION_PATTERN.matcher(cleaned).find()) {
             Timber.w("Prompt injection pattern detected in query; replacing.");
