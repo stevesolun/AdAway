@@ -68,12 +68,13 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
         if (providerPref == null || modelPref == null) return;
 
         // Restore saved provider
-        int savedOrdinal = FilterListSuggester.getSelectedProvider(requireContext()).ordinal();
-        providerPref.setValue(String.valueOf(savedOrdinal));
-        updateModelEntries(modelPref, LlmProvider.fromOrdinal(savedOrdinal));
+        LlmProvider currentProvider = FilterListSuggester.getSelectedProvider(requireContext());
+        providerPref.setValue(String.valueOf(currentProvider.ordinal()));
+        updateModelEntries(modelPref, currentProvider);
 
-        // Restore saved model index
-        int savedModelIndex = FilterListSuggester.getSelectedModelIndex(requireContext());
+        // Restore saved model index for this provider
+        int savedModelIndex = FilterListSuggester.getSelectedModelIndex(requireContext(),
+                currentProvider);
         modelPref.setValue(String.valueOf(savedModelIndex));
 
         providerPref.setOnPreferenceChangeListener((preference, newValue) -> {
@@ -81,20 +82,24 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
             LlmProvider provider = LlmProvider.fromOrdinal(ordinal);
             FilterListSuggester.setSelectedProvider(requireContext(), provider);
             updateModelEntries(modelPref, provider);
-            modelPref.setValue("0"); // reset to default model
-            FilterListSuggester.setSelectedModelIndex(requireContext(), 0);
+            // Restore the per-provider saved model index (not forced to 0)
+            int savedIndex = FilterListSuggester.getSelectedModelIndex(requireContext(), provider);
+            modelPref.setValue(String.valueOf(savedIndex));
             return true;
         });
 
         modelPref.setOnPreferenceChangeListener((preference, newValue) -> {
             int index = Integer.parseInt((String) newValue);
-            FilterListSuggester.setSelectedModelIndex(requireContext(), index);
+            LlmProvider provider = FilterListSuggester.getSelectedProvider(requireContext());
+            FilterListSuggester.setSelectedModelIndex(requireContext(), provider, index);
             return true;
         });
     }
 
     private void updateModelEntries(ListPreference modelPref, LlmProvider provider) {
-        String[] displayNames = provider.getModelDisplayNames();
+        // Use the effective list (dynamically fetched if available, hardcoded otherwise)
+        String[] displayNames = FilterListSuggester.getEffectiveModelDisplayNames(
+                requireContext(), provider);
         String[] values = new String[displayNames.length];
         for (int i = 0; i < values.length; i++) values[i] = String.valueOf(i);
         modelPref.setEntries(displayNames);
@@ -193,9 +198,23 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
             try {
                 SecureApiKeyStore store = SecureApiKeyStore.getInstance(requireContext());
                 store.putApiKey(provider.getApiKeyName(), key);
+
+                // When a key is saved (not cleared), fetch available models from the API
+                // so the model picker shows live options instead of only the hardcoded list.
+                if (key != null) {
+                    FilterListSuggester.fetchAndCacheModels(requireContext(), provider);
+                }
+
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (!isAdded()) return;
                     refreshApiKeySummaries();
+                    // Refresh model picker with newly fetched model list
+                    ListPreference modelPref = findPreference("pref_ai_model");
+                    if (modelPref != null
+                            && FilterListSuggester.getSelectedProvider(requireContext())
+                            == provider) {
+                        updateModelEntries(modelPref, provider);
+                    }
                     int msg = (key == null)
                             ? R.string.pref_ai_key_cleared
                             : R.string.pref_ai_key_saved;

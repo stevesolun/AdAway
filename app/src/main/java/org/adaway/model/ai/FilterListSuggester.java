@@ -42,7 +42,15 @@ public final class FilterListSuggester {
 
     private static final String PREFS_AI = "ai_preferences";
     private static final String KEY_PROVIDER = "provider_ordinal";
-    private static final String KEY_MODEL_INDEX = "model_index";
+    /** Legacy single-provider key — kept only for migration. New code uses per-provider keys. */
+    @SuppressWarnings("unused")
+    private static final String KEY_MODEL_INDEX_LEGACY = "model_index";
+    /** Per-provider model-index key prefix (e.g. "model_index_claude"). */
+    private static final String KEY_MODEL_INDEX = "model_index_";
+    /** Per-provider cached model-ID list (newline-delimited). */
+    private static final String KEY_CACHED_IDS = "cached_model_ids_";
+    /** Per-provider cached model display-name list (newline-delimited). */
+    private static final String KEY_CACHED_NAMES = "cached_model_names_";
 
     private static final MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
 
@@ -144,16 +152,225 @@ public final class FilterListSuggester {
                 .apply();
     }
 
-    public static int getSelectedModelIndex(@NonNull Context context) {
+    /** Returns the saved model index for a specific provider (defaults to 0). */
+    public static int getSelectedModelIndex(@NonNull Context context,
+                                            @NonNull LlmProvider provider) {
         return context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
-                .getInt(KEY_MODEL_INDEX, 0);
+                .getInt(KEY_MODEL_INDEX + provider.name().toLowerCase(), 0);
     }
 
-    public static void setSelectedModelIndex(@NonNull Context context, int index) {
+    /** Saves the model index for a specific provider. */
+    public static void setSelectedModelIndex(@NonNull Context context,
+                                             @NonNull LlmProvider provider, int index) {
         context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_MODEL_INDEX, index)
+                .putInt(KEY_MODEL_INDEX + provider.name().toLowerCase(), index)
                 .apply();
+    }
+
+    /** Convenience: model index for the currently selected provider. */
+    public static int getSelectedModelIndex(@NonNull Context context) {
+        return getSelectedModelIndex(context, getSelectedProvider(context));
+    }
+
+    /** Convenience: set model index for the currently selected provider. */
+    public static void setSelectedModelIndex(@NonNull Context context, int index) {
+        setSelectedModelIndex(context, getSelectedProvider(context), index);
+    }
+
+    /**
+     * Returns the effective model ID list for the given provider.
+     * Uses the dynamically fetched list when available, falls back to the hardcoded list.
+     */
+    @NonNull
+    public static String[] getEffectiveModelIds(@NonNull Context context,
+                                                @NonNull LlmProvider provider) {
+        String cached = context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
+                .getString(KEY_CACHED_IDS + provider.name().toLowerCase(), null);
+        if (cached != null && !cached.isEmpty()) return cached.split("\n", -1);
+        return provider.getModelIds();
+    }
+
+    /**
+     * Returns the effective model display-name list for the given provider.
+     * Uses the dynamically fetched list when available, falls back to the hardcoded list.
+     */
+    @NonNull
+    public static String[] getEffectiveModelDisplayNames(@NonNull Context context,
+                                                         @NonNull LlmProvider provider) {
+        String cached = context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
+                .getString(KEY_CACHED_NAMES + provider.name().toLowerCase(), null);
+        if (cached != null && !cached.isEmpty()) return cached.split("\n", -1);
+        return provider.getModelDisplayNames();
+    }
+
+    /**
+     * Fetches the list of available models from the provider's API and caches the result
+     * in SharedPreferences. Silently no-ops on any error (network or auth failure).
+     *
+     * <p>Must be called from a worker thread.
+     */
+    @WorkerThread
+    public static void fetchAndCacheModels(@NonNull Context context,
+                                           @NonNull LlmProvider provider) {
+        String apiKey;
+        try {
+            apiKey = SecureApiKeyStore.getInstance(context).getApiKey(provider.getApiKeyName());
+        } catch (GeneralSecurityException | IOException e) {
+            Timber.d("fetchAndCacheModels: cannot read key for %s", provider);
+            return;
+        }
+        if (apiKey == null || apiKey.isEmpty()) return;
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build();
+        try {
+            String[] ids = null, names = null;
+            switch (provider) {
+                case CLAUDE: {
+                    String[][] r = fetchClaudeModels(client, apiKey);
+                    if (r != null) { ids = r[0]; names = r[1]; }
+                    break;
+                }
+                case GEMINI: {
+                    String[][] r = fetchGeminiModels(client, apiKey);
+                    if (r != null) { ids = r[0]; names = r[1]; }
+                    break;
+                }
+                case OPENAI: {
+                    ids = fetchOpenAiModels(client, apiKey);
+                    names = ids; // OpenAI has no user-friendly display names
+                    break;
+                }
+            }
+            if (ids == null || ids.length == 0) return;
+            if (names == null || names.length != ids.length) names = ids;
+            context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE).edit()
+                    .putString(KEY_CACHED_IDS + provider.name().toLowerCase(),
+                            String.join("\n", ids))
+                    .putString(KEY_CACHED_NAMES + provider.name().toLowerCase(),
+                            String.join("\n", names))
+                    .apply();
+            Timber.d("Cached %d models for %s", ids.length, provider);
+        } catch (Exception e) {
+            Timber.d(e, "fetchAndCacheModels: failed for %s", provider);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Private: per-provider model list fetchers
+    // -------------------------------------------------------------------------
+
+    /** Fetches Claude model list from Anthropic API. Returns [ids[], names[]] or null. */
+    private static String[][] fetchClaudeModels(OkHttpClient client, String apiKey)
+            throws IOException, JSONException {
+        // GET /v1/models?limit=1000  (limit=1000 returns all models in one page)
+        Request req = new Request.Builder()
+                .url("https://api.anthropic.com/v1/models?limit=1000")
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .get()
+                .build();
+        try (Response response = client.newCall(req).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return null;
+            JSONArray data = new JSONObject(response.body().string()).optJSONArray("data");
+            if (data == null) return null;
+            List<String> ids = new ArrayList<>(), displayNames = new ArrayList<>();
+            for (int i = 0; i < data.length(); i++) {
+                JSONObject m = data.optJSONObject(i);
+                if (m == null) continue;
+                String id = m.optString("id", "");
+                if (id.startsWith("claude-")) {
+                    ids.add(id);
+                    displayNames.add(m.optString("display_name", id));
+                }
+            }
+            if (ids.isEmpty()) return null;
+            return new String[][]{ids.toArray(new String[0]), displayNames.toArray(new String[0])};
+        }
+    }
+
+    /** Fetches Gemini model list from Google AI API. Returns [ids[], names[]] or null. */
+    private static String[][] fetchGeminiModels(OkHttpClient client, String apiKey)
+            throws IOException, JSONException {
+        // pageSize=200 to capture all models in one request (typical list is ~20)
+        Request req = new Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models?key="
+                        + apiKey + "&pageSize=200")
+                .get()
+                .build();
+        try (Response response = client.newCall(req).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return null;
+            JSONArray models = new JSONObject(response.body().string()).optJSONArray("models");
+            if (models == null) return null;
+            List<String> ids = new ArrayList<>(), displayNames = new ArrayList<>();
+            for (int i = 0; i < models.length(); i++) {
+                JSONObject m = models.optJSONObject(i);
+                if (m == null) continue;
+                // Only keep models that support generateContent
+                JSONArray methods = m.optJSONArray("supportedGenerationMethods");
+                if (!jsonArrayContains(methods, "generateContent")) continue;
+                // Name is "models/gemini-2.0-flash" — strip the prefix
+                String name = m.optString("name", "");
+                String id = name.startsWith("models/") ? name.substring(7) : name;
+                if (id.startsWith("gemini-")) {
+                    ids.add(id);
+                    displayNames.add(m.optString("displayName", id));
+                }
+            }
+            if (ids.isEmpty()) return null;
+            return new String[][]{ids.toArray(new String[0]), displayNames.toArray(new String[0])};
+        }
+    }
+
+    /** Fetches OpenAI model list and filters to chat-completion models. Returns ids[] or null. */
+    private static String[] fetchOpenAiModels(OkHttpClient client, String apiKey)
+            throws IOException, JSONException {
+        Request req = new Request.Builder()
+                .url("https://api.openai.com/v1/models")
+                .header("Authorization", "Bearer " + apiKey)
+                .get()
+                .build();
+        try (Response response = client.newCall(req).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return null;
+            JSONArray data = new JSONObject(response.body().string()).optJSONArray("data");
+            if (data == null) return null;
+            List<String> ids = new ArrayList<>();
+            for (int i = 0; i < data.length(); i++) {
+                JSONObject m = data.optJSONObject(i);
+                if (m == null) continue;
+                String id = m.optString("id", "");
+                // Include GPT-4+, O-series reasoning models; exclude embeddings, dall-e, tts, etc.
+                if (id.startsWith("gpt-4") || id.startsWith("gpt-3.5")
+                        || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")) {
+                    ids.add(id);
+                }
+            }
+            if (ids.isEmpty()) return null;
+            java.util.Collections.sort(ids); // sort alphabetically for consistent ordering
+            return ids.toArray(new String[0]);
+        }
+    }
+
+    private static boolean jsonArrayContains(JSONArray arr, String value) throws JSONException {
+        if (arr == null) return false;
+        for (int i = 0; i < arr.length(); i++) {
+            if (value.equals(arr.getString(i))) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns the model ID to use for the given provider, using the effective (cached or
+     * hardcoded) model list and the per-provider saved index.
+     */
+    private static String resolveModelId(@NonNull Context context, @NonNull LlmProvider provider) {
+        String[] ids = getEffectiveModelIds(context, provider);
+        int index = getSelectedModelIndex(context, provider);
+        index = Math.max(0, Math.min(index, ids.length - 1));
+        return ids[index];
     }
 
     /**
@@ -182,8 +399,7 @@ public final class FilterListSuggester {
     public LlmSuggestion suggest(@NonNull Context context, @NonNull String query)
             throws IOException, GeneralSecurityException {
         LlmProvider provider = getSelectedProvider(context);
-        int modelIndex = getSelectedModelIndex(context);
-        String modelId = provider.getModelId(modelIndex);
+        String modelId = resolveModelId(context, provider);
 
         SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
         String apiKey = keyStore.getApiKey(provider.getApiKeyName());
@@ -225,8 +441,7 @@ public final class FilterListSuggester {
     public AiAgentResponse execute(@NonNull Context context, @NonNull String query)
             throws IOException, GeneralSecurityException {
         LlmProvider provider = getSelectedProvider(context);
-        int modelIndex = getSelectedModelIndex(context);
-        String modelId = provider.getModelId(modelIndex);
+        String modelId = resolveModelId(context, provider);
 
         SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
         String apiKey = keyStore.getApiKey(provider.getApiKeyName());
@@ -277,8 +492,7 @@ public final class FilterListSuggester {
     public AiAgentResponse executeWithLoop(@NonNull Context context, @NonNull String query)
             throws IOException, GeneralSecurityException {
         LlmProvider provider = getSelectedProvider(context);
-        int modelIndex = getSelectedModelIndex(context);
-        String modelId = provider.getModelId(modelIndex);
+        String modelId = resolveModelId(context, provider);
 
         SecureApiKeyStore keyStore = SecureApiKeyStore.getInstance(context);
         String apiKey = keyStore.getApiKey(provider.getApiKeyName());
