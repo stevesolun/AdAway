@@ -101,4 +101,105 @@ public class AiActionExecutorNormalizeDomainTest {
     public void justSlash_returnsNull() {
         assertNull("Bare slash must return null", AiActionExecutor.normalizeDomain("/"));
     }
+
+    // -------------------------------------------------------------------------
+    // ATK-01: IP address / private hostname rejection (no letter → invalid hostname)
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void ipv4Loopback_returnsNull() {
+        // 127.0.0.1 has no letter — isValidHostname requires hasLetter=true
+        assertNull("Loopback IP must be rejected", AiActionExecutor.normalizeDomain("127.0.0.1"));
+    }
+
+    @Test
+    public void ipv4Loopback_withScheme_returnsNull() {
+        assertNull("Loopback IP with scheme must be rejected",
+                AiActionExecutor.normalizeDomain("http://127.0.0.1"));
+    }
+
+    @Test
+    public void ipv4Rfc1918_classA_returnsNull() {
+        assertNull("RFC-1918 class-A IP must be rejected",
+                AiActionExecutor.normalizeDomain("10.0.0.1"));
+    }
+
+    @Test
+    public void ipv4Rfc1918_classB_returnsNull() {
+        assertNull("RFC-1918 class-B IP must be rejected",
+                AiActionExecutor.normalizeDomain("192.168.1.1"));
+    }
+
+    @Test
+    public void ipv4Rfc1918_classC_returnsNull() {
+        assertNull("RFC-1918 class-C IP must be rejected",
+                AiActionExecutor.normalizeDomain("172.16.0.1"));
+    }
+
+    @Test
+    public void ipv4Public_returnsNull() {
+        // All pure IPs (no letters) must be rejected regardless of whether private
+        assertNull("Public IP must be rejected (no letter in hostname)",
+                AiActionExecutor.normalizeDomain("8.8.8.8"));
+    }
+
+    @Test
+    public void ipv4WithPort_returnsNull() {
+        // After port stripping: "127.0.0.1" — still no letter
+        assertNull("IP:port must be rejected after port strip",
+                AiActionExecutor.normalizeDomain("127.0.0.1:8080"));
+    }
+
+    @Test
+    public void localhost_returnsNull() {
+        // "localhost" has no dot — must fail single-label check or isValidHostname
+        assertNull("'localhost' must be rejected (no dot, no TLD)",
+                AiActionExecutor.normalizeDomain("localhost"));
+    }
+
+    @Test
+    public void localhostWithPort_returnsNull() {
+        assertNull("'localhost:8080' must be rejected",
+                AiActionExecutor.normalizeDomain("localhost:8080"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Edge cases: extra characters, unusual inputs
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void trailingDot_normalised() {
+        // Trailing dot is valid DNS syntax (FQDN) but should be stripped or accepted
+        // Either "example.com" or null is acceptable — just must not crash
+        String result = AiActionExecutor.normalizeDomain("example.com.");
+        // If not null, the trailing dot must be stripped
+        if (result != null) {
+            assertFalse("Trailing dot must be stripped from result", result.endsWith("."));
+        }
+    }
+
+    @Test
+    public void singleLabel_noTld_returnsNull() {
+        // "ads" alone — no TLD, should be rejected
+        assertNull("Single-label domain without TLD must be rejected",
+                AiActionExecutor.normalizeDomain("ads"));
+    }
+
+    @Test
+    public void justNumbers_returnsNull() {
+        // "12345" — no dot, no letter → invalid
+        assertNull("Pure numbers must be rejected", AiActionExecutor.normalizeDomain("12345"));
+    }
+
+    @Test
+    public void veryLongDomain_returnsNullOrTruncated() {
+        // 300-char label — violates RFC 1035 max 253 chars
+        String longDomain = "a".repeat(260) + ".com";
+        // Must not crash; null or some rejection is acceptable
+        String result = AiActionExecutor.normalizeDomain(longDomain);
+        // If accepted, length must be ≤ 253
+        if (result != null) {
+            assertTrue("Accepted domain must be ≤ 253 chars", result.length() <= 253);
+        }
+    }
 }
