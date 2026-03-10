@@ -185,7 +185,7 @@ public final class FilterListsDirectoryApi {
                 JSONObject o = arr.getJSONObject(i);
                 int id = o.getInt("id");
                 String name = o.optString("name", "");
-                String desc = o.optString("description", null);
+                String desc = o.isNull("description") ? null : o.optString("description", null);
                 int[] syntaxIds = toIntArray(o.optJSONArray("syntaxIds"));
                 int[] tagIds = toIntArray(o.optJSONArray("tagIds"));
                 int[] languageIds = toIntArray(o.optJSONArray("languageIds"));
@@ -223,7 +223,7 @@ public final class FilterListsDirectoryApi {
                 JSONObject o = arr.getJSONObject(i);
                 int id = o.getInt("id");
                 String name = o.optString("name", "");
-                String description = o.optString("description", null);
+                String description = o.isNull("description") ? null : o.optString("description", null);
                 out.add(new Tag(id, name, description));
             }
             return out;
@@ -259,7 +259,7 @@ public final class FilterListsDirectoryApi {
         try {
             JSONObject o = new JSONObject(body);
             String name = o.optString("name", "");
-            String desc = o.optString("description", null);
+            String desc = o.isNull("description") ? null : o.optString("description", null);
             int[] syntaxIds = toIntArray(o.optJSONArray("syntaxIds"));
             List<ViewUrl> viewUrls = new ArrayList<>();
             JSONArray v = o.optJSONArray("viewUrls");
