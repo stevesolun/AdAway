@@ -29,85 +29,19 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 
 ## What's New
 
-### v13.4.5–v13.4.9 — AI Security & Improvements
-
-| Version | Change |
-|---------|--------|
-| v13.4.9 | Pre-LLM topic filter — off-topic queries (weather, recipes, etc.) rejected locally, zero API cost |
-| v13.4.8 | Fix literal `"null"` description string in FilterLists.com Discover tab |
+| Version | Highlight |
+|---------|-----------|
+| **v13.4.9** | Pre-LLM topic filter — off-topic queries rejected locally, zero API cost |
+| v13.4.8 | Fix literal `"null"` description in FilterLists.com Discover tab |
 | v13.4.7 | Dynamic model list fetched live from provider API; per-provider model memory |
-| v13.4.6 | ATK-29b: dotless-i / dotted-I Unicode bypass closed in injection pattern |
-| v13.4.5 | 288-test AI security suite (prompt injection, Unicode homoglyphs, IP/localhost rejection) |
-
-### v13.4.4 — AI Conversational Agent
-
-Upgrades the AI layer from read-only category suggestions into a full conversational agent:
-
-- **Live app-state awareness** — AI reads which categories are subscribed/enabled and how many custom rules you have before responding
-- **Action execution** — AI can subscribe/enable/disable filter categories, block or allow specific domains, and trigger filter list updates
-- **Domain queries** — ask "is whatsapp blocked?" and get an instant answer; "unblock it" and the agent acts
-- **Security-first design** — only enum names and integer counts are injected into the prompt (no user labels or URLs); closed-enum gate silently drops hallucinated action types; all domain payloads validated before any DB write
-
-### v13.4.2 — Security Hardening
-
-Comprehensive security audit with 22 attack vectors identified and fixed:
-
-| Category | Fixes |
-|----------|-------|
-| **DNS Safety** | Private/reserved IPs (RFC 1918, loopback, link-local, multicast) blocked as redirect targets |
-| **SSRF** | Internal IPs rejected as filter source URLs (prevents local network probing) |
-| **Permissions** | `CommandReceiver` permission upgraded from `dangerous` → `signature` (only same-signed apps can toggle ad-blocking) |
-| **Data Leakage** | Raw API response bodies stripped from exception messages (prevents Sentry exfiltration) |
-| **Backup Security** | Import capped at 200 sources; `redirectEnabled` flag always disabled on import |
-| **ADB Backup** | `android:allowBackup="false"` — ADB backup can no longer extract the database |
-| **Certificate Trust** | AI API endpoints (Anthropic, OpenAI, Google) restricted to system CAs only — blocks user-installed CA MitM attacks |
-| **Prompt Injection** | 7 injection patterns detected and neutralised in AI queries (ATK-09) |
-| **Cache Poisoning** | Redirect-enabled sources always fetched fresh from network (bypass OkHttp disk cache) |
-| **Export Surface** | `UpdateReceiver` no longer exported; `QUERY_ALL_PACKAGES` replaced with scoped `<queries>` element |
-| **Sentry Telemetry** | `FragmentLifecycleIntegration` removed; only `ERROR`-level logs sent to Sentry |
-| **AI Robustness** | Encrypted key blob length validated; model index clamped to `[0, len)` range |
-
-### v13.4.1 — AI Error UX + Model Header
-
-- Error messages shown to user are provider-specific (auth, quota, billing, server errors)
-- Active provider · model shown in AI bottom sheet header
-- Home screen AI quick-access box pre-fills the query field
-
-### v13.4.0 — AI Filter Assistant
-
-The biggest feature addition: an AI-powered natural language interface for filter configuration.
-
-- **Ask AI button** on the Discover tab — describe what you want in plain English
-- **Three AI providers**: Claude (Anthropic), Gemini (Google), ChatGPT (OpenAI)
-- **9 model tiers** to pick from (fast/balanced/best per provider)
-- **Encrypted API keys** — stored in the Android Keystore with AES-256-GCM, never leave your device
-- **Smart category mapping** — AI picks the right filter categories from your description
-- **One-tap apply** — review suggested categories and subscribe with a single tap
-- **Privacy first** — only your query text and category names are sent; no hostnames, no personal data
-
-> **Example**: Type "Block ads but keep Instagram working" → AI suggests ADS + MALWARE (skips SOCIAL) → tap Apply.
-
-### v13.3.x — Reliability Series
-
-| Version | Key Fix |
-|---------|---------|
-| v13.3.5 | NPE guard on HTTP 304, port-stripping in Domain Checker, hostname length cap (RFC 1035) |
-| v13.3.4 | Static executor anti-pattern removed from 7 classes (unit-test stability) |
-| v13.3.3 | APK auto-renamed in CI, Root/VPN pref always tappable, HTTP 304 generation migration |
-| v13.3.2 | VPN debug logs removed from release, HashSet race conditions fixed, threading audit |
-| v13.3.1 | Back-stack guard, download error persistence on 304, HostsSource hashCode contract |
-| v13.3.0 | Back-button from Adware Scanner, Force English locale, custom list error feedback |
-
-### v13.0–v13.2 — Performance & Filter Management
-
-- Hardware-adaptive parallelism, parallel download/parse pipeline
-- Conditional GET (ETag / If-Modified-Since) — skip unchanged sources
-- DB batching (5000 entries/batch), WAL mode, global host deduplication
-- FilterListCatalog with 60+ curated lists across 12 categories
-- FilterLists.com browser with search, tag chips, language filter
-- Quick-start presets: Safe / Balanced / Aggressive
-- Filter Sets with named presets and scheduled updates
-- WaTg Safety Allowlist — WhatsApp and Telegram wildcard entries to prevent breakage
+| v13.4.6 | ATK-29b: dotless-i / dotted-I Unicode injection bypass closed |
+| v13.4.5 | 288-test AI security suite covering all injection/bypass/hallucination vectors |
+| v13.4.4 | **AI Conversational Agent** — reads live app state, plans and executes filter actions |
+| v13.4.2 | Security hardening: 22 attack vectors fixed (SSRF, MitM CA pin, backup limits, etc.) |
+| v13.4.1 | Provider-specific AI error messages; active model shown in header |
+| v13.4.0 | **AI Filter Assistant** — natural language filter config with Claude / Gemini / ChatGPT |
+| v13.3.x | Reliability: NPE/race/threading fixes, Force English locale, download error feedback |
+| v13.0–v13.2 | Parallel pipeline, Conditional GET, WAL mode, FilterLists.com browser, presets |
 
 ---
 
