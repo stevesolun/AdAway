@@ -179,7 +179,9 @@ public class HomeActivity extends AppCompatActivity {
         AdBlockMethod adBlockMethod = PreferenceHelper.getAdBlockMethod(this);
         if (adBlockMethod == UNDEFINED) {
             // Not set up yet — go to onboarding
-            startActivity(new Intent(this, OnboardingActivity.class));
+            Intent onboardingIntent = new Intent(this, OnboardingActivity.class);
+            onboardingIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(onboardingIntent);
             finish();
         } else if (adBlockMethod == VPN) {
             // VPN permission may have been revoked; if so, let HomeFragment handle the

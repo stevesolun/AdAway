@@ -181,7 +181,7 @@ public class OnboardingActivity extends AppCompatActivity {
         PreferenceHelper.setAbBlockMethod(this, this.selectedMethod);
         Intent intent = new Intent(this, HomeActivity.class);
         intent.putExtra(HomeActivity.EXTRA_ONBOARDING_COMPLETE, true);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
-        finish();
     }
 }

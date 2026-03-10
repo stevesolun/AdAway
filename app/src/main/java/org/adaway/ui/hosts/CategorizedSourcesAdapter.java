@@ -279,9 +279,12 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         holder.hostCountBadge.setVisibility(
                 source.getSize() > 0 && source.isEnabled() ? View.VISIBLE : View.GONE);
 
-        // Update indicator
-        holder.updateIndicator.setVisibility(
-                item.isUpdateAvailable() ? View.VISIBLE : View.GONE);
+        // Show update button for sources that have an update available OR have never been
+        // downloaded yet (localModificationDate == null). Without this, newly added custom
+        // sources show "Never updated" with no way to trigger a download from the per-source UI.
+        boolean showUpdateButton = item.isUpdateAvailable()
+                || (source.isEnabled() && source.getLocalModificationDate() == null);
+        holder.updateIndicator.setVisibility(showUpdateButton ? View.VISIBLE : View.GONE);
 
         // Switch (per-list enable/disable)
         holder.toggle.setOnCheckedChangeListener(null);
@@ -291,9 +294,9 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         // Card click to edit
         holder.card.setOnClickListener(v -> callback.edit(source));
 
-        // Per-list update action (when an update is available)
+        // Per-list update action (when an update is available or never downloaded)
         holder.updateIndicator.setOnClickListener(null);
-        if (item.isUpdateAvailable()) {
+        if (showUpdateButton) {
             holder.updateIndicator.setClickable(true);
             holder.updateIndicator.setOnClickListener(v -> callback.updateSource(source));
         } else {
