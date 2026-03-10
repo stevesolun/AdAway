@@ -29,33 +29,15 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 
 ## What's New
 
-### v13.4.9 — Off-Topic Query Filter
+### v13.4.5–v13.4.9 — AI Security & Improvements
 
-Adds a pre-LLM topic relevance guard to the AI assistant:
-
-- **Zero API calls for off-topic queries** — queries like "what's the weather?" are rejected locally before any HTTP request is made, saving credits and preventing misuse
-- Positive allow-list of ~30 AdAway-domain keywords (block, ad, tracker, malware, domain, dns, vpn, allowlist, whatsapp, etc.) — a query must match at least one to reach the LLM
-- Applied to all three AI entry points: `suggest()`, `execute()`, `executeWithLoop()`
-- User sees `"I can only help with AdAway filter management."` with an empty action list
-- 25 new unit tests covering legitimate queries (pass) and off-topic queries (weather, recipes, math, general chat — all rejected)
-
-### v13.4.7 — Dynamic Model Selection
-
-- **Live model list fetched from provider API** after saving an API key — no longer limited to hardcoded tiers
-- Each provider remembers its chosen model index independently
-- Fallback to built-in model list if fetch fails or no key is set yet
-- Claude: `/v1/models`, Gemini: `/v1beta/models`, OpenAI: `/v1/models` (gpt-4\*, gpt-3.5\*, o1\*, o3\*, o4\* filtered)
-
-### v13.4.6 — Security Hardening: Unicode Bypass (ATK-29b)
-
-- Dotless-i (U+0131 `ı`) and dotted-I (U+0130 `İ`) explicitly replaced before injection-pattern matching — NFKC normalization does not cover these, allowing `"ıgnore previous instructions"` to bypass the ATK-09 guard
-- 288 total unit tests (0 failures)
-
-### v13.4.5 — AI Security Test Suite
-
-Comprehensive regression suite for the AI attack surface:
-- 263+ unit tests covering ATK-09 through ATK-29 across `FilterListSuggesterSanitizeTest`, `AiAgentResponseParseTest`, `AiActionExecutorNormalizeDomainTest`, `LlmProviderTest`, `AiAgentActionTest`
-- Guards: prompt injection, Unicode homoglyph bypass, IP/localhost domain rejection, hallucinated category/action-type handling, malformed JSON, oversized responses
+| Version | Change |
+|---------|--------|
+| v13.4.9 | Pre-LLM topic filter — off-topic queries (weather, recipes, etc.) rejected locally, zero API cost |
+| v13.4.8 | Fix literal `"null"` description string in FilterLists.com Discover tab |
+| v13.4.7 | Dynamic model list fetched live from provider API; per-provider model memory |
+| v13.4.6 | ATK-29b: dotless-i / dotted-I Unicode bypass closed in injection pattern |
+| v13.4.5 | 288-test AI security suite (prompt injection, Unicode homoglyphs, IP/localhost rejection) |
 
 ### v13.4.4 — AI Conversational Agent
 
