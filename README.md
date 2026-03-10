@@ -29,6 +29,34 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 
 ## What's New
 
+### v13.4.9 — Off-Topic Query Filter
+
+Adds a pre-LLM topic relevance guard to the AI assistant:
+
+- **Zero API calls for off-topic queries** — queries like "what's the weather?" are rejected locally before any HTTP request is made, saving credits and preventing misuse
+- Positive allow-list of ~30 AdAway-domain keywords (block, ad, tracker, malware, domain, dns, vpn, allowlist, whatsapp, etc.) — a query must match at least one to reach the LLM
+- Applied to all three AI entry points: `suggest()`, `execute()`, `executeWithLoop()`
+- User sees `"I can only help with AdAway filter management."` with an empty action list
+- 25 new unit tests covering legitimate queries (pass) and off-topic queries (weather, recipes, math, general chat — all rejected)
+
+### v13.4.7 — Dynamic Model Selection
+
+- **Live model list fetched from provider API** after saving an API key — no longer limited to hardcoded tiers
+- Each provider remembers its chosen model index independently
+- Fallback to built-in model list if fetch fails or no key is set yet
+- Claude: `/v1/models`, Gemini: `/v1beta/models`, OpenAI: `/v1/models` (gpt-4\*, gpt-3.5\*, o1\*, o3\*, o4\* filtered)
+
+### v13.4.6 — Security Hardening: Unicode Bypass (ATK-29b)
+
+- Dotless-i (U+0131 `ı`) and dotted-I (U+0130 `İ`) explicitly replaced before injection-pattern matching — NFKC normalization does not cover these, allowing `"ıgnore previous instructions"` to bypass the ATK-09 guard
+- 288 total unit tests (0 failures)
+
+### v13.4.5 — AI Security Test Suite
+
+Comprehensive regression suite for the AI attack surface:
+- 263+ unit tests covering ATK-09 through ATK-29 across `FilterListSuggesterSanitizeTest`, `AiAgentResponseParseTest`, `AiActionExecutorNormalizeDomainTest`, `LlmProviderTest`, `AiAgentActionTest`
+- Guards: prompt injection, Unicode homoglyph bypass, IP/localhost domain rejection, hallucinated category/action-type handling, malformed JSON, oversized responses
+
 ### v13.4.4 — AI Conversational Agent
 
 Upgrades the AI layer from read-only category suggestions into a full conversational agent:
@@ -162,7 +190,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 ### Download APK (Quickest)
 
 1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases/latest).
-2. Download `AdsAway_13.4.4.apk` (or whichever is latest).
+2. Download `AdsAway_13.4.9.apk` (or whichever is latest).
 3. **If you have the official AdAway installed**, uninstall it first — different signing key.
 4. Open the APK on your device → allow "Install unknown apps" if prompted.
 5. Open AdsAway and complete one-tap onboarding.
@@ -234,17 +262,15 @@ No third-party crypto libs required. No EncryptedSharedPreferences (deprecated J
 
 ### Supported Models
 
-| Provider | Model IDs | Display Name |
-|----------|-----------|-------------|
-| Claude | `claude-haiku-4-5-20251001` | Haiku 4.5 (fast, cheap) |
-| Claude | `claude-sonnet-4-6` | Sonnet 4.6 (balanced) |
-| Claude | `claude-opus-4-6` | Opus 4.6 (best quality) |
-| Gemini | `gemini-2.5-flash` | Flash (balanced) |
-| Gemini | `gemini-2.5-pro` | Pro (best quality) |
-| Gemini | `gemini-2.5-flash-lite` | Flash Lite (fast, cheap) |
-| ChatGPT | `gpt-4.1-mini` | GPT-4.1 Mini (balanced) |
-| ChatGPT | `gpt-4.1` | GPT-4.1 (best quality) |
-| ChatGPT | `gpt-4.1-nano` | GPT-4.1 Nano (fast, cheap) |
+Since v13.4.7, **available models are fetched live from each provider's API** when you save an API key — you always see the current model catalog, not a hardcoded list. Each provider remembers your chosen model independently.
+
+Built-in fallback (used if fetch fails or before a key is entered):
+
+| Provider | Fallback Models |
+|----------|----------------|
+| Claude | Haiku 4.5 · Sonnet 4.6 · Opus 4.6 |
+| Gemini | Flash 2.5 · Pro 2.5 · Flash Lite 2.5 |
+| ChatGPT | GPT-4.1 Mini · GPT-4.1 · GPT-4.1 Nano |
 
 ---
 
@@ -357,6 +383,8 @@ AiSuggestBottomSheet.onAskClicked()
 AppExecutors.networkIO()
       ↓
 FilterListSuggester.execute(context, query)
+  ├── sanitizeQuery() → NFKC normalize + injection pattern neutralise
+  ├── isAdAwayTopicQuery() → reject off-topic queries locally (no API call)
   ├── AppStateContext.build() → compact JSON state (diskIO-safe, called inline)
   ├── Injects state into AGENT_SYSTEM_PROMPT_TEMPLATE
   ├── Reads selected provider + model from SharedPreferences
@@ -464,8 +492,8 @@ signingKeyPassword=your_key_password
 Push a version tag to trigger the release pipeline:
 
 ```bash
-git tag v13.4.4
-git push origin v13.4.4
+git tag v13.4.9
+git push origin v13.4.9
 ```
 
 GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
