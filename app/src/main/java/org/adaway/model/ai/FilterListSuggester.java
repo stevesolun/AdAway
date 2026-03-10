@@ -14,6 +14,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.text.Normalizer;
 import java.util.Locale;
@@ -59,6 +60,32 @@ public final class FilterListSuggester {
 
     /** Maximum user query length accepted before truncation. */
     static final int MAX_QUERY_LENGTH = 500;
+
+    /**
+     * At least one word in the sanitized query must match an AdAway-domain concept.
+     * Queries that contain NO matching word are rejected locally (no API call, no cost).
+     * This is a positive allow-list — much more robust than trying to enumerate off-topic topics.
+     */
+    private static final Pattern TOPIC_PATTERN = Pattern.compile(
+            "(?i)\\b(?:"
+            // actions
+            + "block|unblock|allow|filter|subscribe|enable|disable|update|check|scan|add|remove"
+            // objects
+            + "|ad|ads|tracker|trackers|list|source|sources|domain|host|hosts|hostname|dns|vpn"
+            + "|site|website|url|ip|address|rule|rules|entry|entries"
+            // threat categories (matches FilterListCategory names)
+            + "|malware|phish(?:ing)?|spam|scam|adult|porn|gambl(?:e|ing)|ransom(?:ware)?"
+            + "|crypto|mining|privacy|tracking|social|regional"
+            // common services users ask about unblocking/blocking
+            + "|whatsapp|facebook|telegram|youtube|google|twitter|tiktok|instagram|netflix"
+            // AdAway-specific terms
+            + "|adaway|blocklist|allowlist|whitelist|blacklist|category|categories|catalog"
+            + ")\\b");
+
+    /** Out-of-scope response returned locally without touching the API. */
+    private static final String OFF_TOPIC_REASONING =
+            "I can only help with AdAway filter management — "
+            + "blocking ads, trackers, malware, and managing filter lists or domains.";
 
     /**
      * Patterns that indicate an attempt to hijack the system prompt (ATK-09).
@@ -408,6 +435,9 @@ public final class FilterListSuggester {
         }
 
         String safeQuery = sanitizeQuery(query);
+        if (!isAdAwayTopicQuery(safeQuery)) {
+            return new LlmSuggestion(Collections.emptyList(), OFF_TOPIC_REASONING);
+        }
         String responseJson;
         switch (provider) {
             case CLAUDE:
@@ -450,6 +480,9 @@ public final class FilterListSuggester {
         }
 
         String safeQuery = sanitizeQuery(query);
+        if (!isAdAwayTopicQuery(safeQuery)) {
+            return new AiAgentResponse(OFF_TOPIC_REASONING, Collections.emptyList());
+        }
         // Build current app state — safe to inject (only enum names + counts)
         String stateJson = AppStateContext.build(context);
         String systemPrompt = AGENT_SYSTEM_PROMPT_TEMPLATE.replace("{STATE}", stateJson);
@@ -501,6 +534,9 @@ public final class FilterListSuggester {
         }
 
         String safeQuery = sanitizeQuery(query);
+        if (!isAdAwayTopicQuery(safeQuery)) {
+            return new AiAgentResponse(OFF_TOPIC_REASONING, Collections.emptyList());
+        }
         String stateJson = AppStateContext.build(context);
         String systemPrompt = AGENT_SYSTEM_PROMPT_TEMPLATE.replace("{STATE}", stateJson);
 
@@ -932,6 +968,15 @@ public final class FilterListSuggester {
             cleaned = cleaned.substring(0, MAX_QUERY_LENGTH);
         }
         return cleaned;
+    }
+
+    /**
+     * Returns {@code true} if the sanitized query contains at least one AdAway-domain keyword.
+     * Queries that match no AdAway topic are rejected locally without an API call.
+     * This positive allow-list is more robust than enumerating off-topic subjects.
+     */
+    static boolean isAdAwayTopicQuery(@NonNull String sanitized) {
+        return !sanitized.isEmpty() && TOPIC_PATTERN.matcher(sanitized).find();
     }
 
     // -------------------------------------------------------------------------
