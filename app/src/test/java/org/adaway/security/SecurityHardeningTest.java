@@ -79,7 +79,7 @@ public class SecurityHardeningTest {
     // Note: ATK-02 (HostsSource.isValidUrl) tests require android.webkit.URLUtil
     // and must live in the instrumented androidTest suite.
 
-    // ATK-09 + ATK-29 tests are in FilterListSuggesterSanitizeTest (same package as FilterListSuggester)
+    // ATK-09 + ATK-29 AI prompt-sanitizer tests were removed with the AI feature cut.
     // ATK-23 tests are in BackupFormatSecurityTest (same package as BackupFormat)
 
     // -------------------------------------------------------------------------

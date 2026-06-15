@@ -49,21 +49,10 @@
                 android:textSize="13sp" />
 
             <com.google.android.material.chip.Chip
-                android:id="@+id/chipDiscoverAskAi"
-                style="@style/Widget.MaterialComponents.Chip.Action"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/discover_ask_ai"
-                android:textColor="?attr/colorOnSecondaryContainer"
-                app:chipBackgroundColor="?attr/colorSecondaryContainer"
-                app:chipIcon="@drawable/ic_category_custom" />
-
-            <com.google.android.material.chip.Chip
                 android:id="@+id/chipDiscoverSafe"
                 style="@style/Widget.MaterialComponents.Chip.Action"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
                 android:text="@string/filter_preset_safe"
                 android:textColor="@color/ui_text_primary"
                 app:chipBackgroundColor="@color/ui_glass" />

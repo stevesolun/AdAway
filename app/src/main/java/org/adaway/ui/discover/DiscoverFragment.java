@@ -15,7 +15,6 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.snackbar.Snackbar;
 
-import org.adaway.BuildConfig;
 import org.adaway.R;
 import org.adaway.databinding.FragmentDiscoverBinding;
 import org.adaway.db.AppDatabase;
@@ -23,7 +22,6 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.SourceUpdateService;
-import org.adaway.ui.ai.AiSuggestBottomSheet;
 import org.adaway.ui.hosts.FilterProfileState;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.util.AppExecutors;
@@ -67,17 +65,6 @@ public class DiscoverFragment extends Fragment {
         this.binding.chipDiscoverSafe.setOnClickListener(v -> applyPreset("safe"));
         this.binding.chipDiscoverBalanced.setOnClickListener(v -> applyPreset("balanced"));
         this.binding.chipDiscoverAggressive.setOnClickListener(v -> applyPreset("aggressive"));
-
-        // AI chip — open natural language filter suggestion sheet
-        if (BuildConfig.AI_FEATURE_ENABLED) {
-            this.binding.chipDiscoverAskAi.setVisibility(View.VISIBLE);
-            this.binding.chipDiscoverAskAi.setOnClickListener(v -> {
-                AiSuggestBottomSheet sheet = new AiSuggestBottomSheet();
-                sheet.show(getChildFragmentManager(), AiSuggestBottomSheet.TAG);
-            });
-        } else {
-            this.binding.chipDiscoverAskAi.setVisibility(View.GONE);
-        }
 
         updateProfileStatus();
     }

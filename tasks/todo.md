@@ -5280,3 +5280,40 @@
 - License and hygiene checks passed:
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
+
+## Plan - 2026-06-15 Goal Continuation 96 AI Feature Cut
+- [x] Remove the dormant AI feature gate from Gradle instead of keeping a default-off
+  product path.
+- [x] Remove Home and Discover AI entry points so the default app has one simpler mental model:
+  Home for protection/status and Discover for curated filter presets.
+- [x] Remove AI production/UI/settings sources, layouts, strings, and AI-only unit tests.
+- [x] Update runtime-truth guards so user-rule mutation coverage tracks the remaining product
+  surfaces and asserts that the AI mutation surface is gone.
+- [x] Replace the default-AI-off tests with removal contracts that fail if AI hooks or docs
+  return.
+- [x] Run focused unit tests and debug/androidTest compile gates for this slice.
+- [x] Run final license/hygiene gates for this reviewable slice before commit.
+
+## Review - 2026-06-15 Goal Continuation 96
+- Removed `AI_FEATURE_ENABLED` and `adawayEnableAi` from `app/build.gradle`.
+- Removed Home AI binding, Discover AI chip wiring, AI settings fragment, AI model/UI source
+  packages, AI layouts/resources, and AI-only tests.
+- Kept the simple product path explicit: Discover retains Safe, Balanced, and Aggressive preset
+  chips as the primary filter-entry surface.
+- Updated contract coverage in `AiSurfaceContractTest`,
+  `HomeNavigationSourcesContractTest`, and `Generation304MigrationTest`; removed the AI-specific
+  connected runtime-truth test because that product surface no longer exists.
+- Production scan passed with no matches under `app/src/main` for the removed AI gate/classes,
+  resources, preference IDs, or user-facing AI strings.
+- Focused verification passed:
+  `.\gradlew.bat :app:testDebugUnitTest --tests org.adaway.ui.home.AiSurfaceContractTest
+  --tests org.adaway.ui.home.HomeNavigationSourcesContractTest
+  --tests org.adaway.model.source.Generation304MigrationTest --dependency-verification=strict
+  --rerun-tasks --stacktrace`.
+- Compile verification passed:
+  `.\gradlew.bat :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac :app:assembleDebug
+  --dependency-verification=strict --rerun-tasks --stacktrace`.
+- License and hygiene checks passed:
+  `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
+  (only existing CRLF conversion warnings).

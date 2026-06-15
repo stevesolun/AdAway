@@ -26,8 +26,6 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.PreferenceHelper;
-import org.adaway.model.ai.AiActionExecutor;
-import org.adaway.model.ai.AiAgentAction;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.junit.After;
 import org.junit.Before;
@@ -99,23 +97,6 @@ public class DomainCheckerRuntimeTruthTest {
         assertTrue("VPN mode must report suffix rules for child domains.", vpnChildResult.blocked);
         assertEquals(1, vpnChildResult.blockingSources.size());
         assertEquals("Domain checker runtime truth test", vpnChildResult.blockingSources.get(0).name);
-    }
-
-    @Test
-    public void aiCheckDomainUsesSameRootAndVpnRuntimeTruth() {
-        AiActionExecutor executor = new AiActionExecutor(application);
-
-        PreferenceHelper.setAbBlockMethod(application, ROOT);
-        assertEquals(SUFFIX_HOST + " is blocked",
-                executor.execute(new AiAgentAction(AiAgentAction.Type.CHECK_DOMAIN, SUFFIX_HOST)));
-        assertEquals(CHILD_HOST + " is not blocked",
-                executor.execute(new AiAgentAction(AiAgentAction.Type.CHECK_DOMAIN, CHILD_HOST)));
-
-        PreferenceHelper.setAbBlockMethod(application, VPN);
-        assertEquals(SUFFIX_HOST + " is blocked",
-                executor.execute(new AiAgentAction(AiAgentAction.Type.CHECK_DOMAIN, SUFFIX_HOST)));
-        assertEquals(CHILD_HOST + " is blocked",
-                executor.execute(new AiAgentAction(AiAgentAction.Type.CHECK_DOMAIN, CHILD_HOST)));
     }
 
     private DomainCheckResult check(String host) throws InterruptedException {

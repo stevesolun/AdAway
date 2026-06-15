@@ -9,9 +9,6 @@ boolean keyStoreDefined = project.hasProperty('signingStoreLocation') &&
         project.hasProperty('signingKeyPassword')
 boolean updateManifestKeyDefined = project.hasProperty('updateManifestPublicKeyBase64') &&
         project.property('updateManifestPublicKeyBase64').toString().trim().length() > 0
-boolean aiFeatureEnabled =
-        project.findProperty('adawayEnableAi')?.toString()?.toBoolean() ?: false
-
 android {
     compileSdk = 36
     ndkVersion = '27.2.12479018'
@@ -34,7 +31,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED", "false"
-        buildConfigField "boolean", "AI_FEATURE_ENABLED", aiFeatureEnabled.toString()
         resValue "string", "update_manifest_public_key",
                 project.findProperty('updateManifestPublicKeyBase64') ?: ""
     }

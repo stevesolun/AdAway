@@ -459,10 +459,10 @@ public class Generation304MigrationTest {
     }
 
     @Test
-    public void userRuleMutationSurfacesReuseSourceModelRuntimeSync() throws Exception {
+    public void userRuleMutationSurfaceReusesSourceModelRuntimeSync() throws Exception {
         String domainChecker = readRepoFile(
                 "app/src/main/java/org/adaway/ui/domainchecker/DomainCheckerViewModel.java");
-        String aiExecutor = readRepoFile(
+        Path aiExecutor = repoRoot().resolve(
                 "app/src/main/java/org/adaway/model/ai/AiActionExecutor.java");
 
         assertFalse("Domain checker user-rule writes must not use the no-DB HostEntryDao.sync() " +
@@ -470,10 +470,8 @@ public class Generation304MigrationTest {
                 domainChecker.contains("mHostEntryDao.sync()"));
         assertTrue("Domain checker user-rule writes must reuse SourceModel.syncHostEntries().",
                 domainChecker.contains("getSourceModel().syncHostEntries()"));
-        assertFalse("AI user-rule writes must not use the no-DB HostEntryDao.sync() fallback.",
-                aiExecutor.contains("entryDao.sync()"));
-        assertTrue("AI user-rule writes must reuse SourceModel.syncHostEntries().",
-                aiExecutor.contains("getSourceModel().syncHostEntries()"));
+        assertFalse("AI user-rule mutation surface is removed from the product.",
+                Files.exists(aiExecutor));
     }
 
     @Test
@@ -675,9 +673,13 @@ public class Generation304MigrationTest {
     }
 
     private static String readRepoFile(String relativePath) throws Exception {
+        return new String(Files.readAllBytes(repoRoot().resolve(relativePath)),
+                StandardCharsets.UTF_8);
+    }
+
+    private static Path repoRoot() {
         Path cwd = Paths.get("").toAbsolutePath();
-        Path repo = Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
-        return new String(Files.readAllBytes(repo.resolve(relativePath)), StandardCharsets.UTF_8);
+        return Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
     }
 
     private static String compact(String value) {

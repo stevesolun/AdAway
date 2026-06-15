@@ -118,18 +118,24 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
-    public void homeKeepsAiPromptOutOfPrimaryStatusPath() throws Exception {
+    public void homeAndDiscoverDoNotExposeAiPrompting() throws Exception {
         String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
         String discoverLayout = readRepoFile("app/src/main/res/layout/fragment_discover.xml");
         String discoverFragment = readRepoFile(
                 "app/src/main/java/org/adaway/ui/discover/DiscoverFragment.java");
 
-        assertTrue("Home may keep the AI view for binding compatibility, but it must stay hidden.",
-                homeLayout.contains("android:id=\"@+id/aiBoxCard\"") &&
-                        homeLayout.contains("android:visibility=\"gone\""));
-        assertTrue("Discover must remain the visible AI entry point.",
-                discoverLayout.contains("chipDiscoverAskAi") &&
+        assertFalse("Home must not keep hidden AI prompting controls.",
+                homeLayout.contains("aiBoxCard") ||
+                        homeLayout.contains("homeAi") ||
+                        homeLayout.contains("ai_suggest"));
+        assertFalse("Discover must not expose an AI chip.",
+                discoverLayout.contains("chipDiscoverAskAi") ||
+                        discoverLayout.contains("discover_ask_ai") ||
                         discoverFragment.contains("AiSuggestBottomSheet"));
+        assertTrue("Discover must keep curated presets as the simple entry point.",
+                discoverLayout.contains("chipDiscoverSafe") &&
+                        discoverLayout.contains("chipDiscoverBalanced") &&
+                        discoverLayout.contains("chipDiscoverAggressive"));
     }
 
     @Test
