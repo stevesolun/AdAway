@@ -5281,6 +5281,36 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
+- [ ] Prove the committed tree is clean before running the phase.
+- [ ] Run a fresh committed-tree unit/build gate after the build-split, AI-removal, and
+  Subscribe-All guard-replacement commits.
+- [ ] Start a local AVD when needed and rerun the broader connected runtime truth/update gates.
+- [ ] Rerun the UX matrix against the current committed app.
+- [ ] Run license and diff hygiene gates.
+- [ ] Record the exact evidence here and commit the evidence-only ledger update.
+
+## Review - 2026-06-15 Goal Continuation 98
+- Detached clean proof worktree was created at
+  `C:\Users\solun\.config\superpowers\worktrees\AdAway\codex-market-leading-quality-clean-proof`
+  from `fe1ad2c8`.
+- Initial clean proof command failed in unit tests:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:testDebugUnitTest :app:assembleDebug
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Failure shape: 376 tests ran, 3 failed, 3 skipped. The three failures were
+  `Generation304MigrationTest.largeRootExportSkipsRedirectPhaseWhenNoRedirectRules`,
+  `SecurityHardeningTest.atk34_releaseBuildStripsDnsjavaDesktopResolverSpi`, and
+  `DiscoverPresetSubscriptionTest.filterListsBulkReviewDetailsUsePersistedOutcomeLedger`.
+- Root cause: the detached Windows clean worktree checked out source files with CRLF line endings,
+  while those three contract tests searched exact `\n` source snippets. The tested production
+  contracts were still present; the test readers were not line-ending-stable.
+- Focused fix verification passed:
+  `.\gradlew.bat :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest.largeRootExportSkipsRedirectPhaseWhenNoRedirectRules
+  --tests org.adaway.security.SecurityHardeningTest.atk34_releaseBuildStripsDnsjavaDesktopResolverSpi
+  --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest.filterListsBulkReviewDetailsUsePersistedOutcomeLedger
+  --dependency-verification=strict --rerun-tasks --stacktrace`.
+
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
 - [x] Extract the cancel-finalization sequence into a package-visible helper with production

@@ -545,6 +545,11 @@ public class DiscoverPresetSubscriptionTest {
     private static String readRepoFile(String relativePath) throws Exception {
         Path cwd = Paths.get("").toAbsolutePath();
         Path repo = Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
-        return new String(Files.readAllBytes(repo.resolve(relativePath)), StandardCharsets.UTF_8);
+        return normalizeLineEndings(new String(Files.readAllBytes(repo.resolve(relativePath)),
+                StandardCharsets.UTF_8));
+    }
+
+    private static String normalizeLineEndings(String value) {
+        return value.replace("\r\n", "\n").replace('\r', '\n');
     }
 }

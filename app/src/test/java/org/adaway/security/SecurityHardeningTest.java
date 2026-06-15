@@ -1232,7 +1232,12 @@ public class SecurityHardeningTest {
     }
 
     private static String readUtf8(Path path) throws IOException {
-        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        return normalizeLineEndings(new String(Files.readAllBytes(path),
+                StandardCharsets.UTF_8));
+    }
+
+    private static String normalizeLineEndings(String value) {
+        return value.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     private static void writeUtf8(Path path, String text) throws IOException {

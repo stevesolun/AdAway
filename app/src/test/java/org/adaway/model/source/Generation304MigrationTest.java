@@ -673,13 +673,17 @@ public class Generation304MigrationTest {
     }
 
     private static String readRepoFile(String relativePath) throws Exception {
-        return new String(Files.readAllBytes(repoRoot().resolve(relativePath)),
-                StandardCharsets.UTF_8);
+        return normalizeLineEndings(new String(Files.readAllBytes(
+                repoRoot().resolve(relativePath)), StandardCharsets.UTF_8));
     }
 
     private static Path repoRoot() {
         Path cwd = Paths.get("").toAbsolutePath();
         return Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
+    }
+
+    private static String normalizeLineEndings(String value) {
+        return value.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     private static String compact(String value) {
