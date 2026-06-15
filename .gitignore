@@ -32,3 +32,6 @@ build
 
 # Local release signing material (never commit)
 .release/
+
+# Local benchmark process markers
+tasks/benchmarks/*.pid
