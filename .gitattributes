@@ -11,3 +11,8 @@
 /app/src/main/assets/localhost-2410.crt export-ignore
 /app/src/main/assets/localhost-2410.key export-ignore
 /app/src/main/assets/test.html export-ignore
+
+# Preserve local Maven mirror bytes for Gradle dependency verification.
+/third_party/maven/**/*.aar binary
+/third_party/maven/**/*.module binary
+/third_party/maven/**/*.pom binary

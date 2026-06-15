@@ -5337,6 +5337,41 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-15 Goal Continuation 99 CI Dependency Resolution
+- [x] Inspect PR #6 failing Android CI and CodeQL jobs.
+- [x] Confirm the shared failure is Gradle resolving `com.github.topjohnwu.libsu:core:6.0.0`
+  from JitPack, not a unit-test, lint, SDK, or CodeQL analysis failure.
+- [x] Add a narrow local Maven mirror for the single JitPack-only `libsu` artifact while keeping
+  strict dependency verification and the content-filtered JitPack fallback.
+- [x] Add provenance documentation and a security regression guard for repository scope/order.
+- [x] Rerun the Android CI build-side gates locally and record evidence.
+
+## Review - 2026-06-15 Goal Continuation 99
+- PR #6 failed in Android CI `Development build` and CodeQL `Analyze` before tests/analysis could
+  run because `:app:dataBindingMergeDependencyArtifactsDebug` received HTTP 403 from JitPack for
+  `https://jitpack.io/com/github/topjohnwu/libsu/core/6.0.0/core-6.0.0.pom`.
+- Direct local `curl.exe -I -L` to the JitPack POM, AAR, and module returned HTTP 200, so the
+  failure is runner/network-sensitive. Keeping CI dependent on that remote remains flaky.
+- Added `third_party/maven/com/github/topjohnwu/libsu/core/6.0.0/` with the verified `core`
+  AAR, POM, and Gradle module metadata. Hashes match `gradle/verification-metadata.xml`.
+- Added the local Maven mirror before JitPack in `settings.gradle`, scoped to
+  `com.github.topjohnwu.libsu`; JitPack stays as a content-filtered fallback for this group only.
+- Added `third_party/maven/README.md`, updated `THIRD_PARTY_LICENSES.md`, pinned mirrored Maven
+  artifacts as binary in `.gitattributes`, and extended `SecurityHardeningTest` so the local mirror
+  remains centralized, byte-stable, and preferred before JitPack.
+- Empty-cache/offline proof passed in a temporary Gradle project using only `third_party/maven`
+  and `--dependency-verification=strict`: `resolved=core-6.0.0.aar:40221`,
+  `BUILD SUCCESSFUL in 39s`.
+- Android CI build-side verification passed locally with JDK 21:
+  `.\gradlew.bat --no-daemon test --dependency-verification=strict --stacktrace`,
+  `.\gradlew.bat --no-daemon :app:lintDebug --dependency-verification=strict --stacktrace`,
+  and `.\gradlew.bat --no-daemon assembleDebug --dependency-verification=strict --stacktrace`.
+- Focused security/license verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict`,
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1`,
+  and `git diff --check` (only existing CRLF conversion warnings).
+
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
 - [x] Extract the cancel-finalization sequence into a package-visible helper with production

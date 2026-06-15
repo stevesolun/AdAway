@@ -12,6 +12,12 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven {
+            url = uri('third_party/maven')
+            content {
+                includeGroup 'com.github.topjohnwu.libsu'
+            }
+        }
+        maven {
             url = 'https://jitpack.io'
             content {
                 includeGroup 'com.github.topjohnwu.libsu'

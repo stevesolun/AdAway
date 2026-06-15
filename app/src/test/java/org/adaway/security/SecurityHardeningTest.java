@@ -660,6 +660,7 @@ public class SecurityHardeningTest {
     public void atk34_gradleSbomTaskEmitsCycloneDxForRuntimeClasspath() throws IOException {
         String appBuild = readUtf8(repoDir().resolve("app/build.gradle"));
         String settings = readUtf8(repoDir().resolve("settings.gradle"));
+        String gitAttributes = readUtf8(repoDir().resolve(".gitattributes"));
 
         assertTrue("Gradle must expose an SBOM generation task.",
                 appBuild.contains("tasks.register('generateSbom')"));
@@ -691,6 +692,15 @@ public class SecurityHardeningTest {
                 appBuild.contains("contains('release') ||"));
         assertTrue("Dependency repositories must be centralized in settings.",
                 settings.contains("RepositoriesMode.FAIL_ON_PROJECT_REPOS"));
+        assertTrue("The libsu local Maven mirror must be centralized in settings.",
+                settings.contains("url = uri('third_party/maven')"));
+        assertTrue("The libsu local Maven mirror must be preferred before JitPack.",
+                settings.indexOf("url = uri('third_party/maven')") <
+                        settings.indexOf("url = 'https://jitpack.io'"));
+        assertTrue("Mirrored Maven artifacts must keep byte-stable checkout hashes.",
+                gitAttributes.contains("/third_party/maven/**/*.aar binary") &&
+                        gitAttributes.contains("/third_party/maven/**/*.module binary") &&
+                        gitAttributes.contains("/third_party/maven/**/*.pom binary"));
         assertTrue("JitPack must be content-filtered to the single dependency group that needs it.",
                 settings.contains("includeGroup 'com.github.topjohnwu.libsu'"));
         assertFalse("App module must not add broad project repositories.",

@@ -17,7 +17,7 @@ removed, rewritten, or permission-cleared. See
 | Android Jetpack / AndroidX | Apache-2.0 | Android libraries | Yes | Compatible notice/dependency item. |
 | dnsjava | BSD-3-Clause | DNS protocol library | Yes | Compatible notice/dependency item. |
 | Guava | Apache-2.0 | Utility library | Yes | Compatible notice/dependency item. |
-| libsu | Apache-2.0 | Root access support | Yes | Compatible notice/dependency item. |
+| libsu | Apache-2.0 | Root access support; `6.0.0` is mirrored under `third_party/maven` from JitPack because CI runners can receive HTTP 403 from the upstream Maven endpoint | Yes | Compatible notice/dependency item. |
 | Material Components for Android | Apache-2.0 | UI component library | Yes | Compatible notice/dependency item. |
 | OkHttp / OkHttp DNS-over-HTTPS | Apache-2.0 | HTTP client and DoH client library | Yes | Compatible notice/dependency item. |
 | Okio | Apache-2.0 | I/O dependency pulled by OkHttp | Yes | Compatible notice/dependency item. |
