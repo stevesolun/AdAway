@@ -5304,6 +5304,9 @@
   and artifact upload. This preserves the existing strict
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` gate while making
   hangs fail with evidence instead of waiting for the platform default timeout.
+- The replacement run reached the `Boot emulator` step and stayed there long enough to expose one
+  more unbounded call. `adb wait-for-device` is now wrapped with `timeout 300`, so emulator device
+  detection is bounded independently of the outer boot-step timeout.
 
 ## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
 - [x] Prove the committed tree is clean before running the phase.

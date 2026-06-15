@@ -46,5 +46,7 @@
 - When a CI job is pending or running long without live logs, treat missing diagnostics as a CI
   defect, not only as elapsed time.
 - Bound emulator boot and instrumentation steps separately so failures point at the stalled layer.
+- Wrap `adb wait-for-device` itself; an outer boot-step timeout is too coarse when diagnosing
+  emulator startup.
 - Always upload connected-test reports, emulator logs, logcat, and device state on failure before
   claiming the CI lane is understood.

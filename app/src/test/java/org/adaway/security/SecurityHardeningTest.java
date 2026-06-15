@@ -903,6 +903,8 @@ public class SecurityHardeningTest {
         assertTrue("Connected test CI must bound emulator boot separately.",
                 workflow.contains("Boot emulator") &&
                         workflow.contains("timeout-minutes: 20"));
+        assertTrue("Connected test CI must bound adb device detection inside emulator boot.",
+                workflow.contains("timeout 300 adb wait-for-device"));
         assertTrue("Connected test CI must bound instrumentation separately.",
                 workflow.contains("Run connected Android tests") &&
                         workflow.contains("timeout-minutes: 25"));
