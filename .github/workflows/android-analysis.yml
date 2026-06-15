@@ -23,7 +23,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'cpp', 'java' ]
+        include:
+          - language: cpp
+            build-mode: none
+          - language: java
+            build-mode: manual
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
         # Use only 'java' to analyze code written in Java, Kotlin or both
         # Use only 'javascript' to analyze code written in JavaScript, TypeScript or both
@@ -41,6 +45,7 @@ jobs:
       uses: github/codeql-action/init@dd903d2e4f5405488e5ef1422510ee31c8b32357
       with:
         languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
@@ -49,6 +54,7 @@ jobs:
         # queries: security-extended,security-and-quality
 
     - name: set up JDK 21
+      if: matrix.build-mode == 'manual'
       uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
       with:
         distribution: 'temurin'
@@ -56,9 +62,11 @@ jobs:
         cache: 'gradle'
 
     - name: Set up Android SDK
+      if: matrix.build-mode == 'manual'
       uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
 
-    - name: Install Android SDK/NDK (required for native modules)
+    - name: Install Android SDK/NDK (required for Android Gradle build)
+      if: matrix.build-mode == 'manual'
       shell: bash
       run: |
           set -u
@@ -127,7 +135,9 @@ jobs:
           fi
 
     # Build from command line as Autobuild fails
-    - run: |
+    - name: Build Java for CodeQL
+      if: matrix.build-mode == 'manual'
+      run: |
        ./gradlew assembleDebug --dependency-verification=strict
 
     - name: Perform CodeQL Analysis
