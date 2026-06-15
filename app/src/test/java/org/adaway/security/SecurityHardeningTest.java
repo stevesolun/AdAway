@@ -905,6 +905,12 @@ public class SecurityHardeningTest {
                         workflow.contains("timeout-minutes: 20"));
         assertTrue("Connected test CI must bound adb device detection inside emulator boot.",
                 workflow.contains("timeout 300 adb wait-for-device"));
+        assertTrue("Connected test CI must use one explicit AVD home for create and launch.",
+                workflow.contains("export ANDROID_AVD_HOME=\"$HOME/.android/avd\"") &&
+                        workflow.contains("mkdir -p \"$ANDROID_AVD_HOME\""));
+        assertTrue("Connected test CI must verify the created AVD is visible before launch.",
+                workflow.contains("avd-list-after-create.txt") &&
+                        workflow.contains("grep -Fxq \"adaway-api34\""));
         assertTrue("Connected test CI must bound instrumentation separately.",
                 workflow.contains("Run connected Android tests") &&
                         workflow.contains("timeout-minutes: 25"));

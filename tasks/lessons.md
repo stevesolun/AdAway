@@ -50,5 +50,7 @@
   emulator startup.
 - Bound every diagnostic `adb` call too; failure collection often runs specifically when no device
   is reachable.
+- Force `ANDROID_AVD_HOME` and verify `emulator -list-avds` before launch; otherwise `avdmanager`
+  can appear to succeed while `emulator -avd` cannot find the created AVD.
 - Always upload connected-test reports, emulator logs, logcat, and device state on failure before
   claiming the CI lane is understood.

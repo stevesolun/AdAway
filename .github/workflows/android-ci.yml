@@ -204,6 +204,8 @@ jobs:
           if [ ! -x "$AVDMANAGER" ]; then
             AVDMANAGER="$(command -v avdmanager)"
           fi
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           mkdir -p app/build/ci-artifacts
 
           echo "no" | "$AVDMANAGER" create avd \
@@ -211,6 +213,14 @@ jobs:
             --name adaway-api34 \
             --package "system-images;android-34;google_apis;x86_64" \
             --device "pixel_2"
+          "$SDKROOT/emulator/emulator" -list-avds \
+            | tee app/build/ci-artifacts/avd-list-after-create.txt
+          if ! grep -Fxq "adaway-api34" app/build/ci-artifacts/avd-list-after-create.txt; then
+            find "$ANDROID_AVD_HOME" -maxdepth 2 -type f -print \
+              > app/build/ci-artifacts/avd-home-files.txt || true
+            echo "AVD adaway-api34 was not visible to emulator" >&2
+            exit 1
+          fi
 
           "$SDKROOT/emulator/emulator" \
             -avd adaway-api34 \

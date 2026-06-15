@@ -5311,6 +5311,10 @@
   exposed another harness issue: diagnostics can hang when they run against a missing emulator.
   Every diagnostic `adb` call now has a short timeout so failure collection uploads evidence instead
   of becoming the new stuck step.
+- The uploaded artifact then exposed the real boot failure: `emulator.log` reported
+  `Unknown AVD name [adaway-api34]` and no `$HOME/.android/avd/adaway-api34.ini`. The boot step now
+  exports `ANDROID_AVD_HOME=$HOME/.android/avd`, creates that directory before `avdmanager`, records
+  `emulator -list-avds`, and fails before launch if `adaway-api34` is not visible.
 
 ## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
 - [x] Prove the committed tree is clean before running the phase.
