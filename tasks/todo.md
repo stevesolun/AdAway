@@ -5307,6 +5307,10 @@
 - The replacement run reached the `Boot emulator` step and stayed there long enough to expose one
   more unbounded call. `adb wait-for-device` is now wrapped with `timeout 300`, so emulator device
   detection is bounded independently of the outer boot-step timeout.
+- The next replacement run proved the boot timeout fires at the expected five-minute boundary, then
+  exposed another harness issue: diagnostics can hang when they run against a missing emulator.
+  Every diagnostic `adb` call now has a short timeout so failure collection uploads evidence instead
+  of becoming the new stuck step.
 
 ## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
 - [x] Prove the committed tree is clean before running the phase.

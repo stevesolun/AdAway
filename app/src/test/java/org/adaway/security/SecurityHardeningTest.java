@@ -917,6 +917,11 @@ public class SecurityHardeningTest {
                         workflow.contains("app/build/ci-artifacts/**") &&
                         workflow.contains("app/build/outputs/androidTest-results/**") &&
                         workflow.contains("app/build/reports/androidTests/**"));
+        assertTrue("Connected test diagnostics must not hang when no emulator is reachable.",
+                workflow.contains("timeout 15 adb devices -l") &&
+                        workflow.contains("timeout 15 adb shell getprop") &&
+                        workflow.contains("timeout 15 adb shell dumpsys activity processes") &&
+                        workflow.contains("timeout 15 adb logcat -d -v threadtime"));
     }
 
     @Test

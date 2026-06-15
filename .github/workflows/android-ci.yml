@@ -255,11 +255,11 @@ jobs:
           if [ -f app/build/ci-artifacts/logcat.pid ]; then
             kill "$(cat app/build/ci-artifacts/logcat.pid)" 2>/dev/null || true
           fi
-          adb devices -l > app/build/ci-artifacts/adb-devices-final.txt 2>&1 || true
-          adb shell getprop > app/build/ci-artifacts/device-getprop.txt 2>&1 || true
-          adb shell dumpsys activity processes \
+          timeout 15 adb devices -l > app/build/ci-artifacts/adb-devices-final.txt 2>&1 || true
+          timeout 15 adb shell getprop > app/build/ci-artifacts/device-getprop.txt 2>&1 || true
+          timeout 15 adb shell dumpsys activity processes \
             > app/build/ci-artifacts/activity-processes.txt 2>&1 || true
-          adb logcat -d -v threadtime \
+          timeout 15 adb logcat -d -v threadtime \
             > app/build/ci-artifacts/connected-logcat-final.txt 2>&1 || true
           find app/build -maxdepth 6 \
             \( -path '*androidTest-results*' -o -path '*reports/androidTests*' \) \
