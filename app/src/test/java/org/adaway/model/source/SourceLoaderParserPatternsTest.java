@@ -15,6 +15,7 @@ import static org.adaway.model.source.SourceLoader.UNBOUND_LOCAL_ZONE;
 import static org.adaway.model.source.SourceLoader.UNBOUND_LOCAL_DATA;
 import static org.adaway.model.source.SourceLoader.RPZ_CNAME_DOT;
 import static org.adaway.model.source.SourceLoader.SURGE_DOMAIN_RULE;
+import static org.adaway.model.source.SourceLoader.SURGE_DOMAIN_SUFFIX_RULE;
 import static org.adaway.model.source.SourceLoader.BIND_ZONE_STMT;
 import static org.junit.Assert.*;
 
@@ -290,6 +291,19 @@ public class SourceLoaderParserPatternsTest {
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("DOMAIN-KEYWORD,ad,REJECT"));
     }
 
+    @Test(timeout = 1000)
+    public void surgeDomainRules_skipHostileCommaOptionRunsWithoutBacktracking() {
+        String exact = repeatedOptionRun("DOMAIN,0-");
+        String suffix = repeatedOptionRun("DOMAIN-SUFFIX,0-");
+
+        assertTrue("Exact Surge rule pattern must still finish and match the rule shape.",
+                SURGE_DOMAIN_RULE.matcher(exact).matches());
+        assertTrue("Suffix Surge rule pattern must still finish and match the rule shape.",
+                SURGE_DOMAIN_SUFFIX_RULE.matcher(suffix).matches());
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(exact));
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(suffix));
+    }
+
     // -----------------------------------------------------------------------
     // BIND_ZONE_STMT tests
     // -----------------------------------------------------------------------
@@ -526,6 +540,14 @@ public class SourceLoaderParserPatternsTest {
     public void cosmeticRule_wildcardStar_notExtracted() {
         // domain##* — EasyList Hebrew "hide all" cosmetic rule
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("atardrushim.com##*"));
+    }
+
+    private static String repeatedOptionRun(String prefix) {
+        StringBuilder builder = new StringBuilder(prefix);
+        for (int i = 0; i < 5000; i++) {
+            builder.append(",!");
+        }
+        return builder.toString();
     }
 
 }

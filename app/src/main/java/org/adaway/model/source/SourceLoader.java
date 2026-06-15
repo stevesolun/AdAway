@@ -82,10 +82,10 @@ class SourceLoader {
     // when the action is a block action such as REJECT; DIRECT/proxy actions are skipped.
     static final Pattern SURGE_DOMAIN_RULE = Pattern.compile(
             "^DOMAIN(?:-FULL)?,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})"
-                    + "(?:,([^#\\s]+(?:,[^#\\s]+)*))?\\s*(?:#.*)?$");
+                    + "(?:,([^#\\s]+))?\\s*(?:#.*)?$");
     static final Pattern SURGE_DOMAIN_SUFFIX_RULE = Pattern.compile(
             "^DOMAIN-SUFFIX,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})"
-                    + "(?:,([^#\\s]+(?:,[^#\\s]+)*))?\\s*(?:#.*)?$");
+                    + "(?:,([^#\\s]+))?\\s*(?:#.*)?$");
     // BIND zone statement: zone "example.com" { type master; ... };
     static final Pattern BIND_ZONE_STMT = Pattern.compile("^\\s*zone\\s+\"([^\"]+)\"\\s*\\{.*$");
     private final HostsSource source;

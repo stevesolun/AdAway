@@ -5382,6 +5382,10 @@
 - The later Java-only failure was caused by CodeQL seeing an up-to-date/cached `assembleDebug`
   build that did not execute Java compilation. The Java CodeQL build now adds `--rerun-tasks` so
   extraction observes real compile work on every run.
+- Once both CodeQL language jobs passed, the aggregate GitHub Advanced Security check still failed
+  on two high-severity CodeQL alerts in `SourceLoader` for backtracking-prone Surge/Clash option
+  regexes. Replaced the nested comma-option capture with a single linear option capture and added a
+  hostile comma-run regression test.
 
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
