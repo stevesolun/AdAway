@@ -5282,13 +5282,13 @@
   (only existing CRLF conversion warnings).
 
 ## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
-- [ ] Prove the committed tree is clean before running the phase.
-- [ ] Run a fresh committed-tree unit/build gate after the build-split, AI-removal, and
+- [x] Prove the committed tree is clean before running the phase.
+- [x] Run a fresh committed-tree unit/build gate after the build-split, AI-removal, and
   Subscribe-All guard-replacement commits.
-- [ ] Start a local AVD when needed and rerun the broader connected runtime truth/update gates.
-- [ ] Rerun the UX matrix against the current committed app.
-- [ ] Run license and diff hygiene gates.
-- [ ] Record the exact evidence here and commit the evidence-only ledger update.
+- [x] Start a local AVD when needed and rerun the broader connected runtime truth/update gates.
+- [x] Rerun the UX matrix against the current committed app.
+- [x] Run license and diff hygiene gates.
+- [x] Record the exact evidence here and commit the evidence-only ledger update.
 
 ## Review - 2026-06-15 Goal Continuation 98
 - Detached clean proof worktree was created at
@@ -5310,6 +5310,32 @@
   --tests org.adaway.security.SecurityHardeningTest.atk34_releaseBuildStripsDnsjavaDesktopResolverSpi
   --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest.filterListsBulkReviewDetailsUsePersistedOutcomeLedger
   --dependency-verification=strict --rerun-tasks --stacktrace`.
+- Clean proof worktree was advanced to `d7f5c729` after the line-ending-stable test fix.
+- Fresh clean unit/build proof passed:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:testDebugUnitTest :app:assembleDebug
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  Gradle reported `BUILD SUCCESSFUL in 1m 55s`.
+- Connected runtime gate 1 passed on `adaway-api34(AVD)`:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelGenerationFailureTest,org.adaway.model.source.SourceModelHttpConditionalTest,org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest,org.adaway.db.MigrationTest'
+  --dependency-verification=strict --stacktrace`; Gradle reported 28 tests, 0 failed.
+- Connected runtime gate 2 passed on `adaway-api34(AVD)`:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceUpdateServiceWorkManagerTest,org.adaway.model.vpn.VpnModelCacheInvalidationTest,org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest'
+  --dependency-verification=strict --stacktrace`; Gradle reported 6 tests and
+  `BUILD SUCCESSFUL`.
+- Recent Subscribe-All connected guard tests passed on `adaway-api34(AVD)`:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest,org.adaway.ui.hosts.FilterListsSubscribeAllWorkerRoomTest'
+  --dependency-verification=strict --stacktrace`; Gradle reported 6 tests and
+  `BUILD SUCCESSFUL`.
+- UX matrix passed from the clean proof tree:
+  `.\scripts\run-ux-matrix.ps1 -OutputDir
+  app\build\reports\ux-matrix-continuation98-clean-proof`; the script exited 0 and pulled
+  21 screenshot/artifact files from all three tested variants.
+- License and hygiene checks passed:
+  `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
+  (only existing CRLF conversion warnings).
 
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
