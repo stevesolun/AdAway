@@ -940,15 +940,16 @@ public class SecurityHardeningTest {
         assertTrue("CodeQL autobuild replacement must use strict dependency verification.",
                 codeqlWorkflow.contains("./gradlew assembleDebug --dependency-verification=strict"));
         assertTrue("CodeQL C++ must use buildless mode when Android debug build compiles no C/C++.",
-                codeqlWorkflow.contains("language: cpp") &&
+                codeqlWorkflow.contains("Initialize CodeQL for C++") &&
+                        codeqlWorkflow.contains("if: matrix.language == 'cpp'") &&
                         codeqlWorkflow.contains("build-mode: none"));
-        assertTrue("CodeQL Java must keep the manual Android Gradle build.",
-                codeqlWorkflow.contains("language: java") &&
-                        codeqlWorkflow.contains("build-mode: manual"));
-        assertTrue("CodeQL initialization must honor the matrix build mode.",
-                codeqlWorkflow.contains("build-mode: ${{ matrix.build-mode }}"));
-        assertTrue("CodeQL Gradle build must only run for manual build-mode jobs.",
-                codeqlWorkflow.contains("if: matrix.build-mode == 'manual'"));
+        assertTrue("CodeQL Java must keep its previous initializer without manual build-mode.",
+                codeqlWorkflow.contains("Initialize CodeQL for Java") &&
+                        codeqlWorkflow.contains("if: matrix.language == 'java'"));
+        assertFalse("CodeQL Java must not use manual build-mode; CI proved that extracts no Java.",
+                codeqlWorkflow.contains("build-mode: manual"));
+        assertTrue("CodeQL Gradle build must only run for Java jobs.",
+                codeqlWorkflow.contains("if: matrix.language == 'java'"));
     }
 
     @Test

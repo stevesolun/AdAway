@@ -5375,9 +5375,10 @@
   CodeQL `Analyze (cpp)` then failed at finalization with `CodeQL could not process any code
   written in C/C++` because the shared `assembleDebug` build does not compile the dormant native
   source tree.
-- Updated CodeQL advanced setup so C++ uses `build-mode: none` and Java keeps `build-mode:
-  manual`. Android SDK setup and `./gradlew assembleDebug --dependency-verification=strict` now run
-  only for the manual Java job.
+- Updated CodeQL advanced setup so C++ uses a separate `build-mode: none` initializer. Java uses
+  the previous initializer shape because CI proved `build-mode: manual` finalizes with no
+  Java/Kotlin extracted; Android SDK setup and `./gradlew assembleDebug
+  --dependency-verification=strict` now run only for the Java job.
 
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
