@@ -296,12 +296,20 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
     private Result finishCancelled(ExecutorService pool, NotificationManager notificationManager,
             SubscribeAllRecorder recorder) {
+        Data output = finalizeCancelledRun(pool,
+                sDependencies.getCachePreferences(getApplicationContext()),
+                recorder,
+                () -> notificationManager.cancel(NOTIFICATION_ID));
+        return Result.failure(output);
+    }
+
+    static Data finalizeCancelledRun(ExecutorService pool, SharedPreferences prefs,
+            SubscribeAllRecorder recorder, Runnable cancelNotification) {
         pool.shutdownNow();
         recorder.flush();
-        persistLastRunOutcomes(sDependencies.getCachePreferences(getApplicationContext()),
-                recorder, true);
-        notificationManager.cancel(NOTIFICATION_ID);
-        return Result.failure(recorder.finish(true));
+        persistLastRunOutcomes(prefs, recorder, true);
+        cancelNotification.run();
+        return recorder.finish(true);
     }
 
     private static int getForegroundServiceType() {

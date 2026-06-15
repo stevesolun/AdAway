@@ -5281,6 +5281,44 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
+- [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
+- [x] Extract the cancel-finalization sequence into a package-visible helper with production
+  behavior unchanged.
+- [x] Add connected coverage proving cancelled runs flush pending source inserts, persist the
+  outcome ledger, cancel notification progress, and return cancelled output.
+- [x] Add connected coverage proving a stopped worker returns a cancelled result promptly while a
+  filter-list detail request is still blocked.
+- [x] Keep the remaining SourceModel carry-forward concurrency sentinel for now because existing
+  connected generation-failure tests cover carry-forward behavior, while the internal thread-safe
+  collection guard is cheaper and less invasive than adding test-only hooks.
+- [x] Run unit, compile, debug build, and hygiene gates for this slice.
+
+## Review - 2026-06-15 Goal Continuation 97
+- `FilterListsSubscribeAllWorker.finishCancelled(...)` now delegates to
+  `finalizeCancelledRun(...)`, which performs the same shutdown, recorder flush, outcome
+  persistence, notification cancellation, and cancelled output construction without requiring a
+  source-text test.
+- Removed `cancelPathPollsAndFlushesBeforeReportingCancelled` and its `readRepoFile` helper from
+  `FilterListsSubscribeAllWorkerTest`.
+- Added connected tests in `FilterListsSubscribeAllWorkerRoomTest` and
+  `FilterListsSubscribeAllWorkerDoWorkTest` for cancelled-run persistence and stop-while-resolving
+  behavior.
+- Focused unit verification passed:
+  `.\gradlew.bat :app:testDebugUnitTest --tests
+  org.adaway.ui.hosts.FilterListsSubscribeAllWorkerTest --dependency-verification=strict
+  --rerun-tasks --stacktrace`.
+- Compile/build verification passed:
+  `.\gradlew.bat :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --rerun-tasks
+  --stacktrace` and `.\gradlew.bat :app:assembleDebug --dependency-verification=strict
+  --rerun-tasks --stacktrace`.
+- Connected worker verification passed after starting the local `adaway-api34` AVD:
+  `.\gradlew.bat :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest,org.adaway.ui.hosts.FilterListsSubscribeAllWorkerRoomTest'
+  --dependency-verification=strict --stacktrace`; Gradle reported 6 tests on
+  `adaway-api34(AVD)` and `BUILD SUCCESSFUL`.
+
 ## Plan - 2026-06-15 Goal Continuation 96 AI Feature Cut
 - [x] Remove the dormant AI feature gate from Gradle instead of keeping a default-off
   product path.

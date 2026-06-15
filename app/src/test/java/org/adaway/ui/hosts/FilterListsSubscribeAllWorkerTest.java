@@ -136,38 +136,9 @@ public class FilterListsSubscribeAllWorkerTest {
                         "regional", 7, 2, false, new int[]{10}));
     }
 
-    @Test
-    public void cancelPathPollsAndFlushesBeforeReportingCancelled() throws Exception {
-        String source = readRepoFile(
-                "app/src/main/java/org/adaway/ui/hosts/FilterListsSubscribeAllWorker.java");
-
-        assertFalse("Cancel-aware completion loop must not block indefinitely on take().",
-                source.contains("completion.take().get()"));
-        assertTrue("Completion loop must poll so isStopped() can be observed quickly.",
-                source.contains("completion.poll(250, TimeUnit.MILLISECONDS)"));
-        int cancelPath = source.indexOf("private Result finishCancelled");
-        int flush = source.indexOf("recorder.flush();", cancelPath);
-        int persist = source.indexOf("persistLastRunOutcomes", flush);
-        int cancelNotification = source.indexOf("notificationManager.cancel", persist);
-        assertTrue("Cancelled output must flush pending DB inserts before persisting counts.",
-                flush > cancelPath);
-        assertTrue("Cancelled output must persist the outcome ledger before reporting.",
-                persist > flush);
-        assertTrue("Cancelled output must cancel the progress notification after persistence.",
-                cancelNotification > persist);
-    }
-
     private static FilterListsDirectoryApi.ListSummary summary(int id, String name,
             String description, int[] syntaxIds, int[] tagIds, int[] languageIds) {
         return new FilterListsDirectoryApi.ListSummary(id, name, description, syntaxIds, tagIds,
                 languageIds);
-    }
-
-    private static String readRepoFile(String relativePath) throws Exception {
-        java.nio.file.Path cwd = java.nio.file.Paths.get("").toAbsolutePath();
-        java.nio.file.Path repo = java.nio.file.Files.isDirectory(cwd.resolve("app"))
-                ? cwd : cwd.getParent();
-        return new String(java.nio.file.Files.readAllBytes(repo.resolve(relativePath)),
-                java.nio.charset.StandardCharsets.UTF_8);
     }
 }

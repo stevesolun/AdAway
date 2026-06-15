@@ -37,6 +37,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Connected coverage for the full FilterLists subscribe-all Worker execution path.
@@ -174,16 +179,49 @@ public class FilterListsSubscribeAllWorkerDoWorkTest extends DbTest {
         assertEquals(1, hostsSourceDao.getAll().size());
     }
 
+    @Test
+    public void doWork_stopWhileResolvingDetailsReturnsCancelledPromptly() throws Exception {
+        dependencies.directoryClient.summaries.add(summary(30, "Slow safe", new int[]{1}));
+        dependencies.directoryClient.details.put(30, details(30, "Slow safe",
+                "https://slow.test/hosts.txt"));
+        dependencies.directoryClient.blockOnGetDetails = true;
+
+        FilterListsSubscribeAllWorker worker = buildWorker(Data.EMPTY);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<ListenableWorker.Result> future = executor.submit(worker::doWork);
+        try {
+            assertTrue(dependencies.directoryClient.detailRequestStarted.await(5,
+                    TimeUnit.SECONDS));
+
+            worker.stop(0);
+
+            ListenableWorker.Result result = future.get(5, TimeUnit.SECONDS);
+            assertTrue(result instanceof ListenableWorker.Result.Failure);
+            Data output = ((ListenableWorker.Result.Failure) result).getOutputData();
+            assertTrue(output.getBoolean(OUTPUT_CANCELLED, false));
+            assertTrue(prefs.getBoolean(
+                    FilterListsSubscribeAllWorker.KEY_LAST_RUN_CANCELLED, false));
+            assertEquals(0, dependencies.enqueueUpdateNowCount);
+            assertFalse(hostsSourceDao.getByUrl("https://slow.test/hosts.txt").isPresent());
+        } finally {
+            dependencies.directoryClient.releaseDetailRequest.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     private ListenableWorker.Result runWorker() {
         return runWorker(Data.EMPTY);
     }
 
     private ListenableWorker.Result runWorker(Data inputData) {
-        FilterListsSubscribeAllWorker worker = TestListenableWorkerBuilder
+        return buildWorker(inputData).doWork();
+    }
+
+    private FilterListsSubscribeAllWorker buildWorker(Data inputData) {
+        return TestListenableWorkerBuilder
                 .from(context, FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
-        return worker.doWork();
     }
 
     private static FilterListsDirectoryApi.ListSummary summary(int id, String name,
@@ -241,7 +279,10 @@ public class FilterListsSubscribeAllWorkerDoWorkTest extends DbTest {
         final List<FilterListsDirectoryApi.ListSummary> summaries = new ArrayList<>();
         final Map<Integer, FilterListsDirectoryApi.ListDetails> details = new HashMap<>();
         final List<Integer> requestedDetailIds = new ArrayList<>();
+        final CountDownLatch detailRequestStarted = new CountDownLatch(1);
+        final CountDownLatch releaseDetailRequest = new CountDownLatch(1);
         boolean throwOnGetLists;
+        boolean blockOnGetDetails;
 
         @Override
         public List<FilterListsDirectoryApi.ListSummary> getLists() throws IOException {
@@ -254,6 +295,15 @@ public class FilterListsSubscribeAllWorkerDoWorkTest extends DbTest {
         @Override
         public FilterListsDirectoryApi.ListDetails getListDetails(int id) throws IOException {
             requestedDetailIds.add(id);
+            if (blockOnGetDetails) {
+                detailRequestStarted.countDown();
+                try {
+                    releaseDetailRequest.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted detail request", exception);
+                }
+            }
             FilterListsDirectoryApi.ListDetails result = details.get(id);
             if (result == null) {
                 throw new IOException("Unexpected detail request: " + id
