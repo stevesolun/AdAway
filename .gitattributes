@@ -1,0 +1,13 @@
+# Keep generated GitHub/tag source archives scoped to the Android app release.
+# Historical artwork/support material and dormant native modules remain available
+# in git history, but are not part of the release source archive for the app APK.
+/Resources export-ignore
+/Resources/** export-ignore
+/tcpdump export-ignore
+/tcpdump/** export-ignore
+/webserver export-ignore
+/webserver/** export-ignore
+/app/src/main/assets/icon.svg export-ignore
+/app/src/main/assets/localhost-2410.crt export-ignore
+/app/src/main/assets/localhost-2410.key export-ignore
+/app/src/main/assets/test.html export-ignore

@@ -1,8 +1,15 @@
 name: "CodeQL"
 
 on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
   schedule:
     - cron: '0 1 * * 6'
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -24,11 +31,14 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+    - name: Validate Gradle wrapper
+      uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
 
       # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@dd903d2e4f5405488e5ef1422510ee31c8b32357
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -39,14 +49,14 @@ jobs:
         # queries: security-extended,security-and-quality
 
     - name: set up JDK 21
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
       with:
         distribution: 'temurin'
         java-version: 21
         cache: 'gradle'
 
     - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
 
     - name: Install Android SDK/NDK (required for native modules)
       shell: bash
@@ -118,9 +128,9 @@ jobs:
 
     # Build from command line as Autobuild fails
     - run: |
-       ./gradlew assembleRelease
+       ./gradlew assembleDebug --dependency-verification=strict
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@dd903d2e4f5405488e5ef1422510ee31c8b32357
       with:
         category: "/language:${{matrix.language}}"

@@ -10,17 +10,6 @@
             tools:replace="android:exported" />
 
         <activity
-            android:name=".ui.hosts.FilterCatalogActivity"
-            android:exported="true"
-            tools:replace="android:exported" />
-
-        <activity
-            android:name=".ui.hosts.FilterListsImportActivity"
-            android:exported="true"
-            tools:node="merge"
-            tools:replace="android:exported" />
-
-        <activity
             android:name=".ui.hosts.SchedulesActivity"
             android:exported="true"
             tools:replace="android:exported" />

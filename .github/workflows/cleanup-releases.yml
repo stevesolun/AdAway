@@ -7,10 +7,6 @@ on:
         description: "How many releases to keep"
         required: true
         default: "3"
-      delete_tags:
-        description: "Also delete tags for removed releases"
-        required: true
-        default: "true"
 
 permissions:
   contents: write
@@ -20,10 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete older releases
-        uses: dev-drprasad/delete-older-releases@v0.3.4
+        uses: dev-drprasad/delete-older-releases@dfbe6be2a006e9475dfcbe5b8d201f1824c2a9fe
         with:
           keep_latest: ${{ inputs.keep_latest }}
-          delete_tags: ${{ inputs.delete_tags }}
+          # Keep tags: source archives and GPL source provenance are tag-addressed.
+          delete_tags: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

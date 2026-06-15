@@ -34,13 +34,34 @@ The AdAway project provides [a global changelog](CHANGELOG.md).
 
 ## 4. Building release APK
 
-The release apk must be built using the `release` flavor (not `debug`).
-Check the [contributing guide for building instructions](CONTRIBUTING.md#building-the-project).  
+Tagged GitHub releases build the `release` variant with
+`.github/workflows/fork-release-apk.yml`. The release artifact name is
+`AdAway_<version>.apk`, where `<version>` is the tag without the leading `v`.
+For example, tag `v13.5.0` produces `AdAway_13.5.0.apk`.
 
-> [!IMPORTANT]
-> Rename to release apk file to follow the format: `AdAway-<version_name>-<yyyymmdd>.apk`
- 
-Example: _AdAway-6.1.2-20220817.apk_ for the version 6.1.2 built the 08/17/22.
+The workflow also generates `app/build/reports/sbom/adaway.cdx.json`,
+SHA-256 checksum files for the APK and SBOM, signer-certificate verification,
+and provenance/SBOM attestations.
+
+Required repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded release keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Release key alias |
+| `ANDROID_KEY_PASSWORD` | Release key password |
+| `UPDATE_MANIFEST_PUBLIC_KEY_BASE64` | Public key embedded for signed update-manifest verification |
+| `UPDATE_MANIFEST_PRIVATE_KEY_BASE64` | Base64-encoded PEM private key used to sign `manifest.json` |
+| `ANDROID_RELEASE_CERT_SHA256` | Expected APK signing certificate SHA-256 digest |
+| `RELEASE_TAG_PUBLIC_KEY_BASE64` | Base64-encoded public key used by `git verify-tag` for release tags |
+
+Local release verification should run the same gates where possible:
+
+```bash
+./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+./gradlew :app:generateSbom --dependency-verification=strict --no-daemon --stacktrace
+```
 
 ## 5. Distributing release
 
@@ -81,12 +102,93 @@ The beta releases are only announced in the XDA development thread.
 ### Stable releases
 
 The stable releases are distributed through [GitHub releases](https://github.com/AdAway/AdAway/releases) and [F-Droid store](https://f-droid.org/packages/org.adaway/) and are posted of the first post of XDA development thread.
-Once ready, create and push a tag on GitHub repository using `vX.Y.Z` format (or `vX.Y.Zb` for pre-releases).
-To publish the application in GitHub:
+Once ready, create and push a tag on GitHub repository using `vX.Y.Z` format
+(or `vX.Y.Zb` for pre-releases). Tags ending in `b` are published as GitHub
+pre-releases and use the `beta` update-manifest channel; all other release tags
+use the `stable` channel. To publish the application in GitHub, push the signed
+release tag. The workflow imports `RELEASE_TAG_PUBLIC_KEY_BASE64`, runs
+`git verify-tag`, creates the GitHub release with fixed GPL boundary wording,
+disables generated release notes, and uploads:
 
-* Create a new version based on this tag,
-* Copy the changelog part related to the version as description of the release,
-* Upload apk binary to the release.
+* `AdAway_<version>.apk`
+* `AdAway_<version>.apk.sha256`
+* `manifest.json`
+* `manifest.json.sha256`
+* `app/build/reports/sbom/adaway.cdx.json`
+* `app/build/reports/sbom/adaway.cdx.json.sha256`
+
+Before pushing a release tag locally, run:
+
+```powershell
+$Version = "<version>"
+$Apk = "app\build\outputs\apk\release\AdAway_$Version.apk"
+$Sbom = "app\build\reports\sbom\adaway.cdx.json"
+$Manifest = "app\build\outputs\update\manifest.json"
+
+./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+./gradlew :app:generateSbom --dependency-verification=strict --no-daemon --stacktrace
+Copy-Item app\build\outputs\apk\release\app-release.apk $Apk -Force
+Get-FileHash $Apk -Algorithm SHA256 |
+  ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $Apk -Leaf)" } |
+  Set-Content "$Apk.sha256"
+Get-FileHash $Sbom -Algorithm SHA256 |
+  ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $Sbom -Leaf)" } |
+  Set-Content "$Sbom.sha256"
+bash ./scripts/generate-update-manifest.sh `
+  --apk $Apk `
+  --version $Version `
+  --version-code "<versionCode>" `
+  --cert-sha256 "<release-certificate-sha256>" `
+  --apk-url "https://github.com/stevesolun/AdAway/releases/download/v$Version/$(Split-Path $Apk -Leaf)" `
+  --private-key-base64 "$env:UPDATE_MANIFEST_PRIVATE_KEY_BASE64" `
+  --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  --out $Manifest `
+  --channel stable `
+  --store adaway
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1 `
+  -SourceMode GitTracked -StrictSourceArchive `
+  -ApkPath $Apk `
+  -SbomPath $Sbom `
+  -StrictArtifacts
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk `
+  -ExpectedCertSha256 "<release-certificate-sha256>"
+```
+
+`run-release-smoke.ps1` refuses debuggable APKs and emulators. It installs the
+release APK on an attached physical device, launches `org.adaway`, and fails if
+the process is not running after launch.
+
+On Unix-like shells with PowerShell available, the boundary checker wrapper can
+also be run directly:
+
+```bash
+bash ./scripts/check-license-boundary.sh -SourceMode GitTracked -StrictSourceArchive
+```
+
+After the GitHub release is published, verify release assets from a clean checkout:
+
+```bash
+sha256sum -c "AdAway_<version>.apk.sha256"
+sha256sum -c "manifest.json.sha256"
+sha256sum -c "adaway.cdx.json.sha256"
+gh attestation verify "AdAway_<version>.apk" --repo stevesolun/AdAway
+gh attestation verify "manifest.json" --repo stevesolun/AdAway
+gh attestation verify "adaway.cdx.json" --repo stevesolun/AdAway
+```
+
+The signed update manifest may only point to `app.adaway.org` or to this fork's
+GitHub APK release path:
+`https://github.com/stevesolun/AdAway/releases/download/<tag>/<apk>.apk`.
+Check the embedded payload before publishing or announcing a release.
+
+Tagged releases are retained for durable provenance; the tagged release workflow
+does not automatically delete older release artifacts.
+
+APK self-update is only for the AdAway-signed direct APK distribution. Store
+builds such as F-Droid should rely on their store update mechanism rather than
+the in-app APK installer path. Leave `adawayEnableDirectApkUpdater` unset for
+store builds so the install permission is removed from the merged manifest.
 
 Pushing a tag will publish the application to F-Droid store.
 It might takes some days to update but if it does not, build logs are available at the following address: `https://monitor.f-droid.org/builds/log/org.adaway/<versioncode>`.

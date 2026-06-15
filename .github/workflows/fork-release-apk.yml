@@ -6,23 +6,62 @@ on:
       - "v*"
 
 permissions:
+  artifact-metadata: write
+  attestations: write
   contents: write
+  id-token: write
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Classify release tag
+        id: release_tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *b ]]; then
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify signed release tag
+        shell: bash
+        env:
+          RELEASE_TAG_PUBLIC_KEY_BASE64: ${{ secrets.RELEASE_TAG_PUBLIC_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_TAG_PUBLIC_KEY_BASE64:-}" ]; then
+            echo "::error::RELEASE_TAG_PUBLIC_KEY_BASE64 is required to verify signed release tags."
+            exit 1
+          fi
+          export GNUPGHOME="$(mktemp -d)"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          chmod 700 "$GNUPGHOME"
+          printf '%s' "$RELEASE_TAG_PUBLIC_KEY_BASE64" | base64 -d | gpg --batch --import
+          git verify-tag "$GITHUB_REF_NAME"
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
 
       - name: Install Android SDK/NDK (required for native modules)
         shell: bash
@@ -71,8 +110,8 @@ jobs:
 
           # Install needed packages with retries (downloads can flake on runners).
           pkgs=(
-            "platforms;android-34"
-            "build-tools;34.0.0"
+            "platforms;android-36"
+            "build-tools;36.0.0"
             "platform-tools"
             "ndk;27.2.12479018"
           )
@@ -108,27 +147,51 @@ jobs:
             mkdir -p "$HOME/.keystore"
             echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "$HOME/.keystore/release.jks"
           else
-            echo "ANDROID_KEYSTORE_BASE64 not set; building with debug key."
+            echo "ANDROID_KEYSTORE_BASE64 not set; release build will fail closed."
           fi
 
-      - name: Configure Gradle signing (optional)
+      - name: Configure Gradle release trust material
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          UPDATE_MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY_BASE64 }}
         run: |
+          mkdir -p "$HOME/.gradle"
           if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
-            mkdir -p "$HOME/.gradle"
             echo "signingStoreLocation=$HOME/.keystore/release.jks" >> "$HOME/.gradle/gradle.properties"
             echo "signingStorePassword=${SIGNING_STORE_PASSWORD}" >> "$HOME/.gradle/gradle.properties"
             echo "signingKeyAlias=${SIGNING_KEY_ALIAS}" >> "$HOME/.gradle/gradle.properties"
             echo "signingKeyPassword=${SIGNING_KEY_PASSWORD}" >> "$HOME/.gradle/gradle.properties"
           fi
+          if [ -n "${UPDATE_MANIFEST_PUBLIC_KEY_BASE64}" ]; then
+            echo "updateManifestPublicKeyBase64=${UPDATE_MANIFEST_PUBLIC_KEY_BASE64}" >> "$HOME/.gradle/gradle.properties"
+          fi
 
-      - name: Build release APK (signed if secrets provided)
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace -x :tcpdump:lintVitalAnalyzeRelease
+      - name: Check license boundary
+        shell: pwsh
+        run: ./scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive
+
+      - name: Build signed release APK
+        run: ./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+
+      - name: Generate release SBOM
+        id: sbom
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :app:generateSbom --dependency-verification=strict --no-daemon --stacktrace
+          SBOM="app/build/reports/sbom/adaway.cdx.json"
+          if [ ! -s "$SBOM" ]; then
+            echo "::error::Release SBOM was not generated at $SBOM."
+            exit 1
+          fi
+          python3 -m json.tool "$SBOM" >/dev/null
+          (cd "$(dirname "$SBOM")" && sha256sum "$(basename "$SBOM")") | tee "$SBOM.sha256"
+          echo "path=$SBOM" >> "$GITHUB_OUTPUT"
+          echo "sha256_path=$SBOM.sha256" >> "$GITHUB_OUTPUT"
 
       - name: Select APK artifact
         id: apk
@@ -136,25 +199,156 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           SRC="app/build/outputs/apk/release/app-release.apk"
-          DEST="app/build/outputs/apk/release/AdsAway_${VERSION}.apk"
+          DEST="app/build/outputs/apk/release/AdAway_${VERSION}.apk"
           cp "$SRC" "$DEST"
           echo "path=$DEST" >> $GITHUB_OUTPUT
+          echo "sha256_path=$DEST.sha256" >> $GITHUB_OUTPUT
+
+      - name: Verify release APK identity
+        id: apk_identity
+        shell: bash
+        env:
+          ANDROID_RELEASE_CERT_SHA256: ${{ secrets.ANDROID_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          APK="${{ steps.apk.outputs.path }}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
+          BUILD_TOOLS="$(find "$SDKROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          AAPT="$BUILD_TOOLS/aapt"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+
+          if [ -z "${ANDROID_RELEASE_CERT_SHA256:-}" ]; then
+            echo "::error::ANDROID_RELEASE_CERT_SHA256 is required for release artifact verification."
+            exit 1
+          fi
+          if [ ! -x "$AAPT" ] || [ ! -x "$APKSIGNER" ]; then
+            echo "::error::Android build tools are missing aapt or apksigner."
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --print-certs "$APK" | tee "$APK.certs.txt"
+          ACTUAL_CERT_SHA256="$(
+            awk -F': ' '/Signer #1 certificate SHA-256 digest/ { print $2; exit }' "$APK.certs.txt" |
+            tr '[:upper:]' '[:lower:]' |
+            tr -d ':[:space:]'
+          )"
+          EXPECTED_CERT_SHA256="$(
+            printf '%s' "$ANDROID_RELEASE_CERT_SHA256" |
+            tr '[:upper:]' '[:lower:]' |
+            tr -d ':[:space:]'
+          )"
+          if [ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::Release APK signer fingerprint does not match ANDROID_RELEASE_CERT_SHA256."
+            exit 1
+          fi
+
+          BADGING="$("$AAPT" dump badging "$APK")"
+          PACKAGE_NAME="$(printf '%s\n' "$BADGING" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+          VERSION_NAME="$(printf '%s\n' "$BADGING" | sed -n "s/^package: .*versionName='\([^']*\)'.*/\1/p")"
+          VERSION_CODE="$(printf '%s\n' "$BADGING" | sed -n "s/^package: .*versionCode='\([^']*\)'.*/\1/p")"
+          if [ "$PACKAGE_NAME" != "org.adaway" ]; then
+            echo "::error::Release APK package is '$PACKAGE_NAME', expected 'org.adaway'."
+            exit 1
+          fi
+          if [ "$VERSION_NAME" != "$VERSION" ]; then
+            echo "::error::Release APK versionName is '$VERSION_NAME', expected tag version '$VERSION'."
+            exit 1
+          fi
+          if [ -z "$VERSION_CODE" ]; then
+            echo "::error::Release APK versionCode could not be read from package badging."
+            exit 1
+          fi
+
+          (cd "$(dirname "$APK")" && sha256sum "$(basename "$APK")") |
+            tee "${{ steps.apk.outputs.sha256_path }}"
+          echo "cert_sha256=$ACTUAL_CERT_SHA256" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Generate signed update manifest
+        id: update_manifest
+        shell: bash
+        env:
+          UPDATE_MANIFEST_PRIVATE_KEY_BASE64: ${{ secrets.UPDATE_MANIFEST_PRIVATE_KEY_BASE64 }}
+          UPDATE_MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${UPDATE_MANIFEST_PRIVATE_KEY_BASE64:-}" ]; then
+            echo "::error::UPDATE_MANIFEST_PRIVATE_KEY_BASE64 is required to sign manifest.json."
+            exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK="${{ steps.apk.outputs.path }}"
+          MANIFEST="app/build/outputs/update/manifest.json"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$(basename "$APK")"
+          bash ./scripts/generate-update-manifest.sh \
+            --apk "$APK" \
+            --version "$VERSION" \
+            --version-code "${{ steps.apk_identity.outputs.version_code }}" \
+            --cert-sha256 "${{ steps.apk_identity.outputs.cert_sha256 }}" \
+            --apk-url "$APK_URL" \
+            --private-key-base64 "$UPDATE_MANIFEST_PRIVATE_KEY_BASE64" \
+            --public-key-base64 "$UPDATE_MANIFEST_PUBLIC_KEY_BASE64" \
+            --out "$MANIFEST" \
+            --channel "${{ steps.release_tag.outputs.channel }}" \
+            --store adaway \
+            --changelog "See GitHub release ${GITHUB_REF_NAME}."
+          python3 -m json.tool "$MANIFEST" >/dev/null
+          echo "path=$MANIFEST" >> "$GITHUB_OUTPUT"
+          echo "sha256_path=$MANIFEST.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Check release artifact license boundary
+        shell: pwsh
+        run: |
+          ./scripts/check-license-boundary.ps1 `
+            -SourceMode GitTracked `
+            -StrictSourceArchive `
+            -ApkPath "${{ steps.apk.outputs.path }}" `
+            -SbomPath "${{ steps.sbom.outputs.path }}" `
+            -StrictArtifacts
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with:
+          subject-path: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.sha256_path }}
+            ${{ steps.update_manifest.outputs.path }}
+            ${{ steps.update_manifest.outputs.sha256_path }}
+            ${{ steps.sbom.outputs.path }}
+            ${{ steps.sbom.outputs.sha256_path }}
+
+      - name: Attest release SBOM
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb
+        with:
+          subject-path: ${{ steps.apk.outputs.path }}
+          sbom-path: ${{ steps.sbom.outputs.path }}
 
       - name: Create GitHub Release + upload APK
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
-          generate_release_notes: true
-          prerelease: false
+          generate_release_notes: false
+          body: |
+            AdAway Android release artifact.
+
+            License boundary: this app release remains GPLv3+. A permissive
+            relicensing track is documented separately and is not part of this
+            APK release.
+
+            Artifacts include the APK, signed update manifest, SHA-256 checksums,
+            and CycloneDX SBOM.
+
+            GitHub may also display auto-generated "Source code" zip/tar.gz
+            links for this tag. Treat those as GPLv3+ source snapshots governed
+            by committed .gitattributes export-ignore rules.
+          prerelease: ${{ steps.release_tag.outputs.prerelease }}
           files: |
             ${{ steps.apk.outputs.path }}
-
-      - name: Delete older releases (keep latest 3)
-        uses: dev-drprasad/delete-older-releases@v0.3.4
-        with:
-          keep_latest: 3
-          delete_tags: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ${{ steps.apk.outputs.sha256_path }}
+            ${{ steps.update_manifest.outputs.path }}
+            ${{ steps.update_manifest.outputs.sha256_path }}
+            ${{ steps.sbom.outputs.path }}
+            ${{ steps.sbom.outputs.sha256_path }}
 
 
 

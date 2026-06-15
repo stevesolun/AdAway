@@ -1,28 +1,29 @@
 plugins {
     id 'com.android.application'
+    id 'org.cyclonedx.bom'
 }
 
 boolean keyStoreDefined = project.hasProperty('signingStoreLocation') &&
         project.hasProperty('signingStorePassword') &&
         project.hasProperty('signingKeyAlias') &&
         project.hasProperty('signingKeyPassword')
-
-repositories {
-    maven {
-        url 'https://jitpack.io'
-    }
-}
+boolean updateManifestKeyDefined = project.hasProperty('updateManifestPublicKeyBase64') &&
+        project.property('updateManifestPublicKeyBase64').toString().trim().length() > 0
+boolean directApkUpdaterEnabled =
+        project.findProperty('adawayEnableDirectApkUpdater')?.toString()?.toBoolean() ?: false
+boolean aiFeatureEnabled =
+        project.findProperty('adawayEnableAi')?.toString()?.toBoolean() ?: false
 
 android {
-    compileSdk 34
-    ndkVersion '27.2.12479018'
-    namespace 'org.adaway'
+    compileSdk = 36
+    ndkVersion = '27.2.12479018'
+    namespace = 'org.adaway'
 
     defaultConfig {
-        minSdk 26
-        targetSdk 34
-        versionCode libs.versions.appCode.get() as int
-        versionName libs.versions.appName.get()
+        minSdk = 26
+        targetSdk = 34
+        versionCode = libs.versions.appCode.get() as int
+        versionName = libs.versions.appName.get()
 
         javaCompileOptions {
             annotationProcessorOptions {
@@ -33,7 +34,17 @@ android {
             }
         }
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [
+                requestInstallPackagesPermission: directApkUpdaterEnabled
+                        ? "android.permission.REQUEST_INSTALL_PACKAGES"
+                        : "org.adaway.permission.NO_DIRECT_APK_INSTALL"
+        ]
+        buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED",
+                directApkUpdaterEnabled.toString()
+        buildConfigField "boolean", "AI_FEATURE_ENABLED", aiFeatureEnabled.toString()
+        resValue "string", "update_manifest_public_key",
+                project.findProperty('updateManifestPublicKeyBase64') ?: ""
     }
 
     /*
@@ -46,11 +57,25 @@ android {
      */
     signingConfigs {
         debug {
-            enableV1Signing true
-            enableV2Signing true
-            enableV3Signing true
-            enableV4Signing true
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
         }
+    }
+
+    boolean releaseTrustMaterialRequested = gradle.startParameter.taskNames.any {
+        String taskName = it.tokenize(':').last().toLowerCase()
+        taskName in [
+                'assemblerelease',
+                'assemble',
+                'build',
+                'bundle',
+                'bundlerelease',
+                'packagerelease',
+                'generatesbom',
+                'cyclonedxdirectbom'
+        ] || (taskName.startsWith('sign') && taskName.contains('release'))
     }
 
     if (keyStoreDefined) {
@@ -58,36 +83,51 @@ android {
 
         signingConfigs {
             release {
-                storeFile file(signingStoreLocation)
-                storePassword signingStorePassword
-                keyAlias signingKeyAlias
-                keyPassword signingKeyPassword
-                enableV1Signing true
-                enableV2Signing true
-                enableV3Signing true
-                enableV4Signing true
+                storeFile = file(signingStoreLocation)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             }
         }
 
         buildTypes.debug.signingConfig = signingConfigs.release
         buildTypes.release.signingConfig = signingConfigs.release
     } else {
-        println "No signature properties found. Using debug key for release build to ensure APK is installable."
-        buildTypes.release.signingConfig = signingConfigs.debug
+        println "No signature properties found. Debug builds will use the debug key."
+        if (releaseTrustMaterialRequested) {
+            throw new GradleException("Release and release-SBOM builds require signingStoreLocation, " +
+                    "signingStorePassword, signingKeyAlias, and signingKeyPassword.")
+        }
+    }
+
+    if (releaseTrustMaterialRequested && !updateManifestKeyDefined) {
+        throw new GradleException("Release and release-SBOM builds require updateManifestPublicKeyBase64.")
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
-        viewBinding true
+        buildConfig = true
+        resValues = true
+        viewBinding = true
     }
 
-    packagingOptions {
+    packaging {
         jniLibs {
             useLegacyPackaging = true
+        }
+        resources {
+            excludes += [
+                    'META-INF/services/java.net.spi.InetAddressResolverProvider',
+                    '/META-INF/services/java.net.spi.InetAddressResolverProvider'
+            ]
         }
     }
 
@@ -95,15 +135,19 @@ android {
         debug {
             // shrinkResources false
             // minifyEnabled false
-            // proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Ensure modern signing for debug builds (required for Android 11+)
-            signingConfig signingConfigs.debug
+            signingConfig = signingConfigs.debug
         }
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+
+    sourceSets {
+        androidTest.assets.srcDirs += files("$projectDir/schemas")
     }
 
     // Do not abort build if lint finds errors
@@ -112,11 +156,40 @@ android {
     }
 }
 
-dependencies {
-    // Native modules
-    implementation project(':tcpdump')
-    // implementation project(':webserver')
+def dnsjavaDesktopResolverService = 'META-INF/services/java.net.spi.InetAddressResolverProvider'
 
+tasks.register('stripDnsjavaDesktopResolverServiceRelease') {
+    dependsOn tasks.named('mergeReleaseJavaResource')
+    doLast {
+        File jarFile = layout.buildDirectory
+                .file('intermediates/merged_java_res/release/mergeReleaseJavaResource/base.jar')
+                .get()
+                .asFile
+        if (!jarFile.exists()) {
+            return
+        }
+        Set<File> matches = zipTree(jarFile).matching {
+            include dnsjavaDesktopResolverService
+        }.files
+        if (matches.isEmpty()) {
+            return
+        }
+
+        File strippedJar = new File(jarFile.parentFile, "${jarFile.name}.stripped")
+        ant.zip(destfile: strippedJar) {
+            zipfileset(src: jarFile) {
+                exclude(name: dnsjavaDesktopResolverService)
+            }
+        }
+        ant.move(file: strippedJar, tofile: jarFile, overwrite: true)
+    }
+}
+
+tasks.matching { it.name == 'minifyReleaseWithR8' }.configureEach {
+    dependsOn tasks.named('stripDnsjavaDesktopResolverServiceRelease')
+}
+
+dependencies {
     // AndroidX components
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.cardview:cardview:1.0.0'
@@ -144,7 +217,7 @@ dependencies {
     if (keyStoreDefined) {
         implementation project(':sentrystub')
     } else {
-        implementation platform('io.sentry:sentry-bom:7.8.0')
+        implementation platform('io.sentry:sentry-bom:8.43.2')
         implementation('io.sentry:sentry-android')
         implementation('io.sentry:sentry-android-fragment')
         implementation('io.sentry:sentry-android-timber')
@@ -165,4 +238,25 @@ dependencies {
     testImplementation libs.okhttp3.mockwebserver
     androidTestImplementation libs.bundles.androidx.test
     androidTestImplementation libs.junit
+    androidTestImplementation libs.okhttp3.mockwebserver
+    androidTestImplementation libs.okhttp3.tls
+    androidTestImplementation 'androidx.room:room-testing:2.6.1'
+    androidTestImplementation 'androidx.work:work-testing:2.9.0'
+}
+
+tasks.named('cyclonedxDirectBom') {
+    projectType = org.cyclonedx.model.Component.Type.APPLICATION
+    componentName = 'AdAway'
+    componentVersion = android.defaultConfig.versionName
+    includeConfigs = ['releaseRuntimeClasspath']
+    jsonOutput = file("$buildDir/reports/sbom/adaway.cdx.json")
+    xmlOutput = null
+    resolvedDependencies.setFrom([])
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('generateSbom') {
+    group = 'verification'
+    description = 'Generate the release CycloneDX SBOM.'
+    dependsOn tasks.named('cyclonedxDirectBom')
 }

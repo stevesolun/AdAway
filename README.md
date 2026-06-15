@@ -1,8 +1,9 @@
-# ![AdsAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdsAway
+# ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway
 
-**AdsAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
+**AdAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
 
-AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration, an AI-powered filter assistant (Claude / Gemini / ChatGPT), categorized filter management, one-tap onboarding, and enterprise-grade API key encryption.
+AdAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
+categorized filter management, and one-tap onboarding.
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/stevesolun/adaway/total?logo=github)](https://github.com/stevesolun/AdAway/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](/LICENSE.md)
@@ -15,15 +16,14 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 2. [Features](#features)
 3. [Screenshots](#screenshots)
 4. [Installing](#installing)
-5. [AI Assistant](#ai-assistant)
-6. [Architecture](#architecture)
-7. [Filter Categories](#filter-categories)
-8. [Building from Source](#building-from-source)
-9. [How-To Guides](#how-to-guides)
-10. [Permissions](#permissions)
-11. [Troubleshooting](#troubleshooting)
-12. [Contributing](#contributing)
-13. [License](#license)
+5. [Architecture](#architecture)
+6. [Filter Categories](#filter-categories)
+7. [Building from Source](#building-from-source)
+8. [How-To Guides](#how-to-guides)
+9. [Permissions](#permissions)
+10. [Troubleshooting](#troubleshooting)
+11. [Contributing](#contributing)
+12. [License](#license)
 
 ---
 
@@ -31,15 +31,10 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 
 | Version | Highlight |
 |---------|-----------|
-| **v13.4.9** | Pre-LLM topic filter — off-topic queries rejected locally, zero API cost |
+| **v13.4.9** | Runtime-truth, crash-safety, and release-gate hardening |
 | v13.4.8 | Fix literal `"null"` description in FilterLists.com Discover tab |
-| v13.4.7 | Dynamic model list fetched live from provider API; per-provider model memory |
 | v13.4.6 | ATK-29b: dotless-i / dotted-I Unicode injection bypass closed |
-| v13.4.5 | 288-test AI security suite covering all injection/bypass/hallucination vectors |
-| v13.4.4 | **AI Conversational Agent** — reads live app state, plans and executes filter actions |
 | v13.4.2 | Security hardening: 22 attack vectors fixed (SSRF, MitM CA pin, backup limits, etc.) |
-| v13.4.1 | Provider-specific AI error messages; active model shown in header |
-| v13.4.0 | **AI Filter Assistant** — natural language filter config with Claude / Gemini / ChatGPT |
 | v13.3.x | Reliability: NPE/race/threading fixes, Force English locale, download error feedback |
 | v13.0–v13.2 | Parallel pipeline, Conditional GET, WAL mode, FilterLists.com browser, presets |
 
@@ -56,21 +51,13 @@ AdsAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 
 Both modes block at the DNS level — no content injection, no HTTPS inspection.
 
-### AI Filter Assistant
-
-- Natural language: "Block crypto miners but keep YouTube"
-- **Agent mode**: AI reads live app state, plans actions, and executes them on your approval
-- Supports **Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6**, **Gemini 2.5 Flash / Pro / Flash Lite**, **GPT-4.1 Mini / GPT-4.1 / GPT-4.1 Nano**
-- API keys encrypted on-device with AES-256-GCM backed by Android Keystore hardware (API 23+)
-- Configure at **Settings → AI Assistant**
-
 ### Filter Management
 
 - **12 filter categories** — ADS, YOUTUBE, PRIVACY, MALWARE, CRYPTO, SOCIAL, DEVICE, SERVICE, ANNOYANCES, REGIONAL, USER, CUSTOM
 - **Quick-start presets** — Safe / Balanced / Aggressive chip taps on Discover
 - **FilterLists.com browser** — 5000+ community lists, search by name, tag, or language
 - **Categorized source view** — sources grouped and color-coded by category
-- **Custom lists** — any URL, any format (Hosts / Domains / Adblock / Allowlist / Redirect)
+- **Custom lists** — compatible DNS-oriented lists with explicit hosts, domains, allowlist, or redirect rules
 - **One-tap subscribe / unsubscribe** from FilterLists.com directory
 - **Filter Sets** — save named presets, apply with one tap
 - **Scheduled updates** — daily or weekly automatic list refresh
@@ -106,10 +93,10 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 ### Download APK (Quickest)
 
 1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases/latest).
-2. Download `AdsAway_13.4.9.apk` (or whichever is latest).
+2. Download the latest `AdAway_<version>.apk` asset.
 3. **If you have the official AdAway installed**, uninstall it first — different signing key.
 4. Open the APK on your device → allow "Install unknown apps" if prompted.
-5. Open AdsAway and complete one-tap onboarding.
+5. Open AdAway and complete one-tap onboarding.
 
 ### Requirements
 
@@ -117,76 +104,10 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 - Root mode: rooted device with `su` binary
 - VPN mode: no root needed
 
-> **Note**: Builds are signed with a debug key. Android prevents updating over the official AdAway due to signature mismatch. Uninstall first.
-
----
-
-## AI Assistant
-
-### Setup
-
-1. Get an API key from your preferred provider:
-   - **Claude**: [console.anthropic.com](https://console.anthropic.com) → API Keys
-   - **Gemini**: [aistudio.google.com](https://aistudio.google.com) → Get API key
-   - **ChatGPT**: [platform.openai.com](https://platform.openai.com) → API keys
-2. In AdsAway: **More → Preferences → AI Assistant**
-3. Select your provider and model tier
-4. Tap the provider's API key row → paste your key → Save
-
-Your key is **encrypted immediately** on-device using AES-256-GCM with a hardware-backed Android Keystore key. It is never stored in plain text, never synced, and never sent anywhere except the selected provider's API endpoint.
-
-### Using the AI
-
-1. Tap the **Discover** tab
-2. Tap the **Ask AI** chip (next to Safe / Balanced / Aggressive)
-3. Type what you want in plain English, e.g.:
-   - *"Block ads and protect privacy but keep WhatsApp working"*
-   - *"Stop crypto miners and YouTube ads"*
-   - *"Is WhatsApp blocked? If so, unblock it"*
-   - *"Maximum blocking — I don't care if some apps break"*
-4. Tap **Ask** — the AI reads your current filter state and plans a set of actions
-5. Review the planned actions list + the AI's brief explanation
-6. Tap **Execute** — actions run immediately, results shown inline
-
-### What gets sent to the AI
-
-The request contains:
-- Your typed query (sanitized — injection patterns neutralized)
-- Live app state: subscribed/enabled counts per filter category, user rule counts
-- The list of available action types
-
-**Nothing else** — no hostnames from your DB, no installed apps, no device info, no personal data.
-
-### Security & Encryption Detail
-
-Keys are stored using **direct Android Keystore + AES/GCM/NoPadding** encryption:
-
-```
-Key generation:
-  KeyGenParameterSpec → KeyProperties.PURPOSE_ENCRYPT | DECRYPT
-  → AES / GCM / NoPadding, 256-bit
-  → Hardware-backed on supported devices (API 28+)
-
-Storage:
-  Encrypt(apiKey) → IV (12 bytes) || Ciphertext → Base64 → SharedPreferences
-
-Retrieval:
-  SharedPreferences → Base64 decode → split IV + ciphertext → Decrypt
-```
-
-No third-party crypto libs required. No EncryptedSharedPreferences (deprecated July 2025).
-
-### Supported Models
-
-Since v13.4.7, **available models are fetched live from each provider's API** when you save an API key — you always see the current model catalog, not a hardcoded list. Each provider remembers your chosen model independently.
-
-Built-in fallback (used if fetch fails or before a key is entered):
-
-| Provider | Fallback Models |
-|----------|----------------|
-| Claude | Haiku 4.5 · Sonnet 4.6 · Opus 4.6 |
-| Gemini | Flash 2.5 · Pro 2.5 · Flash Lite 2.5 |
-| ChatGPT | GPT-4.1 Mini · GPT-4.1 · GPT-4.1 Nano |
+> **Note**: CI debug artifacts are signed with a debug key. Tagged GitHub
+> releases must be production-signed and pass APK hash, package, version, and
+> signing-certificate verification before upload. Android prevents updating over
+> the official AdAway when signing keys differ. Uninstall first.
 
 ---
 
@@ -195,15 +116,15 @@ Built-in fallback (used if fetch fails or before a key is entered):
 ### Module Structure
 
 ```
-AdsAway/
-├── app/                    # Android application (Java 17)
-├── tcpdump/                # Native packet capture (C, NDK)
-├── webserver/              # Native HTTP server — mongoose (C, NDK)
-└── sentrystub/             # Sentry stub for release builds
+AdAway/
+|-- app/                    # Android application (Java 17)
+|-- sentrystub/             # Sentry stub for release builds
+`-- tcpdump/                # Source-only native packet-capture history; not packaged
 ```
 
-**Language distribution**: C 77%, Java 7%, HTML 9%, C++ 2%, rest is build config.
-This is a systems project wearing Android clothes. The critical path is native code.
+Current Gradle builds include `:app` and `:sentrystub`; tcpdump is source-only for APK
+purposes, and the historical local webserver is absent from the current build. The runtime
+critical path is the Android app database, parser, root hosts writer, and VPN DNS proxy.
 
 ### App Source Layout
 
@@ -218,15 +139,6 @@ app/src/main/java/org/adaway/
 │   ├── entity/                    # HostsSource, HostListItem, HostEntry, HostsMeta
 │   └── AppDatabase.java           # Room DB (WAL mode, v11, 10 migrations)
 ├── model/
-│   ├── ai/                        # ← NEW in v13.4.0, extended in v13.4.4
-│   │   ├── FilterListSuggester.java   # LLM orchestration + HTTP calls + agent execute()
-│   │   ├── AiAgentAction.java         # Action type enum + payload
-│   │   ├── AiAgentResponse.java       # Parsed LLM response (reasoning + actions)
-│   │   ├── AppStateContext.java       # Live app state JSON for system prompt
-│   │   ├── AiActionExecutor.java      # Validates + executes actions against DAOs
-│   │   ├── LlmProvider.java           # Claude / Gemini / OpenAI enum
-│   │   ├── LlmSuggestion.java         # Legacy suggestion result data class
-│   │   └── SecureApiKeyStore.java     # AES-256-GCM keystore wrapper
 │   ├── source/
 │   │   ├── SourceModel.java           # Download → Parse → Insert pipeline
 │   │   ├── SourceLoader.java          # Parser (hosts/domains/adblock formats)
@@ -238,15 +150,13 @@ app/src/main/java/org/adaway/
 │   ├── git/                       # GitHub/GitLab/Gist source types
 │   └── update/                    # APK self-update check
 ├── ui/
-│   ├── ai/
-│   │   └── AiSuggestBottomSheet.java  # Agent UI: action list + Execute button
 │   ├── home/                      # HomeActivity (nav shell) + HomeFragment + ViewModel
-│   ├── discover/                  # FilterLists.com browser + catalog + AI chip
+│   ├── discover/                  # FilterLists.com browser + catalog presets
 │   ├── more/                      # Tools & settings navigation
 │   ├── onboarding/                # First-run single-screen wizard
 │   ├── lists/                     # Custom blocked/allowed/redirected rules
 │   ├── hosts/                     # Filter sources management (HostsSourcesActivity)
-│   ├── prefs/                     # All preferences screens including PrefsAiFragment
+│   ├── prefs/                     # Preferences screens
 │   ├── adware/                    # Installed app adware scanner
 │   ├── log/                       # Real-time DNS query log
 │   └── domainchecker/             # Manual domain lookup tool
@@ -289,44 +199,6 @@ host_entries
 
 **HTTP 304 handling (v13.3.3 fix)**: When a server returns 304 Not Modified, existing entries are migrated from generation G → G+1 *before* cleanup runs, so nothing is deleted.
 
-### AI Request Lifecycle (Agent Mode)
-
-```
-User types query
-      ↓
-AiSuggestBottomSheet.onAskClicked()
-      ↓
-AppExecutors.networkIO()
-      ↓
-FilterListSuggester.execute(context, query)
-  ├── sanitizeQuery() → NFKC normalize + injection pattern neutralise
-  ├── isAdAwayTopicQuery() → reject off-topic queries locally (no API call)
-  ├── AppStateContext.build() → compact JSON state (diskIO-safe, called inline)
-  ├── Injects state into AGENT_SYSTEM_PROMPT_TEMPLATE
-  ├── Reads selected provider + model from SharedPreferences
-  ├── Reads encrypted API key from SecureApiKeyStore
-  ├── Builds provider-specific JSON request body
-  ├── POST to provider API endpoint (OkHttp, 15s connect / 60s read timeout)
-  └── Parses JSON response → AiAgentResponse(reasoning, List<AiAgentAction>)
-      ↓
-mainThread() → show action list + reasoning text
-      ↓
-onExecuteClicked()
-      ↓
-AppExecutors.diskIO()
-      ↓
-AiActionExecutor.execute(action) for each action
-  ├── SUBSCRIBE_CATEGORY → FilterListCatalog → HostsSourceDao.insert()
-  ├── ENABLE/DISABLE_CATEGORY → HostsSourceDao.setSourceEnabled()
-  ├── UPDATE_SOURCES → SourceUpdateService.enqueueUpdateNow()
-  ├── CHECK_DOMAIN → HostListItemDao.getEntriesForHost()
-  └── ALLOW/BLOCK_DOMAIN → normalizeDomain() → HostListItemDao.insert()
-      ↓
-mainThread() → show results inline
-```
-
----
-
 ## Filter Categories
 
 | Category | Safe? | Default On | Description |
@@ -361,8 +233,9 @@ mainThread() → show results inline
 | Tool | Required Version |
 |------|-----------------|
 | Android Studio | Hedgehog (2023.1) or later |
-| Android SDK | API 34 |
-| Android NDK | **27.2.12479018** (exact — C native code) |
+| Android SDK | API 36 |
+| Android Build Tools | 36.0.0 |
+| Android NDK | **27.2.12479018** (exact - C native code) |
 | JDK | 21 |
 | Git | Any recent version |
 
@@ -375,11 +248,11 @@ cd AdAway
 # Debug build (for development + testing)
 ./gradlew assembleDebug
 
-# Release build (skip lint — pre-existing upstream lint failures)
-./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalReportRelease -x lintVitalRelease
+# Release build
+./gradlew :app:assembleRelease --dependency-verification=strict
 
 # Or use the package task directly for signed release APK:
-./gradlew :app:packageRelease
+./gradlew :app:packageRelease --dependency-verification=strict
 
 # Run unit tests
 ./gradlew testDebugUnitTest
@@ -392,7 +265,7 @@ cd AdAway
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`
 - Release: `app/build/outputs/apk/release/app-release.apk`
 
-### Production Signing (Optional)
+### Production Signing
 
 Add to `~/.gradle/gradle.properties`:
 
@@ -401,6 +274,7 @@ signingStoreLocation=/path/to/keystore.jks
 signingStorePassword=your_store_password
 signingKeyAlias=your_key_alias
 signingKeyPassword=your_key_password
+updateManifestPublicKeyBase64=base64_encoded_spki_public_key
 ```
 
 ### CI/CD — Automatic Releases
@@ -408,15 +282,18 @@ signingKeyPassword=your_key_password
 Push a version tag to trigger the release pipeline:
 
 ```bash
-git tag v13.4.9
-git push origin v13.4.9
+git tag v<version>
+git push origin v<version>
 ```
 
 GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 1. Build `assembleRelease`
-2. Rename the APK to `AdsAway_{version}.apk`
-3. Create a GitHub Release with the APK attached
-4. Prune older releases (keeps latest 3)
+2. Rename the APK to `AdAway_<version>.apk`
+3. Verify the APK package name, tag-matching version, signer SHA-256, and file SHA-256
+4. Generate the signed update manifest
+5. Generate the CycloneDX SBOM and SHA-256 checksum files
+6. Attest the APK, manifest, and SBOM artifacts
+7. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
 
 **Repository Secrets** (for production-signed APKs):
 
@@ -426,50 +303,33 @@ GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
 | `ANDROID_KEY_ALIAS` | Key alias |
 | `ANDROID_KEY_PASSWORD` | Key password |
+| `UPDATE_MANIFEST_PUBLIC_KEY_BASE64` | Base64 SPKI public key embedded for signed update-manifest verification |
+| `UPDATE_MANIFEST_PRIVATE_KEY_BASE64` | Base64 PEM private key used to sign update manifests |
+| `ANDROID_RELEASE_CERT_SHA256` | Expected release APK signing certificate SHA-256 digest |
+
+Regular CI and CodeQL build debug artifacts. Production release builds are
+expected to fail closed without the signing properties and update-manifest trust
+material above.
 
 ### Key Dependencies
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| OkHttp | 4.12.0 | HTTP downloads + AI API calls |
+| OkHttp | 5.4.0 | HTTP downloads and update checks |
 | Timber | 5.0.1 | Logging (no-op in release) |
 | libsu | 6.0.0 | Root shell access |
 | pcap4j | 1.8.2 | VPN packet capture/processing |
-| dnsjava | 3.5.3 | DNS packet parsing |
-| Guava | 32.0.1-android | Utilities |
-
-All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
-
----
+| dnsjava | 3.6.5 | DNS packet parsing |
+| Guava | 33.6.0-android | Utilities |
 
 ## How-To Guides
 
 ### Set Up Protection (First Time)
 
 1. Open the app — the onboarding screen appears.
-2. Auto-detection: root available → **Root mode** pre-selected; otherwise → **VPN mode**.
+2. Auto-detection checks root availability. If root is unavailable, VPN mode is pre-selected; rooted devices can choose Root mode or VPN mode.
 3. Tap **Start protecting** — default filter lists subscribe in the background.
 4. You land on Home. Protection is active.
-
-### Configure the AI Assistant
-
-1. Go to **More → Preferences → AI Assistant**.
-2. Under **Model**, select your provider (Claude / Gemini / ChatGPT) and model tier.
-3. Under **API Keys**, tap your chosen provider → paste your key → tap **Save**.
-4. The key is encrypted immediately. The row now shows "Configured (tap to change)".
-
-### Ask AI to Manage Your Filters
-
-1. Go to **Discover** tab.
-2. Tap **Ask AI** chip.
-3. Type what you want in plain English, e.g.:
-   - "Block ads and trackers, keep WhatsApp working"
-   - "Maximum privacy, I don't use Facebook"
-   - "Is YouTube blocked? If so, unblock it"
-   - "Subscribe to all ad-blocking lists and update them"
-4. Tap **Ask** and wait a few seconds.
-5. Review the **planned action list** + the AI's reasoning.
-6. Tap **Execute** — actions run immediately.
 
 ### Add a Filter List from FilterLists.com
 
@@ -498,8 +358,6 @@ All LLM API calls use raw OkHttp — no third-party AI SDK dependencies.
 2. Tap **+** → choose **Block** or **Allow** → enter the domain.
 3. Tap **Save**. Rules apply immediately (no update needed).
 
-Alternatively, ask the AI: *"Block ads.example.com"* → tap Execute.
-
 ### Batch Import Domains
 
 1. **More → Custom Rules → ⋮ → Batch Import**.
@@ -523,11 +381,7 @@ Alternatively, ask the AI: *"Block ads.example.com"* → tap Execute.
 **Option A — Domain Checker (no API key needed):**
 1. **More → Domain Checker**.
 2. Type any domain (or URL — port is stripped automatically).
-3. Tap **Check** → see BLOCKED / ALLOWED and which source blocked it.
-
-**Option B — Ask AI (natural language):**
-1. Open the AI sheet, type *"Is whatsapp.com blocked?"*.
-2. AI checks and reports; if blocked, say *"Unblock it"* to add an allowlist entry.
+3. Tap **Check** → see Blocked / Not blocked and which source blocked it.
 
 ### Backup & Restore
 
@@ -537,7 +391,7 @@ Alternatively, ask the AI: *"Block ads.example.com"* → tap Execute.
 
 ### Force English Locale
 
-Some Android versions override language settings. To lock AdsAway in English:
+Some Android versions override language settings. To lock AdAway in English:
 1. **More → Preferences → General → Force English**.
 2. Force-stop and relaunch the app.
 
@@ -562,7 +416,7 @@ Responses are cached with a 24-hour TTL. No API key required.
 
 | Permission | Purpose |
 |------------|---------|
-| `INTERNET` | Download filter lists + FilterLists.com API + AI API calls |
+| `INTERNET` | Download filter lists, query FilterLists.com, and check updates |
 | `RECEIVE_BOOT_COMPLETED` | Restart VPN / hosts protection on device reboot |
 | `FOREGROUND_SERVICE` | Background subscribe-all worker notification |
 | `POST_NOTIFICATIONS` | Update completion notifications (Android 13+) |
@@ -578,13 +432,10 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 | Symptom | Fix |
 |---------|-----|
 | Ads not blocked | Tap **Update** on Home to refresh filter lists |
-| AI: "No API key set" | Configure key in **Settings → AI Assistant** |
-| AI: "Something went wrong" | Check API key is correct; check quota/billing on provider dashboard |
-| AI response is slow | Switch to a faster model (Haiku / Flash / Nano) in AI settings |
 | VPN disconnects randomly | Check **More → Preferences → VPN** settings |
-| WhatsApp stops working | Disable the **SOCIAL** category — it blocks WhatsApp domains |
+| WhatsApp stops working | Keep the built-in WaTg safety allowlist enabled; if a custom source still breaks messaging, use **Domain Checker** or **DNS Log** to add a targeted allow rule |
 | Samsung Pay / OEM feature broken | Disable the **DEVICE** category |
-| Filter list not updating | Check network; try **More → Filter Sources → long-press → Update** |
+| Filter list not updating | Check network; try **More → Filter Sources** and tap the source update icon |
 | App crashes on subscribe | Clear app data and re-onboard |
 | Can't install over official AdAway | Uninstall the official AdAway first (different signing key) |
 | "Install unknown apps" blocked | Android Settings → Apps → Special app access → Install unknown apps |
@@ -616,6 +467,10 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 ---
 
 ## License
+
+MIT relicensing is tracked as a future option only. The distributed app remains GPLv3+
+until GPL-derived app/VPN code, assets, and third-party notice boundaries are cleared and
+verified; see [docs/mit-relicensing-plan.md](docs/mit-relicensing-plan.md).
 
 [GPL v3](/LICENSE.md) — same as the upstream AdAway project.
 

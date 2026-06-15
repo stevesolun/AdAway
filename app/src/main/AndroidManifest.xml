@@ -35,6 +35,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Merged only for AdAway-signed direct APK updater builds. -->
+    <uses-permission android:name="${requestInstallPackagesPermission}" />
     <!-- VPN excluded-apps picker: enumerate installed apps (ATK-13) -->
     <queries>
         <intent>
@@ -47,10 +49,13 @@
         android:name=".AdAwayApplication"
         android:allowBackup="false"
         android:backupAgent=".model.backup.AppBackupAgent"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/full_backup_content"
         android:fullBackupOnly="false"
         android:icon="@mipmap/icon"
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:roundIcon="@mipmap/icon_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AdAway"
         tools:ignore="GoogleAppIndexingWarning">
@@ -83,7 +88,6 @@
         <activity
             android:name=".ui.onboarding.OnboardingActivity"
             android:exported="false"
-            android:label="@string/app_name"
             android:theme="@style/Theme.AdAway.NoActionBar" />
         <activity
             android:name=".ui.hosts.HostsSourcesActivity"
@@ -100,7 +104,7 @@
             android:exported="false"
             android:label="@string/menu_manage_schedules"
             android:parentActivityName=".ui.hosts.HostsSourcesActivity"
-            android:theme="@style/Theme.AdAway" />
+            android:theme="@style/Theme.AdAway.SurfaceWindow" />
         <activity
             android:name=".ui.log.LogActivity"
             android:exported="false"
