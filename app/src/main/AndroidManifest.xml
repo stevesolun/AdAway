@@ -35,8 +35,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Merged only for AdAway-signed direct APK updater builds. -->
-    <uses-permission android:name="${requestInstallPackagesPermission}" />
     <!-- VPN excluded-apps picker: enumerate installed apps (ATK-13) -->
     <queries>
         <intent>

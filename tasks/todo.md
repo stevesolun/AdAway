@@ -5116,7 +5116,7 @@
 - [ ] Add a red guard that the third-party/license inventory matches the restored AdAway bird
   branding and does not describe a different geometric shield asset.
 - [ ] Correct packaged logo/icon provenance text while keeping the bird assets in the app.
-- [ ] Move `REQUEST_INSTALL_PACKAGES` out of the base manifest and gate it to the direct APK
+- [x] Move `REQUEST_INSTALL_PACKAGES` out of the base manifest and gate it to the direct APK
   update distribution path only.
 - [ ] Harden `scripts/run-ux-matrix.ps1` so instrumentation timeouts cleanly stop app/test
   processes and cannot wedge future matrix runs.
@@ -5235,3 +5235,48 @@
   ledger, lessons, and benchmark evidence.
 - Still open after committing: run post-commit verification from the committed tree, then decide
   whether to push/create a PR or keep the branch local.
+
+## Plan - 2026-06-15 Goal Continuation 95 Build Split Cleanup
+- [x] Replace the fake updater permission placeholder with a real `directRelease`
+  build-type manifest overlay.
+- [x] Keep normal `debug` and `release` manifests free of
+  `android.permission.REQUEST_INSTALL_PACKAGES`.
+- [x] Keep runtime self-update disabled in normal builds and enabled only for the
+  direct APK distribution build.
+- [x] Update release workflow and release docs from property-based
+  `assembleRelease -PadawayEnableDirectApkUpdater=true` to `assembleDirectRelease`.
+- [x] Update focused ATK-34 guards for the build split and merged-manifest outputs.
+- [x] Run focused ATK-34 unit tests, manifest-processing tasks, debug build, license boundary,
+  and hygiene checks.
+- [x] Commit the reviewable build-split slice separately.
+
+## Review - 2026-06-15 Goal Continuation 95
+- Removed the fake `requestInstallPackagesPermission` placeholder from the base manifest and
+  removed the `adawayEnableDirectApkUpdater` property path from Gradle.
+- Added a `directRelease` build type and `app/src/directRelease/AndroidManifest.xml` overlay.
+  Normal `debug`/`release` builds keep `DIRECT_APK_UPDATES_ENABLED=false`; `directRelease`
+  generates `DIRECT_APK_UPDATES_ENABLED=true` and is the only merged manifest that declares
+  `android.permission.REQUEST_INSTALL_PACKAGES`.
+- Updated the tagged release workflow and `RELEASING.md` to build
+  `:app:assembleDirectRelease` and copy `app-directRelease.apk` from the direct-release output
+  directory.
+- Extended the ATK-34 guard to reject the old property/placeholder mechanism, assert the
+  build-type split, and ensure the dnsjava release resource strip task covers both `release` and
+  `directRelease`.
+- Fresh verification passed:
+  `.\gradlew.bat :app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest.atk34*
+  :app:processDebugMainManifest :app:processReleaseMainManifest
+  :app:processDirectReleaseMainManifest :app:generateReleaseBuildConfig
+  :app:generateDirectReleaseBuildConfig :app:assembleDebug --rerun-tasks
+  --dependency-verification=strict --stacktrace`.
+- Generated artifact check: debug and normal release merged manifests had no
+  `REQUEST_INSTALL_PACKAGES`, fake no-op permission, or placeholder; `directRelease` merged
+  manifest contained `android.permission.REQUEST_INSTALL_PACKAGES`; generated BuildConfig was
+  `false` for `release` and `true` for `directRelease`.
+- Fail-closed release check: unsigned `.\gradlew.bat :app:assembleDirectRelease
+  --dependency-verification=strict --stacktrace` stopped at the signing/trust-material gate:
+  `Release and release-SBOM builds require signingStoreLocation, signingStorePassword,
+  signingKeyAlias, and signingKeyPassword.`
+- License and hygiene checks passed:
+  `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
+  (only existing CRLF conversion warnings).

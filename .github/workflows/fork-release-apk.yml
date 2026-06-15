@@ -175,7 +175,7 @@ jobs:
         run: ./scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive
 
       - name: Build signed release APK
-        run: ./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDirectRelease --dependency-verification=strict --no-daemon --stacktrace
 
       - name: Generate release SBOM
         id: sbom
@@ -198,8 +198,8 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          SRC="app/build/outputs/apk/release/app-release.apk"
-          DEST="app/build/outputs/apk/release/AdAway_${VERSION}.apk"
+          SRC="app/build/outputs/apk/directRelease/app-directRelease.apk"
+          DEST="app/build/outputs/apk/directRelease/AdAway_${VERSION}.apk"
           cp "$SRC" "$DEST"
           echo "path=$DEST" >> $GITHUB_OUTPUT
           echo "sha256_path=$DEST.sha256" >> $GITHUB_OUTPUT

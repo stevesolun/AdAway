@@ -456,7 +456,7 @@ public class SecurityHardeningTest {
                 workflow.contains("scripts/check-license-boundary.ps1"));
         assertTrue("License boundary guard must run before the release APK is built.",
                 workflow.indexOf("scripts/check-license-boundary.ps1")
-                        < workflow.indexOf(":app:assembleRelease"));
+                        < workflow.indexOf(":app:assembleDirectRelease"));
         assertTrue("Pre-build release boundary check must inspect git-tracked source entries.",
                 workflow.contains("scripts/check-license-boundary.ps1 -SourceMode GitTracked"));
         assertTrue("Pre-build release boundary check must inspect the exported source archive.",
@@ -545,10 +545,14 @@ public class SecurityHardeningTest {
                 releasing.contains("Tagged releases are retained for durable provenance"));
         assertTrue("Release docs must scope APK self-update to AdAway-signed direct APKs.",
                 releasing.contains("APK self-update is only for the AdAway-signed direct APK"));
-        assertTrue("Release docs must show the direct APK updater build opt-in.",
-                releasing.contains("-PadawayEnableDirectApkUpdater=true"));
-        assertTrue("Fork direct APK release workflow must opt in to the updater install permission.",
-                workflow.contains("-PadawayEnableDirectApkUpdater=true"));
+        assertTrue("Release docs must show the direct APK updater build type.",
+                releasing.contains(":app:assembleDirectRelease") &&
+                        releasing.contains("directRelease"));
+        assertTrue("Fork direct APK release workflow must build the updater distribution variant.",
+                workflow.contains(":app:assembleDirectRelease"));
+        assertFalse("Direct APK install permission must not be controlled by a Gradle property.",
+                releasing.contains("-PadawayEnableDirectApkUpdater") ||
+                        workflow.contains("-PadawayEnableDirectApkUpdater"));
         assertTrue("Release docs must keep the Bash wrapper documented as a Unix convenience.",
                 releasing.contains("bash ./scripts/check-license-boundary.sh " +
                         "-SourceMode GitTracked -StrictSourceArchive"));
@@ -606,19 +610,27 @@ public class SecurityHardeningTest {
         Path app = appDir();
         String appBuild = readUtf8(app.resolve("build.gradle"));
         String manifest = readUtf8(app.resolve("src/main/AndroidManifest.xml"));
+        String directManifest = readUtf8(app.resolve("src/directRelease/AndroidManifest.xml"));
         String receiver = readUtf8(
                 app.resolve("src/main/java/org/adaway/model/update/ApkDownloadReceiver.java"));
         String updateModel = readUtf8(
                 app.resolve("src/main/java/org/adaway/model/update/UpdateModel.java"));
 
-        assertTrue("Direct APK install permission must be manifest-placeholder gated.",
-                manifest.contains("android:name=\"${requestInstallPackagesPermission}\""));
-        assertTrue("Normal builds must remove the install permission unless direct APK updates " +
-                        "are explicitly enabled.",
-                appBuild.contains("adawayEnableDirectApkUpdater") &&
-                        appBuild.contains("requestInstallPackagesPermission") &&
-                        appBuild.contains("org.adaway.permission.NO_DIRECT_APK_INSTALL") &&
-                        appBuild.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
+        assertFalse("Normal builds must not declare the APK installer permission.",
+                manifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
+        assertFalse("Base manifest must not keep a fake installer-permission placeholder.",
+                manifest.contains("requestInstallPackagesPermission") ||
+                        manifest.contains("NO_DIRECT_APK_INSTALL"));
+        assertTrue("Direct APK updater permission must live in the directRelease manifest.",
+                directManifest.contains("android.permission.REQUEST_INSTALL_PACKAGES"));
+        assertTrue("Direct APK runtime self-update must be enabled only for directRelease.",
+                appBuild.contains("directRelease") &&
+                        appBuild.contains("DIRECT_APK_UPDATES_ENABLED\", \"true\"") &&
+                        appBuild.contains("DIRECT_APK_UPDATES_ENABLED\", \"false\""));
+        assertFalse("Direct APK install permission must not be placeholder-gated.",
+                appBuild.contains("manifestPlaceholders") ||
+                        appBuild.contains("requestInstallPackagesPermission") ||
+                        appBuild.contains("adawayEnableDirectApkUpdater"));
         assertTrue("Runtime self-update must follow the same direct APK build gate.",
                 updateModel.contains("BuildConfig.DIRECT_APK_UPDATES_ENABLED") &&
                         updateModel.indexOf("BuildConfig.DIRECT_APK_UPDATES_ENABLED")
@@ -663,8 +675,10 @@ public class SecurityHardeningTest {
                 appBuild.contains("outputs.upToDateWhen { false }"));
         assertFalse("SBOM generation must not silently ignore unresolved artifacts.",
                 appBuild.contains("lenientConfiguration"));
-        assertTrue("Release trust-material gate must still cover release packaging.",
-                appBuild.contains("'assemblerelease'"));
+        assertTrue("Release trust-material gate must cover all release packaging tasks.",
+                appBuild.contains("taskName.contains('release')") &&
+                        appBuild.contains("taskName.startsWith('assemble')") &&
+                        appBuild.contains("taskName.startsWith('package')"));
         assertTrue("Release trust-material gate must cover aggregate assemble tasks.",
                 appBuild.contains("'assemble'"));
         assertTrue("Release trust-material gate must cover aggregate build tasks.",
@@ -811,12 +825,13 @@ public class SecurityHardeningTest {
         String appBuild = readUtf8(repoDir().resolve("app/build.gradle"));
         String proguard = readUtf8(repoDir().resolve("app/proguard-rules.pro"));
 
-        assertTrue("Release build must strip dnsjava's desktop resolver service before R8.",
-                appBuild.contains("stripDnsjavaDesktopResolverServiceRelease"));
+        assertTrue("Release and direct release must strip dnsjava's desktop resolver service.",
+                appBuild.contains("['Release', 'DirectRelease'].each"));
         assertTrue("Strip task must run after release Java resources are merged.",
-                appBuild.contains("mergeReleaseJavaResource"));
+                appBuild.contains("dependsOn tasks.named(\"merge${variantName}JavaResource\")"));
         assertTrue("Strip task must run before release R8.",
-                appBuild.contains("minifyReleaseWithR8"));
+                appBuild.contains("minify${variantName}WithR8") &&
+                        appBuild.contains("stripDnsjavaDesktopResolverService${variantName}"));
         assertTrue("Packaged resources must exclude dnsjava's desktop resolver service.",
                 appBuild.contains("META-INF/services/java.net.spi.InetAddressResolverProvider"));
         assertFalse("App rules must not keep every ContentProvider; AAPT owns manifest providers.",

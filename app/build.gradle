@@ -9,8 +9,6 @@ boolean keyStoreDefined = project.hasProperty('signingStoreLocation') &&
         project.hasProperty('signingKeyPassword')
 boolean updateManifestKeyDefined = project.hasProperty('updateManifestPublicKeyBase64') &&
         project.property('updateManifestPublicKeyBase64').toString().trim().length() > 0
-boolean directApkUpdaterEnabled =
-        project.findProperty('adawayEnableDirectApkUpdater')?.toString()?.toBoolean() ?: false
 boolean aiFeatureEnabled =
         project.findProperty('adawayEnableAi')?.toString()?.toBoolean() ?: false
 
@@ -35,13 +33,7 @@ android {
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders = [
-                requestInstallPackagesPermission: directApkUpdaterEnabled
-                        ? "android.permission.REQUEST_INSTALL_PACKAGES"
-                        : "org.adaway.permission.NO_DIRECT_APK_INSTALL"
-        ]
-        buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED",
-                directApkUpdaterEnabled.toString()
+        buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED", "false"
         buildConfigField "boolean", "AI_FEATURE_ENABLED", aiFeatureEnabled.toString()
         resValue "string", "update_manifest_public_key",
                 project.findProperty('updateManifestPublicKeyBase64') ?: ""
@@ -64,18 +56,39 @@ android {
         }
     }
 
+    buildTypes {
+        debug {
+            // shrinkResources false
+            // minifyEnabled false
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Ensure modern signing for debug builds (required for Android 11+)
+            signingConfig = signingConfigs.debug
+        }
+        release {
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        directRelease {
+            initWith release
+            matchingFallbacks = ['release']
+            buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED", "true"
+        }
+    }
+
     boolean releaseTrustMaterialRequested = gradle.startParameter.taskNames.any {
         String taskName = it.tokenize(':').last().toLowerCase()
         taskName in [
-                'assemblerelease',
                 'assemble',
                 'build',
                 'bundle',
-                'bundlerelease',
-                'packagerelease',
                 'generatesbom',
                 'cyclonedxdirectbom'
-        ] || (taskName.startsWith('sign') && taskName.contains('release'))
+        ] || (taskName.contains('release') && (
+                taskName.startsWith('assemble') ||
+                        taskName.startsWith('bundle') ||
+                        taskName.startsWith('package') ||
+                        taskName.startsWith('sign')))
     }
 
     if (keyStoreDefined) {
@@ -96,6 +109,7 @@ android {
 
         buildTypes.debug.signingConfig = signingConfigs.release
         buildTypes.release.signingConfig = signingConfigs.release
+        buildTypes.directRelease.signingConfig = signingConfigs.release
     } else {
         println "No signature properties found. Debug builds will use the debug key."
         if (releaseTrustMaterialRequested) {
@@ -131,21 +145,6 @@ android {
         }
     }
 
-    buildTypes {
-        debug {
-            // shrinkResources false
-            // minifyEnabled false
-            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Ensure modern signing for debug builds (required for Android 11+)
-            signingConfig = signingConfigs.debug
-        }
-        release {
-            minifyEnabled = true
-            shrinkResources = true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
     sourceSets {
         androidTest.assets.srcDirs += files("$projectDir/schemas")
     }
@@ -158,35 +157,40 @@ android {
 
 def dnsjavaDesktopResolverService = 'META-INF/services/java.net.spi.InetAddressResolverProvider'
 
-tasks.register('stripDnsjavaDesktopResolverServiceRelease') {
-    dependsOn tasks.named('mergeReleaseJavaResource')
-    doLast {
-        File jarFile = layout.buildDirectory
-                .file('intermediates/merged_java_res/release/mergeReleaseJavaResource/base.jar')
-                .get()
-                .asFile
-        if (!jarFile.exists()) {
-            return
-        }
-        Set<File> matches = zipTree(jarFile).matching {
-            include dnsjavaDesktopResolverService
-        }.files
-        if (matches.isEmpty()) {
-            return
-        }
-
-        File strippedJar = new File(jarFile.parentFile, "${jarFile.name}.stripped")
-        ant.zip(destfile: strippedJar) {
-            zipfileset(src: jarFile) {
-                exclude(name: dnsjavaDesktopResolverService)
+['Release', 'DirectRelease'].each { String variantName ->
+    String variantDir = variantName[0].toLowerCase() + variantName.substring(1)
+    tasks.register("stripDnsjavaDesktopResolverService${variantName}") {
+        dependsOn tasks.named("merge${variantName}JavaResource")
+        doLast {
+            String mergedJavaResourcePath = "intermediates/merged_java_res/${variantDir}/" +
+                    "merge${variantName}JavaResource/base.jar"
+            File jarFile = layout.buildDirectory
+                    .file(mergedJavaResourcePath)
+                    .get()
+                    .asFile
+            if (!jarFile.exists()) {
+                return
             }
-        }
-        ant.move(file: strippedJar, tofile: jarFile, overwrite: true)
-    }
-}
+            Set<File> matches = zipTree(jarFile).matching {
+                include dnsjavaDesktopResolverService
+            }.files
+            if (matches.isEmpty()) {
+                return
+            }
 
-tasks.matching { it.name == 'minifyReleaseWithR8' }.configureEach {
-    dependsOn tasks.named('stripDnsjavaDesktopResolverServiceRelease')
+            File strippedJar = new File(jarFile.parentFile, "${jarFile.name}.stripped")
+            ant.zip(destfile: strippedJar) {
+                zipfileset(src: jarFile) {
+                    exclude(name: dnsjavaDesktopResolverService)
+                }
+            }
+            ant.move(file: strippedJar, tofile: jarFile, overwrite: true)
+        }
+    }
+
+    tasks.matching { it.name == "minify${variantName}WithR8" }.configureEach {
+        dependsOn tasks.named("stripDnsjavaDesktopResolverService${variantName}")
+    }
 }
 
 dependencies {

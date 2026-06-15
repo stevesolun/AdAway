@@ -34,7 +34,7 @@ The AdAway project provides [a global changelog](CHANGELOG.md).
 
 ## 4. Building release APK
 
-Tagged GitHub releases build the `release` variant with
+Tagged GitHub releases build the `directRelease` variant with
 `.github/workflows/fork-release-apk.yml`. The release artifact name is
 `AdAway_<version>.apk`, where `<version>` is the tag without the leading `v`.
 For example, tag `v13.5.0` produces `AdAway_13.5.0.apk`.
@@ -59,7 +59,7 @@ Required repository secrets:
 Local release verification should run the same gates where possible:
 
 ```bash
-./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+./gradlew :app:assembleDirectRelease --dependency-verification=strict --no-daemon --stacktrace
 ./gradlew :app:generateSbom --dependency-verification=strict --no-daemon --stacktrace
 ```
 
@@ -121,13 +121,13 @@ Before pushing a release tag locally, run:
 
 ```powershell
 $Version = "<version>"
-$Apk = "app\build\outputs\apk\release\AdAway_$Version.apk"
+$Apk = "app\build\outputs\apk\directRelease\AdAway_$Version.apk"
 $Sbom = "app\build\reports\sbom\adaway.cdx.json"
 $Manifest = "app\build\outputs\update\manifest.json"
 
-./gradlew :app:assembleRelease -PadawayEnableDirectApkUpdater=true --dependency-verification=strict --no-daemon --stacktrace
+./gradlew :app:assembleDirectRelease --dependency-verification=strict --no-daemon --stacktrace
 ./gradlew :app:generateSbom --dependency-verification=strict --no-daemon --stacktrace
-Copy-Item app\build\outputs\apk\release\app-release.apk $Apk -Force
+Copy-Item app\build\outputs\apk\directRelease\app-directRelease.apk $Apk -Force
 Get-FileHash $Apk -Algorithm SHA256 |
   ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $Apk -Leaf)" } |
   Set-Content "$Apk.sha256"
@@ -187,8 +187,9 @@ does not automatically delete older release artifacts.
 
 APK self-update is only for the AdAway-signed direct APK distribution. Store
 builds such as F-Droid should rely on their store update mechanism rather than
-the in-app APK installer path. Leave `adawayEnableDirectApkUpdater` unset for
-store builds so the install permission is removed from the merged manifest.
+the in-app APK installer path. Build store releases with the normal `release`
+variant so the installer permission is absent from the merged manifest; build
+only the AdAway-signed direct APK channel with `directRelease`.
 
 Pushing a tag will publish the application to F-Droid store.
 It might takes some days to update but if it does not, build logs are available at the following address: `https://monitor.f-droid.org/builds/log/org.adaway/<versioncode>`.
