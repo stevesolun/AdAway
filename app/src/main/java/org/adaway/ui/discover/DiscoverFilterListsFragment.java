@@ -18,7 +18,9 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -33,12 +35,15 @@ import org.adaway.databinding.FragmentDiscoverFilterlistsBinding;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.model.source.FilterListCompatibility;
 import org.adaway.model.source.FilterListsDirectoryApi;
+import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
 
+import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
@@ -46,11 +51,13 @@ import androidx.work.WorkManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -70,7 +77,9 @@ public class DiscoverFilterListsFragment extends Fragment {
     private static final String KEY_LANGUAGES_JSON = "languagesJson";
     private static final String KEY_TAGS_CACHED_AT = "tagsCachedAt";
     private static final String KEY_URL_PREFIX = "listUrl_";
+    private static final String KEY_SUBSCRIBE_ALL_STOPPING = "subscribeAllStopping";
     private static final long CACHE_TTL_MS = 24L * 60L * 60L * 1000L; // 24h
+    private static final int MAX_LAST_RUN_DIALOG_ROWS = 80;
 
     private final List<FilterListsDirectoryApi.ListSummary> all = new ArrayList<>();
     private final List<FilterListsDirectoryApi.ListSummary> filtered = new ArrayList<>();
@@ -78,11 +87,6 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final Map<Integer, String> resolvedUrlCache = new HashMap<>();
     private final Set<String> existingUrls = new HashSet<>();
     private HostsSourceDao hostsSourceDao;
-
-    // Compatible syntax IDs: Hosts (1), Domains (2), Non-localhost hosts (14), dnsmasq (20),
-    // Adblock Plus (3), AdGuard (4), uBlock Origin (6) — parser extracts domain-level blocks
-    // from ||domain.com^ rules, yielding ~69% usable entries from typical ABP/AdGuard lists.
-    private static final int[] ADAWAY_SYNTAX_IDS = {1, 2, 3, 4, 6, 14, 20};
 
     // Tag/language/compat filter state
     private int selectedTagId = 0;
@@ -105,10 +109,13 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final Runnable sourcesUiRefresh = () -> {
         sourcesUiRefreshScheduled = false;
         if (this.binding == null) return;
-        if (adapter != null) adapter.notifyDataSetChanged();
+        notifyFilterListRowsChanged();
     };
 
     private long lastAdapterRefreshMs = 0L;
+    private boolean directoryLoading = false;
+    private boolean directoryLoadFailed = false;
+    private boolean bulkOperationRunning = false;
 
     private Snackbar activeSnackbar;
 
@@ -137,13 +144,15 @@ public class DiscoverFilterListsFragment extends Fragment {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        binding.filterlistsSubscribeAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                subscribeAll();
-            } else {
-                unsubscribeAll();
-            }
-        });
+        binding.filterlistsSubscribeVisibleButton.setOnClickListener(v -> confirmSubscribeAll());
+        binding.filterlistsRemoveVisibleButton.setOnClickListener(v -> confirmUnsubscribeAll());
+        binding.filterlistsCancelBulkButton.setOnClickListener(v -> cancelSubscribeAll());
+        binding.filterlistsStateRetryButton.setOnClickListener(v -> load());
+        binding.filterlistsReviewLastRunButton.setOnClickListener(v -> showLastRunReviewDialog());
+        binding.filterlistsRetryLastRunButton.setOnClickListener(v -> retryLastRunNoUrlLists());
+        binding.filterlistsReviewUnsupportedButton.setOnClickListener(
+                v -> reviewLastRunUnsupportedLists());
+        refreshLastRunReviewAction(true);
 
         // Observe live DB changes to update subscribed state
         hostsSourceDao.loadAll().observe(getViewLifecycleOwner(), sources -> {
@@ -160,6 +169,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                     if (this.binding == null) return;
                     existingUrls.clear();
                     existingUrls.addAll(urls);
+                    refreshBulkActionsState();
                     requestAdapterRefreshThrottled(1000);
                 });
             });
@@ -173,10 +183,15 @@ public class DiscoverFilterListsFragment extends Fragment {
                     WorkInfo info = pickBestWorkInfo(infos);
                     boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING
                             || info.getState() == WorkInfo.State.ENQUEUED);
+                    boolean stopping = running && isSubscribeAllStopping();
+                    bulkOperationRunning = running;
 
                     if (running && info != null) {
+                        refreshLastRunReviewAction(false);
                         int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
                         int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
+                        int currentId = info.getProgress()
+                                .getInt(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_ID, -1);
                         String currentName = info.getProgress()
                                 .getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
 
@@ -190,30 +205,47 @@ public class DiscoverFilterListsFragment extends Fragment {
                         monotonicLastDone = done;
                         currentDone = done;
                         currentTotal = total;
+                        currentWorkingId = currentId >= 0 ? currentId : null;
                         currentWorkingName = currentName;
 
                         binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
                         String line;
-                        if (total <= 0) {
-                            line = "Preparing\u2026";
+                        if (stopping) {
+                            line = getString(R.string.filterlists_subscribe_all_stopping);
+                        } else if (total <= 0) {
+                            line = getString(R.string.filterlists_status_preparing);
                         } else {
                             int percent = (int) Math.floor(done * 100.0 / total);
-                            line = done + "/" + total + " (" + percent + "%)";
+                            line = getString(R.string.filterlists_progress_count_percent,
+                                    done, total, percent);
                         }
-                        if (currentName != null && !currentName.isEmpty())
-                            line += " \u2022 " + currentName;
+                        if (currentName != null && !currentName.isEmpty()) {
+                            line = getString(R.string.filterlists_progress_with_source,
+                                    line, currentName);
+                        }
                         binding.filterlistsSubscribeAllStatus.setText(line);
                     } else {
+                        setSubscribeAllStopping(false);
                         monotonicLastDone = -1;
                         monotonicLastTotal = -1;
                         currentDone = 0;
                         currentTotal = 0;
                         currentWorkingId = null;
                         currentWorkingName = null;
-                        binding.filterlistsSubscribeAllStatus.setVisibility(View.GONE);
+                        String finalSummary = formatSubscribeAllResult(info);
+                        if (finalSummary != null) {
+                            binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
+                            binding.filterlistsSubscribeAllStatus.setText(finalSummary);
+                        } else {
+                            binding.filterlistsSubscribeAllStatus.setVisibility(View.GONE);
+                        }
+                        refreshBulkActionsState();
+                        refreshLastRunReviewAction(true);
                     }
 
-                    binding.filterlistsSubscribeAllSwitch.setEnabled(!running);
+                    binding.filterlistsCancelBulkButton.setVisibility(running ? View.VISIBLE : View.GONE);
+                    binding.filterlistsCancelBulkButton.setEnabled(!stopping);
+                    refreshBulkActionsState();
                     requestAdapterRefreshThrottled(running ? 1000 : 0);
                 });
 
@@ -248,8 +280,11 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void load() {
         if (binding == null) return;
+        directoryLoading = true;
+        directoryLoadFailed = false;
         binding.filterlistsProgress.setVisibility(View.VISIBLE);
-        binding.filterlistsSubscribeAllSwitch.setEnabled(false);
+        refreshBulkActionsState();
+        updateFilterListsState();
 
         // Capture application context on main thread — safe to use from any thread thereafter.
         final Context appContext = requireContext().getApplicationContext();
@@ -303,7 +338,8 @@ public class DiscoverFilterListsFragment extends Fragment {
                             populateLanguageSpinner(cachedLanguages);
                             filter();
                             binding.filterlistsProgress.setVisibility(View.GONE);
-                            binding.filterlistsSubscribeAllSwitch.setEnabled(true);
+                            refreshBulkActionsState();
+                            updateFilterListsState();
                         });
                     } catch (IOException ignored) {
                         // fall through to network
@@ -313,8 +349,11 @@ public class DiscoverFilterListsFragment extends Fragment {
                 if (listsCacheFresh && tagsCacheFresh) {
                     AppExecutors.getInstance().mainThread().execute(() -> {
                         if (this.binding == null) return;
+                        directoryLoading = false;
+                        directoryLoadFailed = false;
                         binding.filterlistsProgress.setVisibility(View.GONE);
-                        binding.filterlistsSubscribeAllSwitch.setEnabled(true);
+                        refreshBulkActionsState();
+                        updateFilterListsState();
                     });
                     return;
                 }
@@ -349,15 +388,21 @@ public class DiscoverFilterListsFragment extends Fragment {
                     populateTagChips(tags);
                     populateLanguageSpinner(languages);
                     filter();
+                    directoryLoading = false;
+                    directoryLoadFailed = false;
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    binding.filterlistsSubscribeAllSwitch.setEnabled(true);
+                    refreshBulkActionsState();
+                    updateFilterListsState();
                 });
             } catch (IOException e) {
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
+                    directoryLoading = false;
+                    directoryLoadFailed = true;
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    binding.filterlistsSubscribeAllSwitch.setEnabled(false);
-                    showSnackbar("Failed to load FilterLists.com");
+                    refreshBulkActionsState();
+                    updateFilterListsState();
+                    showSnackbar(getString(R.string.filterlists_load_failed));
                 });
             }
         });
@@ -370,7 +415,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
         // "All" chip
         Chip allChip = new Chip(requireContext());
-        allChip.setText("All");
+        allChip.setText(R.string.filterlists_tag_all);
         allChip.setCheckable(true);
         allChip.setChecked(selectedTagId == 0);
         allChip.setTag(0);
@@ -403,7 +448,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         loadedLanguages = new ArrayList<>(languages);
 
         List<String> items = new ArrayList<>();
-        items.add("All Languages");
+        items.add(getString(R.string.filterlists_language_all));
         for (FilterListsDirectoryApi.Language lang : languages) {
             items.add(lang.name);
         }
@@ -433,10 +478,8 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void filter() {
         if (binding == null) return;
-        String q = binding.filterlistsSearchEditText.getText() != null
-                ? binding.filterlistsSearchEditText.getText().toString().toLowerCase(Locale.ROOT).trim()
-                : "";
-        filtered.clear();
+        String q = getCurrentSearchQuery();
+        List<FilterListsDirectoryApi.ListSummary> nextFiltered = new ArrayList<>();
         for (FilterListsDirectoryApi.ListSummary s : all) {
             if (!q.isEmpty()) {
                 String name = s.name != null ? s.name.toLowerCase(Locale.ROOT) : "";
@@ -446,9 +489,21 @@ public class DiscoverFilterListsFragment extends Fragment {
             if (selectedTagId != 0 && !hasId(s.tagIds, selectedTagId)) continue;
             if (selectedLanguageId != 0 && !hasId(s.languageIds, selectedLanguageId)) continue;
             if (mCompatibleOnly && !isAdAwayCompatible(s.syntaxIds)) continue;
-            filtered.add(s);
+            nextFiltered.add(s);
         }
-        if (adapter != null) adapter.notifyDataSetChanged();
+        updateFilteredRows(nextFiltered);
+        refreshBulkActionsState();
+        updateFilterListsState();
+    }
+
+    @NonNull
+    private String getCurrentSearchQuery() {
+        if (binding == null || binding.filterlistsSearchEditText.getText() == null) {
+            return "";
+        }
+        return binding.filterlistsSearchEditText.getText().toString()
+                .toLowerCase(Locale.ROOT)
+                .trim();
     }
 
     private static boolean hasId(@Nullable int[] ids, int want) {
@@ -457,31 +512,177 @@ public class DiscoverFilterListsFragment extends Fragment {
         return false;
     }
 
-    /** Returns true if the list uses a syntax AdAway can parse, or if syntax is unknown. */
-    private static boolean isAdAwayCompatible(@Nullable int[] syntaxIds) {
-        if (syntaxIds == null || syntaxIds.length == 0) return true; // unknown — include
-        for (int id : syntaxIds) {
-            for (int compat : ADAWAY_SYNTAX_IDS) {
-                if (id == compat) return true;
+    private void updateFilteredRows(@NonNull List<FilterListsDirectoryApi.ListSummary> nextFiltered) {
+        List<FilterListsDirectoryApi.ListSummary> previousFiltered = new ArrayList<>(filtered);
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return previousFiltered.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return nextFiltered.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return previousFiltered.get(oldItemPosition).id
+                        == nextFiltered.get(newItemPosition).id;
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                FilterListsDirectoryApi.ListSummary oldItem = previousFiltered.get(oldItemPosition);
+                FilterListsDirectoryApi.ListSummary newItem = nextFiltered.get(newItemPosition);
+                return Objects.equals(oldItem.name, newItem.name)
+                        && Objects.equals(oldItem.description, newItem.description)
+                        && Arrays.equals(oldItem.syntaxIds, newItem.syntaxIds)
+                        && Arrays.equals(oldItem.tagIds, newItem.tagIds)
+                        && Arrays.equals(oldItem.languageIds, newItem.languageIds);
+            }
+        });
+
+        filtered.clear();
+        filtered.addAll(nextFiltered);
+        if (adapter != null) {
+            diff.dispatchUpdatesTo(adapter);
+        }
+    }
+
+    private void notifyFilterListRowsChanged() {
+        if (adapter == null) return;
+        int count = adapter.getItemCount();
+        if (count > 0) {
+            adapter.notifyItemRangeChanged(0, count);
+        }
+    }
+
+    private void notifyFilterListRowChanged(int listId) {
+        if (adapter == null) return;
+        for (int i = 0; i < filtered.size(); i++) {
+            if (filtered.get(i).id == listId) {
+                adapter.notifyItemChanged(i);
+                return;
             }
         }
-        return false;
+    }
+
+    private void updateFilterListsState() {
+        if (binding == null) return;
+
+        int state = FilterListsUiState.resolve(
+                directoryLoading,
+                directoryLoadFailed,
+                all.size(),
+                filtered.size(),
+                hasActiveFilters());
+        boolean showState = state != FilterListsUiState.EMPTY_HIDDEN;
+
+        binding.filterlistsStateContainer.setVisibility(showState ? View.VISIBLE : View.GONE);
+        binding.filterlistsRecyclerView.setVisibility(showState ? View.GONE : View.VISIBLE);
+        binding.filterlistsStateRetryButton.setVisibility(
+                state == FilterListsUiState.LOAD_FAILED ? View.VISIBLE : View.GONE);
+
+        switch (state) {
+            case FilterListsUiState.LOADING:
+                binding.filterlistsStateTitle.setText(R.string.filterlists_state_loading_title);
+                binding.filterlistsStateMessage.setText(R.string.filterlists_state_loading_message);
+                break;
+            case FilterListsUiState.LOAD_FAILED:
+                binding.filterlistsStateTitle.setText(R.string.filterlists_state_load_failed_title);
+                binding.filterlistsStateMessage.setText(R.string.filterlists_state_load_failed_message);
+                break;
+            case FilterListsUiState.NO_LISTS:
+                binding.filterlistsStateTitle.setText(R.string.filterlists_state_no_lists_title);
+                binding.filterlistsStateMessage.setText(R.string.filterlists_state_no_lists_message);
+                break;
+            case FilterListsUiState.NO_MATCHES:
+                binding.filterlistsStateTitle.setText(R.string.filterlists_state_no_matches_title);
+                binding.filterlistsStateMessage.setText(R.string.filterlists_state_no_matches_message);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private boolean hasActiveFilters() {
+        if (binding == null) return false;
+        CharSequence query = binding.filterlistsSearchEditText.getText();
+        boolean hasQuery = query != null && query.toString().trim().length() > 0;
+        return hasQuery || selectedTagId != 0 || selectedLanguageId != 0 || mCompatibleOnly;
+    }
+
+    private int countCompatibleVisible() {
+        int count = 0;
+        for (FilterListsDirectoryApi.ListSummary summary : filtered) {
+            if (isAdAwayCompatible(summary.syntaxIds)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Returns true if the list uses a syntax that maps directly to DNS/root-hosts blocking. */
+    private static boolean isAdAwayCompatible(@Nullable int[] syntaxIds) {
+        return FilterListsSubscriptionState.isCompatible(syntaxIds);
     }
 
     @Nullable
     private String getCachedUrlForId(int id) {
-        String url = resolvedUrlCache.get(id);
-        if (url != null) return url;
-        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return getCachedUrlForId(requireContext(), id);
+    }
+
+    @Nullable
+    private String getCachedUrlForId(@NonNull Context context, int id) {
+        synchronized (resolvedUrlCache) {
+            String url = resolvedUrlCache.get(id);
+            if (url != null) return normalizeCachedUrl(url);
+        }
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String url;
         url = prefs.getString(KEY_URL_PREFIX + id, null);
         if (url != null) {
-            resolvedUrlCache.put(id, url);
+            url = normalizeCachedUrl(url);
+            synchronized (resolvedUrlCache) {
+                if (url != null) {
+                    resolvedUrlCache.put(id, url);
+                } else {
+                    resolvedUrlCache.remove(id);
+                }
+            }
         }
         return url;
     }
 
+    @Nullable
+    private static String normalizeCachedUrl(@Nullable String url) {
+        if (url == null) {
+            return null;
+        }
+        String trimmed = url.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void cacheResolvedUrl(@NonNull Context context, int id, @Nullable String url) {
+        if (url == null) {
+            return;
+        }
+        synchronized (resolvedUrlCache) {
+            resolvedUrlCache.put(id, url);
+        }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_URL_PREFIX + id, url)
+                .apply();
+    }
+
     private void onPick(FilterListsDirectoryApi.ListSummary summary) {
         if (binding == null) return;
+        if (!isAdAwayCompatible(summary.syntaxIds)) {
+            showUnsupportedReviewDialog(summary);
+            return;
+        }
         binding.filterlistsProgress.setVisibility(View.VISIBLE);
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
@@ -491,39 +692,60 @@ public class DiscoverFilterListsFragment extends Fragment {
                 FilterListsDirectoryApi.ListDetails details = api.getListDetails(summary.id);
                 String url = details.pickBestDownloadUrl();
                 if (url != null) {
-                    resolvedUrlCache.put(summary.id, url);
+                    cacheResolvedUrl(appContext, summary.id, url);
                 }
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
                     binding.filterlistsProgress.setVisibility(View.GONE);
                     if (url == null) {
-                        showSnackbar("No direct hosts URL found for this entry. Use its homepage.");
+                        showSnackbar(getString(R.string.filterlists_no_direct_hosts_url));
                         return;
                     }
-                    Intent intent = new Intent(requireContext(), SourceEditActivity.class);
-                    intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, details.name);
-                    intent.putExtra(SourceEditActivity.EXTRA_INITIAL_URL, url);
-                    intent.putExtra(SourceEditActivity.EXTRA_INITIAL_ALLOW, false);
-                    intent.putExtra(SourceEditActivity.EXTRA_INITIAL_REDIRECT, false);
-                    startActivity(intent);
+                    openSourceEditForFilterList(summary, details.name, url);
                 });
             } catch (IOException e) {
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    showSnackbar("Failed to resolve list URL");
+                    showSnackbar(getString(R.string.filterlists_resolve_url_failed));
                 });
             }
         });
     }
 
     private void setSubscribed(FilterListsDirectoryApi.ListSummary summary, boolean subscribed) {
+        if (!subscribed) {
+            confirmUnsubscribe(summary);
+            return;
+        }
+        updateSubscription(summary, true);
+    }
+
+    private void confirmUnsubscribe(FilterListsDirectoryApi.ListSummary summary) {
         if (binding == null) return;
+        notifyFilterListRowChanged(summary.id);
+        String name = summary.name != null ? summary.name : getString(R.string.filter_sources_title);
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filterlists_confirm_unsubscribe_title)
+                .setMessage(getString(R.string.filterlists_confirm_unsubscribe_message, name))
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(R.string.filterlists_confirm_unsubscribe_action,
+                        (dialog, which) -> updateSubscription(summary, false))
+                .show();
+    }
+
+    private void updateSubscription(FilterListsDirectoryApi.ListSummary summary, boolean subscribed) {
+        if (binding == null) return;
+        if (subscribed && !isAdAwayCompatible(summary.syntaxIds)) {
+            showSnackbar(getString(R.string.filterlists_manual_review_required));
+            notifyFilterListRowChanged(summary.id);
+            return;
+        }
         binding.filterlistsProgress.setVisibility(View.VISIBLE);
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
             try {
-                String url = resolvedUrlCache.get(summary.id);
+                String url = getCachedUrlForId(appContext, summary.id);
                 if (url == null) {
                     AdAwayApplication app = (AdAwayApplication) appContext;
                     FilterListsDirectoryApi api = new FilterListsDirectoryApi(
@@ -531,16 +753,16 @@ public class DiscoverFilterListsFragment extends Fragment {
                     FilterListsDirectoryApi.ListDetails details = api.getListDetails(summary.id);
                     url = details.pickBestDownloadUrl();
                     if (url != null) {
-                        resolvedUrlCache.put(summary.id, url);
+                        cacheResolvedUrl(appContext, summary.id, url);
                     }
                 }
                 if (url == null) {
-                    String msg = "No direct download URL for this list";
+                    String msg = appContext.getString(R.string.filterlists_no_direct_download_url);
                     AppExecutors.getInstance().mainThread().execute(() -> {
                         if (this.binding == null) return;
                         binding.filterlistsProgress.setVisibility(View.GONE);
                         showSnackbar(msg);
-                        if (adapter != null) adapter.notifyDataSetChanged();
+                        notifyFilterListRowChanged(summary.id);
                     });
                     return;
                 }
@@ -552,6 +774,8 @@ public class DiscoverFilterListsFragment extends Fragment {
                     src.setEnabled(true);
                     src.setAllowEnabled(false);
                     src.setRedirectEnabled(false);
+                    FilterListsSourceMetadata.apply(src, summary.id, summary.name,
+                            summary.syntaxIds, summary.tagIds, summary.languageIds, url);
                     hostsSourceDao.insert(src);
                     SourceUpdateService.enqueueUpdateNow(appContext);
                 } else {
@@ -572,30 +796,59 @@ public class DiscoverFilterListsFragment extends Fragment {
                         existingUrls.remove(finalUrl);
                     }
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    if (adapter != null) adapter.notifyDataSetChanged();
-                    showSnackbar(subscribed ? "Subscribed" : "Unsubscribed");
+                    notifyFilterListRowChanged(summary.id);
+                    showSnackbar(getString(subscribed
+                            ? R.string.filterlists_subscribe_done
+                            : R.string.filterlists_unsubscribe_done));
                 });
             } catch (IOException e) {
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    showSnackbar("Failed to update subscription");
-                    if (adapter != null) adapter.notifyDataSetChanged();
+                    showSnackbar(getString(R.string.filterlists_update_subscription_failed));
+                    notifyFilterListRowChanged(summary.id);
                 });
             }
         });
     }
 
+    private void confirmSubscribeAll() {
+        if (binding == null) return;
+        int safeCount = 0;
+        for (FilterListsDirectoryApi.ListSummary summary : filtered) {
+            if (isAdAwayCompatible(summary.syntaxIds)) {
+                safeCount++;
+            }
+        }
+        if (safeCount == 0) {
+            showSnackbar(getString(R.string.filterlists_no_dns_safe_lists_in_scope));
+            return;
+        }
+        int messageId = hasActiveFilters()
+                ? R.string.filterlists_confirm_subscribe_filtered_message
+                : R.string.filterlists_confirm_subscribe_all_message;
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filterlists_confirm_subscribe_all_title)
+                .setMessage(getString(messageId, safeCount))
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(R.string.filterlists_confirm_subscribe_all_action,
+                        (dialog, which) -> subscribeAll())
+                .show();
+    }
+
     private void subscribeAll() {
         if (binding == null) return;
         binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
-        binding.filterlistsSubscribeAllStatus.setText("Preparing\u2026");
-        binding.filterlistsSubscribeAllSwitch.setEnabled(false);
+        binding.filterlistsSubscribeAllStatus.setText(R.string.filterlists_status_preparing);
+        setSubscribeAllStopping(false);
+        bulkOperationRunning = true;
+        refreshBulkActionsState();
         currentDone = 0;
         currentTotal = 0;
         currentWorkingId = null;
-        currentWorkingName = "Preparing\u2026";
-        if (adapter != null) adapter.notifyDataSetChanged();
+        currentWorkingName = getString(R.string.filterlists_status_preparing);
+        notifyFilterListRowsChanged();
 
         try {
             binding.filterlistsSearchEditText.clearFocus();
@@ -606,32 +859,448 @@ public class DiscoverFilterListsFragment extends Fragment {
         } catch (Exception ignored) {
         }
 
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class).build();
+        Data inputData = FilterListsSubscribeAllWorker.buildScopeInput(
+                getCurrentSearchQuery(),
+                selectedTagId,
+                selectedLanguageId,
+                mCompatibleOnly,
+                getFilteredIdsForBulkScope());
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
+                .setInputData(inputData)
+                .build();
         WorkManager wm = WorkManager.getInstance(requireContext());
         wm.enqueueUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request);
 
-        showSnackbar("Running in background\u2026");
+        showSnackbar(getString(R.string.filterlists_running_in_background));
+    }
+
+    private void confirmUnsubscribeAll() {
+        if (binding == null) return;
+        int titleId = hasActiveFilters()
+                ? R.string.filterlists_confirm_unsubscribe_filtered_title
+                : R.string.filterlists_confirm_unsubscribe_all_title;
+        int messageId = hasActiveFilters()
+                ? R.string.filterlists_confirm_unsubscribe_filtered_message
+                : R.string.filterlists_confirm_unsubscribe_all_message;
+        int actionId = hasActiveFilters()
+                ? R.string.filterlists_confirm_unsubscribe_filtered_action
+                : R.string.filterlists_confirm_unsubscribe_all_action;
+        new AlertDialog.Builder(requireContext())
+                .setTitle(titleId)
+                .setMessage(messageId)
+                .setNegativeButton(R.string.button_cancel,
+                        (dialog, which) -> refreshBulkActionsState())
+                .setPositiveButton(actionId,
+                        (dialog, which) -> unsubscribeAll())
+                .setOnCancelListener(dialog -> refreshBulkActionsState())
+                .show();
+    }
+
+    private void openExistingSource(
+            @NonNull FilterListsDirectoryApi.ListSummary summary,
+            @NonNull String url) {
+        if (binding == null) return;
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
+            AppExecutors.getInstance().mainThread().execute(() -> {
+                if (this.binding == null) return;
+                if (existing == null) {
+                    existingUrls.remove(url);
+                    refreshBulkActionsState();
+                    notifyFilterListRowChanged(summary.id);
+                    showSnackbar(getString(R.string.filterlists_not_subscribed));
+                    return;
+                }
+                Intent intent = new Intent(requireContext(), SourceEditActivity.class);
+                intent.putExtra(SourceEditActivity.SOURCE_ID, existing.getId());
+                startActivity(intent);
+            });
+        });
+    }
+
+    private void openSourceEditForFilterList(FilterListsDirectoryApi.ListSummary summary,
+            String label, String url) {
+        Intent intent = new Intent(requireContext(), SourceEditActivity.class);
+        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, label);
+        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_URL, url);
+        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_ALLOW, false);
+        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_REDIRECT, false);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_ID, summary.id);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_NAME, summary.name);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_SYNTAX_IDS, summary.syntaxIds);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_TAG_IDS, summary.tagIds);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_LANGUAGE_IDS, summary.languageIds);
+        intent.putExtra(SourceEditActivity.EXTRA_FILTER_LIST_SELECTED_URL, url);
+        startActivity(intent);
     }
 
     private void unsubscribeAll() {
         if (binding == null) return;
-        binding.filterlistsSubscribeAllSwitch.setEnabled(false);
+        bulkOperationRunning = true;
+        refreshBulkActionsState();
+        final Context appContext = requireContext().getApplicationContext();
+        final List<FilterListsDirectoryApi.ListSummary> listSnapshot = new ArrayList<>(filtered);
+        final Map<Integer, String> urlSnapshot;
+        synchronized (resolvedUrlCache) {
+            urlSnapshot = new HashMap<>(resolvedUrlCache);
+        }
         AppExecutors.getInstance().diskIO().execute(() -> {
-            hostsSourceDao.deleteAll();
+            SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            Set<String> filterListUrls = new HashSet<>();
+            for (FilterListsDirectoryApi.ListSummary summary : listSnapshot) {
+                String url = urlSnapshot.get(summary.id);
+                if (url == null) {
+                    url = prefs.getString(KEY_URL_PREFIX + summary.id, null);
+                }
+                if (url != null && !url.isEmpty()) {
+                    filterListUrls.add(url);
+                }
+            }
+
+            int removed = 0;
+            for (String url : filterListUrls) {
+                HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
+                if (existing != null) {
+                    hostsSourceDao.delete(existing);
+                    removed++;
+                }
+            }
+
+            int removedCount = removed;
             AppExecutors.getInstance().mainThread().execute(() -> {
                 if (this.binding == null) return;
-                existingUrls.clear();
-                binding.filterlistsSubscribeAllSwitch.setEnabled(true);
-                if (adapter != null) adapter.notifyDataSetChanged();
-                showSnackbar("Unsubscribed from all lists");
+                existingUrls.removeAll(filterListUrls);
+                bulkOperationRunning = false;
+                refreshBulkActionsState();
+                notifyFilterListRowsChanged();
+                showSnackbar(getString(R.string.filterlists_unsubscribe_all_done, removedCount));
             });
         });
+    }
+
+    private void cancelSubscribeAll() {
+        if (binding == null) return;
+        WorkManager.getInstance(requireContext())
+                .cancelUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME);
+        setSubscribeAllStopping(true);
+        bulkOperationRunning = true;
+        refreshBulkActionsState();
+        binding.filterlistsCancelBulkButton.setEnabled(false);
+        binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
+        binding.filterlistsSubscribeAllStatus.setText(R.string.filterlists_subscribe_all_stopping);
+        showSnackbar(getString(R.string.filterlists_subscribe_all_stopping));
+    }
+
+    @Nullable
+    private int[] getFilteredIdsForBulkScope() {
+        if (!hasActiveFilters()) {
+            return null;
+        }
+        int[] ids = new int[filtered.size()];
+        for (int i = 0; i < filtered.size(); i++) {
+            ids[i] = filtered.get(i).id;
+        }
+        return ids;
+    }
+
+    private void refreshBulkActionsState() {
+        if (binding == null) return;
+        int state = FilterListsSubscriptionState.resolve(filtered, this::getCachedUrlForId, existingUrls);
+        int compatibleVisible = countCompatibleVisible();
+        boolean busy = directoryLoading || bulkOperationRunning;
+        binding.filterlistsBulkActionsRow.setVisibility(
+                filtered.isEmpty() && !bulkOperationRunning ? View.GONE : View.VISIBLE);
+        binding.filterlistsSubscribeVisibleButton.setEnabled(
+                !busy && compatibleVisible > 0 && state != FilterListsSubscriptionState.ALL);
+        binding.filterlistsRemoveVisibleButton.setEnabled(
+                !busy && state != FilterListsSubscriptionState.NONE);
     }
 
     private void showSnackbar(String message) {
         if (binding == null) return;
         activeSnackbar = Snackbar.make(binding.filterlistsRecyclerView, message, Snackbar.LENGTH_LONG);
         activeSnackbar.show();
+    }
+
+    private void refreshLastRunReviewAction(boolean allowed) {
+        if (binding == null) return;
+        SharedPreferences prefs = requireContext().getApplicationContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        boolean hasReview = prefs.getInt(
+                FilterListsSubscribeAllWorker.KEY_LAST_RUN_REVIEW_COUNT, 0) > 0
+                && outcomes != null && !outcomes.isEmpty();
+        boolean hasRetry = outcomes != null && parseRetryableNoUrlIds(outcomes).length > 0;
+        boolean hasUnsupported = outcomes != null && parseUnsupportedIds(outcomes).length > 0;
+        boolean showActions = allowed && (hasReview || hasRetry || hasUnsupported);
+        binding.filterlistsLastRunActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
+        binding.filterlistsReviewLastRunButton.setVisibility(
+                hasReview ? View.VISIBLE : View.GONE);
+        binding.filterlistsRetryLastRunButton.setVisibility(
+                hasRetry ? View.VISIBLE : View.GONE);
+        binding.filterlistsReviewUnsupportedButton.setVisibility(
+                hasUnsupported ? View.VISIBLE : View.GONE);
+    }
+
+    private void showLastRunReviewDialog() {
+        if (binding == null) return;
+        SharedPreferences prefs = requireContext().getApplicationContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        if (outcomes == null || outcomes.isEmpty()) {
+            showSnackbar(getString(R.string.filterlists_last_run_review_empty));
+            refreshLastRunReviewAction(true);
+            return;
+        }
+
+        String message = formatLastRunReviewMessage(
+                outcomes,
+                prefs.getInt(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOME_COUNT, 0),
+                prefs.getBoolean(FilterListsSubscribeAllWorker.KEY_LAST_RUN_CANCELLED, false));
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filterlists_last_run_review_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.button_close, null)
+                .show();
+    }
+
+    private void retryLastRunNoUrlLists() {
+        if (binding == null) return;
+        Context appContext = requireContext().getApplicationContext();
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        int[] retryIds = parseRetryableNoUrlIds(outcomes != null ? outcomes : "");
+        if (retryIds.length == 0) {
+            showSnackbar(getString(R.string.filterlists_retry_last_run_empty));
+            refreshLastRunReviewAction(true);
+            return;
+        }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        synchronized (resolvedUrlCache) {
+            for (int id : retryIds) {
+                editor.remove(KEY_URL_PREFIX + id);
+                resolvedUrlCache.remove(id);
+            }
+        }
+        editor.apply();
+
+        binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
+        binding.filterlistsSubscribeAllStatus.setText(R.string.filterlists_status_preparing);
+        setSubscribeAllStopping(false);
+        bulkOperationRunning = true;
+        refreshBulkActionsState();
+        refreshLastRunReviewAction(false);
+
+        Data inputData = FilterListsSubscribeAllWorker.buildScopeInput(null, 0, 0, false,
+                retryIds);
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
+                .setInputData(inputData)
+                .build();
+        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
+                FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE,
+                request);
+        showSnackbar(getString(R.string.filterlists_retry_last_run_started, retryIds.length));
+    }
+
+    private void reviewLastRunUnsupportedLists() {
+        if (binding == null) return;
+        Context appContext = requireContext().getApplicationContext();
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        int[] unsupportedIds = parseUnsupportedIds(outcomes != null ? outcomes : "");
+        if (unsupportedIds.length == 0) {
+            showSnackbar(getString(R.string.filterlists_review_unsupported_empty));
+            refreshLastRunReviewAction(true);
+            return;
+        }
+
+        List<FilterListsDirectoryApi.ListSummary> summaries = findSummariesByIds(unsupportedIds);
+        if (summaries.isEmpty()) {
+            showSnackbar(getString(R.string.filterlists_review_unsupported_not_loaded));
+            return;
+        }
+
+        if (summaries.size() == 1) {
+            showUnsupportedReviewDialog(summaries.get(0));
+            return;
+        }
+
+        int shown = Math.min(summaries.size(), MAX_LAST_RUN_DIALOG_ROWS);
+        CharSequence[] labels = new CharSequence[shown];
+        for (int i = 0; i < shown; i++) {
+            FilterListsDirectoryApi.ListSummary summary = summaries.get(i);
+            labels[i] = summary.name != null && !summary.name.isEmpty()
+                    ? summary.name : "List " + summary.id;
+        }
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filterlists_review_unsupported_choices_title)
+                .setItems(labels, (dialog, which) -> showUnsupportedReviewDialog(summaries.get(which)))
+                .setNegativeButton(R.string.button_close, null)
+                .show();
+    }
+
+    @NonNull
+    private List<FilterListsDirectoryApi.ListSummary> findSummariesByIds(@NonNull int[] ids) {
+        List<FilterListsDirectoryApi.ListSummary> summaries = new ArrayList<>();
+        for (int id : ids) {
+            for (FilterListsDirectoryApi.ListSummary summary : all) {
+                if (summary.id == id) {
+                    summaries.add(summary);
+                    break;
+                }
+            }
+        }
+        return summaries;
+    }
+
+    private void showUnsupportedReviewDialog(FilterListsDirectoryApi.ListSummary summary) {
+        if (binding == null) return;
+        binding.filterlistsProgress.setVisibility(View.VISIBLE);
+        final Context appContext = requireContext().getApplicationContext();
+        AppExecutors.getInstance().networkIO().execute(() -> {
+            try {
+                AdAwayApplication app = (AdAwayApplication) appContext;
+                FilterListsDirectoryApi api = new FilterListsDirectoryApi(
+                        app.getSourceModel().getHttpClientForUi());
+                FilterListsDirectoryApi.ListDetails details = api.getListDetails(summary.id);
+                String url = details.pickBestDownloadUrl();
+                if (url != null) {
+                    cacheResolvedUrl(appContext, summary.id, url);
+                }
+                runOnMainThreadIfAdded(() -> {
+                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    String urlMessage = url == null
+                            ? getString(R.string.filterlists_review_unsupported_no_url)
+                            : getString(R.string.filterlists_review_unsupported_url, url);
+                    String message = getString(
+                            R.string.filterlists_review_unsupported_message,
+                            FilterListCompatibility.describe(summary.syntaxIds),
+                            FilterListCompatibility.capabilitySummary(summary.syntaxIds),
+                            urlMessage);
+                    String label = details.name != null && !details.name.isEmpty()
+                            ? details.name : summary.name;
+                    AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
+                            .setTitle(R.string.filterlists_review_unsupported_title)
+                            .setMessage(message)
+                            .setNegativeButton(R.string.button_close, null);
+                    if (url != null) {
+                        builder.setPositiveButton(R.string.filterlists_add_manually,
+                                (dialog, which) -> openSourceEditForFilterList(summary, label, url));
+                    }
+                    builder.show();
+                });
+            } catch (IOException e) {
+                runOnMainThreadIfAdded(() -> {
+                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    showSnackbar(getString(R.string.filterlists_resolve_url_failed));
+                });
+            }
+        });
+    }
+
+    static int[] parseRetryableNoUrlIds(@NonNull String outcomes) {
+        return parseOutcomeIds(outcomes, "SKIPPED_NO_URL");
+    }
+
+    static int[] parseUnsupportedIds(@NonNull String outcomes) {
+        return parseOutcomeIds(outcomes, "SKIPPED_UNSUPPORTED");
+    }
+
+    @NonNull
+    private static int[] parseOutcomeIds(@NonNull String outcomes, @NonNull String expectedOutcome) {
+        List<Integer> ids = new ArrayList<>();
+        String[] lines = outcomes.split("\\n");
+        for (String line : lines) {
+            String[] parts = line.split("\\t", -1);
+            if (parts.length < 2 || !expectedOutcome.equals(parts[0])) {
+                continue;
+            }
+            try {
+                int id = Integer.parseInt(parts[1]);
+                if (id <= 0 || ids.contains(id)) {
+                    continue;
+                }
+                ids.add(id);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        int[] result = new int[ids.size()];
+        for (int i = 0; i < ids.size(); i++) {
+            result[i] = ids.get(i);
+        }
+        return result;
+    }
+
+    @NonNull
+    static String formatLastRunReviewMessage(@NonNull String outcomes, int outcomeCount,
+            boolean cancelled) {
+        String[] lines = outcomes.split("\\n");
+        StringBuilder builder = new StringBuilder();
+        if (cancelled) {
+            builder.append("Cancelled").append('\n').append('\n');
+        }
+        int shown = Math.min(lines.length, MAX_LAST_RUN_DIALOG_ROWS);
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append(formatOutcomeLine(lines[i]));
+        }
+        int hidden = Math.max(0, outcomeCount - shown);
+        if (hidden > 0) {
+            builder.append('\n').append('+').append(hidden).append(" more");
+        }
+        return builder.toString();
+    }
+
+    @NonNull
+    private static String formatOutcomeLine(@NonNull String line) {
+        String[] parts = line.split("\\t", -1);
+        String outcome = parts.length > 0 ? parts[0] : "";
+        String id = parts.length > 1 ? parts[1] : "";
+        String name = parts.length > 2 ? parts[2] : "";
+        String url = parts.length > 3 ? parts[3] : "";
+
+        String label = !name.isEmpty() ? name : (!id.isEmpty() && !"0".equals(id)
+                ? "List " + id : "Unknown list");
+        String status;
+        switch (outcome) {
+            case "SUBSCRIBED":
+                status = "Added";
+                break;
+            case "ALREADY":
+                status = "Already";
+                break;
+            case "SKIPPED_NO_URL":
+                status = "No URL";
+                break;
+            case "SKIPPED_UNSUPPORTED":
+                status = "Unsupported";
+                break;
+            default:
+                status = outcome.isEmpty() ? "Unknown" : outcome;
+                break;
+        }
+
+        if (url.isEmpty()) {
+            return status + " - " + label;
+        }
+        return status + " - " + label + "\n" + url;
+    }
+
+    private boolean isSubscribeAllStopping() {
+        Context appContext = requireContext().getApplicationContext();
+        return appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_SUBSCRIBE_ALL_STOPPING, false);
+    }
+
+    private void setSubscribeAllStopping(boolean stopping) {
+        Context appContext = requireContext().getApplicationContext();
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_SUBSCRIBE_ALL_STOPPING, stopping)
+                .apply();
     }
 
     @Nullable
@@ -646,13 +1315,46 @@ public class DiscoverFilterListsFragment extends Fragment {
         return infos.get(infos.size() - 1);
     }
 
+    @Nullable
+    private String formatSubscribeAllResult(@Nullable WorkInfo info) {
+        if (info == null || !info.getState().isFinished()) {
+            return null;
+        }
+
+        Data output = info.getOutputData();
+        int subscribed = output.getInt(FilterListsSubscribeAllWorker.OUTPUT_SUBSCRIBED, 0);
+        int already = output.getInt(FilterListsSubscribeAllWorker.OUTPUT_ALREADY, 0);
+        int skippedNoUrl = output.getInt(FilterListsSubscribeAllWorker.OUTPUT_SKIPPED_NO_URL, 0);
+        int skippedUnsupported = output.getInt(
+                FilterListsSubscribeAllWorker.OUTPUT_SKIPPED_UNSUPPORTED, 0);
+        boolean cancelled = info.getState() == WorkInfo.State.CANCELLED
+                || output.getBoolean(FilterListsSubscribeAllWorker.OUTPUT_CANCELLED, false);
+
+        if (subscribed == 0 && already == 0 && skippedNoUrl == 0 && skippedUnsupported == 0) {
+            return cancelled ? getString(R.string.filterlists_subscribe_all_cancelled) : null;
+        }
+
+        int messageId = cancelled
+                ? R.string.filterlists_subscribe_all_cancelled_summary
+                : R.string.filterlists_subscribe_all_done_summary;
+        String summary = getString(messageId, subscribed, already, skippedNoUrl,
+                skippedUnsupported);
+        String reviewPreview = output.getString(FilterListsSubscribeAllWorker.OUTPUT_REVIEW_PREVIEW);
+        int reviewCount = output.getInt(FilterListsSubscribeAllWorker.OUTPUT_REVIEW_COUNT, 0);
+        if (reviewCount <= 0 || reviewPreview == null || reviewPreview.isEmpty()) {
+            return summary;
+        }
+        return getString(R.string.filterlists_subscribe_all_review_summary, summary,
+                reviewPreview);
+    }
+
     private String formatSyntax(int[] ids) {
         if (ids == null || ids.length == 0) return "";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < ids.length; i++) {
             if (i > 0) sb.append(", ");
             String name = syntaxNames != null ? syntaxNames.get(ids[i]) : null;
-            sb.append(name != null ? name : ("Syntax " + ids[i]));
+            sb.append(name != null ? name : getString(R.string.filterlists_syntax_fallback, ids[i]));
         }
         return sb.toString();
     }
@@ -675,8 +1377,11 @@ public class DiscoverFilterListsFragment extends Fragment {
             FilterListsDirectoryApi.ListSummary s = filtered.get(position);
             String cachedUrl = getCachedUrlForId(s.id);
             boolean isSubscribed = cachedUrl != null && existingUrls.contains(cachedUrl);
+            boolean compatible = isAdAwayCompatible(s.syntaxIds);
+            String capabilitySummary = FilterListCompatibility.capabilitySummary(s.syntaxIds);
 
             holder.switchView.setOnCheckedChangeListener(null);
+            holder.switchView.setEnabled(isSubscribed || compatible);
             holder.switchView.setChecked(isSubscribed);
             holder.switchView.setOnCheckedChangeListener((buttonView, checked) -> setSubscribed(s, checked));
 
@@ -684,24 +1389,52 @@ public class DiscoverFilterListsFragment extends Fragment {
             holder.syntax.setText(formatSyntax(s.syntaxIds));
 
             boolean isCurrent = currentWorkingId != null && currentWorkingId == s.id;
+            String rowState;
             if (isCurrent) {
                 holder.status.setVisibility(View.VISIBLE);
-                holder.status.setText("Processing\u2026");
+                holder.status.setText(R.string.filterlists_status_processing);
+                rowState = getString(R.string.filterlists_status_processing);
             } else if (isSubscribed) {
                 holder.status.setVisibility(View.VISIBLE);
-                holder.status.setText("Subscribed");
+                holder.status.setText(R.string.filterlists_subscribe_done);
+                rowState = getString(R.string.filterlists_subscribe_done);
+            } else if (!compatible) {
+                holder.status.setVisibility(View.VISIBLE);
+                rowState = FilterListCompatibility.rowSummary(s.syntaxIds);
+                holder.status.setText(rowState);
             } else {
                 holder.status.setVisibility(View.GONE);
+                rowState = FilterListCompatibility.rowSummary(s.syntaxIds);
             }
 
-            holder.desc.setText(s.description != null ? s.description : "");
-            holder.itemView.setOnClickListener(v -> onPick(s));
+            holder.desc.setText(formatDescriptionWithCapabilities(s.description, s.syntaxIds));
+            holder.switchView.setContentDescription(
+                    getString(R.string.filterlists_source_toggle_description, s.name));
+            holder.itemView.setContentDescription(
+                    getString(R.string.filterlists_source_row_description, s.name,
+                            rowState + ". " + capabilitySummary));
+            holder.itemView.setOnClickListener(v -> {
+                if (isSubscribed && cachedUrl != null) {
+                    openExistingSource(s, cachedUrl);
+                } else {
+                    onPick(s);
+                }
+            });
         }
 
         @Override
         public int getItemCount() {
             return filtered.size();
         }
+    }
+
+    static String formatDescriptionWithCapabilities(@Nullable String description,
+            @Nullable int[] syntaxIds) {
+        String capabilities = FilterListCompatibility.capabilitySummary(syntaxIds);
+        if (description == null || description.trim().isEmpty()) {
+            return capabilities;
+        }
+        return description.trim() + "\n" + capabilities;
     }
 
     static class RowVH extends RecyclerView.ViewHolder {
@@ -719,5 +1452,12 @@ public class DiscoverFilterListsFragment extends Fragment {
             status = itemView.findViewById(R.id.filterlistsItemStatus);
             desc = itemView.findViewById(R.id.filterlistsItemDesc);
         }
+    }
+
+    private void runOnMainThreadIfAdded(@NonNull Runnable action) {
+        AppExecutors.getInstance().mainThread().execute(() -> {
+            if (!isAdded() || this.binding == null) return;
+            action.run();
+        });
     }
 }

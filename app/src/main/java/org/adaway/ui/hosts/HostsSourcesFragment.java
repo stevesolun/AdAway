@@ -59,9 +59,13 @@ import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
+import java.time.DayOfWeek;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.adaway.ui.source.SourceEditActivity.SOURCE_ID;
@@ -143,6 +147,10 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        return handleMenuItem(item) || super.onOptionsItemSelected(item);
+    }
+
+    boolean handleMenuItem(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_hosts_check_updates) {
             runCheckUpdates();
@@ -159,11 +167,14 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         } else if (id == R.id.action_hosts_schedule_filter_set) {
             promptScheduleFilterSet();
             return true;
+        } else if (id == R.id.action_hosts_manage_filter_sets) {
+            promptManageFilterSets();
+            return true;
         } else if (id == R.id.action_hosts_manage_schedules) {
             startActivity(new Intent(requireContext(), SchedulesActivity.class));
             return true;
         }
-        return super.onOptionsItemSelected(item);
+        return false;
     }
 
     @Override
@@ -177,17 +188,144 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         TextInputEditText editText = new TextInputEditText(requireContext());
         layout.addView(editText);
 
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_save_filter_set)
                 .setView(layout)
-                .setPositiveButton(R.string.button_save, (d, which) -> {
-                    String name = editText.getText() != null ? editText.getText().toString().trim() : "";
-                    if (name.isEmpty()) return;
-                    saveFilterSet(name);
-                    Snackbar.make(coordinatorLayout, R.string.filter_set_saved, Snackbar.LENGTH_SHORT).show();
+                .setPositiveButton(R.string.button_save, null)
+                .setNegativeButton(R.string.button_cancel, null)
+                .create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+                        .setOnClickListener(view -> {
+                            String rawName = editText.getText() != null
+                                    ? editText.getText().toString() : "";
+                            FilterSetStore.SetNameValidation validation =
+                                    FilterSetStore.validateSetName(rawName,
+                                            FilterSetStore.getSetNames(requireContext()));
+                            int error = getFilterSetNameError(validation);
+                            if (error != 0) {
+                                layout.setError(getString(error));
+                                return;
+                            }
+                            layout.setError(null);
+                            String name = FilterSetStore.normalizeActiveProfile(rawName);
+                            saveFilterSet(name);
+                            Snackbar.make(coordinatorLayout, R.string.filter_set_saved,
+                                    Snackbar.LENGTH_SHORT).show();
+                            dialog.dismiss();
+                        }));
+        dialog.show();
+    }
+
+    private void promptManageFilterSets() {
+        List<String> names = getManageableFilterSetNames();
+        if (names.isEmpty()) {
+            Snackbar.make(coordinatorLayout, R.string.filter_set_manage_none,
+                    Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+        String[] arr = names.toArray(new String[0]);
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filter_set_manage_title)
+                .setItems(arr, (dialog, which) -> showManageFilterSetActions(arr[which]))
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    @NonNull
+    private List<String> getManageableFilterSetNames() {
+        List<String> names = new ArrayList<>(FilterSetStore.getSetNames(requireContext()));
+        names.removeIf(name -> FilterSetStore.isReservedSetName(name));
+        Collections.sort(names, (left, right) -> FilterSetStore.canonicalSetName(left)
+                .compareTo(FilterSetStore.canonicalSetName(right)));
+        return names;
+    }
+
+    private void showManageFilterSetActions(@NonNull String name) {
+        CharSequence[] actions = new CharSequence[]{
+                getString(R.string.filter_set_rename),
+                getString(R.string.filter_set_delete)
+        };
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(getString(R.string.filter_set_manage_actions_title, name))
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        promptRenameFilterSet(name);
+                    } else {
+                        confirmDeleteFilterSet(name);
+                    }
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    private void promptRenameFilterSet(@NonNull String name) {
+        TextInputLayout layout = new TextInputLayout(requireContext());
+        layout.setHint(getString(R.string.filter_set_name_hint));
+        TextInputEditText editText = new TextInputEditText(requireContext());
+        editText.setText(name);
+        editText.setSelectAllOnFocus(true);
+        layout.addView(editText);
+
+        androidx.appcompat.app.AlertDialog dialog =
+                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.filter_set_rename_title)
+                        .setView(layout)
+                        .setPositiveButton(R.string.filter_set_rename, null)
+                        .setNegativeButton(R.string.button_cancel, null)
+                        .create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+                        .setOnClickListener(view -> {
+                            String rawName = editText.getText() != null
+                                    ? editText.getText().toString() : "";
+                            Set<String> existingNames =
+                                    new HashSet<>(FilterSetStore.getSetNames(requireContext()));
+                            existingNames.remove(name);
+                            FilterSetStore.SetNameValidation validation =
+                                    FilterSetStore.validateSetName(rawName, existingNames);
+                            int error = getFilterSetNameError(validation);
+                            if (error != 0) {
+                                layout.setError(getString(error));
+                                return;
+                            }
+                            layout.setError(null);
+                            String newName = FilterSetStore.normalizeActiveProfile(rawName);
+                            if (FilterSetStore.renameSet(requireContext(), name, newName)) {
+                                Snackbar.make(coordinatorLayout, R.string.filter_set_renamed,
+                                        Snackbar.LENGTH_SHORT).show();
+                            }
+                            dialog.dismiss();
+                        }));
+        dialog.show();
+    }
+
+    private void confirmDeleteFilterSet(@NonNull String name) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filter_set_delete_title)
+                .setMessage(getString(R.string.filter_set_delete_message, name))
+                .setPositiveButton(R.string.filter_set_delete, (dialog, which) -> {
+                    if (FilterSetStore.deleteSet(requireContext(), name)) {
+                        Snackbar.make(coordinatorLayout, R.string.filter_set_deleted,
+                                Snackbar.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private int getFilterSetNameError(@NonNull FilterSetStore.SetNameValidation validation) {
+        switch (validation) {
+            case EMPTY:
+                return R.string.filter_set_name_empty;
+            case RESERVED:
+                return R.string.filter_set_name_reserved;
+            case DUPLICATE:
+                return R.string.filter_set_name_duplicate;
+            case OK:
+            default:
+                return 0;
+        }
     }
 
     private void saveFilterSet(String name) {
@@ -197,7 +335,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 enabledUrls.add(s.getUrl());
             }
         }
+        if (FilterSetStore.PROFILE_CUSTOM.equals(name)) {
+            FilterSetStore.saveCustomProfile(requireContext(), enabledUrls);
+            return;
+        }
         FilterSetStore.saveSet(requireContext(), name, enabledUrls);
+        FilterSetStore.setActiveProfile(requireContext(), name);
     }
 
     private void promptApplyFilterSet() {
@@ -209,32 +352,146 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         String[] arr = names.toArray(new String[0]);
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_apply_filter_set)
-                .setItems(arr, (d, which) -> applyFilterSet(arr[which]))
+                .setItems(arr, (d, which) -> previewApplyFilterSet(arr[which]))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
     }
 
-    private void applyFilterSet(String name) {
+    private void previewApplyFilterSet(@NonNull String name) {
+        android.content.Context appCtx = requireContext().getApplicationContext();
+        if (!FilterSetStore.hasSet(appCtx, name) || !FilterSetStore.hasSetUrls(appCtx, name)) {
+            Snackbar.make(coordinatorLayout, R.string.filter_set_missing, Snackbar.LENGTH_SHORT)
+                    .show();
+            return;
+        }
+        Set<String> targetUrls = FilterSetStore.getSetUrls(appCtx, name);
+        FilterProfileDiff diff = FilterProfileDiff.resolve(
+                getEnabledSourceUrls(), targetUrls, getAvailableSourceUrls());
+        if (diff.isEmptyProfile()) {
+            showEmptyFilterSetConfirmation(name, targetUrls, diff);
+            return;
+        }
+        if (diff.isMissingOnlyProfile()) {
+            showMissingOnlyFilterSetConfirmation(name, targetUrls, diff);
+            return;
+        }
+        if (!diff.hasChanges() && diff.getMissingCount() == 0) {
+            boolean active = name.equals(FilterSetStore.getActiveProfile(appCtx));
+            showNoChangeFilterSetDialog(name, targetUrls, active);
+            return;
+        }
+        showApplyFilterSetConfirmation(name, targetUrls, diff);
+    }
+
+    private void showEmptyFilterSetConfirmation(
+            @NonNull String name, @NonNull Set<String> targetUrls,
+            @NonNull FilterProfileDiff diff) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filter_set_apply_empty_title)
+                .setMessage(getString(R.string.filter_set_apply_empty_message,
+                        diff.getDisableCount()))
+                .setPositiveButton(R.string.checkbox_list_context_apply,
+                        (dialog, which) -> applyFilterSet(name, targetUrls))
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private void showMissingOnlyFilterSetConfirmation(
+            @NonNull String name, @NonNull Set<String> targetUrls,
+            @NonNull FilterProfileDiff diff) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.filter_set_apply_missing_only_title)
+                .setMessage(getString(R.string.filter_set_apply_missing_only_message,
+                        diff.getDisableCount()))
+                .setPositiveButton(R.string.checkbox_list_context_apply,
+                        (dialog, which) -> applyFilterSet(name, targetUrls))
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    private void showNoChangeFilterSetDialog(
+            @NonNull String name, @NonNull Set<String> targetUrls, boolean active) {
+        androidx.appcompat.app.AlertDialog.Builder builder =
+                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.filter_set_apply_no_change_title)
+                        .setMessage(active
+                                ? getString(R.string.filter_set_apply_no_change_active_message)
+                                : getString(R.string.filter_set_apply_set_active_message, name));
+        if (active) {
+            builder.setPositiveButton(R.string.button_close, null);
+        } else {
+            builder.setPositiveButton(R.string.filter_set_apply_set_active_button,
+                    (dialog, which) -> applyFilterSet(name, targetUrls))
+                    .setNegativeButton(R.string.button_cancel, null);
+        }
+        builder.show();
+    }
+
+    private void showApplyFilterSetConfirmation(
+            @NonNull String name, @NonNull Set<String> targetUrls,
+            @NonNull FilterProfileDiff diff) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(getString(R.string.filter_set_apply_preview_title, name))
+                .setMessage(buildApplyFilterSetPreviewMessage(diff))
+                .setPositiveButton(R.string.checkbox_list_context_apply,
+                        (dialog, which) -> applyFilterSet(name, targetUrls))
+                .setNegativeButton(R.string.button_cancel, null)
+                .show();
+    }
+
+    @NonNull
+    private String buildApplyFilterSetPreviewMessage(@NonNull FilterProfileDiff diff) {
+        StringBuilder message = new StringBuilder(diff.hasChanges()
+                ? getString(R.string.filter_set_apply_preview_message,
+                        diff.getEnableCount(), diff.getDisableCount(),
+                        diff.getKeepEnabledCount())
+                : getString(R.string.filter_set_apply_preview_no_changes));
+        if (diff.weakensProtection()) {
+            message.append('\n').append(getString(
+                    R.string.filter_set_apply_preview_disable_warning));
+        }
+        if (diff.getMissingCount() > 0) {
+            message.append('\n').append(getString(
+                    R.string.filter_set_apply_preview_missing, diff.getMissingCount()));
+        }
+        return message.toString();
+    }
+
+    @NonNull
+    private Set<String> getEnabledSourceUrls() {
+        Set<String> enabledUrls = new HashSet<>();
+        for (HostsSource source : lastSources) {
+            if (source.getId() != HostsSource.USER_SOURCE_ID && source.isEnabled() &&
+                    source.getUrl() != null) {
+                enabledUrls.add(source.getUrl());
+            }
+        }
+        return enabledUrls;
+    }
+
+    @NonNull
+    private Set<String> getAvailableSourceUrls() {
+        Set<String> availableUrls = new HashSet<>();
+        for (HostsSource source : lastSources) {
+            if (source.getId() != HostsSource.USER_SOURCE_ID && source.getUrl() != null) {
+                availableUrls.add(source.getUrl());
+            }
+        }
+        return availableUrls;
+    }
+
+    private void applyFilterSet(@NonNull String name, @NonNull Set<String> enabledUrls) {
         // QA-27: capture Context and DAO on the main thread to avoid calling requireContext()
         // from a background thread if the fragment detaches while the lambda is queued.
         android.content.Context appCtx = requireContext().getApplicationContext();
-        Set<String> enabledUrls = FilterSetStore.getSetUrls(appCtx, name);
         HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
 
         Snackbar waitSnackbar = Snackbar.make(coordinatorLayout, R.string.notification_configuration_installing, Snackbar.LENGTH_INDEFINITE);
         waitSnackbar.show();
 
-        // QA-04: snapshot lastSources on the main thread to avoid a data race with the
-        // LiveData observer that writes lastSources also on the main thread.
-        List<HostsSource> sourcesSnapshot = new ArrayList<>(lastSources);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            for (HostsSource s : sourcesSnapshot) {
-                if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
-                boolean shouldEnable = enabledUrls.contains(s.getUrl());
-                if (s.isEnabled() == shouldEnable) continue;
-                dao.setSourceEnabled(s.getId(), shouldEnable);
-                dao.setSourceItemsEnabled(s.getId(), shouldEnable);
-            }
+            dao.applySourceSelections(enabledUrls);
+            FilterSetStore.setActiveProfile(appCtx, name);
             FilterSetUpdateService.enable(appCtx);
             AppExecutors.getInstance().mainThread().execute(() -> {
                 waitSnackbar.dismiss();
@@ -259,7 +516,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                     String choice = arr[which];
                     if (choice.equals(getString(R.string.filter_set_schedule_current_selection))) {
                         // Save current selection as a real set so it can be scheduled.
-                        String name = getString(R.string.filter_set_schedule_current_selection);
+                        String name = createScheduledSelectionName();
                         saveFilterSet(name);
                         promptScheduleForOne(name);
                     } else {
@@ -268,6 +525,20 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    @NonNull
+    private String createScheduledSelectionName() {
+        Set<String> names = FilterSetStore.getSetNames(requireContext());
+        String baseName = getString(R.string.filter_set_schedule_current_selection_saved_name);
+        String candidate = baseName;
+        int suffix = 2;
+        while (FilterSetStore.validateSetName(candidate, names)
+                != FilterSetStore.SetNameValidation.OK) {
+            candidate = baseName + " " + suffix;
+            suffix++;
+        }
+        return candidate;
     }
 
     private void promptScheduleForOne(String name) {
@@ -282,7 +553,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                     if (which == 0) {
                         FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_OFF);
                         FilterSetUpdateService.enable(requireContext());
-                        Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                        showScheduleApplied(scheduleOptions[which]);
                         return;
                     }
                     if (which == 1) {
@@ -290,7 +561,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                         pickTime((hour, minute) -> {
                             FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
                             FilterSetUpdateService.enable(requireContext());
-                            Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                            showScheduleApplied(scheduleOptions[which]);
                         });
                         return;
                     }
@@ -298,11 +569,17 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                     pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
                         FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
                         FilterSetUpdateService.enable(requireContext());
-                        Snackbar.make(coordinatorLayout, "Scheduled: " + scheduleOptions[which], Snackbar.LENGTH_SHORT).show();
+                        showScheduleApplied(scheduleOptions[which]);
                     }));
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    private void showScheduleApplied(@NonNull CharSequence scheduleLabel) {
+        Snackbar.make(coordinatorLayout,
+                getString(R.string.filter_set_schedule_applied, scheduleLabel),
+                Snackbar.LENGTH_SHORT).show();
     }
 
     private interface TimePicked {
@@ -327,14 +604,20 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void pickDayOfWeek(@NonNull DayPicked picked) {
-        String[] days = new String[]{
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-        };
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(days, (d, which) -> picked.onPicked(which + 1))
+                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    @NonNull
+    private String[] getWeekdayLabels() {
+        String[] labels = new String[DayOfWeek.values().length];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = DayOfWeek.of(i + 1).getDisplayName(TextStyle.FULL, Locale.getDefault());
+        }
+        return labels;
     }
 
     /**
@@ -344,7 +627,11 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
      */
     private void showAddSourceOptions() {
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
-        View sheetView = getLayoutInflater().inflate(R.layout.hosts_add_options_sheet, null);
+        View sheetView = getLayoutInflater().inflate(
+                R.layout.hosts_add_options_sheet,
+                (ViewGroup) requireView(),
+                false
+        );
         
         // Browse catalog option — opens Discover tab in HomeActivity (catalog is embedded there)
         View catalogOption = sheetView.findViewById(R.id.browseCatalogOption);
@@ -376,6 +663,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
 
     @Override
     public void setEnabled(HostsSource source, boolean enabled) {
+        FilterSetStore.markCustomProfile(requireContext());
         this.mViewModel.setSourceEnabled(source, enabled);
     }
 

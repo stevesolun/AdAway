@@ -26,6 +26,7 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.helper.ThemeHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.ui.discover.DiscoverFragment;
+import org.adaway.ui.hosts.HostsSourcesTabFragment;
 import org.adaway.ui.more.MoreFragment;
 import org.adaway.ui.onboarding.DefaultListsSubscriber;
 import org.adaway.ui.onboarding.OnboardingActivity;
@@ -39,6 +40,7 @@ import timber.log.Timber;
  * Hosts three tabs via BottomNavigationView:
  *   - Home     → {@link HomeFragment}
  *   - Discover → {@link DiscoverFragment}
+ *   - Sources  → {@link HostsSourcesTabFragment}
  *   - More     → {@link MoreFragment}
  *
  * All heavy home-screen logic (stats, progress, FAB) lives in {@link HomeFragment}.
@@ -55,6 +57,7 @@ public class HomeActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        setTheme(R.style.Theme_AdAway_NoActionBar_Content);
         super.onCreate(savedInstanceState);
         ThemeHelper.applyTheme(this);
         NotificationHelper.clearUpdateNotifications(this);
@@ -153,6 +156,9 @@ public class HomeActivity extends AppCompatActivity {
         if (menuItemId == R.id.nav_discover) {
             fragment = new DiscoverFragment();
             tag = "discover";
+        } else if (menuItemId == R.id.nav_sources) {
+            fragment = new HostsSourcesTabFragment();
+            tag = "sources";
         } else if (menuItemId == R.id.nav_more) {
             fragment = new MoreFragment();
             tag = "more";
@@ -198,7 +204,7 @@ public class HomeActivity extends AppCompatActivity {
      * Navigate to a specific bottom-nav tab from a Fragment.
      *
      * @param navItemId One of {@code R.id.nav_home}, {@code R.id.nav_discover},
-     *                  {@code R.id.nav_more}.
+     *                  {@code R.id.nav_sources}, {@code R.id.nav_more}.
      */
     public void navigateTo(int navItemId) {
         showTab(navItemId);

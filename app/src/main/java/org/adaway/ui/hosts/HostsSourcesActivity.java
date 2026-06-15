@@ -22,13 +22,9 @@ public class HostsSourcesActivity extends AppCompatActivity {
          * Create fragment
          */
         HostsSourcesFragment fragment = new HostsSourcesFragment();
-        /*
-         * Set view content.
-         */
-        setContentView(R.layout.hosts_sources_activity);
         getSupportFragmentManager()
                 .beginTransaction()
-                .replace(R.id.hosts_sources_container, fragment)
+                .replace(android.R.id.content, fragment)
                 .commit();
         /*
          * Configure actionbar.

@@ -44,11 +44,6 @@
             app:persistent="false"
             app:summary="@string/pref_webserver_state_checking"
             app:title="@string/pref_webserver_test" />
-        <Preference
-            app:dependency="@string/pref_webserver_enabled_key"
-            app:key="@string/pref_webserver_certificate_key"
-            app:persistent="false"
-            app:title="@string/pref_webserver_certificate" />
         <SwitchPreferenceCompat
             app:defaultValue="@bool/pref_webserver_icon_def"
             app:dependency="@string/pref_webserver_enabled_key"

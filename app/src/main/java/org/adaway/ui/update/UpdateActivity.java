@@ -55,7 +55,9 @@ public class UpdateActivity extends AppCompatActivity {
 
     private void bindManifest() {
         this.updateViewModel.getAppManifest().observe(this, manifest -> {
-            if (manifest.updateAvailable) {
+            if (manifest == null) {
+                markUnavailable();
+            } else if (manifest.updateAvailable) {
                 showUpdate(manifest);
             } else {
                 markUpToDate(manifest);
@@ -65,6 +67,12 @@ public class UpdateActivity extends AppCompatActivity {
 
     private void bindProgress() {
         this.updateViewModel.getDownloadProgress().observe(this, progress -> {
+            if (progress == null) {
+                this.binding.updateButton.setVisibility(VISIBLE);
+                this.binding.downloadProgressBar.setVisibility(GONE);
+                this.binding.progressTextView.setText(null);
+                return;
+            }
             this.binding.updateButton.setVisibility(INVISIBLE);
             this.binding.downloadProgressBar.setVisibility(VISIBLE);
             this.binding.downloadProgressBar.setProgress(progress.getProgress(), true);
@@ -75,13 +83,22 @@ public class UpdateActivity extends AppCompatActivity {
     private void markUpToDate(Manifest manifest) {
         this.binding.headerTextView.setText(R.string.update_up_to_date_header);
         this.binding.updateButton.setVisibility(GONE);
+        this.binding.changelogTitleTextView.setVisibility(VISIBLE);
         this.binding.changelogTextView.setText(manifest.changelog);
     }
 
     private void showUpdate(Manifest manifest) {
         this.binding.headerTextView.setText(R.string.update_update_available_header);
         this.binding.updateButton.setVisibility(VISIBLE);
+        this.binding.changelogTitleTextView.setVisibility(VISIBLE);
         this.binding.changelogTextView.setText(manifest.changelog);
+    }
+
+    private void markUnavailable() {
+        this.binding.headerTextView.setText(R.string.update_unavailable_header);
+        this.binding.updateButton.setVisibility(GONE);
+        this.binding.changelogTitleTextView.setVisibility(GONE);
+        this.binding.changelogTextView.setText(null);
     }
 
     private void startUpdate(View view) {

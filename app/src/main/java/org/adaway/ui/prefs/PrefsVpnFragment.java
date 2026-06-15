@@ -34,6 +34,7 @@ public class PrefsVpnFragment extends PreferenceFragmentCompat {
         // Register for activity
         registerForStartActivity();
         // Bind pref actions
+        bindAllowAppBypass();
         bindExcludedSystemApps();
         bindExcludedUserApps();
     }
@@ -55,6 +56,16 @@ public class PrefsVpnFragment extends PreferenceFragmentCompat {
         ListPreference excludeUserAppsPreferences = findPreference(getString(R.string.pref_vpn_excluded_system_apps_key));
         assert excludeUserAppsPreferences != null : PREFERENCE_NOT_FOUND;
         excludeUserAppsPreferences.setOnPreferenceChangeListener((preference, newValue) -> {
+            restartVpn();
+            return true;
+        });
+    }
+
+    private void bindAllowAppBypass() {
+        Preference allowAppBypassPreference =
+                findPreference(getString(R.string.pref_vpn_allow_app_bypass_key));
+        assert allowAppBypassPreference != null : PREFERENCE_NOT_FOUND;
+        allowAppBypassPreference.setOnPreferenceChangeListener((preference, newValue) -> {
             restartVpn();
             return true;
         });

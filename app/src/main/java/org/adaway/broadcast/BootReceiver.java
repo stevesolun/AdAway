@@ -21,7 +21,6 @@
 package org.adaway.broadcast;
 
 import static android.content.Intent.ACTION_BOOT_COMPLETED;
-import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 
 import android.content.BroadcastReceiver;
@@ -30,7 +29,6 @@ import android.content.Intent;
 
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
-import org.adaway.util.WebServerUtils;
 import org.adaway.vpn.VpnServiceControls;
 
 import timber.log.Timber;
@@ -46,14 +44,11 @@ public class BootReceiver extends BroadcastReceiver {
         if (ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             Timber.d("BootReceiver invoked.");
             AdBlockMethod adBlockMethod = PreferenceHelper.getAdBlockMethod(context);
-            // Start web server on boot if enabled in preferences
-            if (adBlockMethod == ROOT && PreferenceHelper.getWebServerEnabled(context)) {
-                WebServerUtils.startWebServer(context);
-            }
             if (adBlockMethod == VPN && PreferenceHelper.getVpnServiceOnBoot(context)) {
                 // Ensure VPN is prepared
                 Intent prepareIntent = android.net.VpnService.prepare(context);
                 if (prepareIntent != null) {
+                    prepareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(prepareIntent);
                 }
                 // Start VPN service if enabled in preferences

@@ -10,6 +10,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -18,6 +20,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.adaway.R;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.model.source.FilterListCompatibility;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.FilterListCategory;
 
@@ -28,6 +31,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -47,6 +51,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     private static final int VIEW_TYPE_CATEGORY = 0;
     private static final int VIEW_TYPE_SOURCE = 1;
     private static final String[] QUANTITY_PREFIXES = new String[] { "k", "M", "G" };
+    private static final String SOURCE_DETAIL_SEPARATOR = " \u2022 ";
 
     private final HostsSourcesViewCallback callback;
     private final List<FilterListItem> items = new ArrayList<>();
@@ -56,6 +61,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     {
         expandedCategories.add(FilterListCategory.ADS);
         expandedCategories.add(FilterListCategory.MALWARE);
+        expandedCategories.add(FilterListCategory.FILTERLISTS);
         // Keep Custom expanded so user can always see their custom lists.
         expandedCategories.add(FilterListCategory.CUSTOM);
     }
@@ -79,12 +85,12 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         }
 
         for (HostsSource source : sources) {
-            FilterListCategory category = FilterListCatalog.getCategoryForUrl(source.getUrl());
+            FilterListCategory category = FilterListCatalog.getCategoryForSource(source);
             grouped.get(category).add(source);
         }
 
         // Build the flat item list with headers and sources
-        items.clear();
+        List<FilterListItem> nextItems = new ArrayList<>();
 
         // Define display order (most important/safest first, risky last)
         FilterListCategory[] displayOrder = {
@@ -99,6 +105,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                 FilterListCategory.SOCIAL, // ⚠️ May break Facebook
                 FilterListCategory.DEVICE, // ⚠️ May break OEM features
                 FilterListCategory.SERVICE, // ⚠️ May break apps
+                FilterListCategory.FILTERLISTS,
                 FilterListCategory.CUSTOM
         };
 
@@ -125,18 +132,111 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             // Add category header
             FilterListItem.CategoryHeader header = new FilterListItem.CategoryHeader(
                     category, enabledCount, categorySources.size(), totalHosts, isExpanded);
-            items.add(header);
+            nextItems.add(header);
 
             // Add source items if expanded
             if (isExpanded) {
                 for (HostsSource source : categorySources) {
                     boolean hasUpdate = hasUpdateAvailable(source);
-                    items.add(new FilterListItem.SourceItem(source, hasUpdate));
+                    nextItems.add(new FilterListItem.SourceItem(source, hasUpdate));
                 }
             }
         }
 
-        notifyDataSetChanged();
+        updateItems(nextItems);
+    }
+
+    private void updateItems(@NonNull List<FilterListItem> nextItems) {
+        List<FilterListItem> previousItems = new ArrayList<>(items);
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return previousItems.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return nextItems.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return isSameItem(previousItems.get(oldItemPosition), nextItems.get(newItemPosition));
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                return hasSameContent(previousItems.get(oldItemPosition), nextItems.get(newItemPosition));
+            }
+        });
+
+        items.clear();
+        items.addAll(nextItems);
+        diff.dispatchUpdatesTo(this);
+    }
+
+    private static boolean isSameItem(@NonNull FilterListItem oldItem,
+                                      @NonNull FilterListItem newItem) {
+        if (oldItem.getItemType() != newItem.getItemType()) {
+            return false;
+        }
+        if (oldItem instanceof FilterListItem.CategoryHeader
+                && newItem instanceof FilterListItem.CategoryHeader) {
+            return ((FilterListItem.CategoryHeader) oldItem).getCategory()
+                    == ((FilterListItem.CategoryHeader) newItem).getCategory();
+        }
+        if (oldItem instanceof FilterListItem.SourceItem
+                && newItem instanceof FilterListItem.SourceItem) {
+            FilterListItem.SourceItem oldSource = (FilterListItem.SourceItem) oldItem;
+            FilterListItem.SourceItem newSource = (FilterListItem.SourceItem) newItem;
+            return oldSource.getId() == newSource.getId()
+                    && Objects.equals(oldSource.getUrl(), newSource.getUrl());
+        }
+        return false;
+    }
+
+    private static boolean hasSameContent(@NonNull FilterListItem oldItem,
+                                          @NonNull FilterListItem newItem) {
+        if (!isSameItem(oldItem, newItem)) {
+            return false;
+        }
+        if (oldItem instanceof FilterListItem.CategoryHeader
+                && newItem instanceof FilterListItem.CategoryHeader) {
+            FilterListItem.CategoryHeader oldHeader = (FilterListItem.CategoryHeader) oldItem;
+            FilterListItem.CategoryHeader newHeader = (FilterListItem.CategoryHeader) newItem;
+            return oldHeader.getEnabledCount() == newHeader.getEnabledCount()
+                    && oldHeader.getTotalCount() == newHeader.getTotalCount()
+                    && oldHeader.getTotalHosts() == newHeader.getTotalHosts()
+                    && oldHeader.isExpanded() == newHeader.isExpanded();
+        }
+        FilterListItem.SourceItem oldSourceItem = (FilterListItem.SourceItem) oldItem;
+        FilterListItem.SourceItem newSourceItem = (FilterListItem.SourceItem) newItem;
+        return oldSourceItem.isEnabled() == newSourceItem.isEnabled()
+                && oldSourceItem.getSize() == newSourceItem.getSize()
+                && oldSourceItem.isUpdateAvailable() == newSourceItem.isUpdateAvailable()
+                && Objects.equals(oldSourceItem.getLabel(), newSourceItem.getLabel())
+                && Objects.equals(oldSourceItem.getUrl(), newSourceItem.getUrl())
+                && Objects.equals(oldSourceItem.getLocalModificationDate(),
+                        newSourceItem.getLocalModificationDate())
+                && Objects.equals(oldSourceItem.getOnlineModificationDate(),
+                        newSourceItem.getOnlineModificationDate())
+                && Objects.equals(oldSourceItem.getLastDownloadError(),
+                        newSourceItem.getLastDownloadError())
+                && oldSourceItem.getSkippedCount() == newSourceItem.getSkippedCount()
+                && Objects.equals(oldSourceItem.getFilterListId(),
+                        newSourceItem.getFilterListId())
+                && Objects.equals(oldSourceItem.getFilterListName(),
+                        newSourceItem.getFilterListName())
+                && Objects.equals(oldSourceItem.getFilterListSyntaxIds(),
+                        newSourceItem.getFilterListSyntaxIds())
+                && Objects.equals(oldSourceItem.getFilterListCompatibility(),
+                        newSourceItem.getFilterListCompatibility())
+                && oldSourceItem.getFilterListCompatibilityScore()
+                        == newSourceItem.getFilterListCompatibilityScore()
+                && Objects.equals(oldSourceItem.getFilterListTagIds(),
+                        newSourceItem.getFilterListTagIds())
+                && Objects.equals(oldSourceItem.getFilterListLanguageIds(),
+                        newSourceItem.getFilterListLanguageIds());
     }
 
     private boolean hasUpdateAvailable(HostsSource source) {
@@ -189,13 +289,17 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         holder.icon.setImageResource(header.getCategoryIcon());
 
         // Title
-        holder.title.setText(header.getCategory().getLabelResId());
+        String categoryLabel = context.getString(header.getCategory().getLabelResId());
+        holder.title.setText(categoryLabel);
+        holder.toggle.setContentDescription(
+                context.getString(R.string.filter_category_toggle_description, categoryLabel));
 
         // Summary
         if (header.isAnyEnabled()) {
             String hostCount = formatHostCount(header.getTotalHosts());
-            holder.summary.setText(res.getString(
-                    R.string.filter_category_summary_enabled,
+            holder.summary.setText(res.getQuantityString(
+                    R.plurals.filter_category_summary_enabled,
+                    header.getEnabledCount(),
                     header.getEnabledCount(),
                     header.getTotalCount(),
                     hostCount));
@@ -207,6 +311,12 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         if (header.getCategory() == FilterListCategory.CUSTOM && header.getTotalCount() == 0) {
             holder.summary.setText(context.getString(R.string.filter_catalog_subtitle));
             holder.card.setOnClickListener(v -> callback.requestAddCustomSource());
+            holder.toggle.setOnCheckedChangeListener(null);
+            holder.toggle.setOnClickListener(null);
+            holder.toggle.setChecked(false);
+            holder.toggle.setEnabled(false);
+            ViewCompat.setStateDescription(holder.toggle,
+                    context.getString(R.string.filter_category_state_empty));
             // Still show an indicator so it looks interactive.
             holder.expandIndicator.setVisibility(View.VISIBLE);
             return;
@@ -224,6 +334,8 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         boolean allEnabled = totalCount > 0 && enabledCount >= totalCount;
         holder.toggle.setOnCheckedChangeListener(null); // prevent trigger during bind
         holder.toggle.setChecked(allEnabled);
+        ViewCompat.setStateDescription(holder.toggle,
+                getCategoryStateDescription(context, enabledCount, totalCount));
         holder.toggle.setOnClickListener(v -> {
             boolean isChecked = holder.toggle.isChecked();
             // If user turned it ON, enable all. If OFF, disable all.
@@ -268,28 +380,46 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         HostsSource source = item.getSource();
 
         // Label
-        holder.label.setText(source.getLabel());
+        holder.label.setText(item.getLabel());
 
         // Status text
-        holder.status.setText(getStatusText(context, source));
+        String statusText = getStatusText(context, item);
+        String provenanceText = buildSourceProvenanceSummary(item);
+        holder.status.setText(provenanceText.isEmpty()
+                ? statusText
+                : statusText + "\n" + provenanceText);
+
+        String error = item.getLastDownloadError();
+        if (error != null && !error.trim().isEmpty()) {
+            holder.error.setText(context.getString(
+                    R.string.filter_source_download_error, truncateError(error)));
+            holder.error.setVisibility(View.VISIBLE);
+        } else {
+            holder.error.setVisibility(View.GONE);
+        }
 
         // Host count badge
-        String hostCount = formatHostCount(source.getSize());
+        String hostCount = formatHostCount(item.getSize());
         holder.hostCountBadge.setText(hostCount);
         holder.hostCountBadge.setVisibility(
-                source.getSize() > 0 && source.isEnabled() ? View.VISIBLE : View.GONE);
+                item.getSize() > 0 && item.isEnabled() ? View.VISIBLE : View.GONE);
 
         // Show update button for sources that have an update available OR have never been
         // downloaded yet (localModificationDate == null). Without this, newly added custom
         // sources show "Never updated" with no way to trigger a download from the per-source UI.
         boolean showUpdateButton = item.isUpdateAvailable()
-                || (source.isEnabled() && source.getLocalModificationDate() == null);
+                || (item.isEnabled() && item.getLocalModificationDate() == null);
         holder.updateIndicator.setVisibility(showUpdateButton ? View.VISIBLE : View.GONE);
+        holder.updateIndicator.setContentDescription(
+                context.getString(R.string.filter_source_update_action, item.getLabel()));
 
         // Switch (per-list enable/disable)
         holder.toggle.setOnCheckedChangeListener(null);
-        holder.toggle.setChecked(source.isEnabled());
-        holder.toggle.setOnCheckedChangeListener((buttonView, isChecked) -> callback.setEnabled(source, isChecked));
+        holder.toggle.setChecked(item.isEnabled());
+        holder.toggle.setContentDescription(context.getString(
+                R.string.filter_source_toggle_description, item.getLabel()));
+        holder.toggle.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> callback.setEnabled(source, isChecked));
 
         // Card click to edit
         holder.card.setOnClickListener(v -> callback.edit(source));
@@ -304,7 +434,24 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         }
     }
 
-    private String getStatusText(Context context, HostsSource source) {
+    private String getCategoryStateDescription(Context context, int enabledCount, int totalCount) {
+        if (totalCount <= 0) {
+            return context.getString(R.string.filter_category_state_empty);
+        }
+        if (enabledCount >= totalCount) {
+            return context.getString(R.string.filter_category_state_all_enabled);
+        }
+        if (enabledCount > 0) {
+            return context.getResources().getQuantityString(
+                    R.plurals.filter_category_state_some_enabled,
+                    enabledCount,
+                    enabledCount,
+                    totalCount);
+        }
+        return context.getString(R.string.filter_category_state_disabled);
+    }
+
+    private String getStatusText(Context context, FilterListItem.SourceItem source) {
         if (!source.isEnabled()) {
             return context.getString(R.string.filter_disabled);
         }
@@ -315,12 +462,40 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         }
 
         // Check if update available
-        if (hasUpdateAvailable(source)) {
+        if (source.isUpdateAvailable()) {
             return context.getString(R.string.filter_update_available);
         }
 
         String delay = getApproximateDelay(context, lastUpdate);
         return context.getString(R.string.filter_last_updated, delay);
+    }
+
+    static String buildSourceProvenanceSummary(@NonNull FilterListItem.SourceItem source) {
+        List<String> parts = new ArrayList<>();
+        if (source.getFilterListId() != null || notBlank(source.getFilterListName())
+                || notBlank(source.getFilterListSyntaxIds())
+                || notBlank(source.getFilterListCompatibility())) {
+            parts.add("FilterLists.com");
+            if (source.getFilterListId() != null || notBlank(source.getFilterListName())
+                    || notBlank(source.getFilterListSyntaxIds())) {
+                parts.add(FilterListCompatibility.rowSummary(
+                        FilterListCompatibility.decodeSyntaxIds(source.getFilterListSyntaxIds())));
+            } else if (notBlank(source.getFilterListCompatibility())) {
+                parts.add(source.getFilterListCompatibility().trim());
+            }
+        }
+        if (source.getSkippedCount() > 0) {
+            parts.add(source.getSkippedCount() + " skipped");
+        }
+        return String.join(SOURCE_DETAIL_SEPARATOR, parts);
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private static String truncateError(@NonNull String error) {
+        return error.length() > 160 ? error.substring(0, 157) + "..." : error;
     }
 
     private String getApproximateDelay(Context context, ZonedDateTime from) {
@@ -370,7 +545,8 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
     private void setAllInCategory(FilterListCategory category, boolean enabled) {
         for (HostsSource source : currentSources) {
-            if (FilterListCatalog.getCategoryForUrl(source.getUrl()) == category && source.isEnabled() != enabled) {
+            if (FilterListCatalog.getCategoryForSource(source) == category
+                    && source.isEnabled() != enabled) {
                 // Optimistic UI update; DB update happens via callback.
                 source.setEnabled(enabled);
                 callback.setEnabled(source, enabled);
@@ -422,6 +598,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         final SwitchMaterial toggle;
         final TextView label;
         final TextView status;
+        final TextView error;
         final TextView hostCountBadge;
         final ImageView updateIndicator;
 
@@ -431,6 +608,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             toggle = itemView.findViewById(R.id.sourceSwitch);
             label = itemView.findViewById(R.id.sourceLabel);
             status = itemView.findViewById(R.id.sourceStatus);
+            error = itemView.findViewById(R.id.sourceDownloadError);
             hostCountBadge = itemView.findViewById(R.id.hostCountBadge);
             updateIndicator = itemView.findViewById(R.id.updateIndicator);
         }

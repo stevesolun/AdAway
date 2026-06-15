@@ -10,69 +10,87 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:paddingTop="32dp"
-    android:background="@color/ui_bg">
+    android:paddingTop="32dp">
 
-    <!-- Quick-start preset strip -->
-    <LinearLayout
+    <TextView
+        android:id="@+id/discoverProfileStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
         android:paddingStart="16dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="4dp">
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:text="@string/filter_profile_status_custom"
+        android:textColor="@color/ui_text_secondary"
+        android:textSize="13sp" />
 
-        <TextView
+    <!-- Quick-start preset strip -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="false"
+        android:scrollbars="none">
+
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/discover_quick_start"
-            android:textSize="13sp"
-            android:textColor="@color/ui_text_secondary"
-            android:layout_marginEnd="8dp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipDiscoverSafe"
-            style="@style/Widget.MaterialComponents.Chip.Action"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/filter_preset_safe"
-            app:chipBackgroundColor="@color/ui_glass"
-            android:textColor="@color/ui_text_primary" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="@string/discover_quick_start"
+                android:textColor="@color/ui_text_secondary"
+                android:textSize="13sp" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipDiscoverBalanced"
-            style="@style/Widget.MaterialComponents.Chip.Action"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="@string/filter_preset_balanced"
-            app:chipBackgroundColor="@color/ui_glass"
-            android:textColor="@color/ui_text_primary" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDiscoverAskAi"
+                style="@style/Widget.MaterialComponents.Chip.Action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/discover_ask_ai"
+                android:textColor="?attr/colorOnSecondaryContainer"
+                app:chipBackgroundColor="?attr/colorSecondaryContainer"
+                app:chipIcon="@drawable/ic_category_custom" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipDiscoverAggressive"
-            style="@style/Widget.MaterialComponents.Chip.Action"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="@string/filter_preset_aggressive"
-            app:chipBackgroundColor="@color/ui_glass"
-            android:textColor="@color/ui_text_primary" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDiscoverSafe"
+                style="@style/Widget.MaterialComponents.Chip.Action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/filter_preset_safe"
+                android:textColor="@color/ui_text_primary"
+                app:chipBackgroundColor="@color/ui_glass" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipDiscoverAskAi"
-            style="@style/Widget.MaterialComponents.Chip.Action"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="@string/discover_ask_ai"
-            app:chipIcon="@drawable/ic_category_custom"
-            app:chipBackgroundColor="?attr/colorSecondaryContainer"
-            android:textColor="?attr/colorOnSecondaryContainer" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDiscoverBalanced"
+                style="@style/Widget.MaterialComponents.Chip.Action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="@string/filter_preset_balanced"
+                android:textColor="@color/ui_text_primary"
+                app:chipBackgroundColor="@color/ui_glass" />
 
-    </LinearLayout>
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDiscoverAggressive"
+                style="@style/Widget.MaterialComponents.Chip.Action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="@string/filter_preset_aggressive"
+                android:textColor="@color/ui_text_primary"
+                app:chipBackgroundColor="@color/ui_glass" />
+
+        </LinearLayout>
+
+    </HorizontalScrollView>
 
     <!-- Full FilterLists.com browser (search + tags + language + list) -->
     <FrameLayout

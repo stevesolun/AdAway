@@ -9,7 +9,7 @@
     android:layout_marginTop="6dp"
     android:layout_marginEnd="16dp"
     android:layout_marginBottom="6dp"
-    android:checkable="false"
+    android:checkable="true"
     app:cardBackgroundColor="@color/ui_glass"
     app:cardCornerRadius="18dp"
     app:cardElevation="0dp"
@@ -24,7 +24,6 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Switch for selection -->
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/catalogItemSwitch"
             android:layout_width="wrap_content"

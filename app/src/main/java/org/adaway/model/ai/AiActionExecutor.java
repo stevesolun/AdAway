@@ -5,18 +5,24 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.db.AppDatabase;
+import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
+import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.FilterListCategory;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.util.RegexUtils;
 
 import java.util.List;
+import java.util.Locale;
 
 import timber.log.Timber;
 
@@ -40,12 +46,14 @@ public final class AiActionExecutor {
     private final Context context;
     private final HostsSourceDao sourceDao;
     private final HostListItemDao listItemDao;
+    private final HostEntryDao entryDao;
 
     public AiActionExecutor(@NonNull Context context) {
         this.context = context.getApplicationContext();
         AppDatabase db = AppDatabase.getInstance(this.context);
         this.sourceDao = db.hostsSourceDao();
         this.listItemDao = db.hostsListItemDao();
+        this.entryDao = db.hostEntryDao();
     }
 
     /**
@@ -129,14 +137,14 @@ public final class AiActionExecutor {
         String host = normalizeDomain(payload);
         if (host == null) return "Invalid domain: " + payload;
 
-        List<HostListItem> entries = listItemDao.getEntriesForHost(host);
-        if (entries.isEmpty()) return host + " is not blocked";
-        for (HostListItem item : entries) {
-            if (item.getType() == ListType.BLOCKED && item.isEnabled()) {
-                return host + " is blocked";
-            }
+        HostEntry entry = PreferenceHelper.getAdBlockMethod(context) == AdBlockMethod.ROOT
+                ? entryDao.resolveRootEntry(host)
+                : entryDao.resolveEntry(host);
+        if (entry.getType() == ListType.ALLOWED) return host + " is not blocked";
+        if (entry.getType() == ListType.REDIRECTED) {
+            return host + " is redirected";
         }
-        return host + " is in your lists (allowed)";
+        return host + " is blocked";
     }
 
     @NonNull
@@ -155,6 +163,7 @@ public final class AiActionExecutor {
         item.setSourceId(USER_SOURCE_ID);
         item.setGeneration(0);
         listItemDao.insert(item);
+        ((AdAwayApplication) context).getSourceModel().syncHostEntries();
 
         String verb = type == ListType.ALLOWED ? "Allowed" : "Blocked";
         return verb + ": " + host;
@@ -166,7 +175,8 @@ public final class AiActionExecutor {
 
     private static FilterListCategory parseCategoryOrNull(@NonNull String name) {
         try {
-            FilterListCategory cat = FilterListCategory.valueOf(name.toUpperCase().trim());
+            FilterListCategory cat = FilterListCategory.valueOf(
+                    name.toUpperCase(Locale.ROOT).trim());
             // USER and CUSTOM are user-managed, not valid targets for AI category actions
             if (cat == FilterListCategory.USER || cat == FilterListCategory.CUSTOM) return null;
             return cat;
@@ -181,7 +191,7 @@ public final class AiActionExecutor {
      * Returns {@code null} if the result is not a valid hostname.
      */
     static String normalizeDomain(@NonNull String raw) {
-        String host = raw.trim().toLowerCase();
+        String host = raw.trim().toLowerCase(Locale.ROOT);
         // Strip scheme (http:// or https://)
         if (host.contains("://")) host = host.substring(host.indexOf("://") + 3);
         // Strip path
@@ -191,4 +201,5 @@ public final class AiActionExecutor {
         host = host.trim();
         return RegexUtils.isValidHostname(host) ? host : null;
     }
+
 }

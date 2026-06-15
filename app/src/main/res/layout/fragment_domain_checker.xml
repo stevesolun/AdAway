@@ -2,10 +2,10 @@
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/domainCheckerScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingTop="32dp"
-    android:background="@color/ui_bg">
+    android:paddingTop="@dimen/card_spacing">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,7 +19,7 @@
             android:paddingEnd="16dp"
             android:paddingTop="8dp"
             android:paddingBottom="4dp"
-            android:text="Domain Checker"
+            android:text="@string/more_domain_checker"
             android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="@color/ui_text_primary" />
@@ -42,7 +42,7 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
-            android:hint="URL or domain">
+            android:hint="@string/domain_checker_input_hint">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/domainEditText"
@@ -61,7 +61,7 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="16dp"
-            android:text="Check" />
+            android:text="@string/domain_checker_check_button" />
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/resultCard"
@@ -71,7 +71,7 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="24dp"
             android:visibility="gone"
-            app:cardCornerRadius="20dp"
+            app:cardCornerRadius="8dp"
             app:cardBackgroundColor="@color/ui_glass"
             app:cardElevation="0dp">
 
@@ -110,7 +110,7 @@
                     android:id="@+id/sourcesLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Blocked by:"
+                    android:text="@string/domain_checker_blocked_by"
                     android:textSize="11sp"
                     android:textAllCaps="true"
                     android:letterSpacing="0.08"

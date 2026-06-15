@@ -36,6 +36,8 @@ import org.adaway.util.log.SentryLog;
  * before onboarding completes.
  */
 public class OnboardingActivity extends AppCompatActivity {
+    public static final String EXTRA_SKIP_AUTO_DETECT =
+            "org.adaway.ui.onboarding.SKIP_AUTO_DETECT";
 
     private ActivityOnboardingBinding binding;
     private ActivityResultLauncher<Intent> prepareVpnLauncher;
@@ -49,6 +51,7 @@ public class OnboardingActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        setTheme(R.style.Theme_AdAway_NoActionBar_Content);
         super.onCreate(savedInstanceState);
         ThemeHelper.applyTheme(this);
 
@@ -69,9 +72,12 @@ public class OnboardingActivity extends AppCompatActivity {
         this.binding.onboardingVpnCard.setOnClickListener(v -> trySelectVpn());
         this.binding.onboardingRootCard.setOnClickListener(v -> trySelectRoot());
         this.binding.onboardingStartButton.setOnClickListener(v -> startProtecting());
+        updateMethodCards();
 
         // Auto-detect: if root is not available, pre-select VPN
-        autoDetectAndPreselectMethod();
+        if (!getIntent().getBooleanExtra(EXTRA_SKIP_AUTO_DETECT, false)) {
+            autoDetectAndPreselectMethod();
+        }
     }
 
     // -----------------------------------------------------------------------------------------
@@ -123,6 +129,7 @@ public class OnboardingActivity extends AppCompatActivity {
         this.binding.onboardingVpnCard.setCardBackgroundColor(this.cardSelectedColor);
         this.binding.onboardingRootCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(true);
+        updateMethodCards();
     }
 
     private void onVpnDenied() {
@@ -130,6 +137,7 @@ public class OnboardingActivity extends AppCompatActivity {
         this.selectedMethod = AdBlockMethod.UNDEFINED;
         this.binding.onboardingVpnCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(false);
+        updateMethodCards();
         checkAlwaysOnVpn();
     }
 
@@ -139,12 +147,14 @@ public class OnboardingActivity extends AppCompatActivity {
         this.binding.onboardingRootCard.setCardBackgroundColor(this.cardSelectedColor);
         this.binding.onboardingVpnCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(true);
+        updateMethodCards();
     }
 
     private void onRootDenied() {
         this.selectedMethod = AdBlockMethod.UNDEFINED;
         this.binding.onboardingRootCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(false);
+        updateMethodCards();
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.welcome_root_missing_title)
                 .setMessage(R.string.welcome_root_missile_description)
@@ -170,6 +180,28 @@ public class OnboardingActivity extends AppCompatActivity {
                         (dialog, which) -> startActivity(
                                 new Intent(Settings.ACTION_VPN_SETTINGS)))
                 .show();
+    }
+
+    private void updateMethodCards() {
+        boolean vpnSelected = this.selectedMethod == AdBlockMethod.VPN;
+        boolean rootSelected = this.selectedMethod == AdBlockMethod.ROOT;
+
+        this.binding.onboardingVpnCard.setChecked(vpnSelected);
+        this.binding.onboardingRootCard.setChecked(rootSelected);
+        this.binding.onboardingVpnCard.setContentDescription(getString(
+                R.string.onboarding_method_accessibility,
+                getString(R.string.onboarding_vpn_title),
+                getString(R.string.onboarding_vpn_desc),
+                getString(vpnSelected
+                        ? R.string.onboarding_method_selected
+                        : R.string.onboarding_method_not_selected)));
+        this.binding.onboardingRootCard.setContentDescription(getString(
+                R.string.onboarding_method_accessibility,
+                getString(R.string.onboarding_root_title),
+                getString(R.string.onboarding_root_desc),
+                getString(rootSelected
+                        ? R.string.onboarding_method_selected
+                        : R.string.onboarding_method_not_selected)));
     }
 
     // -----------------------------------------------------------------------------------------

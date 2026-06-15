@@ -37,14 +37,10 @@ public class PrefsActivity extends AppCompatActivity implements PreferenceFragme
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ThemeHelper.applyTheme(this);
-        /*
-         * Set view content.
-         */
-        setContentView(R.layout.prefs_activity);
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
-                    .replace(R.id.settings_container, new PrefsMainFragment())
+                    .replace(android.R.id.content, new PrefsMainFragment())
                     .commit();
         }
         /*
@@ -85,10 +81,12 @@ public class PrefsActivity extends AppCompatActivity implements PreferenceFragme
         // Replace the existing Fragment with the new Fragment
         getSupportFragmentManager().beginTransaction()
                 .setCustomAnimations(
-                        R.animator.fragment_open_enter, R.animator.fragment_open_exit,
-                        R.animator.fragment_close_enter, R.animator.fragment_close_exit
+                        R.animator.adaway_fragment_open_enter,
+                        R.animator.adaway_fragment_open_exit,
+                        R.animator.adaway_fragment_close_enter,
+                        R.animator.adaway_fragment_close_exit
                 )
-                .replace(R.id.settings_container, fragment)
+                .replace(android.R.id.content, fragment)
                 .addToBackStack(null)
                 .commit();
         return true;

@@ -183,7 +183,7 @@ public final class FilterListSuggester {
     public static int getSelectedModelIndex(@NonNull Context context,
                                             @NonNull LlmProvider provider) {
         return context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
-                .getInt(KEY_MODEL_INDEX + provider.name().toLowerCase(), 0);
+                .getInt(KEY_MODEL_INDEX + provider.name().toLowerCase(Locale.ROOT), 0);
     }
 
     /** Saves the model index for a specific provider. */
@@ -191,7 +191,7 @@ public final class FilterListSuggester {
                                              @NonNull LlmProvider provider, int index) {
         context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_MODEL_INDEX + provider.name().toLowerCase(), index)
+                .putInt(KEY_MODEL_INDEX + provider.name().toLowerCase(Locale.ROOT), index)
                 .apply();
     }
 
@@ -213,7 +213,7 @@ public final class FilterListSuggester {
     public static String[] getEffectiveModelIds(@NonNull Context context,
                                                 @NonNull LlmProvider provider) {
         String cached = context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
-                .getString(KEY_CACHED_IDS + provider.name().toLowerCase(), null);
+                .getString(KEY_CACHED_IDS + provider.name().toLowerCase(Locale.ROOT), null);
         if (cached != null && !cached.isEmpty()) return cached.split("\n", -1);
         return provider.getModelIds();
     }
@@ -226,7 +226,7 @@ public final class FilterListSuggester {
     public static String[] getEffectiveModelDisplayNames(@NonNull Context context,
                                                          @NonNull LlmProvider provider) {
         String cached = context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE)
-                .getString(KEY_CACHED_NAMES + provider.name().toLowerCase(), null);
+                .getString(KEY_CACHED_NAMES + provider.name().toLowerCase(Locale.ROOT), null);
         if (cached != null && !cached.isEmpty()) return cached.split("\n", -1);
         return provider.getModelDisplayNames();
     }
@@ -275,9 +275,9 @@ public final class FilterListSuggester {
             if (ids == null || ids.length == 0) return;
             if (names == null || names.length != ids.length) names = ids;
             context.getSharedPreferences(PREFS_AI, Context.MODE_PRIVATE).edit()
-                    .putString(KEY_CACHED_IDS + provider.name().toLowerCase(),
+                    .putString(KEY_CACHED_IDS + provider.name().toLowerCase(Locale.ROOT),
                             String.join("\n", ids))
-                    .putString(KEY_CACHED_NAMES + provider.name().toLowerCase(),
+                    .putString(KEY_CACHED_NAMES + provider.name().toLowerCase(Locale.ROOT),
                             String.join("\n", names))
                     .apply();
             Timber.d("Cached %d models for %s", ids.length, provider);
@@ -1083,7 +1083,7 @@ public final class FilterListSuggester {
             List<FilterListCategory> categories = new ArrayList<>();
             if (catArray != null) {
                 for (int i = 0; i < catArray.length(); i++) {
-                    String name = catArray.getString(i).toUpperCase().trim();
+                    String name = catArray.getString(i).toUpperCase(Locale.ROOT).trim();
                     try {
                         FilterListCategory cat = FilterListCategory.valueOf(name);
                         // Skip USER and CUSTOM — those are user-managed, not AI-suggested

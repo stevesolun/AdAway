@@ -68,7 +68,7 @@ public class LogViewModel extends AndroidViewModel {
                     List<LogEntry> logItems = this.adBlockModel.getLogs()
                             .parallelStream()
                             .map(log -> {
-                                ListType type = this.hostEntryDao.getTypeOfHost(log);
+                                ListType type = this.hostEntryDao.getTypeForHost(log);
                                 return new LogEntry(log, type);
                             })
                             .sorted(this.sort.comparator())

@@ -23,6 +23,7 @@ import org.adaway.util.AppExecutors;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.Locale;
 
 import timber.log.Timber;
 
@@ -112,7 +113,7 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
 
     private void bindApiKeyPrefs() {
         for (LlmProvider provider : LlmProvider.values()) {
-            String prefKey = "pref_ai_key_" + provider.name().toLowerCase();
+            String prefKey = "pref_ai_key_" + provider.name().toLowerCase(Locale.ROOT);
             Preference pref = findPreference(prefKey);
             if (pref == null) continue;
 
@@ -125,7 +126,7 @@ public class PrefsAiFragment extends PreferenceFragmentCompat {
 
     private void refreshApiKeySummaries() {
         for (LlmProvider provider : LlmProvider.values()) {
-            String prefKey = "pref_ai_key_" + provider.name().toLowerCase();
+            String prefKey = "pref_ai_key_" + provider.name().toLowerCase(Locale.ROOT);
             Preference pref = findPreference(prefKey);
             if (pref == null) continue;
 

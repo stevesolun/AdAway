@@ -21,7 +21,7 @@ import org.adaway.databinding.FragmentMoreBinding;
 import org.adaway.ui.adware.AdwareFragment;
 import org.adaway.ui.about.AboutActivity;
 import org.adaway.ui.domainchecker.DomainCheckerFragment;
-import org.adaway.ui.hosts.HostsSourcesActivity;
+import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.prefs.PrefsActivity;
@@ -79,8 +79,11 @@ public class MoreFragment extends Fragment {
         });
 
         // Filter Sources
-        this.binding.moreRowFilterSources.setOnClickListener(v ->
-                startActivity(new Intent(requireContext(), HostsSourcesActivity.class)));
+        this.binding.moreRowFilterSources.setOnClickListener(v -> {
+            if (getActivity() instanceof HomeActivity) {
+                ((HomeActivity) getActivity()).navigateTo(R.id.nav_sources);
+            }
+        });
 
         // Adware Scanner — AdwareFragment is a Fragment, so show in a dialog-style transaction.
         this.binding.moreRowAdwareScanner.setOnClickListener(v -> showAdwareScanner());

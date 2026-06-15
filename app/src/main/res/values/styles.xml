@@ -61,6 +61,15 @@
         <item name="android:statusBarColor">#061B3A</item>
     </style>
 
+    <style name="Theme.AdAway.NoActionBar.Content" parent="Theme.AdAway.NoActionBar">
+        <item name="android:windowBackground">@color/ui_bg</item>
+    </style>
+
+    <style name="Theme.AdAway.SurfaceWindow" parent="Theme.AdAway">
+        <item name="android:colorBackground">?attr/colorSurface</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+    </style>
+
     <style name="Theme.AdAway.NoActionBar.Red" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/welcomeBackground</item>
         <item name="colorPrimaryVariant">@color/primaryVariant</item>
@@ -71,6 +80,8 @@
 
         <item name="android:statusBarColor">?colorOnSecondary</item>
         <item name="android:navigationBarColor">@color/welcomeBackground</item>
+        <item name="android:colorBackground">@color/welcomeBackground</item>
+        <item name="android:windowBackground">@color/welcomeBackground</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

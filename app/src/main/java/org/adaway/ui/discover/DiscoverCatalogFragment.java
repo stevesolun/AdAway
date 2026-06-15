@@ -12,6 +12,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -54,6 +56,9 @@ public class DiscoverCatalogFragment extends Fragment {
     private List<FilterListCatalog.CatalogEntry> allEntries;
     private List<FilterListCatalog.CatalogEntry> filteredEntries;
     private String currentSearchQuery = "";
+    @Nullable
+    private String selectedPresetProfile;
+    private Set<String> selectedProfileUrls = new HashSet<>();
 
     @Nullable
     @Override
@@ -77,6 +82,7 @@ public class DiscoverCatalogFragment extends Fragment {
         binding.catalogSelectAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (this.binding == null) return;
             if (filteredEntries == null) return;
+            markCustomSelection();
             selectedEntries.clear();
             if (isChecked) {
                 for (FilterListCatalog.CatalogEntry entry : filteredEntries) {
@@ -85,7 +91,7 @@ public class DiscoverCatalogFragment extends Fragment {
                     }
                 }
             }
-            if (adapter != null) adapter.notifyDataSetChanged();
+            notifyCatalogRowsChanged();
             updateAddButton();
             binding.chipCustom.setChecked(true);
         });
@@ -124,10 +130,7 @@ public class DiscoverCatalogFragment extends Fragment {
             allEntries = FilterListCatalog.getAll();
             filteredEntries = new ArrayList<>(allEntries);
 
-            // QA-07: use AppExecutors.mainThread() instead of requireActivity().runOnUiThread()
-            // to avoid IllegalStateException if the fragment detaches before this executes.
-            AppExecutors.getInstance().mainThread().execute(() -> {
-                if (this.binding == null) return;
+            runOnMainThreadIfAdded(() -> {
                 // existingUrls mutations must happen on main thread — adapter reads it there.
                 existingUrls.clear();
                 existingUrls.addAll(fetchedUrls);
@@ -141,23 +144,23 @@ public class DiscoverCatalogFragment extends Fragment {
     private void filterEntries() {
         if (allEntries == null) return;
 
-        filteredEntries = new ArrayList<>();
+        List<FilterListCatalog.CatalogEntry> nextFilteredEntries = new ArrayList<>();
         String query = currentSearchQuery.toLowerCase(Locale.ROOT).trim();
 
         for (FilterListCatalog.CatalogEntry entry : allEntries) {
             if (query.isEmpty()) {
-                filteredEntries.add(entry);
+                nextFilteredEntries.add(entry);
             } else {
                 boolean matchesLabel = entry.label.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesUrl = entry.url.toLowerCase(Locale.ROOT).contains(query);
                 boolean matchesCategory = entry.category.name().toLowerCase(Locale.ROOT).contains(query);
                 if (matchesLabel || matchesUrl || matchesCategory) {
-                    filteredEntries.add(entry);
+                    nextFilteredEntries.add(entry);
                 }
             }
         }
 
-        if (adapter != null) adapter.notifyDataSetChanged();
+        updateFilteredEntries(nextFilteredEntries);
         updateSubtitle();
 
         if (binding != null && binding.catalogSelectAllSwitch.isChecked()) {
@@ -167,6 +170,8 @@ public class DiscoverCatalogFragment extends Fragment {
 
     private void applyPreset(String preset) {
         selectedEntries.clear();
+        selectedPresetProfile = FilterSetStore.normalizePresetProfile(preset);
+        selectedProfileUrls.clear();
 
         List<FilterListCatalog.CatalogEntry> presetEntries;
         switch (preset) {
@@ -184,12 +189,13 @@ public class DiscoverCatalogFragment extends Fragment {
         }
 
         for (FilterListCatalog.CatalogEntry entry : presetEntries) {
+            selectedProfileUrls.add(entry.url);
             if (!existingUrls.contains(entry.url)) {
                 selectedEntries.add(entry);
             }
         }
 
-        if (adapter != null) adapter.notifyDataSetChanged();
+        notifyCatalogRowsChanged();
         updateAddButton();
 
         String message;
@@ -214,8 +220,68 @@ public class DiscoverCatalogFragment extends Fragment {
 
     private void clearSelection() {
         selectedEntries.clear();
-        if (adapter != null) adapter.notifyDataSetChanged();
+        markCustomSelection();
+        notifyCatalogRowsChanged();
         updateAddButton();
+    }
+
+    private void markCustomSelection() {
+        selectedPresetProfile = null;
+        selectedProfileUrls.clear();
+        if (binding != null) {
+            binding.chipCustom.setChecked(true);
+        }
+    }
+
+    private void updateFilteredEntries(@NonNull List<FilterListCatalog.CatalogEntry> nextEntries) {
+        if (filteredEntries == null) {
+            filteredEntries = new ArrayList<>(nextEntries);
+            if (adapter != null && !nextEntries.isEmpty()) {
+                adapter.notifyItemRangeInserted(0, nextEntries.size());
+            }
+            return;
+        }
+
+        List<FilterListCatalog.CatalogEntry> previousEntries = new ArrayList<>(filteredEntries);
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return previousEntries.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return nextEntries.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return Objects.equals(previousEntries.get(oldItemPosition).url,
+                        nextEntries.get(newItemPosition).url);
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                FilterListCatalog.CatalogEntry oldEntry = previousEntries.get(oldItemPosition);
+                FilterListCatalog.CatalogEntry newEntry = nextEntries.get(newItemPosition);
+                return Objects.equals(oldEntry.label, newEntry.label)
+                        && Objects.equals(oldEntry.url, newEntry.url)
+                        && oldEntry.category == newEntry.category;
+            }
+        });
+
+        filteredEntries = new ArrayList<>(nextEntries);
+        if (adapter != null) {
+            diff.dispatchUpdatesTo(adapter);
+        }
+    }
+
+    private void notifyCatalogRowsChanged() {
+        if (adapter == null) return;
+        int count = adapter.getItemCount();
+        if (count > 0) {
+            adapter.notifyItemRangeChanged(0, count);
+        }
     }
 
     private void updateSubtitle() {
@@ -224,9 +290,11 @@ public class DiscoverCatalogFragment extends Fragment {
         int showing = filteredEntries != null ? filteredEntries.size() : 0;
 
         if (currentSearchQuery.isEmpty()) {
-            binding.catalogSubtitle.setText(getString(R.string.filter_catalog_count, total));
+            binding.catalogSubtitle.setText(
+                    getResources().getQuantityString(R.plurals.filter_catalog_count, total, total));
         } else {
-            binding.catalogSubtitle.setText(String.format(Locale.ROOT, "Showing %d of %d", showing, total));
+            binding.catalogSubtitle.setText(
+                    getString(R.string.filter_catalog_showing_count, showing, total));
         }
     }
 
@@ -234,7 +302,8 @@ public class DiscoverCatalogFragment extends Fragment {
         if (binding == null) return;
         int count = selectedEntries.size();
         if (count > 0) {
-            binding.addSelectedButton.setText(getString(R.string.filter_catalog_add_selected) + " (" + count + ")");
+            binding.addSelectedButton.setText(
+                    getString(R.string.filter_catalog_add_selected_count, count));
             binding.addSelectedButton.setVisibility(View.VISIBLE);
         } else {
             binding.addSelectedButton.setVisibility(View.GONE);
@@ -251,6 +320,10 @@ public class DiscoverCatalogFragment extends Fragment {
         for (FilterListCatalog.CatalogEntry e : selectedEntries) {
             selectedUrls.add(e.url);
         }
+        final String profile = selectedPresetProfile;
+        final Set<String> profileUrls = profile != null
+                ? new HashSet<>(selectedProfileUrls)
+                : new HashSet<>(selectedUrls);
         final android.content.Context appContext = requireContext().getApplicationContext();
 
         AppExecutors.getInstance().diskIO().execute(() -> {
@@ -267,8 +340,12 @@ public class DiscoverCatalogFragment extends Fragment {
                 }
             }
             // Persist applied preset to FilterSetStore so scheduled updates can track it.
-            if (!selectedUrls.isEmpty()) {
-                FilterSetStore.saveSet(appContext, "custom", selectedUrls);
+            if (!profileUrls.isEmpty()) {
+                if (profile != null) {
+                    FilterSetStore.savePresetProfile(appContext, profile, profileUrls);
+                } else {
+                    FilterSetStore.saveCustomProfile(appContext, profileUrls);
+                }
             }
             // Kick off an immediate download of the newly added sources.
             if (added > 0) {
@@ -277,16 +354,21 @@ public class DiscoverCatalogFragment extends Fragment {
 
             final int finalAdded = added;
             final List<String> finalAddedUrls = addedUrls;
-            requireActivity().runOnUiThread(() -> {
-                if (this.binding == null) return;
+            runOnMainThreadIfAdded(() -> {
                 // existingUrls mutations must happen on main thread — adapter reads it there.
                 existingUrls.addAll(finalAddedUrls);
                 selectedEntries.clear();
-                if (adapter != null) adapter.notifyDataSetChanged();
+                selectedPresetProfile = null;
+                selectedProfileUrls.clear();
+                notifyCatalogRowsChanged();
                 updateAddButton();
+                String message = finalAdded > 0
+                        ? getResources().getQuantityString(
+                                R.plurals.filter_added_success_count, finalAdded, finalAdded)
+                        : getString(R.string.filter_preset_already_subscribed);
                 Snackbar.make(
                         binding.catalogRecyclerView,
-                        getString(R.string.filter_added_success) + " (" + finalAdded + ")",
+                        message,
                         Snackbar.LENGTH_SHORT).show();
             });
         });
@@ -298,11 +380,10 @@ public class DiscoverCatalogFragment extends Fragment {
             if (existing != null) {
                 hostsSourceDao.delete(existing);
             }
-            requireActivity().runOnUiThread(() -> {
-                if (this.binding == null) return;
+            runOnMainThreadIfAdded(() -> {
                 // existingUrls mutation must happen on main thread — adapter reads it there.
                 existingUrls.remove(url);
-                if (adapter != null) adapter.notifyDataSetChanged();
+                notifyCatalogRowsChanged();
                 Snackbar.make(binding.catalogRecyclerView, R.string.filter_removed_success, Snackbar.LENGTH_SHORT)
                         .show();
                 updateSubtitle();
@@ -353,11 +434,14 @@ public class DiscoverCatalogFragment extends Fragment {
 
             holder.alreadyAdded.setVisibility(alreadyAdded ? View.VISIBLE : View.GONE);
             holder.toggle.setVisibility(alreadyAdded ? View.GONE : View.VISIBLE);
+            holder.toggle.setContentDescription(
+                    getString(R.string.filter_catalog_toggle_description, entry.label));
 
             holder.toggle.setOnCheckedChangeListener(null);
             holder.toggle.setChecked(isSelected);
 
             holder.toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                markCustomSelection();
                 if (isChecked) {
                     selectedEntries.add(entry);
                 } else {
@@ -370,7 +454,13 @@ public class DiscoverCatalogFragment extends Fragment {
                 if (binding != null) binding.chipCustom.setChecked(true);
             });
 
-            holder.card.setChecked(isSelected);
+            holder.card.setCheckable(!alreadyAdded);
+            holder.card.setChecked(!alreadyAdded && isSelected);
+            holder.card.setContentDescription(getString(alreadyAdded
+                    ? R.string.filter_catalog_row_already_added
+                    : isSelected
+                            ? R.string.filter_catalog_row_selected
+                            : R.string.filter_catalog_row_not_selected, entry.label));
 
             if (alreadyAdded) {
                 holder.card.setAlpha(0.7f);
@@ -378,8 +468,7 @@ public class DiscoverCatalogFragment extends Fragment {
                     AppExecutors.getInstance().diskIO().execute(() -> {
                         HostsSource existing = hostsSourceDao.getByUrl(entry.url).orElse(null);
                         if (existing == null) return;
-                        requireActivity().runOnUiThread(() -> {
-                            if (DiscoverCatalogFragment.this.binding == null) return;
+                        runOnMainThreadIfAdded(() -> {
                             Intent intent = new Intent(requireContext(), SourceEditActivity.class);
                             intent.putExtra(SourceEditActivity.SOURCE_ID, existing.getId());
                             startActivity(intent);
@@ -399,6 +488,7 @@ public class DiscoverCatalogFragment extends Fragment {
             } else {
                 holder.card.setAlpha(1.0f);
                 holder.card.setOnClickListener(v -> {
+                    markCustomSelection();
                     boolean newState = !selectedEntries.contains(entry);
                     if (newState) {
                         selectedEntries.add(entry);
@@ -406,7 +496,14 @@ public class DiscoverCatalogFragment extends Fragment {
                         selectedEntries.remove(entry);
                     }
                     holder.toggle.setChecked(newState);
-                    notifyItemChanged(position);
+                    holder.card.setChecked(newState);
+                    holder.card.setContentDescription(getString(newState
+                            ? R.string.filter_catalog_row_selected
+                            : R.string.filter_catalog_row_not_selected, entry.label));
+                    int adapterPosition = holder.getBindingAdapterPosition();
+                    if (adapterPosition != RecyclerView.NO_POSITION) {
+                        notifyItemChanged(adapterPosition);
+                    }
                     updateAddButton();
                 });
                 holder.card.setOnLongClickListener(null);
@@ -436,5 +533,12 @@ public class DiscoverCatalogFragment extends Fragment {
                 alreadyAdded = itemView.findViewById(R.id.catalogItemAlreadyAdded);
             }
         }
+    }
+
+    private void runOnMainThreadIfAdded(@NonNull Runnable action) {
+        AppExecutors.getInstance().mainThread().execute(() -> {
+            if (!isAdded() || this.binding == null) return;
+            action.run();
+        });
     }
 }

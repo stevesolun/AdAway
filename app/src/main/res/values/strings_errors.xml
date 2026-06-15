@@ -4,7 +4,9 @@
     <string name="error_no_connection_message">No Internet connection</string>
     <string name="error_no_connection_details">Unable to establish a connection to the Internet. Please check your device connectivity.</string>
     <string name="error_download_failed_message">Failed to download hosts source</string>
-    <string name="error_download_failed_details">None of your enabled hosts sources are reachable. Please check you are properly connected to the Internet.</string>
+    <string name="error_update_in_progress_message">Filter update already running</string>
+    <string name="error_update_in_progress_details">Another filter update is still running. Wait for it to finish before starting a new one.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Failed to create private file</string>
     <string name="error_private_file_failed_details">Unable to create a private file to build a new hosts source. Please check the free space available on your device.</string>

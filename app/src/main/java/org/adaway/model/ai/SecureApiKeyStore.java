@@ -2,14 +2,12 @@ package org.adaway.model.ai;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,8 +23,8 @@ import javax.crypto.spec.GCMParameterSpec;
 /**
  * Secure storage for LLM API keys using direct Android Keystore + AES-256-GCM encryption.
  * <p>
- * - On API 23+: AES-256-GCM with a hardware-backed Keystore key (never leaves secure hardware).
- * - On API 21-22 (<0.1% of devices): values stored in app sandbox only (no Keystore support).
+ * - On all supported devices: AES-256-GCM with a hardware-backed Keystore key
+ *   (never leaves secure hardware).
  * <p>
  * No new Gradle dependencies — all APIs are in the Android SDK.
  * <p>
@@ -44,18 +42,12 @@ public final class SecureApiKeyStore {
     private static volatile SecureApiKeyStore sInstance;
 
     private final SharedPreferences mPrefs;
-    private final boolean mKeystoreAvailable;
 
     private SecureApiKeyStore(@NonNull Context context)
             throws GeneralSecurityException, IOException {
         mPrefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            ensureKeyExists();
-            mKeystoreAvailable = true;
-        } else {
-            mKeystoreAvailable = false;
-        }
+        ensureKeyExists();
     }
 
     /**
@@ -83,10 +75,8 @@ public final class SecureApiKeyStore {
         SharedPreferences.Editor editor = mPrefs.edit();
         if (apiKey == null || apiKey.isEmpty()) {
             editor.remove(keyName);
-        } else if (mKeystoreAvailable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            editor.putString(keyName, encrypt(apiKey));
         } else {
-            editor.putString(keyName, apiKey);
+            editor.putString(keyName, encrypt(apiKey));
         }
         editor.apply();
     }
@@ -100,10 +90,7 @@ public final class SecureApiKeyStore {
             throws GeneralSecurityException, IOException {
         String stored = mPrefs.getString(keyName, null);
         if (stored == null) return null;
-        if (mKeystoreAvailable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return decrypt(stored);
-        }
-        return stored;
+        return decrypt(stored);
     }
 
     /** Returns true if an API key is stored for the given name. */
@@ -115,7 +102,6 @@ public final class SecureApiKeyStore {
     // Keystore helpers (API 23+)
     // -------------------------------------------------------------------------
 
-    @RequiresApi(Build.VERSION_CODES.M)
     private void ensureKeyExists() throws GeneralSecurityException, IOException {
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER);
         ks.load(null);
@@ -133,14 +119,12 @@ public final class SecureApiKeyStore {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     private SecretKey loadKey() throws GeneralSecurityException, IOException {
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER);
         ks.load(null);
         return ((KeyStore.SecretKeyEntry) ks.getEntry(KEY_ALIAS, null)).getSecretKey();
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     @NonNull
     private String encrypt(@NonNull String plaintext) throws GeneralSecurityException, IOException {
         Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORM);
@@ -153,7 +137,6 @@ public final class SecureApiKeyStore {
         return Base64.encodeToString(buf.array(), Base64.NO_WRAP);
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     @NonNull
     private String decrypt(@NonNull String encoded) throws GeneralSecurityException, IOException {
         byte[] data = Base64.decode(encoded, Base64.NO_WRAP);

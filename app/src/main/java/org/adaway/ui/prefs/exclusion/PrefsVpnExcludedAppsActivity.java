@@ -1,5 +1,6 @@
 package org.adaway.ui.prefs.exclusion;
 
+import android.annotation.SuppressLint;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -84,6 +85,7 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
     }
 
     @Override
+    @SuppressLint("QueryPermissionsNeeded")
     public UserApp[] getUserApplications() {
         if (this.userApplications == null) {
             PackageManager packageManager = getPackageManager();

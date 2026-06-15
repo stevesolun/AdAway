@@ -5,8 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingTop="24dp"
-    android:background="@color/ui_bg">
+    android:paddingTop="24dp">
 
     <FrameLayout
         android:id="@+id/headerFrameLayout"
@@ -23,6 +22,10 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="56dp"
         android:layout_marginEnd="8dp"
+        android:minHeight="48dp"
+        android:gravity="end|center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:textAlignment="viewEnd"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"
         android:textColor="@color/ui_text_secondary"
@@ -87,6 +90,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginTop="10dp"
+        android:visibility="gone"
         app:cardCornerRadius="24dp"
         app:cardBackgroundColor="@color/ui_glass"
         app:strokeColor="@color/ui_glass_stroke"
@@ -94,7 +98,7 @@
         app:cardElevation="0dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/sourcesCardView">
+        app:layout_constraintTop_toBottomOf="@+id/leakStatusCardView">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -119,6 +123,7 @@
                     android:id="@+id/homeAiQueryEditText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:inputType="textCapSentences"
                     android:imeOptions="actionDone"
                     android:maxLines="1" />
@@ -135,25 +140,6 @@
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>
-
-    <!-- Credit line moved to bottom to avoid overlaying header content -->
-    <TextView
-        android:id="@+id/creditTextView"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="48dp"
-        android:gravity="center"
-        android:text="@string/credit_line_home"
-        android:textAppearance="@style/TextAppearance.AppCompat.Caption"
-        android:textColor="@color/ui_text_secondary"
-        android:maxLines="3"
-        android:ellipsize="end"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/aiBoxCard"
-        app:layout_constraintBottom_toBottomOf="parent" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/blockedHostCardView"
@@ -276,7 +262,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="8dp"
-                android:text="0"
+                android:text="@string/home_count_zero"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.AppCompat.Large"
@@ -368,7 +354,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="8dp"
-                android:text="0"
+                android:text="@string/home_count_zero"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.AppCompat.Large"
@@ -423,9 +409,9 @@
         android:id="@+id/sourcesCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="16dp"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="20dp"
-        android:layout_marginRight="16dp"
+        android:layout_marginEnd="16dp"
         android:layout_marginBottom="6dp"
         android:clickable="true"
         android:focusable="true"
@@ -473,9 +459,10 @@
 
             <ImageView
                 android:id="@+id/checkForUpdateImageView"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="@string/check_hosts_update_description"
+                android:padding="8dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_sync_24dp" />
@@ -497,10 +484,11 @@
 
             <ImageView
                 android:id="@+id/updateImageView"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginTop="16dp"
                 android:contentDescription="@string/update_hosts_description"
+                android:padding="8dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/checkForUpdateImageView"
                 app:srcCompat="@drawable/ic_get_app_24dp" />
@@ -524,6 +512,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
+                android:accessibilityLiveRegion="polite"
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -579,6 +568,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
+                    android:accessibilityLiveRegion="polite"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:textColor="@color/ui_text_primary"
@@ -726,16 +716,16 @@
 
                     <ImageButton
                         android:id="@+id/pauseResumeButton"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/pause_update"
                         app:srcCompat="@drawable/ic_pause_24dp" />
 
                     <ImageButton
                         android:id="@+id/stopButton"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:layout_marginStart="4dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/stop_update"
@@ -750,6 +740,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
+                android:accessibilityLiveRegion="polite"
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -769,6 +760,89 @@
                 tools:visibility="visible" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/leakStatusCardView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="16dp"
+        android:clickable="true"
+        android:focusable="true"
+        app:cardBackgroundColor="@color/ui_glass"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="0dp"
+        app:contentPadding="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/sourcesCardView"
+        app:strokeColor="@color/ui_glass_stroke"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/leakStatusTitleTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/leak_status_title"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                android:textColor="@color/ui_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/leakStatusSummaryTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/ui_text_primary"
+                android:textSize="14sp"
+                tools:text="@string/leak_status_summary_clean" />
+
+            <TextView
+                android:id="@+id/leakStatusDetailTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/ui_text_secondary"
+                android:textSize="12sp"
+                tools:text="Private DNS: off&#10;Browser DoH: common providers routed through the VPN" />
+
+            <LinearLayout
+                android:id="@+id/leakStatusActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/leakPrivateDnsButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/leak_status_private_dns_button"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/leakVpnSettingsButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/leak_status_vpn_button" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
     </com.google.android.material.card.MaterialCardView>
 
     <androidx.constraintlayout.widget.Guideline

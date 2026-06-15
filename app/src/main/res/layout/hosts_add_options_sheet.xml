@@ -44,6 +44,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_collections_bookmark_24dp"
             app:tint="?attr/colorPrimary" />
 
@@ -73,8 +74,8 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@drawable/ic_expand_more_24"
-            android:rotation="-90"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_end_24"
             app:tint="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
@@ -96,6 +97,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_add_circle_outline_24dp"
             app:tint="?attr/colorPrimary" />
 
@@ -125,8 +127,8 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@drawable/ic_expand_more_24"
-            android:rotation="-90"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_end_24"
             app:tint="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
@@ -148,6 +150,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_sync_24dp"
             app:tint="?attr/colorPrimary" />
 
@@ -177,8 +180,8 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@drawable/ic_expand_more_24"
-            android:rotation="-90"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_end_24"
             app:tint="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>

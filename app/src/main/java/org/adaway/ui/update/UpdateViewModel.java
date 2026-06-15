@@ -68,6 +68,12 @@ public class UpdateViewModel extends AdwareViewModel {
             return;
         }
         DownloadManager downloadManager = getApplication().getSystemService(DownloadManager.class);
+        if (downloadManager == null) {
+            Timber.w("Download service unavailable; stopping progress tracking.");
+            this.downloadProgress.postValue(null);
+            this.tracking.set(false);
+            return;
+        }
         DownloadManager.Query query = new DownloadManager.Query().setFilterById(downloadId);
         long startedAt = System.currentTimeMillis();
         int missingCount = 0;
@@ -93,7 +99,7 @@ public class UpdateViewModel extends AdwareViewModel {
 
                 // Query download manager
                 try (Cursor cursor = downloadManager.query(query)) {
-                    if (!cursor.moveToFirst()) {
+                    if (cursor == null || !cursor.moveToFirst()) {
                         // Download entry may not be immediately available; don't spin forever if it never shows up.
                         missingCount++;
                         if (missingCount > 20) { // ~10s with 500ms sleep
@@ -107,6 +113,11 @@ public class UpdateViewModel extends AdwareViewModel {
 
                     // Check download status
                     int statusColumnIndex = cursor.getColumnIndex(COLUMN_STATUS);
+                    if (statusColumnIndex < 0) {
+                        Timber.w("Download status column missing; stopping progress tracking.");
+                        this.downloadProgress.postValue(null);
+                        return;
+                    }
                     int status = cursor.getInt(statusColumnIndex);
                     switch (status) {
                         case STATUS_FAILED:
@@ -115,9 +126,15 @@ public class UpdateViewModel extends AdwareViewModel {
                             break;
                         case STATUS_RUNNING:
                             int totalSizeColumnIndex = cursor.getColumnIndex(COLUMN_TOTAL_SIZE_BYTES);
+                            int bytesDownloadedColumnIndex =
+                                    cursor.getColumnIndex(COLUMN_BYTES_DOWNLOADED_SO_FAR);
+                            if (totalSizeColumnIndex < 0 || bytesDownloadedColumnIndex < 0) {
+                                Timber.w("Download progress columns missing; stopping progress tracking.");
+                                this.downloadProgress.postValue(null);
+                                return;
+                            }
                             long total = cursor.getLong(totalSizeColumnIndex);
                             if (total > 0) {
-                                int bytesDownloadedColumnIndex = cursor.getColumnIndex(COLUMN_BYTES_DOWNLOADED_SO_FAR);
                                 long downloaded = cursor.getLong(bytesDownloadedColumnIndex);
                                 this.downloadProgress.postValue(new PendingDownloadStatus(downloaded, total));
                             }

@@ -7,7 +7,6 @@
     <color name="onPrimary">#FFFFFF</color>
     <!-- Keep the bird/logo red (do not tie it to primary) -->
     <color name="logo_red">#B71C1C</color>
-    <color name="logo_bg_red">#8B0000</color>
     <!-- Launcher icon background (deep blue box) -->
     <color name="logo_bg_blue">#061B3A</color>
     <!-- Status badge colors (deep) -->
@@ -26,10 +25,8 @@
     <color name="ui_neon_mid">#FF0B2A5A</color>
     <color name="ui_neon_end">#FF061B3A</color>
     <!-- App icon colors -->
-    <color name="drawer_icon">#1D4ED8</color>
     <!-- Host list state - DEEP RED like bird logo -->
     <color name="blocked">#B71C1C</color>
-    <color name="allowed">#64FFDA</color>
     <!-- Redirect accent - DEEP RED like bird logo -->
     <color name="redirected">#FFD600</color>
     <!-- Common UI elements -->

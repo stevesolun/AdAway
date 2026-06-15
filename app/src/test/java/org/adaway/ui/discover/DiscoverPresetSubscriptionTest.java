@@ -1,0 +1,550 @@
+package org.adaway.ui.discover;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public class DiscoverPresetSubscriptionTest {
+    @Test
+    public void quickPresetQueuesImmediateUpdateAndReenablesExistingSources()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFragment.java");
+
+        assertTrue("Preset subscription must enqueue the same update/apply worker as other flows.",
+                source.contains("SourceUpdateService.enqueueUpdateNow(appContext)"));
+        assertTrue("Existing disabled preset sources must be re-enabled.",
+                source.contains("sourceDao.setSourceEnabled(source.getId(), true)"));
+        assertTrue("Existing source rows must be re-enabled with their source.",
+                source.contains("sourceDao.setSourceItemsEnabled(source.getId(), true)"));
+        assertTrue("Never-fetched preset sources must trigger an update.",
+                source.contains("source.getLocalModificationDate() == null"));
+        assertTrue("Previously failed preset sources must trigger an update.",
+                source.contains("source.getLastDownloadError() != null"));
+    }
+
+    @Test
+    public void quickPresetPersistsDurableActiveProfile()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFragment.java");
+        String layout = readRepoFile(
+                "app/src/main/res/layout/fragment_discover.xml");
+        String store = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/FilterSetStore.java");
+
+        assertTrue("Quick preset application must save every preset URL into profile storage.",
+                source.contains("profileUrls.add(entry.url)"));
+        assertTrue("Quick preset application must persist the active preset profile.",
+                source.contains("FilterSetStore.savePresetProfile(appContext, preset, profileUrls)"));
+        assertTrue("FilterSetStore must persist an active profile key.",
+                store.contains("KEY_ACTIVE_PROFILE"));
+        assertTrue("FilterSetStore must expose named preset profiles.",
+                store.contains("PROFILE_SAFE") &&
+                        store.contains("PROFILE_BALANCED") &&
+                        store.contains("PROFILE_AGGRESSIVE") &&
+                        store.contains("PROFILE_CUSTOM"));
+        assertTrue("FilterSetStore must persist profile URLs and schedules by stable ids.",
+                store.contains("KEY_SET_IDS") &&
+                        store.contains("KEY_SET_DISPLAY_PREFIX") &&
+                        store.contains("KEY_SET_ID_PREFIX") &&
+                        store.contains("KEY_SCHEDULE_ID_PREFIX") &&
+                        store.contains("KEY_ACTIVE_PROFILE_ID"));
+        assertTrue("FilterSetStore must lazily migrate legacy display-name keyed profiles.",
+                store.contains("migrateLegacySets(prefs)") &&
+                        store.contains("resolveSetId(") &&
+                        store.contains("legacySetUrls"));
+        assertTrue("Discover must expose a visible active-profile status line.",
+                layout.contains("discoverProfileStatus"));
+        assertTrue("Discover must derive profile status from current enabled sources.",
+                source.contains("FilterProfileState.resolve(profileUrls, enabledUrls)"));
+        assertTrue("Discover must reconcile exact saved-profile matches before rendering status.",
+                source.contains("FilterSetStore.reconcileActiveProfile(appContext, enabledUrls)"));
+        assertTrue("Discover must refresh profile status after preset application.",
+                source.contains("updateProfileStatus();"));
+        assertTrue("Discover profile status must distinguish extended customizations.",
+                source.contains("R.string.filter_profile_status_extended"));
+    }
+
+    @Test
+    public void discoverQuickActionsStayBetweenProfileAndBrowser()
+            throws Exception {
+        String layout = readRepoFile(
+                "app/src/main/res/layout/fragment_discover.xml");
+
+        int profile = layout.indexOf("discoverProfileStatus");
+        int safe = layout.indexOf("chipDiscoverSafe");
+        int balanced = layout.indexOf("chipDiscoverBalanced");
+        int aggressive = layout.indexOf("chipDiscoverAggressive");
+        int askAi = layout.indexOf("chipDiscoverAskAi");
+        int browser = layout.indexOf("discoverBrowserContainer");
+
+        assertTrue("Discover must show profile status before quick actions.",
+                profile >= 0 && profile < safe);
+        assertTrue("AI help must be the first persistent Discover action.",
+                askAi < safe);
+        assertTrue("Preset chips must stay in the persistent Discover header.",
+                safe < balanced && balanced < aggressive);
+        assertTrue("Quick actions must appear before the loading/list browser body.",
+                aggressive < browser);
+    }
+
+    @Test
+    public void quickPresetSnackbarUsesResourcesInsteadOfRawEnglish()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFragment.java");
+
+        assertTrue(source.contains("R.plurals.filter_preset_added_updating"));
+        assertTrue(source.contains("R.plurals.filter_preset_existing_updating"));
+        assertTrue(source.contains("R.string.filter_preset_already_subscribed"));
+        assertFalse("Quick preset snackbar must not hard-code added-list copy.",
+                source.contains("\"Added \""));
+        assertFalse("Quick preset snackbar must not hard-code already-subscribed copy.",
+                source.contains("\"Already subscribed"));
+    }
+
+    @Test
+    public void catalogAddSelectedSnackbarUsesPluralResource()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverCatalogFragment.java");
+
+        assertTrue(source.contains("R.plurals.filter_added_success_count"));
+        assertTrue(source.contains("R.string.filter_preset_already_subscribed"));
+        assertFalse("Catalog add-selected snackbar must not append counts by hand.",
+                source.contains("getString(R.string.filter_added_success) + \" (\""));
+    }
+
+    @Test
+    public void catalogPresetSelectionPersistsFullProfileAndManualSelectionBecomesCustom()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverCatalogFragment.java");
+
+        assertTrue("Catalog preset chips must remember which profile is being selected.",
+                source.contains("selectedPresetProfile = FilterSetStore.normalizePresetProfile(preset)"));
+        assertTrue("Catalog preset chips must save the full preset URL set, including already added rows.",
+                source.contains("selectedProfileUrls.add(entry.url)"));
+        assertTrue("Adding a catalog preset selection must persist the preset profile.",
+                source.contains("FilterSetStore.savePresetProfile(appContext, profile, profileUrls)"));
+        assertTrue("Manual catalog selections must persist as the custom profile.",
+                source.contains("FilterSetStore.saveCustomProfile(appContext, profileUrls)"));
+        assertTrue("Manual row or select-all changes must clear preset identity.",
+                source.contains("markCustomSelection()") &&
+                        source.contains("selectedPresetProfile = null"));
+    }
+
+    @Test
+    public void sourceManualToggleAndSavedSetReconcileActiveProfile()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
+
+        assertTrue("Saving a named source selection must make the named set active.",
+                source.contains("FilterSetStore.saveSet(requireContext(), name, enabledUrls)") &&
+                        source.contains("FilterSetStore.setActiveProfile(requireContext(), name)"));
+        assertFalse("Saving a named set must not silently overwrite the custom profile first.",
+                source.contains("FilterSetStore.saveCustomProfile(requireContext(), enabledUrls);\n"
+                        + "        if (!FilterSetStore.PROFILE_CUSTOM.equals(name))"));
+        assertTrue("Saving a named set must reject reserved or duplicate display names.",
+                source.contains("FilterSetStore.validateSetName(") &&
+                        source.contains("R.string.filter_set_name_reserved") &&
+                        source.contains("R.string.filter_set_name_duplicate"));
+        assertTrue("Save dialog validation must stay inline and keep the dialog open.",
+                source.contains(".create()") &&
+                        source.contains("dialog.setOnShowListener(") &&
+                        source.contains("layout.setError(") &&
+                        source.contains("FilterSetStore.validateSetName(") &&
+                        source.contains("dialog.dismiss()"));
+        assertTrue("Empty names must show an inline validation error.",
+                source.contains("R.string.filter_set_name_empty"));
+        assertTrue("Applying any saved set must record it as the active profile.",
+                source.contains("FilterSetStore.setActiveProfile(appCtx, name)"));
+        assertTrue("Manual source toggles must mark the active profile custom.",
+                source.contains("FilterSetStore.markCustomProfile(requireContext())"));
+        assertTrue("Scheduling current selection must generate a real non-reserved saved-set name.",
+                source.contains("createScheduledSelectionName()") &&
+                        source.contains("filter_set_schedule_current_selection_saved_name") &&
+                        source.contains("FilterSetStore.validateSetName(candidate, names)"));
+        assertFalse("The visible Current selection placeholder must not be persisted as a saved set.",
+                source.contains("String name = getString(R.string.filter_set_schedule_current_selection);\n"
+                        + "                        saveFilterSet(name);"));
+        assertTrue("Applying a saved set must preview impact before mutating sources.",
+                source.contains("previewApplyFilterSet(arr[which])") &&
+                        source.contains("showApplyFilterSetConfirmation(") &&
+                        source.contains("FilterProfileDiff.resolve("));
+        assertTrue("Missing saved sets must be refused before an empty URL set can disable lists.",
+                source.contains("FilterSetStore.hasSet(appCtx, name)") &&
+                        source.contains("FilterSetStore.hasSetUrls(appCtx, name)") &&
+                        source.contains("R.string.filter_set_missing"));
+        assertTrue("Empty saved sets must use a dedicated disable-all confirmation.",
+                source.contains("showEmptyFilterSetConfirmation(") &&
+                        source.contains("filter_set_apply_empty_title"));
+        assertTrue("Missing-only saved sets must use a dedicated partial-profile confirmation.",
+                source.contains("diff.isMissingOnlyProfile()") &&
+                        source.contains("filter_set_apply_missing_only_title"));
+        assertTrue("Exact no-op applies must branch on active saved-set identity.",
+                source.contains("FilterSetStore.getActiveProfile(appCtx)") &&
+                        source.contains("showNoChangeFilterSetDialog("));
+        assertTrue("Already-active exact matches must close without mutating state.",
+                source.contains("filter_set_apply_no_change_title") &&
+                        source.contains("filter_set_apply_no_change_active_message"));
+        assertTrue("Identity-only applies must be explicit active-set changes.",
+                source.contains("filter_set_apply_set_active_message") &&
+                        source.contains("filter_set_apply_set_active_button"));
+        assertTrue("The confirmed apply must use the previewed URL set, not re-read profile data.",
+                source.contains("applyFilterSet(name, targetUrls)") &&
+                        source.contains("private void applyFilterSet(@NonNull String name,") &&
+                        source.contains("@NonNull Set<String> enabledUrls)"));
+        assertTrue("Confirmed saved-set apply must read a fresh source snapshot from the DAO.",
+                source.contains("dao.applySourceSelections(enabledUrls)"));
+
+        String dao = readRepoFile(
+                "app/src/main/java/org/adaway/db/dao/HostsSourceDao.java");
+        assertTrue("Confirmed saved-set apply must update all source rows in one transaction.",
+                dao.contains("@Transaction") &&
+                        dao.contains("default void applySourceSelections("));
+
+        String strings = readRepoFile("app/src/main/res/values/strings.xml");
+        assertTrue("No-op copy must not claim the profile is already active.",
+                strings.contains("No list changes. My Lists already matches this profile."));
+        assertTrue("Missing-only copy must disclose that local lists will not match the profile.",
+                strings.contains("No saved lists from this profile are on this device."));
+    }
+
+    @Test
+    public void sourceSavedSetManagerSupportsRenameAndDelete()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
+        String menu = readRepoFile("app/src/main/res/menu/hosts_sources_menu.xml");
+        String store = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/FilterSetStore.java");
+        String strings = readRepoFile("app/src/main/res/values/strings.xml");
+
+        assertTrue("Sources menu must expose saved-set management.",
+                menu.contains("action_hosts_manage_filter_sets") &&
+                        source.contains("promptManageFilterSets()"));
+        assertTrue("Manage dialog must filter out reserved preset profile names.",
+                source.contains("FilterSetStore.isReservedSetName(name)"));
+        assertTrue("Rename flow must validate against duplicate and reserved names.",
+                source.contains("FilterSetStore.validateSetName(rawName, existingNames)") &&
+                        source.contains("FilterSetStore.renameSet(requireContext(), name, newName)"));
+        assertTrue("Delete flow must use an explicit confirmation.",
+                source.contains("filter_set_delete_message") &&
+                        source.contains("FilterSetStore.deleteSet(requireContext(), name)"));
+        assertTrue("FilterSetStore must expose stable-id rename and delete APIs.",
+                store.contains("boolean renameSet(") &&
+                        store.contains("boolean deleteSet("));
+        assertTrue("FilterSetStore delete must reset active deleted profiles to custom.",
+                store.contains("KEY_ACTIVE_PROFILE_ID") &&
+                        store.contains("PROFILE_CUSTOM"));
+        assertTrue("Manage strings must be resource-backed.",
+                strings.contains("menu_manage_filter_sets") &&
+                        strings.contains("filter_set_renamed") &&
+                        strings.contains("filter_set_deleted"));
+    }
+
+    @Test
+    public void scheduleUiUsesLocalizedStringsAndPlurals()
+            throws Exception {
+        String hosts = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
+        String schedules = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/SchedulesActivity.java");
+        String strings = readRepoFile("app/src/main/res/values/strings.xml");
+
+        assertTrue("Filter-set schedule snackbars must use a string resource.",
+                hosts.contains("R.string.filter_set_schedule_applied"));
+        assertFalse("Filter-set schedule snackbars must not hard-code English copy.",
+                hosts.contains("\"Scheduled: \""));
+        assertTrue("Schedule pickers must use localized weekday labels.",
+                hosts.contains("getWeekdayLabels()") &&
+                        schedules.contains("getWeekdayLabels()"));
+        assertFalse("Hosts schedule picker must not hard-code Monday.",
+                hosts.contains("\"Monday\""));
+        assertFalse("Schedules screen must not hard-code Monday.",
+                schedules.contains("\"Monday\""));
+        assertTrue("Scheduled set counts must use plurals.",
+                schedules.contains("R.plurals.schedule_filter_sets_count"));
+        assertTrue("Scheduled source counts must use plurals.",
+                schedules.contains("R.plurals.schedule_sources_count"));
+        assertFalse("Scheduled set count copy must not be concatenated.",
+                schedules.contains("\"Scheduled sets: \""));
+        assertFalse("Scheduled source count copy must not be concatenated.",
+                schedules.contains("\"Scheduled sources: \""));
+        assertTrue("String resources must define schedule confirmation copy.",
+                strings.contains("filter_set_schedule_applied"));
+        assertTrue("String resources must define scheduled set and source plurals.",
+                strings.contains("schedule_filter_sets_count") &&
+                        strings.contains("schedule_sources_count"));
+    }
+
+    @Test
+    public void filterListsBulkCommandsDoNotUseDestructiveSwitchSemantics()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+        String layout = readRepoFile(
+                "app/src/main/res/layout/fragment_discover_filterlists.xml");
+
+        assertTrue("Bulk add must be an explicit command button.",
+                layout.contains("filterlistsSubscribeVisibleButton"));
+        assertTrue("Bulk remove must be an explicit command button.",
+                layout.contains("filterlistsRemoveVisibleButton"));
+        assertTrue("Bulk actions must have a row container so empty states can hide them.",
+                layout.contains("filterlistsBulkActionsRow"));
+        assertFalse("Bulk add/remove must not be represented as one destructive switch.",
+                layout.contains("filterlistsSubscribeAllSwitch"));
+        assertTrue("Bulk add button must call the subscribe confirmation.",
+                source.contains("filterlistsSubscribeVisibleButton.setOnClickListener"));
+        assertTrue("Bulk remove button must call the remove confirmation.",
+                source.contains("filterlistsRemoveVisibleButton.setOnClickListener"));
+        assertTrue("Bulk command enablement must still use visible subscription state.",
+                source.contains("FilterListsSubscriptionState.resolve(filtered"));
+        assertTrue("Bulk actions must hide when no visible rows are actionable.",
+                source.contains("filterlistsBulkActionsRow.setVisibility") &&
+                        source.contains("filtered.isEmpty() && !bulkOperationRunning"));
+        assertFalse("Subscribe-all switch must not use any-subscription state as checked.",
+                source.contains("setSubscribeAllSwitchChecked(hasFilterListsSubscriptions())"));
+    }
+
+    @Test
+    public void filterListsSubscribedRowsOpenExistingSourceInsteadOfAddFlow()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        assertTrue("Subscribed rows must route to existing source edit.",
+                source.contains("openExistingSource(s, cachedUrl)"));
+        assertTrue("Existing source edit must pass SourceEditActivity.SOURCE_ID.",
+                source.contains("intent.putExtra(SourceEditActivity.SOURCE_ID"));
+        assertFalse("Rows must not always launch add-source flow.",
+                source.contains("holder.itemView.setOnClickListener(v -> onPick(s))"));
+    }
+
+    @Test
+    public void filterListsSingleSubscribePersistsProvenanceAndIgnoresEmptyNegativeCache()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        assertTrue("Single subscribe must normalize worker negative-cache empty URLs to no URL.",
+                source.contains("normalizeCachedUrl(url)"));
+        assertTrue("Single subscribe must persist FilterLists metadata on direct row insert.",
+                source.contains("FilterListsSourceMetadata.apply(src, summary.id, summary.name"));
+        assertTrue("Add-source flow must carry FilterLists list id.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_ID"));
+        assertTrue("Add-source flow must carry FilterLists directory name.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_NAME"));
+        assertTrue("Add-source flow must carry FilterLists syntax ids.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_SYNTAX_IDS"));
+        assertTrue("Add-source flow must carry FilterLists tag ids.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_TAG_IDS"));
+        assertTrue("Add-source flow must carry FilterLists language ids.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_LANGUAGE_IDS"));
+        assertTrue("Add-source flow must carry selected download URL.",
+                source.contains("SourceEditActivity.EXTRA_FILTER_LIST_SELECTED_URL"));
+    }
+
+    @Test
+    public void sourceEditPreservesFilterListsProvenanceWhenUrlIsUnchanged()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/source/SourceEditActivity.java");
+
+        assertTrue("Source edit must accept FilterLists provenance extras from Discover.",
+                source.contains("EXTRA_FILTER_LIST_ID"));
+        assertTrue("Source edit must accept FilterLists tag provenance extras from Discover.",
+                source.contains("EXTRA_FILTER_LIST_TAG_IDS"));
+        assertTrue("Source edit must accept FilterLists language provenance extras from Discover.",
+                source.contains("EXTRA_FILTER_LIST_LANGUAGE_IDS"));
+        assertTrue("New source validation must apply FilterLists provenance extras.",
+                source.contains("FilterListsSourceMetadata.apply(source, this.initialFilterListId"));
+        assertTrue("Editing an existing source must preserve metadata when URL is unchanged.",
+                source.contains("FilterListsSourceMetadata.copy(this.edited, source)"));
+        assertTrue("Metadata must be cleared when the URL changes instead of lying about provenance.",
+                source.contains("&& url.equals(this.edited.getUrl())"));
+    }
+
+    @Test
+    public void filterListsBulkActionsUseCurrentFilteredScope()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        assertTrue("Subscribe-all worker must receive the active visible filter scope.",
+                source.contains("FilterListsSubscribeAllWorker.buildScopeInput("));
+        assertTrue("Filtered bulk scope must pass exact visible list ids when filters are active.",
+                source.contains("getFilteredIdsForBulkScope()"));
+        assertTrue("Subscribe-all confirmation must count visible rows, not the entire directory.",
+                source.contains("for (FilterListsDirectoryApi.ListSummary summary : filtered)"));
+        assertTrue("Bulk action state must resolve against visible rows.",
+                source.contains("FilterListsSubscriptionState.resolve(filtered"));
+        assertTrue("Unsubscribe-all must remove sources from the visible scope.",
+                source.contains("new ArrayList<>(filtered)"));
+        assertTrue("Subscribe-all must not queue a background job for zero DNS-safe visible rows.",
+                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope"));
+        assertFalse("Subscribe-all confirmation must not count the whole directory.",
+                source.contains("for (FilterListsDirectoryApi.ListSummary summary : all) {\n"
+                        + "            if (isAdAwayCompatible(summary.syntaxIds))"));
+    }
+
+    @Test
+    public void filterListsCancellationKeepsDurableStoppingAndCancelledStates()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        assertTrue("Cancel must persist a stopping state across WorkManager observer updates.",
+                source.contains("KEY_SUBSCRIBE_ALL_STOPPING"));
+        assertTrue("Running observer must display stopping copy while cancellation is pending.",
+                source.contains("filterlists_subscribe_all_stopping"));
+        assertTrue("WorkManager CANCELLED state must produce a cancelled summary even with no output.",
+                source.contains("info.getState() == WorkInfo.State.CANCELLED"));
+        assertTrue("Zero-output cancelled work must keep a visible cancelled status.",
+                source.contains("return cancelled ? getString(R.string.filterlists_subscribe_all_cancelled) : null"));
+    }
+
+    @Test
+    public void filterListsBulkReviewDetailsUsePersistedOutcomeLedger()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+        String layout = readRepoFile(
+                "app/src/main/res/layout/fragment_discover_filterlists.xml");
+
+        assertTrue("Bulk review details must expose an explicit action.",
+                layout.contains("filterlistsReviewLastRunButton"));
+        assertTrue("Bulk no-URL retry must expose an explicit action.",
+                layout.contains("filterlistsRetryLastRunButton"));
+        assertTrue("Bulk unsupported review must expose an explicit action.",
+                layout.contains("filterlistsReviewUnsupportedButton"));
+        assertTrue("Review action must be wired to the last-run details dialog.",
+                source.contains("filterlistsReviewLastRunButton.setOnClickListener"));
+        assertTrue("Retry action must be wired to last-run no-URL retry.",
+                source.contains("filterlistsRetryLastRunButton.setOnClickListener"));
+        assertTrue("Unsupported review action must be wired to the last-run ledger.",
+                source.contains("filterlistsReviewUnsupportedButton.setOnClickListener"));
+        assertTrue("Review action must read the durable worker outcome ledger.",
+                source.contains("FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES"));
+        assertTrue("Review action must only show when persisted review items exist.",
+                source.contains("FilterListsSubscribeAllWorker.KEY_LAST_RUN_REVIEW_COUNT"));
+        assertTrue("Dialog formatting must cap rendered rows for large runs.",
+                source.contains("MAX_LAST_RUN_DIALOG_ROWS"));
+        assertTrue("Retry must clear cached no-URL markers before requeueing.",
+                source.contains("editor.remove(KEY_URL_PREFIX + id)"));
+        assertTrue("Retry must clear the in-memory URL cache before requeueing.",
+                source.contains("resolvedUrlCache.remove(id)"));
+        assertTrue("Retry must requeue the worker with an explicit list-id scope.",
+                source.contains("FilterListsSubscribeAllWorker.buildScopeInput(null, 0, 0, false,\n"
+                        + "                retryIds)"));
+        assertTrue("Unsupported review must parse unsupported outcomes from the same ledger.",
+                source.contains("parseUnsupportedIds(outcomes)"));
+    }
+
+    @Test
+    public void filterListsBulkReviewFormatterRendersReadableOutcomes() {
+        String ledger = "SUBSCRIBED\t10\tSafe hosts\thttps://safe.test/hosts.txt\n"
+                + "ALREADY\t11\tExisting\thttps://existing.test/hosts.txt\n"
+                + "SKIPPED_NO_URL\t12\tNo URL\t\n"
+                + "SKIPPED_UNSUPPORTED\t13\tBrowser rules\t";
+
+        assertEquals("Cancelled\n\n"
+                        + "Added - Safe hosts\n"
+                        + "https://safe.test/hosts.txt\n"
+                        + "Already - Existing\n"
+                        + "https://existing.test/hosts.txt\n"
+                        + "No URL - No URL\n"
+                        + "Unsupported - Browser rules",
+                DiscoverFilterListsFragment.formatLastRunReviewMessage(ledger, 4, true));
+    }
+
+    @Test
+    public void filterListsBulkRetryParserKeepsOnlyUniqueNoUrlIds() {
+        String ledger = "SUBSCRIBED\t10\tSafe hosts\thttps://safe.test/hosts.txt\n"
+                + "SKIPPED_NO_URL\t12\tNo URL\t\n"
+                + "SKIPPED_UNSUPPORTED\t13\tBrowser rules\t\n"
+                + "SKIPPED_NO_URL\t12\tNo URL duplicate\t\n"
+                + "SKIPPED_NO_URL\t0\tUnknown\t\n"
+                + "SKIPPED_NO_URL\tbad\tBad\t\n"
+                + "SKIPPED_NO_URL\t14\tNo URL 2\t";
+
+        assertArrayEquals(new int[]{12, 14},
+                DiscoverFilterListsFragment.parseRetryableNoUrlIds(ledger));
+    }
+
+    @Test
+    public void filterListsUnsupportedRowsOpenManualReviewInsteadOfDeadEndSnackbar()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+        String strings = readRepoFile(
+                "app/src/main/res/values/strings_filter_catalog.xml");
+
+        assertTrue("Unsupported rows must open a manual-review dialog.",
+                source.contains("showUnsupportedReviewDialog(summary)"));
+        assertTrue("Manual review must resolve FilterLists details before offering a URL.",
+                source.contains("api.getListDetails(summary.id)"));
+        assertTrue("Manual review must keep the compatibility warning visible.",
+                source.contains("filterlists_review_unsupported_message"));
+        assertTrue("Manual review must show exact capability/skipped-semantics detail.",
+                source.contains("FilterListCompatibility.capabilitySummary(summary.syntaxIds)"));
+        assertTrue("Manual add must remain an explicit dialog action.",
+                source.contains("builder.setPositiveButton(R.string.filterlists_add_manually"));
+        assertTrue("Manual add must still route through the normal source editor.",
+                source.contains("openSourceEditForFilterList(summary, label, url)"));
+        assertFalse("Unsupported row tap must not be only a dead-end snackbar.",
+                source.contains("showSnackbar(getString(R.string.filterlists_manual_review_required));\n"
+                        + "            return;"));
+        assertTrue("Unsupported review copy must avoid claiming browser-rule compatibility.",
+                strings.contains("does not subscribe it automatically"));
+    }
+
+    @Test
+    public void filterListsRowsExposeCapabilityDisclosure()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+        String layout = readRepoFile(
+                "app/src/main/res/layout/filterlists_import_item.xml");
+
+        assertTrue("Rows must show capability detail, not only raw syntax names.",
+                source.contains("formatDescriptionWithCapabilities(s.description, s.syntaxIds)"));
+        assertTrue("Rows must include capability detail in accessibility copy.",
+                source.contains("rowState + \". \" + capabilitySummary"));
+        assertTrue("Unsupported rows must show manual-review status copy.",
+                source.contains("FilterListCompatibility.rowSummary(s.syntaxIds)"));
+        assertTrue("Capability disclosure needs room for description plus support detail.",
+                layout.contains("android:maxLines=\"3\""));
+    }
+
+    @Test
+    public void filterListsBulkUnsupportedParserKeepsOnlyUniqueUnsupportedIds() {
+        String ledger = "SUBSCRIBED\t10\tSafe hosts\thttps://safe.test/hosts.txt\n"
+                + "SKIPPED_NO_URL\t12\tNo URL\t\n"
+                + "SKIPPED_UNSUPPORTED\t13\tBrowser rules\t\n"
+                + "SKIPPED_UNSUPPORTED\t13\tBrowser rules duplicate\t\n"
+                + "SKIPPED_UNSUPPORTED\t0\tUnknown\t\n"
+                + "SKIPPED_UNSUPPORTED\tbad\tBad\t\n"
+                + "SKIPPED_UNSUPPORTED\t15\tBrowser rules 2\t";
+
+        assertArrayEquals(new int[]{13, 15},
+                DiscoverFilterListsFragment.parseUnsupportedIds(ledger));
+    }
+
+    private static String readRepoFile(String relativePath) throws Exception {
+        Path cwd = Paths.get("").toAbsolutePath();
+        Path repo = Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
+        return new String(Files.readAllBytes(repo.resolve(relativePath)), StandardCharsets.UTF_8);
+    }
+}

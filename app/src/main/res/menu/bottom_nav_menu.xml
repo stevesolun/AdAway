@@ -12,6 +12,11 @@
         android:title="@string/nav_discover" />
 
     <item
+        android:id="@+id/nav_sources"
+        android:icon="@drawable/ic_collections_bookmark_24dp"
+        android:title="@string/nav_sources" />
+
+    <item
         android:id="@+id/nav_more"
         android:icon="@drawable/ic_settings_24dp"
         android:title="@string/nav_more" />

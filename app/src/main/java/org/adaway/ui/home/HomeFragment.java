@@ -1,6 +1,6 @@
 package org.adaway.ui.home;
 
-import static android.app.Activity.RESULT_OK;
+import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.adaway.model.adblocking.AdBlockMethod.UNDEFINED;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.adaway.ui.Animations.removeView;
@@ -11,19 +11,18 @@ import static org.adaway.ui.lists.ListsActivity.REDIRECTED_HOSTS_TAB;
 import static org.adaway.ui.lists.ListsActivity.TAB;
 
 import android.content.Context;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.view.inputmethod.EditorInfo;
 import android.content.res.Resources;
 import android.graphics.Typeface;
-import android.net.VpnService;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
@@ -39,6 +38,7 @@ import androidx.work.WorkManager;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
+import org.adaway.BuildConfig;
 import org.adaway.R;
 import org.adaway.databinding.FragmentHomeBinding;
 import org.adaway.ui.ai.AiSuggestBottomSheet;
@@ -50,8 +50,8 @@ import org.adaway.model.source.SourceModel.MultiPhaseProgress;
 import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.ui.hosts.FilterSetUpdateWorker;
-import org.adaway.ui.hosts.HostsSourcesActivity;
 import org.adaway.ui.lists.ListsActivity;
+import org.adaway.ui.prefs.PrefsActivity;
 import org.adaway.util.AppExecutors;
 
 import java.text.NumberFormat;
@@ -67,7 +67,6 @@ public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
     private HomeViewModel homeViewModel;
-    private ActivityResultLauncher<Intent> prepareVpnLauncher;
     private Snackbar filterListsProgressSnackbar;
     private Snackbar scheduledUpdateSnackbar;
     private boolean sourceModelProgressActive = false;
@@ -96,6 +95,8 @@ public class HomeFragment extends Fragment {
     private Observer<Integer> redirectHostCountObserver;
     private boolean hostCountersAttached = false;
     private boolean hostCountersPrimedDuringImport = false;
+    @Nullable
+    private String lastTerminalProgressAnnouncement;
 
     @Nullable
     @Override
@@ -121,7 +122,6 @@ public class HomeFragment extends Fragment {
         bindPending();
         bindState();
         bindClickListeners();
-        bindFab();
         bindFilterListsSubscribeAllProgress();
         bindScheduledUpdateProgress();
         bindSourceModelProgress();
@@ -129,25 +129,7 @@ public class HomeFragment extends Fragment {
 
         bindDiscoverCta();
         bindHomeAiBox();
-
-        this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
-            if (result.getResultCode() == RESULT_OK) {
-                if (PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
-                    Boolean isBlocked = this.homeViewModel.isAdBlocked().getValue();
-                    if (isBlocked == null || !isBlocked) {
-                        this.homeViewModel.toggleAdBlocking();
-                    }
-                }
-            } else {
-                PreferenceHelper.setAbBlockMethod(requireContext(), UNDEFINED);
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setIcon(android.R.drawable.ic_dialog_alert)
-                        .setTitle(R.string.welcome_vpn_method_title)
-                        .setMessage(R.string.welcome_vpn_alwayson_blocked_description)
-                        .setPositiveButton(R.string.button_close, (d, which) -> d.dismiss())
-                        .show();
-            }
-        });
+        bindLeakStatus();
     }
 
     @Override
@@ -162,6 +144,12 @@ public class HomeFragment extends Fragment {
             this.scheduledUpdateSnackbar = null;
         }
         this.binding = null;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        renderLeakStatus();
     }
 
     // -----------------------------------------------------------------------------------------
@@ -239,15 +227,6 @@ public class HomeFragment extends Fragment {
                         this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
                     }
                     showView(this.binding.content.filterListsSubscribeProgressBar);
-
-                    if (filterListsProgressSnackbar == null) {
-                        filterListsProgressSnackbar = Snackbar
-                                .make(this.binding.getRoot(), msg, Snackbar.LENGTH_INDEFINITE)
-                                .setAction("View", v -> navigateToDiscover());
-                        filterListsProgressSnackbar.show();
-                    } else {
-                        filterListsProgressSnackbar.setText(msg);
-                    }
                 });
     }
 
@@ -301,14 +280,6 @@ public class HomeFragment extends Fragment {
                             this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
                         }
                         showView(this.binding.content.filterListsSubscribeProgressBar);
-                    }
-
-                    if (scheduledUpdateSnackbar == null) {
-                        scheduledUpdateSnackbar = Snackbar.make(this.binding.getRoot(), msg,
-                                Snackbar.LENGTH_INDEFINITE);
-                        scheduledUpdateSnackbar.show();
-                    } else {
-                        scheduledUpdateSnackbar.setText(msg);
                     }
                 });
     }
@@ -388,15 +359,21 @@ public class HomeFragment extends Fragment {
             if (this.binding == null) return;
             if (progress == null || !progress.isActive()) {
                 removeView(this.binding.content.multiPhaseProgressContainer);
-                initialBlockedCount = -1;
-                hostCountersPrimedDuringImport = false;
+                resetImportCounterGuards();
+                lastTerminalProgressAnnouncement = null;
                 attachHostCounterObservers();
                 return;
             }
 
             showView(this.binding.content.multiPhaseProgressContainer);
-            detachHostCounterObservers();
-            primeCountersOnceDuringImport();
+            if (progress.isStopped) {
+                resetImportCounterGuards();
+                attachHostCounterObservers();
+                refreshHostCountersOnce();
+            } else {
+                detachHostCounterObservers();
+                primeCountersOnceDuringImport();
+            }
 
             if (initialBlockedCount < 0) {
                 long cached = this.homeViewModel.getCachedInitialBlockedCount();
@@ -431,8 +408,7 @@ public class HomeFragment extends Fragment {
                     final Context appContext = requireContext().getApplicationContext();
                     AppExecutors.getInstance().diskIO().execute(() -> {
                         try {
-                            int blockedNow = AppDatabase.getInstance(appContext)
-                                    .hostEntryDao().getBlockedEntryCountNow();
+                            int blockedNow = getBlockedEntryCountNow(appContext);
                             AppExecutors.getInstance().mainThread().execute(() -> {
                                 if (this.binding == null) return;
                                 if (initialBlockedCount <= 0) {
@@ -448,22 +424,38 @@ public class HomeFragment extends Fragment {
                 }
             }
 
-            long baseline = Math.max(0, initialBlockedCount);
-            long liveBlockedCount = Math.max(baseline, progress.parsedHostCount);
-            this.binding.content.blockedHostCounterTextView.setText(formatCount(liveBlockedCount));
-
             double overallPercentDouble = progress.getOverallPercentDouble();
             int overallPercent = (int) overallPercentDouble;
             this.binding.content.overallProgressBar.setMax(100);
             this.binding.content.overallProgressBar.setProgress(overallPercent);
             String progressText;
-            if (progress.parsedHostCount > 0) {
-                progressText = String.format(java.util.Locale.ROOT, "%.1f%% Complete \u2022 %,d blocked",
+            if (progress.isStopped) {
+                progressText = getString(R.string.update_progress_stopped);
+            } else if (progress.isFinalizing) {
+                if (progress.parsedHostCount > 0) {
+                    progressText = getString(R.string.update_progress_finalizing_with_rules,
+                            progress.parsedHostCount);
+                } else {
+                    progressText = getString(R.string.update_progress_finalizing);
+                }
+            } else if (progress.isComplete) {
+                progressText = getString(R.string.update_progress_complete);
+            } else if (progress.parsedHostCount > 0) {
+                progressText = getString(R.string.update_progress_with_rules,
                         overallPercentDouble, progress.parsedHostCount);
             } else {
-                progressText = String.format(java.util.Locale.ROOT, "%.1f%% Complete", overallPercentDouble);
+                progressText = getString(R.string.update_progress_percent, overallPercentDouble);
             }
             this.binding.content.overallProgressText.setText(progressText);
+            if (progress.isComplete || progress.isStopped) {
+                if (!progressText.equals(lastTerminalProgressAnnouncement)) {
+                    this.binding.content.overallProgressText
+                            .announceForAccessibility(progressText);
+                    lastTerminalProgressAnnouncement = progressText;
+                }
+            } else {
+                lastTerminalProgressAnnouncement = null;
+            }
 
             View progressFrame = this.binding.content.overallProgressFrame;
             View progressBar = this.binding.content.overallProgressBar;
@@ -485,6 +477,12 @@ public class HomeFragment extends Fragment {
             this.binding.content.checkProgressBar.setVisibility(View.GONE);
             this.binding.content.checkPhasePercent.setVisibility(View.GONE);
             this.binding.content.checkPhaseLabel.setVisibility(View.GONE);
+            this.binding.content.downloadProgressBar.setVisibility(View.GONE);
+            this.binding.content.downloadPhasePercent.setVisibility(View.GONE);
+            this.binding.content.downloadPhaseLabel.setVisibility(View.GONE);
+            this.binding.content.parseProgressBar.setVisibility(View.GONE);
+            this.binding.content.parsePhasePercent.setVisibility(View.GONE);
+            this.binding.content.parsePhaseLabel.setVisibility(View.GONE);
 
             int totalToCheck = progress.totalToCheck;
             int checked = progress.checkedCount;
@@ -504,7 +502,9 @@ public class HomeFragment extends Fragment {
             if (progress.schedulerTaskName != null && !progress.schedulerTaskName.isEmpty()) {
                 this.binding.content.schedulerTaskContainer.setVisibility(View.VISIBLE);
                 this.binding.content.schedulerTaskName
-                        .setText("Scheduled: " + progress.schedulerTaskName);
+                        .setText(getString(
+                                R.string.scheduled_update_task_label,
+                                progress.schedulerTaskName));
             } else {
                 this.binding.content.schedulerTaskContainer.setVisibility(View.GONE);
             }
@@ -518,6 +518,11 @@ public class HomeFragment extends Fragment {
                 this.binding.content.pauseResumeButton
                         .setContentDescription(getString(R.string.pause_update));
             }
+            boolean controlsEnabled = !progress.isFinalizing
+                    && !progress.isStopped
+                    && !progress.isComplete;
+            this.binding.content.pauseResumeButton.setEnabled(controlsEnabled);
+            this.binding.content.stopButton.setEnabled(controlsEnabled);
         });
     }
 
@@ -526,6 +531,10 @@ public class HomeFragment extends Fragment {
     // -----------------------------------------------------------------------------------------
 
     private void bindHomeAiBox() {
+        if (!BuildConfig.AI_FEATURE_ENABLED) {
+            this.binding.content.aiBoxCard.setVisibility(View.GONE);
+            return;
+        }
         // "Ask" button: grab the typed query and open the bottom sheet with it pre-filled.
         // The sheet handles validation (empty query, missing API key, etc.).
         this.binding.content.homeAiAskButton.setOnClickListener(v -> {
@@ -572,15 +581,19 @@ public class HomeFragment extends Fragment {
 
     private void bindAppVersion() {
         TextView versionTextView = this.binding.content.versionTextView;
+        Typeface defaultTypeface = versionTextView.getTypeface();
         versionTextView.setText(this.homeViewModel.getVersionName());
         versionTextView.setOnClickListener(v ->
                 startActivity(new Intent(requireContext(),
                         org.adaway.ui.update.UpdateActivity.class)));
 
         this.homeViewModel.getAppManifest().observe(getViewLifecycleOwner(), manifest -> {
-            if (manifest.updateAvailable) {
+            if (manifest != null && manifest.updateAvailable) {
                 versionTextView.setTypeface(versionTextView.getTypeface(), Typeface.BOLD);
                 versionTextView.setText(R.string.update_available);
+            } else {
+                versionTextView.setTypeface(defaultTypeface, Typeface.NORMAL);
+                versionTextView.setText(this.homeViewModel.getVersionName());
             }
         });
     }
@@ -610,6 +623,12 @@ public class HomeFragment extends Fragment {
 
         attachHostCounterObservers();
         refreshHostCountersOnce();
+    }
+
+    private void resetImportCounterGuards() {
+        initialBlockedCount = -1;
+        this.homeViewModel.setCachedInitialBlockedCount(-1);
+        hostCountersPrimedDuringImport = false;
     }
 
     private void refreshHostCountersOnce() {
@@ -754,35 +773,25 @@ public class HomeFragment extends Fragment {
         this.binding.content.redirectHostCardView
                 .setOnClickListener(v -> startHostListActivity(REDIRECTED_HOSTS_TAB));
         this.binding.content.sourcesCardView
-                .setOnClickListener(v -> startActivity(
-                        new Intent(requireContext(), HostsSourcesActivity.class)));
+                .setOnClickListener(v -> {
+                    if (getActivity() instanceof HomeActivity) {
+                        ((HomeActivity) getActivity()).navigateTo(R.id.nav_sources);
+                    }
+                });
         this.binding.content.checkForUpdateImageView
                 .setOnClickListener(v -> this.homeViewModel.update());
         this.binding.content.updateImageView
                 .setOnClickListener(v -> this.homeViewModel.sync());
     }
 
-    private void bindFab() {
-        this.binding.fab.setOnClickListener(v -> {
-            MultiPhaseProgress progress = this.homeViewModel.getMultiPhaseProgress().getValue();
-            if (progress != null && progress.isActive()) {
-                if (progress.isPaused) {
-                    this.homeViewModel.resumeUpdate();
-                } else {
-                    this.homeViewModel.pauseUpdate();
-                }
-            } else {
-                AdBlockMethod method = PreferenceHelper.getAdBlockMethod(requireContext());
-                if (method == VPN) {
-                    Intent prepareIntent = VpnService.prepare(requireContext());
-                    if (prepareIntent != null) {
-                        this.prepareVpnLauncher.launch(prepareIntent);
-                        return;
-                    }
-                }
-                this.homeViewModel.toggleAdBlocking();
-            }
-        });
+    private void bindLeakStatus() {
+        this.binding.content.leakStatusCardView
+                .setOnClickListener(v -> startActivity(new Intent(requireContext(), PrefsActivity.class)));
+        this.binding.content.leakPrivateDnsButton
+                .setOnClickListener(v -> openPrivateDnsSettings());
+        this.binding.content.leakVpnSettingsButton
+                .setOnClickListener(v -> openVpnSettings());
+        renderLeakStatus();
     }
 
     // -----------------------------------------------------------------------------------------
@@ -799,11 +808,6 @@ public class HomeFragment extends Fragment {
         if (this.binding == null) return;
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
-        if (adBlocked) {
-            this.binding.fab.setImageResource(R.drawable.icon_foreground_red);
-        } else {
-            this.binding.fab.setImageResource(R.drawable.icon_foreground_white);
-        }
     }
 
     private void notifyError(HostError error) {
@@ -826,6 +830,121 @@ public class HomeFragment extends Fragment {
                 .show();
     }
 
+    private void renderLeakStatus() {
+        if (this.binding == null) return;
+        LeakStatus status = LeakStatus.from(requireContext());
+        int riskCount = status.riskCount();
+        this.binding.content.leakStatusSummaryTextView.setText(status.hasRisks()
+                ? getResources().getQuantityString(
+                R.plurals.leak_status_summary_risky, riskCount, riskCount)
+                : getString(R.string.leak_status_summary_clean));
+        this.binding.content.leakStatusDetailTextView.setText(buildLeakStatusDetails(status));
+        boolean showPrivateDnsButton = status.hasPrivateDnsRisk();
+        boolean showVpnSettingsButton = status.method == VPN;
+        this.binding.content.leakPrivateDnsButton.setVisibility(
+                showPrivateDnsButton ? View.VISIBLE : View.GONE);
+        this.binding.content.leakVpnSettingsButton.setVisibility(
+                showVpnSettingsButton ? View.VISIBLE : View.GONE);
+        this.binding.content.leakStatusActions.setVisibility(
+                showPrivateDnsButton || showVpnSettingsButton ? View.VISIBLE : View.GONE);
+    }
+
+    private String buildLeakStatusDetails(LeakStatus status) {
+        StringBuilder builder = new StringBuilder();
+        appendLine(builder, getProtectionModeLine(status));
+        appendLine(builder, getPrivateDnsLine(status));
+        appendLine(builder, getDohLine(status));
+        appendLine(builder, getVpnBypassLine(status));
+        if (status.method == VPN) {
+            appendLine(builder, getString(R.string.leak_status_strict_hint));
+        }
+        return builder.toString();
+    }
+
+    private String getProtectionModeLine(LeakStatus status) {
+        switch (status.method) {
+            case ROOT:
+                return getString(R.string.leak_status_mode_root);
+            case VPN:
+                return getString(status.vpnRunning
+                        ? R.string.leak_status_mode_vpn_running
+                        : R.string.leak_status_mode_vpn_stopped);
+            case UNDEFINED:
+            default:
+                return getString(R.string.leak_status_mode_unconfigured);
+        }
+    }
+
+    private String getPrivateDnsLine(LeakStatus status) {
+        if (status.isPrivateDnsUnknown()) {
+            return getString(R.string.leak_status_private_dns_unknown);
+        }
+        if (!status.isPrivateDnsActive()) {
+            return getString(R.string.leak_status_private_dns_off);
+        }
+        if (LeakStatus.PRIVATE_DNS_MODE_HOSTNAME.equals(status.privateDnsMode)
+                && status.privateDnsSpecifier != null
+                && !status.privateDnsSpecifier.isEmpty()) {
+            return getString(R.string.leak_status_private_dns_provider,
+                    status.privateDnsSpecifier);
+        }
+        return getString(R.string.leak_status_private_dns_auto);
+    }
+
+    private String getDohLine(LeakStatus status) {
+        return status.hasCommonDohRouteCoverage()
+                ? getString(R.string.leak_status_doh_limited)
+                : getString(R.string.leak_status_doh_risk);
+    }
+
+    private String getVpnBypassLine(LeakStatus status) {
+        if (status.method != VPN) {
+            return getString(R.string.leak_status_excluded_none);
+        }
+        StringBuilder builder = new StringBuilder();
+        if (status.vpnBypassAllowed) {
+            builder.append(getString(R.string.leak_status_app_bypass_allowed));
+        }
+        if (status.excludedUserAppCount > 0) {
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(getResources().getQuantityString(
+                    R.plurals.leak_status_excluded_user_apps,
+                    status.excludedUserAppCount,
+                    status.excludedUserAppCount));
+        } else if (builder.length() == 0) {
+            builder.append(getString(R.string.leak_status_excluded_none));
+        }
+        if (!LeakStatus.VPN_EXCLUDED_SYSTEM_NONE.equals(status.excludedSystemApps)) {
+            builder.append(" · ");
+            builder.append("all".equals(status.excludedSystemApps)
+                    ? getString(R.string.leak_status_excluded_system_all)
+                    : getString(R.string.leak_status_excluded_system_browsers));
+        }
+        return builder.toString();
+    }
+
+    private void openPrivateDnsSettings() {
+        Intent intent = new Intent("android.settings.PRIVATE_DNS_SETTINGS");
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException exception) {
+            startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS));
+        }
+    }
+
+    private void openVpnSettings() {
+        startActivity(new Intent(Settings.ACTION_VPN_SETTINGS));
+    }
+
+    private static void appendLine(StringBuilder builder, String line) {
+        if (builder.length() > 0) {
+            builder.append('\n');
+        }
+        builder.append(line);
+    }
+
     private void navigateToDiscover() {
         if (getActivity() instanceof HomeActivity) {
             ((HomeActivity) getActivity()).navigateTo(R.id.nav_discover);
@@ -838,5 +957,12 @@ public class HomeFragment extends Fragment {
         int exp = (int) (Math.log(value) / Math.log(unit));
         String pre = "kMGTPE".charAt(exp - 1) + "";
         return String.format(java.util.Locale.ROOT, "%.1f%s", value / Math.pow(unit, exp), pre);
+    }
+
+    private static int getBlockedEntryCountNow(@NonNull Context context) {
+        if (PreferenceHelper.getAdBlockMethod(context) == ROOT) {
+            return AppDatabase.getInstance(context).hostEntryDao().getBlockedExactEntryCountNow();
+        }
+        return AppDatabase.getInstance(context).hostEntryDao().getBlockedEntryCountNow();
     }
 }

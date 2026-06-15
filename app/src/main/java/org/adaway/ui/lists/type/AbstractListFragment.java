@@ -11,6 +11,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -20,6 +21,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.paging.LoadState;
 import androidx.paging.PagingData;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -29,6 +31,8 @@ import org.adaway.db.entity.HostListItem;
 import org.adaway.ui.lists.ListsViewCallback;
 import org.adaway.ui.lists.ListsViewModel;
 import org.adaway.util.Clipboard;
+
+import kotlin.Unit;
 
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 
@@ -66,6 +70,14 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
      * view is not created).
      */
     private View mActionSourceView;
+    /**
+     * Whether the list is currently waiting on a refresh load.
+     */
+    private boolean mListLoading = true;
+    /**
+     * Whether the last refresh load failed.
+     */
+    private boolean mListLoadFailed;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
@@ -86,6 +98,19 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
         // Create recycler adapter
         ListsAdapter adapter = new ListsAdapter(this, isTwoRowsItem());
         recyclerView.setAdapter(adapter);
+        view.findViewById(R.id.hostsListsStateRetryButton)
+                .setOnClickListener(retryView -> adapter.retry());
+        adapter.addLoadStateListener(loadStates -> {
+            LoadState refresh = loadStates.getRefresh();
+            this.mListLoading = refresh instanceof LoadState.Loading;
+            this.mListLoadFailed = refresh instanceof LoadState.Error;
+            updateListState(view, recyclerView, adapter);
+            return Unit.INSTANCE;
+        });
+        adapter.addOnPagesUpdatedListener(() -> {
+            updateListState(view, recyclerView, adapter);
+            return Unit.INSTANCE;
+        });
         /*
          * Create action mode.
          */
@@ -169,6 +194,7 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 mViewModel.search(s.toString());
+                updateListState(view, recyclerView, adapter);
             }
             @Override
             public void afterTextChanged(Editable s) {}
@@ -180,6 +206,31 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
         }
         // Return created view
         return view;
+    }
+
+    private void updateListState(@NonNull View root, @NonNull RecyclerView recyclerView,
+            @NonNull ListsAdapter adapter) {
+        int state = ListsUiState.resolve(this.mListLoading, this.mListLoadFailed,
+                adapter.getItemCount(), this.mViewModel != null && this.mViewModel.isSearching());
+        View stateContainer = root.findViewById(R.id.hostsListsStateContainer);
+        TextView stateTitle = root.findViewById(R.id.hostsListsStateTitle);
+        TextView stateMessage = root.findViewById(R.id.hostsListsStateMessage);
+        View retryButton = root.findViewById(R.id.hostsListsStateRetryButton);
+        boolean visible = state != ListsUiState.HIDDEN;
+        stateContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
+        recyclerView.setVisibility(visible ? View.GONE : View.VISIBLE);
+        retryButton.setVisibility(state == ListsUiState.LOAD_FAILED ? View.VISIBLE : View.GONE);
+
+        if (state == ListsUiState.LOAD_FAILED) {
+            stateTitle.setText(R.string.lists_state_load_failed_title);
+            stateMessage.setText(R.string.lists_state_load_failed_message);
+        } else if (state == ListsUiState.NO_RULES) {
+            stateTitle.setText(R.string.lists_state_no_rules_title);
+            stateMessage.setText(R.string.lists_state_no_rules_message);
+        } else if (state == ListsUiState.NO_MATCHES) {
+            stateTitle.setText(R.string.lists_state_no_matches_title);
+            stateMessage.setText(R.string.lists_state_no_matches_message);
+        }
     }
 
     @Override
@@ -257,7 +308,13 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
     protected abstract void editItem(HostListItem item);
 
     protected void deleteItem(HostListItem item) {
-        this.mViewModel.removeListItem(item);
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.list_delete_confirm_title)
+                .setMessage(getString(R.string.list_delete_confirm_message, item.getHost()))
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(R.string.list_delete_confirm_action,
+                        (dialog, which) -> this.mViewModel.removeListItem(item))
+                .show();
     }
 
     @Override

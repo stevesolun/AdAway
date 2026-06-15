@@ -5,6 +5,7 @@
     <string name="blocked_hosts_label">Blocked</string>
     <string name="allowed_hosts_label">Allowed</string>
     <string name="redirect_hosts_label">Redirected</string>
+    <string name="home_count_zero">0</string>
 
     <!-- Source card -->
     <plurals name="up_to_date_source_label">
@@ -25,20 +26,52 @@
     <string name="help_label">Show help\nand tips</string>
 
     <!-- Project card -->
-    <string name="project_label">Open GitHub page</string>
+
 
     <!-- Support card -->
     <string name="support_label">Support the project</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub project</string>
     <string name="preferences_drawer_item">Preferences</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Open navigation drawer</string>
     <string name="adblock_pause_button_description">Pause/resume ad blocking</string>
-    <string name="update_button">Update blocked domains</string>
-    <string name="show_log_button">Show requested domains</string>
+    <string name="scheduled_update_task_label">Scheduled: %1$s</string>
+    <string name="update_progress_percent">%1$.1f%% Complete</string>
+    <string name="update_progress_with_rules">%1$.1f%% Complete - %2$,d accepted rules</string>
+    <string name="update_progress_finalizing">Finalizing protection</string>
+    <string name="update_progress_finalizing_with_rules">Finalizing protection - %1$,d accepted rules</string>
+    <string name="update_progress_complete">Protection updated</string>
+    <string name="update_progress_stopped">Update stopped</string>
+
+    <!-- Leak status card -->
+    <string name="leak_status_title">Leak resistance</string>
+    <plurals name="leak_status_summary_risky">
+        <item quantity="one">%d risk needs attention</item>
+        <item quantity="other">%d risks need attention</item>
+    </plurals>
+    <string name="leak_status_summary_clean">No detected DNS leak risks</string>
+    <string name="leak_status_mode_unconfigured">Protection method: not configured</string>
+    <string name="leak_status_mode_root">Protection method: root hosts file</string>
+    <string name="leak_status_mode_vpn_running">Protection method: VPN running</string>
+    <string name="leak_status_mode_vpn_stopped">Protection method: VPN selected but not running</string>
+    <string name="leak_status_private_dns_off">Private DNS: off</string>
+    <string name="leak_status_private_dns_unknown">Private DNS: status unavailable</string>
+    <string name="leak_status_private_dns_auto">Private DNS: automatic</string>
+    <string name="leak_status_private_dns_provider">Private DNS: %s</string>
+    <string name="leak_status_doh_limited">Encrypted DNS: common DoH providers routed; other encrypted DNS may bypass filtering</string>
+    <string name="leak_status_doh_risk">Browser DoH: can bypass DNS-level filtering</string>
+    <plurals name="leak_status_excluded_user_apps">
+        <item quantity="one">VPN bypass: %d user app excluded</item>
+        <item quantity="other">VPN bypass: %d user apps excluded</item>
+    </plurals>
+    <string name="leak_status_excluded_none">VPN bypass: no excluded apps</string>
+    <string name="leak_status_app_bypass_allowed">VPN bypass: app-managed bypass allowed</string>
+    <string name="leak_status_excluded_system_all">System apps: all excluded</string>
+    <string name="leak_status_excluded_system_browsers">System apps: all except browsers excluded</string>
+    <string name="leak_status_strict_hint">Strict mode: enable Always-on VPN and Block connections without VPN in Android settings.</string>
+    <string name="leak_status_private_dns_button">Private DNS</string>
+    <string name="leak_status_vpn_button">VPN settings</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Please read Help for more information.</string>

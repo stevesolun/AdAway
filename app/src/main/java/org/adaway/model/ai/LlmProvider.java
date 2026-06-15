@@ -1,5 +1,7 @@
 package org.adaway.model.ai;
 
+import java.util.Locale;
+
 /**
  * Supported LLM providers and their available models.
  * Each provider is accessible via raw HTTP with OkHttp — no SDK dependencies.
@@ -87,7 +89,7 @@ public enum LlmProvider {
 
     /** Preference key for storing this provider's API key in SecureApiKeyStore. */
     public String getApiKeyName() {
-        return "ai_key_" + name().toLowerCase();
+        return "ai_key_" + name().toLowerCase(Locale.ROOT);
     }
 
     /** Ordered list of display names for all providers (for ListPreference). */

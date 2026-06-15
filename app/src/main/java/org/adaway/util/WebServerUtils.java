@@ -20,30 +20,16 @@
 
 package org.adaway.util;
 
-import android.content.ContentResolver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.res.AssetManager;
-import android.net.Uri;
-import android.security.KeyChain;
-import android.view.ContextThemeWrapper;
 
 import androidx.annotation.StringRes;
 
 import org.adaway.R;
-import org.adaway.helper.PreferenceHelper;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.ConnectException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import javax.net.ssl.SSLHandshakeException;
-import javax.security.cert.CertificateException;
-import javax.security.cert.X509Certificate;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -52,7 +38,6 @@ import timber.log.Timber;
 
 import static org.adaway.model.root.ShellUtils.isBundledExecutableRunning;
 import static org.adaway.model.root.ShellUtils.killBundledExecutable;
-import static org.adaway.model.root.ShellUtils.runBundledExecutable;
 
 /**
  * This class is an utility class to control web server execution.
@@ -62,8 +47,6 @@ import static org.adaway.model.root.ShellUtils.runBundledExecutable;
 public class WebServerUtils {
     public static final String TEST_URL = "https://localhost/internal-test";
     private static final String WEB_SERVER_EXECUTABLE = "webserver";
-    private static final String LOCALHOST_CERTIFICATE = "localhost-2410.crt";
-    private static final String LOCALHOST_CERTIFICATE_KEY = "localhost-2410.key";
 
     /**
      * Start the web server in new thread with RootTools
@@ -71,15 +54,11 @@ public class WebServerUtils {
      * @param context The application context.
      */
     public static void startWebServer(Context context) {
+        if (!isWebServerAvailable(context)) {
+            Timber.w("Bundled web server executable is not available.");
+            return;
+        }
         Timber.d("Starting web server…");
-
-        Path resourcePath = context.getFilesDir().toPath().resolve(WEB_SERVER_EXECUTABLE);
-        inflateResources(context, resourcePath);
-
-        String parameters = "--resources " + resourcePath.toAbsolutePath() +
-                (PreferenceHelper.getWebServerIcon(context) ? " --icon" : "") +
-                " > /dev/null 2>&1";
-        runBundledExecutable(context, WEB_SERVER_EXECUTABLE, parameters);
     }
 
     /**
@@ -96,6 +75,10 @@ public class WebServerUtils {
      */
     public static boolean isWebServerRunning() {
         return isBundledExecutableRunning(WEB_SERVER_EXECUTABLE);
+    }
+
+    public static boolean isWebServerAvailable(Context context) {
+        return false;
     }
 
     /**
@@ -123,70 +106,4 @@ public class WebServerUtils {
         }
     }
 
-    /**
-     * Prompt user to install web server certificate.
-     *
-     * @param context The application context.
-     */
-    public static void installCertificate(Context context) {
-        AssetManager assetManager = context.getAssets();
-        try (InputStream inputStream = assetManager.open(LOCALHOST_CERTIFICATE);
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, read);
-            }
-            byte[] bytes = outputStream.toByteArray();
-            X509Certificate x509 = X509Certificate.getInstance(bytes);
-            Intent intent = KeyChain.createInstallIntent();
-            intent.putExtra(KeyChain.EXTRA_CERTIFICATE, x509.getEncoded());
-            intent.putExtra(KeyChain.EXTRA_NAME, "AdAway");
-            context.startActivity(intent);
-        } catch (IOException e) {
-            Timber.w(e, "Failed to read certificate.");
-        } catch (CertificateException e) {
-            Timber.w(e, "Failed to parse certificate.");
-        }
-    }
-
-    public static void copyCertificate(ContextThemeWrapper wrapper, Uri uri) {
-        ContentResolver contentResolver = wrapper.getContentResolver();
-        AssetManager assetManager = wrapper.getAssets();
-        try (InputStream inputStream = assetManager.open(LOCALHOST_CERTIFICATE);
-             OutputStream outputStream = contentResolver.openOutputStream(uri)) {
-            if (outputStream == null) {
-                throw new IOException("Failed to open "+uri);
-            }
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, read);
-            }
-        } catch (IOException e) {
-            Timber.w(e, "Failed to copy certificate.");
-        }
-    }
-
-    private static void inflateResources(Context context, Path target) {
-        AssetManager assetManager = context.getAssets();
-        try {
-            inflateResource(assetManager, LOCALHOST_CERTIFICATE, target);
-            inflateResource(assetManager, LOCALHOST_CERTIFICATE_KEY, target);
-            inflateResource(assetManager, "icon.svg", target);
-            inflateResource(assetManager, "test.html", target);
-        } catch (IOException e) {
-            Timber.w(e, "Failed to inflate web server resources.");
-        }
-    }
-
-    private static void inflateResource(AssetManager assetManager, String resource, Path target) throws IOException {
-        if (!Files.isDirectory(target)) {
-            Files.createDirectories(target);
-        }
-        Path targetFile = target.resolve(resource);
-        if (!Files.isRegularFile(targetFile)) {
-            Files.copy(assetManager.open(resource), targetFile);
-        }
-    }
 }

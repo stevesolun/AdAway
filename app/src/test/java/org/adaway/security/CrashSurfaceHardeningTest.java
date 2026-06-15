@@ -1,0 +1,64 @@
+package org.adaway.security;
+
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static org.junit.Assert.assertTrue;
+
+public class CrashSurfaceHardeningTest {
+
+    @Test
+    public void bootReceiverAddsNewTaskFlagBeforeStartingVpnPermissionActivity() throws IOException {
+        String source = read("app/src/main/java/org/adaway/broadcast/BootReceiver.java");
+
+        assertTrue("Broadcast receivers must add FLAG_ACTIVITY_NEW_TASK before starting a VPN "
+                        + "permission Activity.",
+                source.contains("prepareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);"));
+    }
+
+    @Test
+    public void apkDownloadReceiverContainsInstallerIntentExceptionGuards() throws IOException {
+        String source = read("app/src/main/java/org/adaway/model/update/ApkDownloadReceiver.java");
+
+        assertTrue("Updater must check installer/settings handlers before startActivity.",
+                source.contains("resolveActivity(context.getPackageManager())"));
+        assertTrue("Updater must contain missing Activity handlers.",
+                source.contains("ActivityNotFoundException"));
+        assertTrue("Updater must contain installer permission/security failures.",
+                source.contains("SecurityException"));
+    }
+
+    @Test
+    public void updateViewModelGuardsUnavailableDownloadCursorAndColumns() throws IOException {
+        String source = read("app/src/main/java/org/adaway/ui/update/UpdateViewModel.java");
+
+        assertTrue("Progress tracking must handle a missing DownloadManager service.",
+                source.contains("downloadManager == null"));
+        assertTrue("Progress tracking must handle a null query cursor.",
+                source.contains("cursor == null"));
+        assertTrue("Progress tracking must reject missing status columns.",
+                source.contains("statusColumnIndex < 0"));
+        assertTrue("Progress tracking must reject missing progress columns.",
+                source.contains("totalSizeColumnIndex < 0")
+                        && source.contains("bytesDownloadedColumnIndex < 0"));
+    }
+
+    private static String read(String relativePath) throws IOException {
+        Path path = repoDir().resolve(relativePath);
+        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+    }
+
+    private static Path repoDir() {
+        Path cwd = Paths.get("").toAbsolutePath();
+        if (Files.isDirectory(cwd.resolve("src/main"))) {
+            Path parent = cwd.getParent();
+            return parent != null && cwd.getFileName().toString().equals("app") ? parent : cwd;
+        }
+        return cwd;
+    }
+}

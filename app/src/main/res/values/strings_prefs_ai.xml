@@ -65,32 +65,27 @@
     <string name="ai_suggest_title">Ask AI</string>
     <string name="ai_suggest_hint">e.g. Block ads, protect privacy, keep WhatsApp working</string>
     <string name="ai_suggest_ask_button">Ask</string>
-    <string name="ai_suggest_apply_button">Apply Selected</string>
-    <string name="ai_suggest_categories_label">Suggested categories:</string>
+
+
     <string name="ai_suggest_query_empty">Please enter a question</string>
-    <string name="ai_suggest_no_api_key">No API key set. Configure one in Settings → AI Assistant.</string>
+    <string name="ai_suggest_no_api_key">No API key set. Configure one in More → Preferences → AI Assistant.</string>
     <string name="ai_suggest_error_generic">Something went wrong. Check your API key and try again.</string>
-    <string name="ai_suggest_no_categories_selected">Select at least one category</string>
-    <string name="ai_suggest_already_subscribed">Already subscribed to these lists</string>
-    <plurals name="ai_suggest_summary">
-        <item quantity="one">Will add ~%d filter list</item>
-        <item quantity="other">Will add ~%d filter lists</item>
-    </plurals>
-    <plurals name="ai_suggest_applied">
-        <item quantity="one">Added %d filter list</item>
-        <item quantity="other">Added %d filter lists</item>
-    </plurals>
+
+
+
+
 
     <!-- Discover tab button -->
     <string name="discover_ask_ai">Ask AI</string>
 
     <!-- Home screen AI box -->
     <string name="home_ai_box_hint">Ask AI to configure filters…</string>
-    <string name="home_ai_title">AI Filter Assistant</string>
+
 
     <!-- Provider · model label shown in bottom sheet header -->
     <!-- %1$s = provider display name (e.g. "Claude"), %2$s = model display name (e.g. "Sonnet 4.6") -->
     <string name="ai_provider_model_label">%1$s · %2$s</string>
+    <string name="ai_provider_default_claude" translatable="false">Claude</string>
 
     <!-- Agent mode strings -->
     <string name="ai_agent_actions_label">Planned actions:</string>
@@ -102,6 +97,7 @@
     <string name="ai_action_check_domain">Check if %s is blocked</string>
     <string name="ai_action_allow_domain">Allow %s (add to allowlist)</string>
     <string name="ai_action_block_domain">Block %s</string>
+    <string name="ai_action_bullet">• %1$s</string>
     <string name="ai_suggest_no_actions">No actions to execute</string>
     <string name="ai_suggest_no_actions_available">No actions available for this request</string>
 </resources>

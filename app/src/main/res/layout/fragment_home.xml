@@ -1,20 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    HomeFragment layout: wraps the existing home_content inside a CoordinatorLayout
-    so the FAB (bird button) and BottomAppBar still function correctly.
--->
+<!-- HomeFragment layout: wraps the existing home_content inside a CoordinatorLayout. -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/home_fragment_coordinator"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/ui_bg">
+    android:layout_height="match_parent">
 
-    <include
-        android:id="@+id/content"
-        layout="@layout/home_content" />
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/home_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingBottom="@dimen/home_bottom_action_clearance">
+
+        <include
+            android:id="@+id/content"
+            layout="@layout/home_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </androidx.core.widget.NestedScrollView>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/discoverCta"
@@ -25,21 +33,5 @@
         android:text="@string/home_discover_cta"
         android:visibility="gone"
         tools:visibility="visible" />
-
-    <androidx.appcompat.widget.AppCompatImageView
-        android:id="@+id/fab"
-        android:layout_width="128dp"
-        android:layout_height="128dp"
-        android:padding="16dp"
-        android:scaleType="fitCenter"
-        android:clickable="true"
-        android:focusable="true"
-        android:contentDescription="@string/adblock_pause_button_description"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="8dp"
-        app:srcCompat="@drawable/icon_foreground_red"
-        android:elevation="12dp"
-        android:background="@null" />
-
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

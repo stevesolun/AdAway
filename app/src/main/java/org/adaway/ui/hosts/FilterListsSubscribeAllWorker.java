@@ -11,8 +11,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.work.Data;
 import androidx.work.ForegroundInfo;
@@ -25,6 +27,8 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.NotificationHelper;
+import org.adaway.model.source.FilterListCompatibility;
+import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.ui.home.HomeActivity;
@@ -39,6 +43,8 @@ import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Background "Subscribe to all" job for FilterLists.
@@ -56,11 +62,34 @@ public class FilterListsSubscribeAllWorker extends Worker {
     private static final int BATCH_DB = 200;
     private static final int BATCH_PREFS = 200;
     private static final int PROGRESS_EVERY = 25;
+    private static final int MAX_OUTCOME_LEDGER_ENTRIES = 500;
+    private static final int MAX_REVIEW_PREVIEW_ENTRIES = 3;
 
     public static final String PROGRESS_DONE = "done";
     public static final String PROGRESS_TOTAL = "total";
     public static final String PROGRESS_CURRENT_ID = "currentId";
     public static final String PROGRESS_CURRENT_NAME = "currentName";
+    public static final String OUTPUT_SUBSCRIBED = "subscribed";
+    public static final String OUTPUT_ALREADY = "already";
+    public static final String OUTPUT_SKIPPED_NO_URL = "skippedNoUrl";
+    public static final String OUTPUT_SKIPPED_UNSUPPORTED = "skippedUnsupported";
+    public static final String OUTPUT_CANCELLED = "cancelled";
+    public static final String OUTPUT_REVIEW_COUNT = "reviewCount";
+    public static final String OUTPUT_REVIEW_PREVIEW = "reviewPreview";
+    public static final String INPUT_QUERY = "query";
+    public static final String INPUT_TAG_ID = "tagId";
+    public static final String INPUT_LANGUAGE_ID = "languageId";
+    public static final String INPUT_COMPATIBLE_ONLY = "compatibleOnly";
+    public static final String INPUT_LIST_IDS = "listIds";
+    public static final String KEY_LAST_RUN_OUTCOMES = "lastRunOutcomes";
+    public static final String KEY_LAST_RUN_OUTCOME_COUNT = "lastRunOutcomeCount";
+    public static final String KEY_LAST_RUN_REVIEW_COUNT = "lastRunReviewCount";
+    public static final String KEY_LAST_RUN_REVIEW_PREVIEW = "lastRunReviewPreview";
+    public static final String KEY_LAST_RUN_CANCELLED = "lastRunCancelled";
+    public static final String KEY_LAST_RUN_FINISHED_AT = "lastRunFinishedAt";
+
+    private static final Dependencies REAL_DEPENDENCIES = new RealDependencies();
+    private static volatile Dependencies sDependencies = REAL_DEPENDENCIES;
 
     // Track last emitted progress to ensure monotonic delivery.
     // WorkManager's setProgressAsync is async and doesn't guarantee order.
@@ -95,24 +124,17 @@ public class FilterListsSubscribeAllWorker extends Worker {
             return Result.failure();
         }
 
-        HostsSourceDao hostsSourceDao = AppDatabase.getInstance(context).hostsSourceDao();
-
-        // Snapshot existing URLs once.
-        Set<String> existingUrls = new HashSet<>();
-        for (HostsSource s : hostsSourceDao.getAll()) {
-            existingUrls.add(s.getUrl());
-        }
-
-        AdAwayApplication app = (AdAwayApplication) context.getApplicationContext();
-        FilterListsDirectoryApi api = new FilterListsDirectoryApi(app.getSourceModel().getHttpClientForUi());
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        Dependencies dependencies = sDependencies;
+        SubscribeAllRecorder recorder = dependencies.createRecorder(context);
+        DirectoryClient api = dependencies.createDirectoryClient(context);
+        SharedPreferences prefs = dependencies.getCachePreferences(context);
 
         try {
             // Start as foreground work immediately so Android won't kill it, and so UI can show "Preparing…" instantly.
             setForegroundAsync(new ForegroundInfo(
                     NOTIFICATION_ID,
                     buildProgressNotification(context, 0, 0, context.getString(R.string.filterlists_import)),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    getForegroundServiceType()
             ));
             setProgressAsync(new Data.Builder()
                     .putInt(PROGRESS_DONE, 0)
@@ -121,12 +143,15 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     .putString(PROGRESS_CURRENT_NAME, "Preparing…")
                     .build());
 
-            List<FilterListsDirectoryApi.ListSummary> lists = api.getLists();
+            Data input = getInputData();
+            List<FilterListsDirectoryApi.ListSummary> lists = filterListsForScope(api.getLists(),
+                    input.getString(INPUT_QUERY),
+                    input.getInt(INPUT_TAG_ID, 0),
+                    input.getInt(INPUT_LANGUAGE_ID, 0),
+                    input.getBoolean(INPUT_COMPATIBLE_ONLY, false),
+                    input.getIntArray(INPUT_LIST_IDS));
             int total = lists.size();
             int done = 0;
-            int subscribed = 0;
-            int skippedNoUrl = 0;
-            int already = 0;
 
             // Publish initial progress now that we know total.
             // Reset monotonic guard for new run.
@@ -143,7 +168,6 @@ public class FilterListsSubscribeAllWorker extends Worker {
             // - batch SharedPreferences writes and DB inserts
             SharedPreferences.Editor prefsEditor = prefs.edit();
             int prefsEdits = 0;
-            List<HostsSource> pendingInsert = new ArrayList<>(BATCH_DB);
 
             ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL_DETAILS);
             CompletionService<Resolved> completion = new ExecutorCompletionService<>(pool);
@@ -151,6 +175,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
             // First, enqueue network tasks only for items without cached mapping.
             for (FilterListsDirectoryApi.ListSummary s : lists) {
+                if (!FilterListCompatibility.isBulkSafe(s.syntaxIds)) {
+                    continue;
+                }
                 String cached = prefs.getString(KEY_URL_PREFIX + s.id, null);
                 if (cached != null) {
                     // We'll process cached items immediately below to keep progress moving,
@@ -164,65 +191,56 @@ public class FilterListsSubscribeAllWorker extends Worker {
             // Process cached items immediately (no network).
             for (FilterListsDirectoryApi.ListSummary s : lists) {
                 if (isStopped()) {
-                    pool.shutdownNow();
-                    notificationManager.cancel(NOTIFICATION_ID);
-                    return Result.failure();
+                    return finishCancelled(pool, notificationManager, recorder);
                 }
                 String cached = prefs.getString(KEY_URL_PREFIX + s.id, null);
-                if (cached == null) continue; // handled by parallel completion loop
-
-                String url = cached.isEmpty() ? null : cached;
-                if (url == null) {
-                    skippedNoUrl++;
-                } else if (existingUrls.contains(url)) {
-                    already++;
-                } else {
-                    HostsSource src = new HostsSource();
-                    src.setLabel(s.name != null ? s.name : url);
-                    src.setUrl(url);
-                    src.setEnabled(true);
-                    src.setAllowEnabled(false);
-                    src.setRedirectEnabled(false);
-                    pendingInsert.add(src);
-                    existingUrls.add(url);
-                    subscribed++;
-                    if (pendingInsert.size() >= BATCH_DB) {
-                        hostsSourceDao.insertAll(pendingInsert);
-                        pendingInsert.clear();
-                    }
+                if (cached == null && FilterListCompatibility.isBulkSafe(s.syntaxIds)) {
+                    continue; // handled by parallel completion loop
                 }
+
+                String url = cached == null || cached.isEmpty() ? null : cached;
+                recorder.accept(s.id, s.name, s.syntaxIds, s.tagIds, s.languageIds, url);
 
                 done++;
-                if (done == 1 || done % PROGRESS_EVERY == 0 || done == total) {
+                if (shouldEmitProgressUpdate(done, total)) {
                     emitProgress(done, total, s.id, s.name);
+                    notificationManager.notify(
+                            NOTIFICATION_ID,
+                            buildProgressNotification(context, done, total, s.name)
+                    );
                 }
-                notificationManager.notify(
-                        NOTIFICATION_ID,
-                        buildProgressNotification(context, done, total, s.name)
-                );
             }
 
             // Now process uncached items as their network results complete (out of order, faster).
             while (pending > 0) {
                 if (isStopped()) {
-                    pool.shutdownNow();
-                    notificationManager.cancel(NOTIFICATION_ID);
-                    return Result.failure();
+                    return finishCancelled(pool, notificationManager, recorder);
+                }
+                Future<Resolved> future;
+                try {
+                    future = completion.poll(250, TimeUnit.MILLISECONDS);
+                    if (future == null) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return finishCancelled(pool, notificationManager, recorder);
                 }
                 Resolved r;
                 try {
-                    r = completion.take().get();
+                    r = future.get();
                 } catch (Exception e) {
                     // Treat as one failed resolution.
                     pending--;
                     done++;
-                    if (done == 1 || done % 5 == 0 || done == total) {
+                    recorder.recordSkippedNoUrl();
+                    if (shouldEmitProgressUpdate(done, total)) {
                         emitProgress(done, total, -1, "Resolving…");
+                        notificationManager.notify(
+                                NOTIFICATION_ID,
+                                buildProgressNotification(context, done, total, "Resolving…")
+                        );
                     }
-                    notificationManager.notify(
-                            NOTIFICATION_ID,
-                            buildProgressNotification(context, done, total, "Resolving…")
-                    );
                     continue;
                 }
                 pending--;
@@ -236,56 +254,37 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     prefsEdits = 0;
                 }
 
-                if (r.url == null) {
-                    skippedNoUrl++;
-                } else if (existingUrls.contains(r.url)) {
-                    already++;
-                } else {
-                    HostsSource src = new HostsSource();
-                    src.setLabel(r.name != null ? r.name : r.url);
-                    src.setUrl(r.url);
-                    src.setEnabled(true);
-                    src.setAllowEnabled(false);
-                    src.setRedirectEnabled(false);
-                    pendingInsert.add(src);
-                    existingUrls.add(r.url);
-                    subscribed++;
-                    if (pendingInsert.size() >= BATCH_DB) {
-                        hostsSourceDao.insertAll(pendingInsert);
-                        pendingInsert.clear();
-                    }
-                }
+                recorder.accept(r.id, r.name, r.syntaxIds, r.tagIds, r.languageIds, r.url);
 
                 done++;
-                if (done == 1 || done % PROGRESS_EVERY == 0 || done == total) {
+                if (shouldEmitProgressUpdate(done, total)) {
                     emitProgress(done, total, r.id, r.name);
+                    notificationManager.notify(
+                            NOTIFICATION_ID,
+                            buildProgressNotification(context, done, total, r.name)
+                    );
                 }
-                notificationManager.notify(
-                        NOTIFICATION_ID,
-                        buildProgressNotification(context, done, total, r.name)
-                );
             }
 
             pool.shutdownNow();
-            if (!pendingInsert.isEmpty()) {
-                hostsSourceDao.insertAll(pendingInsert);
-                pendingInsert.clear();
-            }
+            recorder.flush();
             if (prefsEdits > 0) {
                 prefsEditor.apply();
             }
+            persistLastRunOutcomes(prefs, recorder, false);
 
             // Final notification
             notificationManager.notify(
                     NOTIFICATION_ID,
-                    buildDoneNotification(context, subscribed, already, skippedNoUrl)
+                    buildDoneNotification(context, recorder.getSubscribed(), recorder.getAlready(),
+                            recorder.getSkippedNoUrl(), recorder.getSkippedUnsupported())
             );
 
             // Kick off an update run so newly added sources actually download/convert right away.
             // This runs as a separate WorkManager job so Home can show source update % once subscribe-all completes.
-            SourceUpdateService.enqueueUpdateNow(context);
+            dependencies.enqueueUpdateNow(context);
 
-            return Result.success();
+            return Result.success(recorder.finish(false));
         } catch (IOException e) {
             notificationManager.notify(
                     NOTIFICATION_ID,
@@ -295,23 +294,486 @@ public class FilterListsSubscribeAllWorker extends Worker {
         }
     }
 
+    private Result finishCancelled(ExecutorService pool, NotificationManager notificationManager,
+            SubscribeAllRecorder recorder) {
+        pool.shutdownNow();
+        recorder.flush();
+        persistLastRunOutcomes(sDependencies.getCachePreferences(getApplicationContext()),
+                recorder, true);
+        notificationManager.cancel(NOTIFICATION_ID);
+        return Result.failure(recorder.finish(true));
+    }
+
+    private static int getForegroundServiceType() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+        }
+        return 0;
+    }
+
+    private static Data buildOutputData(int subscribed, int already, int skippedNoUrl,
+            int skippedIncompatible, boolean cancelled, int reviewCount, String reviewPreview) {
+        return new Data.Builder()
+                .putInt(OUTPUT_SUBSCRIBED, subscribed)
+                .putInt(OUTPUT_ALREADY, already)
+                .putInt(OUTPUT_SKIPPED_NO_URL, skippedNoUrl)
+                .putInt(OUTPUT_SKIPPED_UNSUPPORTED, skippedIncompatible)
+                .putBoolean(OUTPUT_CANCELLED, cancelled)
+                .putInt(OUTPUT_REVIEW_COUNT, reviewCount)
+                .putString(OUTPUT_REVIEW_PREVIEW, reviewPreview)
+                .build();
+    }
+
+    private static void persistLastRunOutcomes(SharedPreferences prefs, SubscribeAllRecorder recorder,
+            boolean cancelled) {
+        prefs.edit()
+                .putString(KEY_LAST_RUN_OUTCOMES, recorder.getOutcomeLedger())
+                .putInt(KEY_LAST_RUN_OUTCOME_COUNT, recorder.getOutcomeCount())
+                .putInt(KEY_LAST_RUN_REVIEW_COUNT, recorder.getReviewCount())
+                .putString(KEY_LAST_RUN_REVIEW_PREVIEW, recorder.getReviewPreview())
+                .putBoolean(KEY_LAST_RUN_CANCELLED, cancelled)
+                .putLong(KEY_LAST_RUN_FINISHED_AT, System.currentTimeMillis())
+                .commit();
+    }
+
+    static boolean shouldEmitProgressUpdate(int done, int total) {
+        return done == 1 || done % PROGRESS_EVERY == 0 || done == total;
+    }
+
+    @NonNull
+    public static Data buildScopeInput(
+            @Nullable String query,
+            int tagId,
+            int languageId,
+            boolean compatibleOnly,
+            @Nullable int[] listIds) {
+        Data.Builder builder = new Data.Builder()
+                .putString(INPUT_QUERY, normalizeQuery(query))
+                .putInt(INPUT_TAG_ID, Math.max(0, tagId))
+                .putInt(INPUT_LANGUAGE_ID, Math.max(0, languageId))
+                .putBoolean(INPUT_COMPATIBLE_ONLY, compatibleOnly);
+        if (listIds != null) {
+            builder.putIntArray(INPUT_LIST_IDS, listIds);
+        }
+        return builder.build();
+    }
+
+    @NonNull
+    public static Data buildScopeInput(
+            @Nullable String query,
+            int tagId,
+            int languageId,
+            boolean compatibleOnly) {
+        return buildScopeInput(query, tagId, languageId, compatibleOnly, null);
+    }
+
+    @NonNull
+    static List<FilterListsDirectoryApi.ListSummary> filterListsForScope(
+            @NonNull List<FilterListsDirectoryApi.ListSummary> lists,
+            @Nullable String query,
+            int tagId,
+            int languageId,
+            boolean compatibleOnly) {
+        return filterListsForScope(lists, query, tagId, languageId, compatibleOnly, null);
+    }
+
+    @NonNull
+    static List<FilterListsDirectoryApi.ListSummary> filterListsForScope(
+            @NonNull List<FilterListsDirectoryApi.ListSummary> lists,
+            @Nullable String query,
+            int tagId,
+            int languageId,
+            boolean compatibleOnly,
+            @Nullable int[] listIds) {
+        String normalizedQuery = normalizeQuery(query);
+        List<FilterListsDirectoryApi.ListSummary> scoped = new ArrayList<>(lists.size());
+        for (FilterListsDirectoryApi.ListSummary summary : lists) {
+            if (!matchesScope(summary, normalizedQuery, tagId, languageId, compatibleOnly,
+                    listIds)) {
+                continue;
+            }
+            scoped.add(summary);
+        }
+        return scoped;
+    }
+
+    private static boolean matchesScope(
+            @NonNull FilterListsDirectoryApi.ListSummary summary,
+            @NonNull String query,
+            int tagId,
+            int languageId,
+            boolean compatibleOnly,
+            @Nullable int[] listIds) {
+        if (listIds != null) {
+            return hasId(listIds, summary.id)
+                    && (!compatibleOnly || FilterListCompatibility.isBulkSafe(summary.syntaxIds));
+        }
+        if (!query.isEmpty()) {
+            String name = summary.name != null ? summary.name.toLowerCase(java.util.Locale.ROOT) : "";
+            String description = summary.description != null
+                    ? summary.description.toLowerCase(java.util.Locale.ROOT)
+                    : "";
+            if (!name.contains(query) && !description.contains(query)) {
+                return false;
+            }
+        }
+        if (tagId != 0 && !hasId(summary.tagIds, tagId)) {
+            return false;
+        }
+        if (languageId != 0 && !hasId(summary.languageIds, languageId)) {
+            return false;
+        }
+        return !compatibleOnly || FilterListCompatibility.isBulkSafe(summary.syntaxIds);
+    }
+
+    private static boolean hasId(@Nullable int[] ids, int want) {
+        if (ids == null) {
+            return false;
+        }
+        for (int id : ids) {
+            if (id == want) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @NonNull
+    private static String normalizeQuery(@Nullable String query) {
+        return query != null ? query.toLowerCase(java.util.Locale.ROOT).trim() : "";
+    }
+
+    interface DirectoryClient {
+        List<FilterListsDirectoryApi.ListSummary> getLists() throws IOException;
+
+        FilterListsDirectoryApi.ListDetails getListDetails(int id) throws IOException;
+    }
+
+    interface Dependencies {
+        SubscribeAllRecorder createRecorder(Context context);
+
+        DirectoryClient createDirectoryClient(Context context);
+
+        SharedPreferences getCachePreferences(Context context);
+
+        void enqueueUpdateNow(Context context);
+    }
+
+    static void setDependenciesForTest(Dependencies dependencies) {
+        sDependencies = dependencies != null ? dependencies : REAL_DEPENDENCIES;
+    }
+
+    static void resetDependenciesForTest() {
+        sDependencies = REAL_DEPENDENCIES;
+    }
+
+    enum CandidateOutcome {
+        SUBSCRIBED,
+        ALREADY,
+        SKIPPED_NO_URL,
+        SKIPPED_UNSUPPORTED
+    }
+
+    static CandidateOutcome applyCandidate(Set<String> existingUrls,
+            List<HostsSource> pendingInsert, String name, int[] syntaxIds, String url) {
+        return applyCandidate(existingUrls, pendingInsert, 0, name, syntaxIds, url);
+    }
+
+    static CandidateOutcome applyCandidate(Set<String> existingUrls,
+            List<HostsSource> pendingInsert, int filterListId, String name, int[] syntaxIds,
+            String url) {
+        return applyCandidate(existingUrls, pendingInsert, filterListId, name, syntaxIds,
+                null, null, url);
+    }
+
+    static CandidateOutcome applyCandidate(Set<String> existingUrls,
+            List<HostsSource> pendingInsert, int filterListId, String name, int[] syntaxIds,
+            int[] tagIds, int[] languageIds, String url) {
+        if (!FilterListCompatibility.isBulkSafe(syntaxIds)) {
+            return CandidateOutcome.SKIPPED_UNSUPPORTED;
+        }
+        if (!FilterListCompatibility.isUsableDownloadUrl(url)) {
+            return CandidateOutcome.SKIPPED_NO_URL;
+        }
+
+        String cleanUrl = url.trim();
+        if (existingUrls.contains(cleanUrl)) {
+            return CandidateOutcome.ALREADY;
+        }
+
+        HostsSource source = new HostsSource();
+        source.setLabel(name != null ? name : cleanUrl);
+        source.setUrl(cleanUrl);
+        source.setEnabled(true);
+        source.setAllowEnabled(false);
+        source.setRedirectEnabled(false);
+        FilterListsSourceMetadata.apply(source, filterListId, name, syntaxIds, tagIds,
+                languageIds, cleanUrl);
+        pendingInsert.add(source);
+        existingUrls.add(cleanUrl);
+        return CandidateOutcome.SUBSCRIBED;
+    }
+
+    static final class SubscribeAllRecorder {
+        private final HostsSourceDao hostsSourceDao;
+        private final Set<String> existingUrls;
+        private final List<HostsSource> pendingInsert;
+        private final List<String> outcomeLedger;
+        private final List<String> reviewPreview;
+        private int outcomeCount;
+        private int reviewCount;
+        private int subscribed;
+        private int already;
+        private int skippedNoUrl;
+        private int skippedUnsupported;
+
+        private SubscribeAllRecorder(HostsSourceDao hostsSourceDao, Set<String> existingUrls) {
+            this.hostsSourceDao = hostsSourceDao;
+            this.existingUrls = existingUrls;
+            this.pendingInsert = new ArrayList<>(BATCH_DB);
+            this.outcomeLedger = new ArrayList<>();
+            this.reviewPreview = new ArrayList<>(MAX_REVIEW_PREVIEW_ENTRIES);
+        }
+
+        static SubscribeAllRecorder create(HostsSourceDao hostsSourceDao) {
+            Set<String> existingUrls = new HashSet<>();
+            for (HostsSource source : hostsSourceDao.getAll()) {
+                existingUrls.add(source.getUrl());
+            }
+            return new SubscribeAllRecorder(hostsSourceDao, existingUrls);
+        }
+
+        CandidateOutcome accept(String name, int[] syntaxIds, String url) {
+            return accept(0, name, syntaxIds, url);
+        }
+
+        CandidateOutcome accept(int filterListId, String name, int[] syntaxIds, String url) {
+            return accept(filterListId, name, syntaxIds, null, null, url);
+        }
+
+        CandidateOutcome accept(int filterListId, String name, int[] syntaxIds,
+                int[] tagIds, int[] languageIds, String url) {
+            CandidateOutcome outcome = applyCandidate(existingUrls, pendingInsert, filterListId,
+                    name, syntaxIds, tagIds, languageIds, url);
+            record(outcome, filterListId, name, url);
+            if (pendingInsert.size() >= BATCH_DB) {
+                flush();
+            }
+            return outcome;
+        }
+
+        void recordSkippedNoUrl() {
+            skippedNoUrl++;
+            appendOutcome(CandidateOutcome.SKIPPED_NO_URL, 0, null, null);
+        }
+
+        void flush() {
+            if (!pendingInsert.isEmpty()) {
+                hostsSourceDao.insertAll(pendingInsert);
+                pendingInsert.clear();
+            }
+        }
+
+        Data finish(boolean cancelled) {
+            return buildOutputData(subscribed, already, skippedNoUrl, skippedUnsupported,
+                    cancelled, reviewCount, getReviewPreview());
+        }
+
+        int getSubscribed() {
+            return subscribed;
+        }
+
+        int getAlready() {
+            return already;
+        }
+
+        int getSkippedNoUrl() {
+            return skippedNoUrl;
+        }
+
+        int getSkippedUnsupported() {
+            return skippedUnsupported;
+        }
+
+        int getOutcomeCount() {
+            return outcomeCount;
+        }
+
+        int getReviewCount() {
+            return reviewCount;
+        }
+
+        String getOutcomeLedger() {
+            return joinLines(outcomeLedger);
+        }
+
+        String getReviewPreview() {
+            return joinPreview(reviewPreview);
+        }
+
+        private void record(CandidateOutcome outcome, int filterListId, String name, String url) {
+            switch (outcome) {
+                case SUBSCRIBED:
+                    subscribed++;
+                    break;
+                case ALREADY:
+                    already++;
+                    break;
+                case SKIPPED_NO_URL:
+                    skippedNoUrl++;
+                    break;
+                case SKIPPED_UNSUPPORTED:
+                    skippedUnsupported++;
+                    break;
+                default:
+                    throw new IllegalStateException("Unhandled candidate outcome: " + outcome);
+            }
+            appendOutcome(outcome, filterListId, name, url);
+        }
+
+        private void appendOutcome(CandidateOutcome outcome, int filterListId, String name,
+                String url) {
+            outcomeCount++;
+            if (outcome == CandidateOutcome.SKIPPED_NO_URL
+                    || outcome == CandidateOutcome.SKIPPED_UNSUPPORTED) {
+                reviewCount++;
+                if (reviewPreview.size() < MAX_REVIEW_PREVIEW_ENTRIES) {
+                    reviewPreview.add(formatReviewPreview(outcome, filterListId, name));
+                }
+            }
+            if (outcomeLedger.size() < MAX_OUTCOME_LEDGER_ENTRIES) {
+                outcomeLedger.add(formatOutcomeLedgerLine(outcome, filterListId, name, url));
+            }
+        }
+
+        private static String formatReviewPreview(CandidateOutcome outcome, int filterListId,
+                String name) {
+            String label = describeList(filterListId, name);
+            switch (outcome) {
+                case SKIPPED_NO_URL:
+                    return "No URL: " + label;
+                case SKIPPED_UNSUPPORTED:
+                    return "Unsupported: " + label;
+                default:
+                    return outcome.name() + ": " + label;
+            }
+        }
+
+        private static String formatOutcomeLedgerLine(CandidateOutcome outcome, int filterListId,
+                String name, String url) {
+            return outcome.name() + "\t" + filterListId + "\t" + sanitizeField(name)
+                    + "\t" + sanitizeField(url);
+        }
+
+        private static String describeList(int filterListId, String name) {
+            String cleaned = sanitizeField(name);
+            if (!cleaned.isEmpty()) {
+                return cleaned;
+            }
+            return filterListId > 0 ? "list " + filterListId : "unknown list";
+        }
+
+        private static String sanitizeField(String value) {
+            if (value == null) {
+                return "";
+            }
+            return value.replace('\t', ' ')
+                    .replace('\n', ' ')
+                    .replace('\r', ' ')
+                    .trim();
+        }
+
+        private static String joinLines(List<String> lines) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < lines.size(); i++) {
+                if (i > 0) {
+                    builder.append('\n');
+                }
+                builder.append(lines.get(i));
+            }
+            return builder.toString();
+        }
+
+        private static String joinPreview(List<String> preview) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < preview.size(); i++) {
+                if (i > 0) {
+                    builder.append("; ");
+                }
+                builder.append(preview.get(i));
+            }
+            return builder.toString();
+        }
+    }
+
+    private static final class RealDependencies implements Dependencies {
+        @Override
+        public SubscribeAllRecorder createRecorder(Context context) {
+            HostsSourceDao hostsSourceDao = AppDatabase.getInstance(context).hostsSourceDao();
+            return SubscribeAllRecorder.create(hostsSourceDao);
+        }
+
+        @Override
+        public DirectoryClient createDirectoryClient(Context context) {
+            AdAwayApplication app = (AdAwayApplication) context.getApplicationContext();
+            FilterListsDirectoryApi api =
+                    new FilterListsDirectoryApi(app.getSourceModel().getHttpClientForUi());
+            return new RealDirectoryClient(api);
+        }
+
+        @Override
+        public SharedPreferences getCachePreferences(Context context) {
+            return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        }
+
+        @Override
+        public void enqueueUpdateNow(Context context) {
+            SourceUpdateService.enqueueUpdateNow(context);
+        }
+    }
+
+    private static final class RealDirectoryClient implements DirectoryClient {
+        private final FilterListsDirectoryApi api;
+
+        RealDirectoryClient(FilterListsDirectoryApi api) {
+            this.api = api;
+        }
+
+        @Override
+        public List<FilterListsDirectoryApi.ListSummary> getLists() throws IOException {
+            return api.getLists();
+        }
+
+        @Override
+        public FilterListsDirectoryApi.ListDetails getListDetails(int id) throws IOException {
+            return api.getListDetails(id);
+        }
+    }
+
     private static final class Resolved {
         final int id;
         final String name;
+        final int[] syntaxIds;
+        final int[] tagIds;
+        final int[] languageIds;
         final String url; // nullable
 
-        Resolved(int id, String name, String url) {
+        Resolved(int id, String name, int[] syntaxIds, int[] tagIds, int[] languageIds,
+                String url) {
             this.id = id;
             this.name = name;
+            this.syntaxIds = syntaxIds;
+            this.tagIds = tagIds;
+            this.languageIds = languageIds;
             this.url = url;
         }
     }
 
     private static final class ResolveCallable implements Callable<Resolved> {
-        private final FilterListsDirectoryApi api;
+        private final DirectoryClient api;
         private final FilterListsDirectoryApi.ListSummary summary;
 
-        ResolveCallable(FilterListsDirectoryApi api, FilterListsDirectoryApi.ListSummary summary) {
+        ResolveCallable(DirectoryClient api, FilterListsDirectoryApi.ListSummary summary) {
             this.api = api;
             this.summary = summary;
         }
@@ -325,7 +787,8 @@ public class FilterListsSubscribeAllWorker extends Worker {
             } catch (IOException ignored) {
                 url = null;
             }
-            return new Resolved(summary.id, summary.name, url);
+            return new Resolved(summary.id, summary.name, summary.syntaxIds, summary.tagIds,
+                    summary.languageIds, url);
         }
     }
 
@@ -355,12 +818,15 @@ public class FilterListsSubscribeAllWorker extends Worker {
                 .build();
     }
 
-    private static android.app.Notification buildDoneNotification(Context context, int subscribed, int already, int skippedNoUrl) {
+    private static android.app.Notification buildDoneNotification(Context context, int subscribed,
+            int already, int skippedNoUrl, int skippedIncompatible) {
         String title = context.getString(R.string.notification_filterlists_subscribe_all_done_title);
+        String summaryText = "Added " + subscribed + " | Already " + already + " | No URL "
+                + skippedNoUrl + " | Unsupported " + skippedIncompatible;
         String text = "Added " + subscribed + " • Already " + already + " • Skipped " + skippedNoUrl;
         return baseBuilder(context)
                 .setContentTitle(title)
-                .setContentText(text)
+                .setContentText(summaryText)
                 .setOngoing(false)
                 .setAutoCancel(true)
                 .build();

@@ -34,63 +34,174 @@
     <string name="filter_category_regional">Regional</string>
     <string name="filter_category_regional_desc">Country-specific filter lists</string>
 
+    <string name="filter_category_filterlists">FilterLists.com</string>
+    <string name="filter_category_filterlists_desc">Sources imported from the online directory</string>
+
     <string name="filter_category_custom">Custom</string>
     <string name="filter_category_custom_desc">Your custom filter sources</string>
 
     <!-- Facebook Whitelist -->
     <string name="filter_facebook_whitelist">Facebook Services (Protected)</string>
-    <string name="filter_facebook_whitelist_desc">Ensures Facebook, Instagram, WhatsApp, and Messenger always work</string>
+
 
     <!-- Filter List UI -->
     <string name="filter_sources_title">Filter Lists</string>
     <string name="filter_sources_subtitle">Manage what gets blocked</string>
     <string name="filter_add_from_catalog">Browse catalog</string>
     <string name="filter_add_custom">Add custom source</string>
-    <string name="filter_category_enable_all">Enable all</string>
-    <string name="filter_category_disable_all">Disable all</string>
-    <string name="filter_hosts_count">%s hosts</string>
+
+
+
     <string name="filter_last_updated">Updated %s</string>
     <string name="filter_never_updated">Never updated</string>
     <string name="filter_update_available">Update available</string>
-    <string name="filter_enabled">Enabled</string>
+
     <string name="filter_disabled">Disabled</string>
 
     <!-- Catalog Dialog -->
-    <string name="filter_catalog_title">Filter List Catalog</string>
     <string name="filter_catalog_subtitle">Select lists to add</string>
     <string name="filter_catalog_add_selected">Add selected</string>
-    <string name="filter_catalog_count">%d filter lists available</string>
+    <string name="filter_catalog_add_selected_count">Add selected (%1$d)</string>
+    <string name="filter_catalog_row_selected">%1$s. Selected.</string>
+    <string name="filter_catalog_row_not_selected">%1$s. Not selected.</string>
+    <string name="filter_catalog_row_already_added">%1$s. Already added.</string>
+    <string name="filter_catalog_toggle_description">Toggle %1$s filter list</string>
+    <plurals name="filter_catalog_count">
+        <item quantity="one">%d filter list available</item>
+        <item quantity="other">%d filter lists available</item>
+    </plurals>
+    <string name="filter_catalog_showing_count">Showing %1$d of %2$d</string>
     <string name="filter_search_hint">Search filter lists…</string>
 
     <!-- Status Messages -->
     <string name="filter_added_success">Filter list added</string>
+    <plurals name="filter_added_success_count">
+        <item quantity="one">%1$d filter list added. Updating now.</item>
+        <item quantity="other">%1$d filter lists added. Updating now.</item>
+    </plurals>
     <string name="filter_removed_success">Filter list removed</string>
-    <string name="filter_update_started">Updating filter lists…</string>
-    <string name="filter_update_complete">Filter lists updated</string>
+
+
 
     <!-- Online directory -->
     <string name="filterlists_import">Import from FilterLists.com</string>
     <string name="filterlists_subscribe_all">Subscribe to all</string>
+    <string name="filterlists_subscribe_visible">Add visible lists</string>
+    <string name="filterlists_remove_visible">Remove visible</string>
+    <string name="filterlists_stop_subscribing">Stop subscribing to FilterLists sources</string>
+    <string name="filterlists_confirm_subscribe_all_title">Subscribe DNS-safe lists?</string>
+    <string name="filterlists_confirm_subscribe_all_message">AdAway will add %1$d DNS-safe lists from the directory and skip unsupported browser-rule lists.</string>
+    <string name="filterlists_confirm_subscribe_filtered_message">AdAway will add %1$d DNS-safe lists from the current view and skip unsupported browser-rule lists.</string>
+    <string name="filterlists_confirm_subscribe_all_action">Subscribe</string>
+    <string name="filterlists_confirm_unsubscribe_all_title">Remove all FilterLists sources?</string>
+    <string name="filterlists_confirm_unsubscribe_all_message">This removes every source imported from FilterLists.com. Existing protection changes after the next update.</string>
+    <string name="filterlists_confirm_unsubscribe_all_action">Remove all</string>
+    <string name="filterlists_confirm_unsubscribe_filtered_title">Remove FilterLists sources in this view?</string>
+    <string name="filterlists_confirm_unsubscribe_filtered_message">This removes FilterLists.com sources that match the current view. Existing protection changes after the next update.</string>
+    <string name="filterlists_confirm_unsubscribe_filtered_action">Remove visible</string>
+    <string name="filterlists_subscribe_all_cancelled">FilterLists subscription cancelled</string>
+    <string name="filterlists_subscribe_all_stopping">Stopping FilterLists subscription...</string>
+    <string name="filterlists_subscribe_all_done_summary">Added %1$d | Already %2$d | No URL %3$d | Unsupported %4$d</string>
+    <string name="filterlists_subscribe_all_cancelled_summary">Cancelled | Added %1$d | Already %2$d | No URL %3$d | Unsupported %4$d</string>
+    <string name="filterlists_subscribe_all_review_summary">%1$s | Review: %2$s</string>
+    <string name="filterlists_review_last_run">Review details</string>
+    <string name="filterlists_retry_last_run">Retry no URL</string>
+    <string name="filterlists_review_unsupported">Review unsupported</string>
+    <string name="filterlists_retry_last_run_empty">No retryable no-URL lists from the last run</string>
+    <string name="filterlists_retry_last_run_started">Retrying %1$d no-URL lists</string>
+    <string name="filterlists_review_unsupported_empty">No unsupported lists from the last run</string>
+    <string name="filterlists_review_unsupported_not_loaded">Load the FilterLists directory before reviewing unsupported rows</string>
+    <string name="filterlists_review_unsupported_title">Review unsupported list</string>
+    <string name="filterlists_review_unsupported_choices_title">Unsupported lists</string>
+    <string name="filterlists_review_unsupported_message">This list uses %1$s. AdAway does not subscribe it automatically.\n\n%2$s%3$s</string>
+    <string name="filterlists_review_unsupported_url">\n\nDirect URL found:\n%1$s</string>
+    <string name="filterlists_review_unsupported_no_url">\n\nNo direct DNS-safe download URL was found.</string>
+    <string name="filterlists_add_manually">Add manually</string>
+    <string name="filterlists_last_run_review_title">Last FilterLists subscription</string>
+    <string name="filterlists_last_run_review_empty">No review details are available for the last run.</string>
+    <string name="filterlists_unsubscribe_all_done">%1$d FilterLists sources removed</string>
+    <string name="filterlists_confirm_unsubscribe_title">Remove FilterLists source?</string>
+    <string name="filterlists_confirm_unsubscribe_message">Remove "%1$s" and its downloaded rules?</string>
+    <string name="filterlists_confirm_unsubscribe_action">Remove</string>
+    <string name="filterlists_subscribe_done">Subscribed</string>
+    <string name="filterlists_unsubscribe_done">Unsubscribed</string>
+    <string name="filterlists_not_subscribed">Not subscribed</string>
+    <string name="filterlists_source_toggle_description">Toggle %1$s FilterLists source</string>
+    <string name="filterlists_source_row_description">%1$s. %2$s.</string>
+    <string name="filterlists_compatible_only">DNS-safe only</string>
+    <string name="filterlists_compatible_only_summary">Hosts and domain lists only</string>
+    <string name="filterlists_load_failed">Failed to load FilterLists.com</string>
+    <string name="filterlists_tag_all">All</string>
+    <string name="filterlists_language_all">All languages</string>
+    <string name="filterlists_language_filter_description">Filter by language</string>
+    <string name="filterlists_manual_review_required">This list needs manual review before DNS blocking</string>
+    <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in the current view</string>
+    <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
+    <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>
+    <string name="filterlists_resolve_url_failed">Failed to resolve list URL</string>
+    <string name="filterlists_update_subscription_failed">Failed to update subscription</string>
+    <string name="filterlists_running_in_background">Running in background…</string>
+    <string name="filterlists_syntax_fallback">Syntax %1$d</string>
+    <string name="filterlists_retry">Retry</string>
+    <string name="filterlists_state_loading_title">Loading filter lists</string>
+    <string name="filterlists_state_loading_message">Fetching the directory. Existing subscriptions keep working.</string>
+    <string name="filterlists_state_load_failed_title">FilterLists.com is unavailable</string>
+    <string name="filterlists_state_load_failed_message">Check your connection and retry. Existing subscriptions keep working.</string>
+    <string name="filterlists_state_no_lists_title">No filter lists available</string>
+    <string name="filterlists_state_no_lists_message">The directory returned no lists. Try again later.</string>
+    <string name="filterlists_state_no_matches_title">No matching lists</string>
+    <string name="filterlists_state_no_matches_message">Adjust search, language, tags, or DNS-safe filtering.</string>
+    <string name="filterlists_status_preparing">Preparing…</string>
+    <string name="filterlists_status_processing">Processing…</string>
+    <string name="filterlists_progress_count_percent">%1$d/%2$d (%3$d%%)</string>
+    <string name="filterlists_progress_with_source">%1$s • %2$s</string>
 
     <!-- Category Summaries (shown in collapsed state) -->
-    <string name="filter_category_summary_enabled">%1$d of %2$d enabled • %3$s hosts</string>
+    <plurals name="filter_category_summary_enabled">
+        <item quantity="one">%1$d of %2$d enabled • %3$s hosts</item>
+        <item quantity="other">%1$d of %2$d enabled • %3$s hosts</item>
+    </plurals>
     <string name="filter_category_summary_disabled">All disabled</string>
+    <string name="filter_category_state_all_enabled">All sources enabled</string>
+    <plurals name="filter_category_state_some_enabled">
+        <item quantity="one">%1$d of %2$d source enabled</item>
+        <item quantity="other">%1$d of %2$d sources enabled</item>
+    </plurals>
+    <string name="filter_category_state_disabled">No sources enabled</string>
+    <string name="filter_category_state_empty">No sources available</string>
+    <string name="filter_category_toggle_description">Toggle %1$s category</string>
+    <string name="filter_source_toggle_description">Toggle %1$s source</string>
+    <string name="filter_source_update_action">Update %1$s</string>
+    <string name="filter_source_download_error">Download failed: %1$s</string>
 
     <!-- Warnings -->
-    <string name="filter_warning_may_break">⚠️ These filters may break some apps or services</string>
-    <string name="filter_warning_facebook">⚠️ May break Facebook, Instagram, WhatsApp, Messenger</string>
-    <string name="filter_warning_device">⚠️ May break Samsung Pay, Xiaomi Cloud, OEM features</string>
-    <string name="filter_warning_service">⚠️ May break the targeted app</string>
+
+
+
+
 
     <!-- Preset Modes -->
     <string name="discover_quick_start">Quick start:</string>
-    <string name="filter_preset_title">Quick Setup</string>
+
     <string name="filter_preset_safe">Safe Mode</string>
     <string name="filter_preset_safe_desc">Essential ad &amp; malware blocking. Won\'t break anything.</string>
     <string name="filter_preset_balanced">Balanced Mode</string>
     <string name="filter_preset_balanced_desc">Ads, malware, basic privacy, crypto miners.</string>
     <string name="filter_preset_aggressive">Aggressive Mode</string>
     <string name="filter_preset_aggressive_desc">Maximum blocking. May break some services.</string>
+    <string name="filter_profile_status_custom">Profile: Custom</string>
+    <string name="filter_profile_status_exact">Profile: %1$s</string>
+    <string name="filter_profile_status_extended">Profile: %1$s + custom</string>
+    <string name="filter_profile_status_partial">Profile: Modified from %1$s</string>
+    <plurals name="filter_preset_added_updating">
+        <item quantity="one">Added %1$d filter list. Updating now.</item>
+        <item quantity="other">Added %1$d filter lists. Updating now.</item>
+    </plurals>
+    <plurals name="filter_preset_existing_updating">
+        <item quantity="one">Updating %1$d existing filter list.</item>
+        <item quantity="other">Updating %1$d existing filter lists.</item>
+    </plurals>
+    <string name="filter_preset_already_subscribed">Already subscribed to these lists.</string>
     <string name="filter_preset_custom">Custom</string>
-    <string name="filter_preset_custom_desc">You control every list individually.</string>
+
 </resources>

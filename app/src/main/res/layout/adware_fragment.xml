@@ -21,8 +21,8 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginLeft="@dimen/card_inner_padding"
-            android:layout_marginRight="@dimen/card_inner_padding"
+            android:layout_marginStart="@dimen/card_inner_padding"
+            android:layout_marginEnd="@dimen/card_inner_padding"
             android:background="@color/card_spacer" />
 
         <TextView
@@ -37,8 +37,8 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginLeft="@dimen/card_inner_padding"
-            android:layout_marginRight="@dimen/card_inner_padding"
+            android:layout_marginStart="@dimen/card_inner_padding"
+            android:layout_marginEnd="@dimen/card_inner_padding"
             android:background="@color/card_spacer" />
 
         <TextView

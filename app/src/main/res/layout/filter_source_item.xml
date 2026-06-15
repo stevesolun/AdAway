@@ -46,7 +46,7 @@
             android:layout_marginStart="12dp"
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="2"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
             android:textColor="?attr/colorOnSurface"
             app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
@@ -63,13 +63,31 @@
             android:layout_marginTop="2dp"
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="2"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:textColor="?attr/colorOnSurfaceVariant"
             app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
             app:layout_constraintStart_toEndOf="@id/sourceSwitch"
             app:layout_constraintTop_toBottomOf="@id/sourceLabel"
             tools:text="Updated 2 days ago" />
+
+        <TextView
+            android:id="@+id/sourceDownloadError"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+            android:textColor="?attr/colorError"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/sourceSwitch"
+            app:layout_constraintTop_toBottomOf="@id/sourceStatus"
+            tools:text="Download failed: timeout"
+            tools:visibility="visible" />
 
         <!-- Host Count Badge -->
         <TextView
@@ -92,17 +110,20 @@
         <!-- Update Available Indicator -->
         <ImageView
             android:id="@+id/updateIndicator"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
+            android:padding="12dp"
             android:src="@drawable/ic_update_24"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="@id/hostCountBadge"
             app:layout_constraintEnd_toStartOf="@id/hostCountBadge"
             app:layout_constraintTop_toTopOf="@id/hostCountBadge"
             app:tint="?attr/colorTertiary"
+            tools:ignore="ContentDescription"
             tools:visibility="visible" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

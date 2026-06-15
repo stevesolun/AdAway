@@ -245,7 +245,7 @@ public class AiSuggestBottomSheet extends BottomSheetDialogFragment {
         } else {
             for (AiAgentAction action : response.actions) {
                 TextView tv = new TextView(requireContext());
-                tv.setText("• " + describeAction(action));
+                tv.setText(getString(R.string.ai_action_bullet, describeAction(action)));
                 tv.setTextSize(13);
                 tv.setPadding(0, 4, 0, 4);
                 binding.aiActionsContainer.addView(tv);

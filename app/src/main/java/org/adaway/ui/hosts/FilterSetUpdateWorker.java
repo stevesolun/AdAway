@@ -15,12 +15,11 @@ import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import timber.log.Timber;
@@ -59,30 +58,31 @@ public class FilterSetUpdateWorker extends Worker {
         AdBlockModel adBlockModel = app.getAdBlockModel();
         HostsSourceDao dao = AppDatabase.getInstance(context).hostsSourceDao();
 
-        // Determine if ANY schedule is due. If due: update ALL enabled sources (and apply),
-        // otherwise do nothing. This matches "manual update unless scheduled" behavior.
-        boolean anyScheduleDue = false;
+        // Determine which schedules are due. Source and filter-set schedules update only their
+        // scoped sources; the global schedule is the only path that updates all enabled sources.
+        boolean globalScheduleDue = false;
         Set<String> dueSetNames = new java.util.HashSet<>();
+        Set<String> dueSourceUrls = new LinkedHashSet<>();
         if (setNames != null) {
             for (String setName : setNames) {
                 if (FilterSetStore.isDue(context, setName, now)) {
-                    anyScheduleDue = true;
                     dueSetNames.add(setName);
+                    dueSourceUrls.addAll(FilterSetStore.getSetUrls(context, setName));
                 }
             }
         }
 
         android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
-        Set<String> dueSourceUrls = new java.util.HashSet<>();
+        Map<String, HostsSource> enabledSourcesByUrl = new LinkedHashMap<>();
         for (HostsSource src : dao.getAll()) {
             if (src.getId() == HostsSource.USER_SOURCE_ID) continue;
             if (!src.isEnabled()) continue;
             String url = src.getUrl();
+            enabledSourcesByUrl.put(url, src);
             int schedule = prefs.getInt(KEY_SCHEDULE_PREFIX + url, SCHEDULE_OFF);
             if (schedule == SCHEDULE_OFF) continue;
             long last = prefs.getLong(KEY_LAST_RUN_PREFIX + url, 0L);
             if (last <= 0L) {
-                anyScheduleDue = true;
                 dueSourceUrls.add(url);
                 continue;
             }
@@ -91,7 +91,6 @@ public class FilterSetUpdateWorker extends Worker {
             int weekdayIso = prefs.getInt(KEY_WEEKDAY_PREFIX + url, 1);
             boolean due = FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour, minute);
             if (due) {
-                anyScheduleDue = true;
                 dueSourceUrls.add(url);
             }
         }
@@ -106,31 +105,49 @@ public class FilterSetUpdateWorker extends Worker {
             int weekdayIso = FilterSetStore.getGlobalWeekdayIso(context);
             boolean due = last <= 0L || FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour, minute);
             if (due) {
-                anyScheduleDue = true;
+                globalScheduleDue = true;
             }
         }
 
-        if (!anyScheduleDue) {
+        if (!globalScheduleDue && dueSetNames.isEmpty() && dueSourceUrls.isEmpty()) {
             return Result.success();
         }
 
+        Map<String, HostsSource> dueSourcesByUrl = new LinkedHashMap<>();
+        for (String url : dueSourceUrls) {
+            HostsSource source = enabledSourcesByUrl.get(url);
+            if (source != null) {
+                dueSourcesByUrl.put(url, source);
+            }
+        }
         // Worker-level progress (the per-source percent is handled by SourceModel.getProgress()).
-        setProgressAsync(new Data.Builder()
-                .putInt(PROGRESS_DONE, 0)
-                .putInt(PROGRESS_TOTAL, 1)
-                .putString(PROGRESS_CURRENT, "Updating all enabled sources")
-                .build());
+        setProgressAsync(progressData(0, globalScheduleDue
+                ? "Updating all enabled sources"
+                : "Updating scheduled sources"));
 
-        Timber.i("Scheduled update due (sets=%d, sources=%d): updating ALL enabled sources", dueSetNames.size(), dueSourceUrls.size());
+        Timber.i("Scheduled update due (global=%b, sets=%d, sources=%d)",
+                globalScheduleDue, dueSetNames.size(), dueSourcesByUrl.size());
         try {
             // Set scheduler task name for UI display
             String taskName = dueSetNames.isEmpty() ? "Scheduled Update" : String.join(", ", dueSetNames);
             sourceModel.setSchedulerTaskName(taskName);
-            // Update all enabled sources with adaptive batching, then apply config.
-            sourceModel.checkAndRetrieveHostsSources();
+            if (globalScheduleDue) {
+                // Global schedule intentionally updates all enabled sources with adaptive batching.
+                sourceModel.checkAndRetrieveHostsSources();
+            } else {
+                List<Integer> dueSourceIds = new ArrayList<>(dueSourcesByUrl.size());
+                for (HostsSource source : dueSourcesByUrl.values()) {
+                    if (isStopped()) {
+                        return Result.failure();
+                    }
+                    setProgressAsync(progressData(0, source.getLabel()));
+                    dueSourceIds.add(source.getId());
+                }
+                sourceModel.retrieveHostsSources(dueSourceIds);
+            }
             adBlockModel.apply();
         } catch (HostErrorException e) {
-            Timber.w(e, "Failed scheduled update-all");
+            Timber.w(e, "Failed scheduled source update");
             return Result.retry();
         }
 
@@ -146,17 +163,21 @@ public class FilterSetUpdateWorker extends Worker {
             editor.apply();
         }
 
-        if (FilterSetStore.isGlobalScheduleEnabled(context)) {
+        if (globalScheduleDue) {
             FilterSetStore.setGlobalLastRun(context, now);
         }
 
-        setProgressAsync(new Data.Builder()
-                .putInt(PROGRESS_DONE, 1)
-                .putInt(PROGRESS_TOTAL, 1)
-                .putString(PROGRESS_CURRENT, "Done")
-                .build());
+        setProgressAsync(progressData(1, "Done"));
 
         return Result.success();
+    }
+
+    static Data progressData(int done, @NonNull String current) {
+        return new Data.Builder()
+                .putInt(PROGRESS_DONE, done)
+                .putInt(PROGRESS_TOTAL, 1)
+                .putString(PROGRESS_CURRENT, current)
+                .build();
     }
 }
 

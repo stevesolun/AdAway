@@ -1,5 +1,6 @@
 package org.adaway.ui.adware;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ComponentInfo;
@@ -76,6 +77,7 @@ class AdwareLiveData extends LiveData<List<AdwareInstall>> {
      * @param pm The package manager.
      * @return The found adware package information.
      */
+    @SuppressLint("QueryPermissionsNeeded")
     private List<PackageInfo> getAdwarePackages(PackageManager pm) {
         List<PackageInfo> adPackages = new ArrayList<>();
         // It'd be simpler to just use pm.getInstalledPackages here, but apparently it's broken

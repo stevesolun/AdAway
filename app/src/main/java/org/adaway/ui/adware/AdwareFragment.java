@@ -125,9 +125,8 @@ public class AdwareFragment extends Fragment {
                 to
         );
         // Update list
-        adapter.notifyDataSetChanged();
-        // Show the list
         this.mListView.setAdapter(adapter);
+        // Show the list
         this.mStatusText.setVisibility(View.GONE);
         this.mListView.setVisibility(View.VISIBLE);
     }

@@ -26,6 +26,8 @@ import org.adaway.util.AppExecutors;
 
 import timber.log.Timber;
 
+import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
+
 /**
  * This class is an {@link AndroidViewModel} for the {@link HomeActivity} cards.
  *
@@ -92,7 +94,10 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<Integer> getBlockedHostCount() {
-        // Use built host_entries table for fast counts (hosts_lists DISTINCT counts are huge and can stall UI).
+        // Use the tiny active-truth stats table; direct DISTINCT counts can stall on huge lists.
+        if (this.adBlockModel.getMethod() == ROOT) {
+            return this.hostEntryDao.getBlockedExactEntryCount();
+        }
         return this.hostEntryDao.getBlockedEntryCount();
     }
 

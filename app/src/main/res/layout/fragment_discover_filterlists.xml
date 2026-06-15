@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -18,7 +19,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/filter_search_hint"
+        android:importantForAutofill="no"
         android:inputType="text"
+        android:minHeight="48dp"
         android:padding="8dp" />
 
     <HorizontalScrollView
@@ -41,6 +44,8 @@
         android:id="@+id/languageSpinner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:contentDescription="@string/filterlists_language_filter_description"
+        android:minHeight="48dp"
         android:padding="8dp" />
 
     <LinearLayout
@@ -58,40 +63,141 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:checked="false"
-            android:text="AdAway compatible only" />
+            android:text="@string/filterlists_compatible_only" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:textSize="11sp"
             android:textColor="?android:attr/textColorSecondary"
-            android:text="(Hosts, Domains, ABP &amp; AdGuard)" />
+            android:text="@string/filterlists_compatible_only_summary" />
 
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:padding="8dp">
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/filterlistsSubscribeAllSwitch"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/filterlistsBulkActionsRow"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/filterlists_subscribe_all" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsSubscribeVisibleButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/filterlists_subscribe_visible" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsRemoveVisibleButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/filterlists_remove_visible" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsCancelBulkButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/filterlists_stop_subscribing"
+                android:text="@string/button_cancel"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/filterlistsSubscribeAllStatus"
-            android:layout_width="0dp"
-            android:layout_weight="1"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
             android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:textSize="12sp"
             android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/filterlistsLastRunActions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsReviewLastRunButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filterlists_review_last_run" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsRetryLastRunButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filterlists_retry_last_run" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filterlistsReviewUnsupportedButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filterlists_review_unsupported" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/filterlistsStateContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="20dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="20dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/filterlistsStateTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+            android:textColor="?attr/colorOnSurface"
+            tools:text="@string/filterlists_state_no_matches_title" />
+
+        <TextView
+            android:id="@+id/filterlistsStateMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="@string/filterlists_state_no_matches_message" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filterlistsStateRetryButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/filterlists_retry"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
     </LinearLayout>
 

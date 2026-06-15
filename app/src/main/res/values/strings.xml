@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="home">Home</string>
+
     <!-- Bottom navigation tab labels -->
     <string name="nav_home">Home</string>
     <string name="nav_discover">Discover</string>
+    <string name="nav_sources">Sources</string>
     <string name="nav_more">More</string>
     <!-- Onboarding strings -->
     <string name="onboarding_title">Choose protection method</string>
@@ -12,6 +13,9 @@
     <string name="onboarding_root_title">Root Mode</string>
     <string name="onboarding_root_desc">Fastest blocking. Requires root access.</string>
     <string name="onboarding_start_button">START PROTECTING</string>
+    <string name="onboarding_method_accessibility">%1$s. %2$s. %3$s.</string>
+    <string name="onboarding_method_selected">Selected</string>
+    <string name="onboarding_method_not_selected">Not selected</string>
     <!-- More fragment section labels -->
     <string name="more_section_tools">Tools</string>
     <string name="more_section_settings">Settings</string>
@@ -26,7 +30,15 @@
     <string name="more_domain_checker">Domain Checker</string>
     <string name="more_domain_checker_desc">Test if a site is blocked — unblock instantly</string>
     <!-- Domain Checker screen -->
-    <string name="domain_checker_subtitle">Check if AdsAway blocks a site, then allow or block it instantly</string>
+    <string name="domain_checker_subtitle">Check if AdAway blocks a site, then allow or block it instantly</string>
+    <string name="domain_checker_input_hint">URL or domain</string>
+    <string name="domain_checker_check_button">Check</string>
+    <string name="domain_checker_checked_domain">%1$s</string>
+    <string name="domain_checker_status_blocked">Blocked</string>
+    <string name="domain_checker_status_not_blocked">Not blocked</string>
+    <string name="domain_checker_blocked_by">Blocked by:</string>
+    <string name="domain_checker_user_source_format">User rule: %1$s</string>
+    <string name="domain_checker_filter_source_format">Filter source: %1$s</string>
     <string name="domain_checker_allow_button">Add to Allow List</string>
     <string name="domain_checker_remove_allow_button">Remove Allow Rule</string>
     <string name="domain_checker_block_button">Block it</string>
@@ -38,18 +50,18 @@
     <string name="domain_checker_allowed_snack">Added %1$s to allow list</string>
     <string name="domain_checker_blocked_snack">Blocked %1$s</string>
     <!-- Discover fragment labels -->
-    <string name="discover_tab_curated">Curated</string>
-    <string name="discover_tab_filterlists">FilterLists.com</string>
+
+
     <!-- Home fragment protection toggle -->
 
     <!-- Home fragment no-sources hint -->
-    <string name="home_no_sources_hint">No filter sources. Tap Discover to add some.</string>
+
     <string name="home_discover_cta">Browse Filter Lists</string>
     <string name="credit_line_home">Crafted with love by Steve Solun · Forked from AdAway</string>
     <string name="about_credits">Crafted with love by Steve Solun</string>
     <string name="about_attribution">Forked from AdAway · Open source, GPL-3.0</string>
     <!--Buttons-->
-    <string name="button_exit">Exit</string>
+
     <string name="button_close">Close</string>
     <string name="button_yes">Yes</string>
     <string name="button_no">No</string>
@@ -65,28 +77,28 @@
     <string name="pause_update">Pause update</string>
     <string name="resume_update">Resume update</string>
     <string name="stop_update">Stop update</string>
-    <string name="progress_complete">%d%% Complete</string>
+
 
     <!--Home-->
-    <string name="header_help">Welcome!</string>
-    <string name="text_help">AdsAway is a free and open-source software design to block advertising. It fetches advertising network addresses to block them on your device.\nWant to know more? Check the help below!</string>
-    <string name="button_show_help">Show more help</string>
+
+
+
     <string name="icon_update_status">Update status</string>
-    <string name="text_update">All hosts files from the defined sources are downloaded, merged with your own lists and installed as one hosts file on your system.</string>
-    <string name="button_enable_hosts">Enable ad-blocking</string>
-    <string name="button_disable_hosts">Disable ad-blocking</string>
-    <string name="header_webserver">Web server</string>
-    <string name="webserver_status_running">Running</string>
-    <string name="webserver_status_stopped">Stopped</string>
-    <string name="webserver_toggle_text">Start or stop webserver on localhost to answer requests to blocked hostnames.</string>
-    <string name="button_enable_webserver">Enable web server</string>
-    <string name="button_disable_webserver">Disable web server</string>
-    <string name="header_vpn">VPN</string>
-    <string name="vpn_status_running">Running</string>
-    <string name="vpn_status_stopped">Stopped</string>
-    <string name="vpn_toggle_text">Start or stop VPN to filter requests.</string>
-    <string name="button_enable_vpn">Enable VPN</string>
-    <string name="button_disable_vpn">Disable VPN</string>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     <!--Checkbox List-->
     <string name="checkbox_list_context_title">Edit Entry</string>
@@ -100,16 +112,46 @@
     <string name="menu_save_filter_set">Save filter set</string>
     <string name="menu_apply_filter_set">Apply filter set</string>
     <string name="menu_schedule_filter_set">Schedule filter set updates</string>
+    <string name="menu_manage_filter_sets">Manage saved filter sets</string>
     <string name="filter_set_name_hint">Set name</string>
     <string name="filter_set_saved">Filter set saved</string>
     <string name="filter_set_applied">Filter set applied</string>
     <string name="filter_set_none">No saved filter sets</string>
+    <string name="filter_set_manage_none">No user saved filter sets</string>
+    <string name="filter_set_manage_title">Manage saved filter sets</string>
+    <string name="filter_set_manage_actions_title">Manage %1$s</string>
+    <string name="filter_set_rename">Rename</string>
+    <string name="filter_set_rename_title">Rename filter set</string>
+    <string name="filter_set_renamed">Filter set renamed</string>
+    <string name="filter_set_delete">Delete</string>
+    <string name="filter_set_delete_title">Delete filter set?</string>
+    <string name="filter_set_delete_message">Delete %1$s? Schedules for this saved set will also be removed.</string>
+    <string name="filter_set_deleted">Filter set deleted</string>
+    <string name="filter_set_name_empty">Enter a filter set name.</string>
+    <string name="filter_set_name_reserved">This name is reserved. Choose a different filter set name.</string>
+    <string name="filter_set_name_duplicate">A filter set with this name already exists.</string>
+    <string name="filter_set_missing">This filter set is no longer available.</string>
+    <string name="filter_set_apply_preview_title">Apply %1$s?</string>
+    <string name="filter_set_apply_preview_message">Enable %1$d lists, disable %2$d lists, keep %3$d enabled.</string>
+    <string name="filter_set_apply_preview_no_changes">No list changes. My Lists already matches this profile.</string>
+    <string name="filter_set_apply_preview_disable_warning">This will turn off currently enabled lists.</string>
+    <string name="filter_set_apply_preview_missing">%1$d saved lists are not on this device and will be skipped.</string>
+    <string name="filter_set_apply_empty_title">Disable all filter lists?</string>
+    <string name="filter_set_apply_empty_message">This saved profile contains no lists. Applying it will turn off %1$d currently enabled filter lists. User rules stay unchanged.</string>
+    <string name="filter_set_apply_missing_only_title">Profile lists missing</string>
+    <string name="filter_set_apply_missing_only_message">No saved lists from this profile are on this device. Applying it will turn off %1$d currently enabled filter lists, so My Lists will not match this profile until you add those lists.</string>
+    <string name="filter_set_apply_no_change_title">No list changes</string>
+    <string name="filter_set_apply_no_change_active_message">No list changes. My Lists already matches this profile.</string>
+    <string name="filter_set_apply_set_active_message">No list changes. My Lists already matches %1$s. Applying it will make this the active saved set.</string>
+    <string name="filter_set_apply_set_active_button">Set active</string>
     <string name="filter_set_schedule_off">Off</string>
     <string name="filter_set_schedule_daily">Daily</string>
     <string name="filter_set_schedule_weekly">Weekly</string>
-    <string name="filter_set_schedule_pick_time">Pick time</string>
+
     <string name="filter_set_schedule_pick_day">Pick day</string>
+    <string name="filter_set_schedule_applied">Scheduled: %1$s</string>
     <string name="filter_set_schedule_current_selection">Current selection</string>
+    <string name="filter_set_schedule_current_selection_saved_name">Scheduled selection</string>
     <string name="menu_manage_schedules">Manage schedules</string>
     <string name="schedule_global_title">Global updates</string>
     <string name="schedule_global_desc">Automatically update all enabled sources</string>
@@ -117,20 +159,28 @@
     <string name="schedule_off">Off</string>
     <string name="schedule_daily_at">Daily at %1$s</string>
     <string name="schedule_weekly_at">Weekly on %1$s at %2$s</string>
+    <plurals name="schedule_filter_sets_count">
+        <item quantity="one">%1$d scheduled set</item>
+        <item quantity="other">%1$d scheduled sets</item>
+    </plurals>
+    <plurals name="schedule_sources_count">
+        <item quantity="one">%1$d scheduled source</item>
+        <item quantity="other">%1$d scheduled sources</item>
+    </plurals>
 
     <!--Your lists-->
-    <string name="import_dialog">Importing…</string>
+
     <string name="import_success">Backup successfully imported from your external storage.</string>
     <string name="import_failed">Failed to import backup. Is its format correct? Check logcat for more details.</string>
-    <string name="export_dialog">Exporting…</string>
+
     <string name="export_success">Backup successfully exported to file \'%s\' on your external storage.</string>
     <string name="export_failed">Failed to export backup file \'%s\'.</string>
 
     <!--Hosts content-->
-    <string name="hosts_header">The hosts file</string>
-    <string name="hosts_description">The hosts file is a system file that maps hostnames to IP addresses. It is a plain text file which configuration is handled by AdsAway. Here are its few first lines:</string>
-    <string name="hosts_content">Loading the hosts file content…</string>
-    <string name="hosts_open_button">Open the hosts file</string>
+
+
+
+
 
     <!--Status Notification-->
     <string name="status_check">Checking for update</string>
@@ -142,22 +192,22 @@
     <string name="status_sync_database">Syncing rule database</string>
     <string name="status_revert">Reverting to default hosts file</string>
     <string name="status_revert_done">Default hosts file restored</string>
-    <string name="status_reverting_subtitle">Creating standard hosts file</string>
+
     <string name="status_update_available">Source update available</string>
-    <string name="status_update_available_subtitle">Newer hosts files available</string>
+
     <string name="status_no_update_found">No source update found</string>
-    <string name="status_no_connection">No Internet connection</string>
-    <string name="status_no_connection_subtitle">No Internet connection available</string>
-    <string name="status_download_fail">Unavailable sources</string>
-    <string name="status_download_fail_subtitle_new">No hosts sources are reachable!</string>
-    <string name="status_root_access_denied">Root access denied</string>
-    <string name="status_root_access_denied_subtitle">Allow root access from your root app</string>
-    <string name="status_failure">Something went wrong</string>
-    <string name="status_failure_subtitle">Check the logcat for more details</string>
-    <string name="status_enabled">Enabled</string>
-    <string name="status_enabled_subtitle">Newest hosts files enabled</string>
-    <string name="status_disabled">Disabled</string>
-    <string name="status_disabled_subtitle">Default hosts file installed</string>
+
+
+
+
+
+
+
+
+
+
+
+
     <string name="status_apply_sources">Apply latest sources</string>
     <string name="status_create_new_hosts">Creating a new hosts file</string>
     <string name="status_copy_new_hosts">Copying a new hosts file</string>
@@ -170,125 +220,108 @@
     <string name="notification_configuration_failed">Failed to apply new configuration.</string>
 
     <!--Apply and Revert Dialogs-->
-    <string name="apply_symlink_missing_status">The symlink to the hosts file target is missing</string>
-    <string name="apply_symlink_missing">Symlink from your target to /system/etc/hosts is not existing or incorrect! AdsAway will not work if it is not pointing to the right file.\n\nDo you want to try creating a symlink?</string>
-    <string name="apply_symlink_missing_title">Symlink missing</string>
-    <string name="apply_not_enough_space">Not enough space on the partition!\nTry changing the target hosts file in preferences to /data/data/hosts.</string>
-    <string name="apply_not_enough_space_title">Not enough space</string>
-    <string name="apply_private_file_fail">Downloaded file could not be read.</string>
-    <string name="apply_private_file_fail_title">Private file fail</string>
-    <string name="apply_remount_fail">Remounting the partition as read/write failed!</string>
-    <string name="apply_remount_fail_title">Remount failed</string>
-    <string name="apply_copy_fail_status">Failed to copy hosts file</string>
-    <string name="apply_copy_fail">Copying of hosts file failed!</string>
-    <string name="apply_copy_fail_title">Copy failed</string>
-    <string name="apply_success_subtitle">Applied hosts sources</string>
-    <string name="apply_success_title">Applying successful</string>
-    <string name="apply_success_dialog">Applying was successful.\nIt may be necessary to reboot Android for the changes to take effect.\n\nDo you want to reboot?\n(To prevent data loss make sure no app uses the SD card at the moment!)</string>
-    <string name="apply_symlink_successful">Symlink was created successful.\nIt may be necessary to reboot Android for the changes to take effect.\n\nDo you want to reboot?\n(To prevent data loss make sure no app uses the SD card at the moment!)</string>
-    <string name="apply_symlink_successful_title">Symlink creation successful</string>
-    <string name="apply_symlink_fail">Symlink could not be created by Android.\nThis fails mostly due to a \'feature\' called S-ON on HTC phones!\n\nA solution is to boot your phone into recovery mode and create the symlink there with \'ln -s /data/data/hosts /system/etc/hosts\'.\n\nIf this does not work search the Internet for S-OFF and your phone.</string>
-    <string name="apply_symlink_fail_title">Symlink creation failed</string>
-    <string name="apply_help">Please read Help for more information.</string>
-    <string name="apply_apn_proxy">An APN proxy is set on your Android!\nAdsAway will not work reliably when on Mobile Networks like 3G. You can deactivate that proxy by going to your selected APN (From the Settings app: Network &amp; Internet -> Mobile network -> Advanced -> Access Point Names) and remove the value in the proxy field.</string>
-    <string name="apply_apn_proxy_title">APN proxy set!</string>
-    <string name="no_connection">The connection to the Internet is not working.</string>
-    <string name="no_connection_title">No Connection</string>
-    <string name="download_dialog">Downloading…</string>
-    <string name="apply_dialog">Applying…</string>
-    <string name="apply_dialog_lists">Applying Blacklist and Whitelist</string>
-    <string name="apply_dialog_hostnames">Parsing and merging hosts files</string>
-    <string name="apply_dialog_hosts">Building hosts file</string>
-    <string name="apply_dialog_apply">Applying hosts file</string>
-    <string name="apply_fail_status">Failed to apply new hosts file.</string>
-    <string name="apply_fail">Applying the hosts file to your system failed!\nTry changing the target hosts file in preferences to /data/data/hosts.</string>
-    <string name="apply_fail_title">Applying failed</string>
-    <string name="root_access_fail">Please check your root management app to ensure root access has been granted.</string>
-    <string name="revert_successful">You reverted to the default hosts file.\nIt may be necessary to reboot Android for the changes to take effect.\n\nDo you want to reboot?\n(To prevent data loss make sure no app uses the SD card at the moment!) </string>
-    <string name="revert_successful_title">Reverting successful</string>
-    <string name="revert_failed_status">Unable to revert hosts file</string>
-    <string name="revert_problem">Reverting failed due to unknown reasons.</string>
-    <string name="revert_problem_title">Reverting failed!</string>
-    <string name="download_fail_dialog">None of your enabled hosts sources are reachable! Are you properly connected to the Internet?</string>
-    <string name="download_fail_title">Download failed</string>
-    <string name="no_private_file_status">Failed to write new private hosts file</string>
-    <string name="no_private_file">Private file can not be created.</string>
-    <string name="no_private_file_title">Private file creation failed</string>
-    <string name="enable_systemless_successful">You enabled systemless mode.\nIt may be necessary to reboot Android for the changes to take effect.\n\nDo you want to reboot?\n(To prevent data loss make sure no app uses the SD card at the moment!)</string>
-    <string name="enable_systemless_successful_title">Enabling successful</string>
-    <string name="disable_systemless_successful">You disabled systemless mode.\nIt may be necessary to reboot Android for the changes to take effect.\n\nDo you want to reboot?\n(To prevent data loss make sure no app uses the SD card at the moment!)</string>
-    <string name="disable_systemless_successful_title">Disabling successful</string>
-    <string name="enable_vpn_fail">Failed to enable VPN ad blocking.</string>
-    <string name="disable_vpn_fail">Failed to disable VPN ad blocking.</string>
-    <string name="enable_systemless_magisk_title">Enabling hosts Magisk module</string>
-    <string name="enable_systemless_magisk">Enable systemless hosts feature from Magisk manager. From its settings, enable the <cite>Systemless hosts</cite> option then reboot your device.</string>
-    <string name="disable_systemless_magisk_title">Disabling hosts Magisk module</string>
-    <string name="disable_systemless_magisk">Disable systemless hosts feature from Magisk manager. From the module list, uninstall the <cite>Systemless hosts</cite> module then reboot your device.</string>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     <!--Other Dialogs-->
-    <string name="hosts_add_dialog">Input URL to hosts file:</string>
-    <string name="no_hostname">This is not a valid hostname!</string>
-    <string name="no_hostname_title">Improperly formatted hostname</string>
-    <string name="no_ip">This is not a valid IP!</string>
-    <string name="no_ip_title">Improperly formatted IP</string>
-    <string name="reboot_never_reboot">Never reboot and don\'t show this question next time!</string>
-    <string name="loading">Loading…</string>
+
+
+
+
+
+
 
     <!--Menu entries-->
-    <string name="menu_refresh">Refresh</string>
-    <string name="menu_add">Add</string>
-    <string name="menu_help">Help</string>
-    <string name="menu_import">Import backup</string>
-    <string name="menu_export">Export backup</string>
+
+
+
+
+
 
     <!--Help-->
-    <string name="help_tab_s_on_s_off">S-ON/S-OFF</string>
-    <string name="help_tab_faq">FAQ</string>
-    <string name="help_tab_problems">Problems</string>
+
+
+
 
     <!--Adware-->
     <string name="adware_header">Adware</string>
-    <string name="adware_description">Here you can find installed adware, bad applications which can\'t be blocked by AdsAway. These apps use for example Airpush notifications that pop up even when the app is not running or even change your ringtone. The only available countermeasure is to uninstall those apps by clicking on the list items.</string>
+    <string name="adware_description">Here you can find installed adware, bad applications which can\'t be blocked by AdAway. These apps use for example Airpush notifications that pop up even when the app is not running or even change your ringtone. The only available countermeasure is to uninstall those apps by clicking on the list items.</string>
     <string name="adware_scanning">Scanning…</string>
     <string name="adware_empty">No Adware were found!</string>
 
     <!--Other-->
-    <string name="app_subtitle">Ad blocker</string>
+
     <string name="no_text_editor_title">No text editor installed</string>
     <string name="no_text_editor">No text editor could be found to open the hosts file. You can install Jota or other text editors to handle this.\n\nDo you want to install Jota?</string>
     <string name="no_file_manager_title">No file manager installed</string>
     <string name="no_file_manager">No file manager could be found to open files. You can install OI File Manager or other file managers to handle this.\n\nDo you want to install OI File Manager?</string>
 
     <!--Tcpdump-->
-    <string name="tcpdump_header">Tcpdump</string>
-    <string name="tcpdump_description">Tcpdump is a tool to monitor DNS requests and save them in a log file. You can start it in the background, run applications that display ads, and afterwards analyze the DNS requests using the log file. Possible ad server can then be added to your blacklist.</string>
-    <string name="tcpdump_disable_monitoring">Disable monitoring</string>
-    <string name="tcpdump_enable_monitoring">Enable monitoring</string>
-    <string name="tcpdump_show_results">Show results</string>
+
+
+
+
+
     <string name="tcpdump_menu_sort">Sort domains</string>
     <string name="tcpdump_menu_clear">Clear log</string>
     <string name="tcpdump_entry_add_blacklist">Add entry to black list</string>
     <string name="tcpdump_entry_add_whitelist">Add entry to white list</string>
-    <string name="tcpdump_entry_add_redirection_list">Add entry to redirect list</string>
+
 
     <string name="pref_edit_text_value">Edit text preference value</string>
-    <string name="drawer_open">Open menu</string>
-    <string name="drawer_close">Close menu</string>
-
-    <!-- !!! Attention, always translate all items from this array !!! - Drawer menu items -->
-    <string-array name="drawer_items">
-        <item>Home</item>
-        <item>Hosts sources</item>
-        <item>Your lists</item>
-        <item>Open hosts file</item>
-        <item>Log DNS requests</item>
-        <item>Scan for adware</item>
-        <item>Preferences</item>
-        <item>Help</item>
-    </string-array>
-    <!--Drawer menu labels-->
-
-    <!--Shortcuts-->
+<!--Shortcuts-->
     <string name="shortcut_dns_requests">DNS requests</string>
     <string name="shortcut_your_lists">Your lists</string>
     <string name="shortcut_preferences">Preferences</string>
@@ -301,10 +334,7 @@
     <string name="hosts_source_unknown_status">Unknown update status</string>
     <string name="hosts_source_disabled">Disabled</string>
     <string name="hosts_source_few_minutes">few minutes</string>
-    <plurals name="hosts_source_minutes">
-        <item quantity="one">%d minute</item>
-        <item quantity="other">%d minutes</item>
-    </plurals>
+
     <plurals name="hosts_source_hours">
         <item quantity="one">%d hour</item>
         <item quantity="other">%d hours</item>
@@ -328,16 +358,16 @@
     <string name="vpn_notification_waiting_for_net">wait for network</string>
     <string name="vpn_notification_reconnecting">reconnecting</string>
     <string name="vpn_notification_reconnecting_error">reconnecting error</string>
-    <string name="vpn_notification_paused">paused</string>
+
     <string name="vpn_notification_stopped">stopped</string>
     <string name="vpn_notification_title">Ad-blocker VPN %1$s</string>
     <string name="vpn_notification_action_pause">Pause</string>
     <string name="vpn_notification_action_resume">Resume</string>
 
     <!-- Permission -->
-    <string name="permission_group_api_label">AdsAway permissions</string>
-    <string name="permission_group_api_description">Allow to interact with AdsAway</string>
-    <string name="permission_send_command_label">Send commands to AdsAway</string>
-    <string name="permission_send_command_description">Allow to send commands to AdsAway like enabling or disabling the system-wide ad-blocking</string>
+    <string name="permission_group_api_label">AdAway permissions</string>
+    <string name="permission_group_api_description">Allow to interact with AdAway</string>
+    <string name="permission_send_command_label">Send commands to AdAway</string>
+    <string name="permission_send_command_description">Allow to send commands to AdAway like enabling or disabling the system-wide ad-blocking</string>
 
 </resources>

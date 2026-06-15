@@ -12,6 +12,7 @@ import androidx.paging.PagingData;
 
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostListItemDao;
+import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.ListType;
 import org.adaway.ui.lists.type.AbstractListFragment;
@@ -35,6 +36,7 @@ import static org.adaway.ui.lists.ListsFilter.ALL;
  */
 public class ListsViewModel extends AndroidViewModel {
     private final HostListItemDao hostListItemDao;
+    private final HostsSourceDao hostsSourceDao;
     private final MutableLiveData<ListsFilter> filter;
     private final LiveData<PagingData<HostListItem>> blockedListItems;
     private final LiveData<PagingData<HostListItem>> allowedListItems;
@@ -43,7 +45,9 @@ public class ListsViewModel extends AndroidViewModel {
 
     public ListsViewModel(@NonNull Application application) {
         super(application);
-        this.hostListItemDao = AppDatabase.getInstance(application).hostsListItemDao();
+        AppDatabase database = AppDatabase.getInstance(application);
+        this.hostListItemDao = database.hostsListItemDao();
+        this.hostsSourceDao = database.hostsSourceDao();
         this.filter = new MutableLiveData<>(ALL);
         PagingConfig pagingConfig = new PagingConfig(50, 150, true);
         this.blockedListItems = switchMap(
@@ -81,6 +85,7 @@ public class ListsViewModel extends AndroidViewModel {
         item.setEnabled(!item.isEnabled());
         AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.update(item);
+            this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
             this.modelChanged.postValue(true);
         });
     }
@@ -97,6 +102,7 @@ public class ListsViewModel extends AndroidViewModel {
         item.setSourceId(USER_SOURCE_ID);
         AppExecutors.getInstance().diskIO().execute(() -> {
             addOrUpdateItemInternal(item);
+            this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
             this.modelChanged.postValue(true);
             this.refresh();
         });
@@ -117,6 +123,7 @@ public class ListsViewModel extends AndroidViewModel {
         item.setRedirection(redirection);
         AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.update(item);
+            this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
             this.modelChanged.postValue(true);
             this.refresh();
         });
@@ -125,6 +132,7 @@ public class ListsViewModel extends AndroidViewModel {
     public void removeListItem(HostListItem list) {
         AppExecutors.getInstance().diskIO().execute(() -> {
             this.hostListItemDao.delete(list);
+            this.hostsSourceDao.updateActiveRuleStats(list.getSourceId());
             this.modelChanged.postValue(true);
         });
     }
@@ -143,6 +151,7 @@ public class ListsViewModel extends AndroidViewModel {
             item.setType(newType);
             AppExecutors.getInstance().diskIO().execute(() -> {
                 this.hostListItemDao.update(item);
+                this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
                 this.modelChanged.postValue(true);
                 this.refresh();
             });
@@ -150,6 +159,7 @@ public class ListsViewModel extends AndroidViewModel {
             // Source item -> Add new User Item override
             HostListItem newItem = new HostListItem();
             newItem.setType(newType);
+            newItem.setKind(item.getKind());
             newItem.setHost(item.getHost());
             newItem.setRedirection(item.getRedirection());
             newItem.setEnabled(true);
@@ -163,6 +173,8 @@ public class ListsViewModel extends AndroidViewModel {
                 // 2. Disable the original Source Item (visual only)
                 item.setEnabled(false);
                 this.hostListItemDao.update(item);
+                this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+                this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
 
                 // 3. Notify and Refresh once
                 this.modelChanged.postValue(true);

@@ -8,6 +8,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import timber.log.Timber;
 
@@ -54,7 +55,7 @@ public final class AiAgentResponse {
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject item = arr.optJSONObject(i);
                 if (item == null) continue;
-                String typeStr = item.optString("type", "").toUpperCase().trim();
+                String typeStr = item.optString("type", "").toUpperCase(Locale.ROOT).trim();
                 String payload = item.optString("payload", "").trim();
                 try {
                     AiAgentAction.Type type = AiAgentAction.Type.valueOf(typeStr);

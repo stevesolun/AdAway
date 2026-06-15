@@ -18,6 +18,8 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
 import org.adaway.util.AppExecutors;
 
+import java.time.DayOfWeek;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -95,7 +97,8 @@ public class SchedulesActivity extends AppCompatActivity {
         }
         filterSetSummary.setText(scheduledSets == 0
                 ? getString(R.string.schedule_off)
-                : ("Scheduled sets: " + scheduledSets));
+                : getResources().getQuantityString(
+                        R.plurals.schedule_filter_sets_count, scheduledSets, scheduledSets));
 
         // Source schedules summary
         // Room queries must not run on the main thread.
@@ -111,7 +114,10 @@ public class SchedulesActivity extends AppCompatActivity {
             final int finalScheduledSources = scheduledSources;
             AppExecutors.getInstance().mainThread().execute(() -> sourceSummary.setText(finalScheduledSources == 0
                     ? getString(R.string.schedule_off)
-                    : ("Scheduled sources: " + finalScheduledSources)));
+                    : getResources().getQuantityString(
+                            R.plurals.schedule_sources_count,
+                            finalScheduledSources,
+                            finalScheduledSources)));
         });
     }
 
@@ -288,27 +294,25 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private void pickDayOfWeek(@NonNull DayPicked picked) {
-        String[] days = new String[]{
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-        };
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(days, (d, which) -> picked.onPicked(which + 1))
+                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
     }
 
-    private static String dayName(int iso) {
-        switch (iso) {
-            case 2: return "Tuesday";
-            case 3: return "Wednesday";
-            case 4: return "Thursday";
-            case 5: return "Friday";
-            case 6: return "Saturday";
-            case 7: return "Sunday";
-            case 1:
-            default: return "Monday";
+    @NonNull
+    private String[] getWeekdayLabels() {
+        String[] labels = new String[DayOfWeek.values().length];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = dayName(i + 1);
         }
+        return labels;
+    }
+
+    private String dayName(int iso) {
+        int clamped = Math.max(1, Math.min(7, iso));
+        return DayOfWeek.of(clamped).getDisplayName(TextStyle.FULL, Locale.getDefault());
     }
 
     private String formatTime(int hour24, int minute) {

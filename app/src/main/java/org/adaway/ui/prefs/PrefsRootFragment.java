@@ -1,7 +1,5 @@
 package org.adaway.ui.prefs;
 
-import static android.os.Build.VERSION.SDK_INT;
-import static android.provider.Settings.ACTION_SECURITY_SETTINGS;
 import static android.widget.Toast.LENGTH_SHORT;
 import static org.adaway.model.root.MountType.READ_ONLY;
 import static org.adaway.model.root.MountType.READ_WRITE;
@@ -11,9 +9,8 @@ import static org.adaway.ui.prefs.PrefsActivity.PREFERENCE_NOT_FOUND;
 import static org.adaway.util.Constants.ANDROID_SYSTEM_ETC_HOSTS;
 import static org.adaway.util.Constants.PREFS_NAME;
 import static org.adaway.util.WebServerUtils.TEST_URL;
-import static org.adaway.util.WebServerUtils.copyCertificate;
 import static org.adaway.util.WebServerUtils.getWebServerState;
-import static org.adaway.util.WebServerUtils.installCertificate;
+import static org.adaway.util.WebServerUtils.isWebServerAvailable;
 import static org.adaway.util.WebServerUtils.isWebServerRunning;
 import static org.adaway.util.WebServerUtils.startWebServer;
 import static org.adaway.util.WebServerUtils.stopWebServer;
@@ -23,19 +20,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
 import androidx.annotation.NonNull;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.net.InetAddresses;
 
 import org.adaway.R;
@@ -58,17 +52,9 @@ import timber.log.Timber;
  */
 public class PrefsRootFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
     /**
-     * The webserver certificate mime type.
-     */
-    private static final String CERTIFICATE_MIME_TYPE = "application/x-x509-ca-cert";
-    /**
      * The launcher to start open hosts file activity.
      */
     private ActivityResultLauncher<Intent> openHostsFileLauncher;
-    /**
-     * The launcher to prepare web service certificate activity.
-     */
-    private ActivityResultLauncher<String> prepareCertificateLauncher;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -77,13 +63,12 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         addPreferencesFromResource(R.xml.preferences_root);
         // Register for activities
         registerForOpenHostActivity();
-        registerForPrepareCertificateActivity();
         // Bind pref actions
         bindOpenHostsFile();
         bindRedirection();
+        configureWebServerAvailability();
         bindWebServerPrefAction();
         bindWebServerTest();
-        bindWebServerCertificate();
         // Update current state
         updateWebServerState();
         // Register as listener
@@ -130,13 +115,6 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
                 Timber.e(e, "Failed to get hosts canonical file.");
             }
         });
-    }
-
-    private void registerForPrepareCertificateActivity() {
-        this.prepareCertificateLauncher = registerForActivityResult(
-                new ActivityResultContracts.CreateDocument(CERTIFICATE_MIME_TYPE),
-                this::prepareWebServerCertificate
-        );
     }
 
     private void bindOpenHostsFile() {
@@ -203,6 +181,10 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         SwitchPreferenceCompat webServerEnabledPref = findPreference(getString(R.string.pref_webserver_enabled_key));
         assert webServerEnabledPref != null : PREFERENCE_NOT_FOUND;
         webServerEnabledPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            if (!isWebServerAvailable(context)) {
+                Toast.makeText(context, R.string.pref_webserver_unavailable, LENGTH_SHORT).show();
+                return false;
+            }
             if (newValue.equals(true)) {
                 // Start web server
                 startWebServer(context);
@@ -221,50 +203,50 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         Preference webServerTest = findPreference(getString(R.string.pref_webserver_test_key));
         assert webServerTest != null : PREFERENCE_NOT_FOUND;
         webServerTest.setOnPreferenceClickListener(preference -> {
+            if (!isWebServerAvailable(requireContext())) {
+                Toast.makeText(requireContext(), R.string.pref_webserver_unavailable, LENGTH_SHORT)
+                        .show();
+                return false;
+            }
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(TEST_URL));
             startActivity(intent);
             return true;
         });
     }
 
-    private void bindWebServerCertificate() {
-        Preference webServerTest = findPreference(getString(R.string.pref_webserver_certificate_key));
-        assert webServerTest != null : PREFERENCE_NOT_FOUND;
-        webServerTest.setOnPreferenceClickListener(preference -> {
-            if (SDK_INT < VERSION_CODES.R) {
-                installCertificate(requireContext());
-            } else {
-                this.prepareCertificateLauncher.launch("adaway-webserver-certificate.crt");
-            }
-            return true;
-        });
-    }
-
-    private void prepareWebServerCertificate(Uri uri) {
-        // Check user selected document
-        if (uri == null) {
+    private void configureWebServerAvailability() {
+        if (isWebServerAvailable(requireContext())) {
             return;
         }
-        Timber.d("Certificate URI: %s", uri);
-        copyCertificate(requireActivity(), uri);
-        new MaterialAlertDialogBuilder(requireContext())
-                .setCancelable(true)
-                .setTitle(R.string.pref_webserver_certificate_dialog_title)
-                .setMessage(R.string.pref_webserver_certificate_dialog_content)
-                .setPositiveButton(
-                        R.string.pref_webserver_certificate_dialog_action,
-                        (dialog, which) -> {
-                            dialog.dismiss();
-                            Intent intent = new Intent(ACTION_SECURITY_SETTINGS);
-                            startActivity(intent);
-                        })
-                .create()
-                .show();
+
+        stopWebServer();
+
+        SwitchPreferenceCompat webServerEnabledPref =
+                findPreference(getString(R.string.pref_webserver_enabled_key));
+        Preference webServerTest = findPreference(getString(R.string.pref_webserver_test_key));
+        SwitchPreferenceCompat webServerIcon =
+                findPreference(getString(R.string.pref_webserver_icon_key));
+
+        assert webServerEnabledPref != null : PREFERENCE_NOT_FOUND;
+        assert webServerTest != null : PREFERENCE_NOT_FOUND;
+        assert webServerIcon != null : PREFERENCE_NOT_FOUND;
+
+        webServerEnabledPref.setChecked(false);
+        webServerEnabledPref.setEnabled(false);
+        webServerEnabledPref.setSummary(R.string.pref_webserver_unavailable);
+        webServerTest.setEnabled(false);
+        webServerTest.setSummary(R.string.pref_webserver_state_unavailable);
+        webServerIcon.setEnabled(false);
+        webServerIcon.setChecked(false);
     }
 
     private void updateWebServerState() {
         Preference webServerTest = findPreference(getString(R.string.pref_webserver_test_key));
         assert webServerTest != null : PREFERENCE_NOT_FOUND;
+        if (!isWebServerAvailable(requireContext())) {
+            webServerTest.setSummary(R.string.pref_webserver_state_unavailable);
+            return;
+        }
         webServerTest.setSummary(R.string.pref_webserver_state_checking);
         AppExecutors executors = AppExecutors.getInstance();
         executors.networkIO().execute(() -> {

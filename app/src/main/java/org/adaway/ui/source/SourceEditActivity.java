@@ -22,6 +22,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
+import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 
@@ -53,6 +54,12 @@ public class SourceEditActivity extends AppCompatActivity {
     public static final String EXTRA_INITIAL_URL = "initialUrl";
     public static final String EXTRA_INITIAL_ALLOW = "initialAllow";
     public static final String EXTRA_INITIAL_REDIRECT = "initialRedirect";
+    public static final String EXTRA_FILTER_LIST_ID = "filterListId";
+    public static final String EXTRA_FILTER_LIST_NAME = "filterListName";
+    public static final String EXTRA_FILTER_LIST_SYNTAX_IDS = "filterListSyntaxIds";
+    public static final String EXTRA_FILTER_LIST_TAG_IDS = "filterListTagIds";
+    public static final String EXTRA_FILTER_LIST_LANGUAGE_IDS = "filterListLanguageIds";
+    public static final String EXTRA_FILTER_LIST_SELECTED_URL = "filterListSelectedUrl";
     /**
      * The any type mime type.
      */
@@ -73,6 +80,17 @@ public class SourceEditActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> startActivityLauncher;
     private boolean editing;
     private HostsSource edited;
+    private int initialFilterListId;
+    @Nullable
+    private int[] initialFilterListSyntaxIds;
+    @Nullable
+    private int[] initialFilterListTagIds;
+    @Nullable
+    private int[] initialFilterListLanguageIds;
+    @Nullable
+    private String initialFilterListName;
+    @Nullable
+    private String initialFilterListSelectedUrl;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -147,6 +165,14 @@ public class SourceEditActivity extends AppCompatActivity {
             }
             boolean initialAllow = intent.getBooleanExtra(EXTRA_INITIAL_ALLOW, false);
             boolean initialRedirect = intent.getBooleanExtra(EXTRA_INITIAL_REDIRECT, false);
+            this.initialFilterListId = intent.getIntExtra(EXTRA_FILTER_LIST_ID, 0);
+            this.initialFilterListName = intent.getStringExtra(EXTRA_FILTER_LIST_NAME);
+            this.initialFilterListSyntaxIds = intent.getIntArrayExtra(EXTRA_FILTER_LIST_SYNTAX_IDS);
+            this.initialFilterListTagIds = intent.getIntArrayExtra(EXTRA_FILTER_LIST_TAG_IDS);
+            this.initialFilterListLanguageIds =
+                    intent.getIntArrayExtra(EXTRA_FILTER_LIST_LANGUAGE_IDS);
+            this.initialFilterListSelectedUrl =
+                    intent.getStringExtra(EXTRA_FILTER_LIST_SELECTED_URL);
             this.binding.blockFormatButton.setChecked(!initialAllow);
             this.binding.allowFormatButton.setChecked(initialAllow);
             this.binding.redirectedHostsCheckbox.setChecked(!initialAllow && initialRedirect);
@@ -226,8 +252,7 @@ public class SourceEditActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         // Check item identifier
         if (item.getItemId() == R.id.delete_action) {
-            AppExecutors.getInstance().diskIO().execute(() -> this.hostsSourceDao.delete(this.edited));
-            finish();
+            confirmDeleteSource();
             return true;
         } else if (item.getItemId() == R.id.apply_action) {
             HostsSource source = validate();
@@ -251,6 +276,30 @@ public class SourceEditActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    private void confirmDeleteSource() {
+        HostsSource source = this.edited;
+        if (source == null) {
+            return;
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.source_edit_delete_confirm_title)
+                .setMessage(getString(
+                        R.string.source_edit_delete_confirm_message,
+                        source.getLabel()))
+                .setNegativeButton(R.string.button_cancel, null)
+                .setPositiveButton(R.string.source_edit_delete_confirm_action,
+                        (dialog, which) -> deleteSource(source))
+                .show();
+    }
+
+    private void deleteSource(HostsSource source) {
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            clearSchedule(source.getUrl());
+            this.hostsSourceDao.delete(source);
+            AppExecutors.getInstance().mainThread().execute(this::finish);
+        });
     }
 
     private void promptAutoUpdateSchedule(String url) {
@@ -293,6 +342,17 @@ public class SourceEditActivity extends AppCompatActivity {
         // Reset last-run when schedule changes so it runs next occurrence.
         e.remove(KEY_LAST_RUN_PREFIX + url);
         e.apply();
+    }
+
+    private void clearSchedule(String url) {
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+        prefs.edit()
+                .remove(KEY_SCHEDULE_PREFIX + url)
+                .remove(KEY_WEEKDAY_PREFIX + url)
+                .remove(KEY_HOUR_PREFIX + url)
+                .remove(KEY_MINUTE_PREFIX + url)
+                .remove(KEY_LAST_RUN_PREFIX + url)
+                .apply();
     }
 
     private interface TimePicked {
@@ -357,6 +417,16 @@ public class SourceEditActivity extends AppCompatActivity {
         boolean allowFormat = this.binding.allowFormatButton.isChecked();
         source.setAllowEnabled(allowFormat);
         source.setRedirectEnabled(!allowFormat && this.binding.redirectedHostsCheckbox.isChecked());
+        if (!this.editing && this.initialFilterListId > 0) {
+            FilterListsSourceMetadata.apply(source, this.initialFilterListId,
+                    this.initialFilterListName, this.initialFilterListSyntaxIds,
+                    this.initialFilterListTagIds, this.initialFilterListLanguageIds,
+                    this.initialFilterListSelectedUrl != null ? this.initialFilterListSelectedUrl
+                            : url);
+        } else if (this.editing && this.edited != null
+                && url.equals(this.edited.getUrl())) {
+            FilterListsSourceMetadata.copy(this.edited, source);
+        }
         return source;
     }
 

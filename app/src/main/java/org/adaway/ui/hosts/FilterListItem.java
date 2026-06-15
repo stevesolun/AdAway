@@ -2,11 +2,14 @@ package org.adaway.ui.hosts;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.adaway.R;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCategory;
 import org.adaway.model.source.FilterListCatalog;
+
+import java.time.ZonedDateTime;
 
 /**
  * Represents an item in the filter list RecyclerView.
@@ -100,11 +103,43 @@ public abstract class FilterListItem {
         private final HostsSource source;
         private final FilterListCategory category;
         private final boolean updateAvailable;
+        private final int id;
+        private final String label;
+        private final String url;
+        private final boolean enabled;
+        private final int size;
+        private final ZonedDateTime localModificationDate;
+        private final ZonedDateTime onlineModificationDate;
+        private final String lastDownloadError;
+        private final int skippedCount;
+        private final Integer filterListId;
+        private final String filterListName;
+        private final String filterListSyntaxIds;
+        private final String filterListCompatibility;
+        private final int filterListCompatibilityScore;
+        private final String filterListTagIds;
+        private final String filterListLanguageIds;
         
         public SourceItem(@NonNull HostsSource source, boolean updateAvailable) {
             this.source = source;
-            this.category = FilterListCatalog.getCategoryForUrl(source.getUrl());
+            this.category = FilterListCatalog.getCategoryForSource(source);
             this.updateAvailable = updateAvailable;
+            this.id = source.getId();
+            this.label = source.getLabel();
+            this.url = source.getUrl();
+            this.enabled = source.isEnabled();
+            this.size = source.getSize();
+            this.localModificationDate = source.getLocalModificationDate();
+            this.onlineModificationDate = source.getOnlineModificationDate();
+            this.lastDownloadError = source.getLastDownloadError();
+            this.skippedCount = source.getSkippedCount();
+            this.filterListId = source.getFilterListId();
+            this.filterListName = source.getFilterListName();
+            this.filterListSyntaxIds = source.getFilterListSyntaxIds();
+            this.filterListCompatibility = source.getFilterListCompatibility();
+            this.filterListCompatibilityScore = source.getFilterListCompatibilityScore();
+            this.filterListTagIds = source.getFilterListTagIds();
+            this.filterListLanguageIds = source.getFilterListLanguageIds();
         }
         
         @Override
@@ -123,17 +158,78 @@ public abstract class FilterListItem {
         public boolean isUpdateAvailable() {
             return updateAvailable;
         }
+
+        public int getId() {
+            return id;
+        }
         
         public String getLabel() {
-            return source.getLabel();
+            return label;
+        }
+
+        public String getUrl() {
+            return url;
         }
         
         public boolean isEnabled() {
-            return source.isEnabled();
+            return enabled;
         }
         
         public int getSize() {
-            return source.getSize();
+            return size;
+        }
+
+        @Nullable
+        public ZonedDateTime getLocalModificationDate() {
+            return localModificationDate;
+        }
+
+        @Nullable
+        public ZonedDateTime getOnlineModificationDate() {
+            return onlineModificationDate;
+        }
+
+        @Nullable
+        public String getLastDownloadError() {
+            return lastDownloadError;
+        }
+
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+
+        @Nullable
+        public Integer getFilterListId() {
+            return filterListId;
+        }
+
+        @Nullable
+        public String getFilterListName() {
+            return filterListName;
+        }
+
+        @Nullable
+        public String getFilterListSyntaxIds() {
+            return filterListSyntaxIds;
+        }
+
+        @Nullable
+        public String getFilterListCompatibility() {
+            return filterListCompatibility;
+        }
+
+        public int getFilterListCompatibilityScore() {
+            return filterListCompatibilityScore;
+        }
+
+        @Nullable
+        public String getFilterListTagIds() {
+            return filterListTagIds;
+        }
+
+        @Nullable
+        public String getFilterListLanguageIds() {
+            return filterListLanguageIds;
         }
     }
 }

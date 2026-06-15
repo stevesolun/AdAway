@@ -4,8 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingTop="32dp"
-    android:background="@color/ui_bg">
+    android:paddingTop="32dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -85,8 +84,7 @@
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     android:contentDescription="@null"
-                    app:srcCompat="@drawable/ic_expand_more_24"
-                    android:rotation="-90"
+                    app:srcCompat="@drawable/ic_chevron_end_24"
                     app:tint="@color/ui_text_secondary" />
 
             </LinearLayout>
@@ -142,8 +140,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -183,8 +180,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -224,8 +220,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -265,8 +260,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -338,8 +332,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -379,8 +372,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -420,8 +412,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
@@ -445,7 +436,7 @@
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:contentDescription="@string/more_github"
-                        app:srcCompat="@drawable/ic_github_24dp"
+                        app:srcCompat="@drawable/ic_code_host_24dp"
                         app:tint="@color/ui_text_secondary" />
 
                     <TextView
@@ -461,8 +452,7 @@
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:contentDescription="@null"
-                        app:srcCompat="@drawable/ic_expand_more_24"
-                        android:rotation="-90"
+                        app:srcCompat="@drawable/ic_chevron_end_24"
                         app:tint="@color/ui_text_secondary" />
                 </LinearLayout>
 
