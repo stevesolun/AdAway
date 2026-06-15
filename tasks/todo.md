@@ -5281,6 +5281,30 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-15 Goal Continuation 100 Connected CI Evidence
+- [x] Re-check PR #6 after the CodeQL and dependency fixes.
+- [x] Confirm `Development build`, `Analyze (cpp)`, `Analyze (java)`, and aggregate `CodeQL`
+  are green on commit `cf27e604`.
+- [x] Classify the remaining CI risk as the long-running `Connected Android tests` job, not an
+  app compile, unit-test, lint, or CodeQL failure.
+- [x] Harden the connected-test workflow with bounded job, emulator-boot, and instrumentation
+  timeouts.
+- [x] Add failure evidence capture for emulator logs, logcat, device state, and androidTest
+  reports.
+- [x] Commit the CI hardening patch and let the replacement connected-test lane prove itself.
+
+## Review - 2026-06-15 Goal Continuation 100
+- Live PR status after the earlier fixes: Android `Development build`, CodeQL C++, CodeQL Java,
+  and the aggregate CodeQL security check passed. The only remaining non-green check was
+  `Connected Android tests`, which stayed `in_progress` without downloadable logs.
+- The connected-test job had no explicit job timeout and the Gradle instrumentation step had no
+  step timeout. The GitHub logs endpoint does not expose logs while the job is in progress, so a
+  stuck emulator/test run can leave the PR pending without evidence.
+- Split the connected test shell into boot, logcat capture, bounded instrumentation, diagnostics,
+  and artifact upload. This preserves the existing strict
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` gate while making
+  hangs fail with evidence instead of waiting for the platform default timeout.
+
 ## Plan - 2026-06-15 Goal Continuation 98 Fresh Regression Proof
 - [x] Prove the committed tree is clean before running the phase.
 - [x] Run a fresh committed-tree unit/build gate after the build-split, AI-removal, and

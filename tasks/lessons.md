@@ -40,3 +40,11 @@
 - Include launcher fallback assets and manifest icon hooks in branding checks; testing only the
   visible vector logo can still leave launcher icons broken.
 - Treat user-visible branding regressions as product bugs, not cosmetic cleanup.
+
+## 2026-06-15 - CI Hangs Need Evidence
+
+- When a CI job is pending or running long without live logs, treat missing diagnostics as a CI
+  defect, not only as elapsed time.
+- Bound emulator boot and instrumentation steps separately so failures point at the stalled layer.
+- Always upload connected-test reports, emulator logs, logcat, and device state on failure before
+  claiming the CI lane is understood.

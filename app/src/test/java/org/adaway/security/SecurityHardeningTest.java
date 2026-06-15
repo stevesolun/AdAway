@@ -897,9 +897,24 @@ public class SecurityHardeningTest {
                 workflow.contains("connected-tests:"));
         assertTrue("Android CI must install an emulator system image.",
                 workflow.contains("system-images;android-34;google_apis;x86_64"));
+        assertTrue("Connected test CI must bound the job so emulator hangs do not run for hours.",
+                workflow.contains("connected-tests:") &&
+                        workflow.contains("timeout-minutes: 50"));
+        assertTrue("Connected test CI must bound emulator boot separately.",
+                workflow.contains("Boot emulator") &&
+                        workflow.contains("timeout-minutes: 20"));
+        assertTrue("Connected test CI must bound instrumentation separately.",
+                workflow.contains("Run connected Android tests") &&
+                        workflow.contains("timeout-minutes: 25"));
         assertTrue("Android CI must run connected androidTest.",
                 workflow.contains(
                         ":app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace"));
+        assertTrue("Connected test CI must retain logcat and test reports on failure.",
+                workflow.contains("Upload connected test artifacts") &&
+                        workflow.contains("connected-android-test-artifacts") &&
+                        workflow.contains("app/build/ci-artifacts/**") &&
+                        workflow.contains("app/build/outputs/androidTest-results/**") &&
+                        workflow.contains("app/build/reports/androidTests/**"));
     }
 
     @Test

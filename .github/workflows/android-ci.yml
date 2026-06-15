@@ -146,6 +146,7 @@ jobs:
     name: Connected Android tests
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 50
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -193,8 +194,9 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run connected Android tests
+      - name: Boot emulator
         shell: bash
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
@@ -202,6 +204,7 @@ jobs:
           if [ ! -x "$AVDMANAGER" ]; then
             AVDMANAGER="$(command -v avdmanager)"
           fi
+          mkdir -p app/build/ci-artifacts
 
           echo "no" | "$AVDMANAGER" create avd \
             --force \
@@ -216,12 +219,59 @@ jobs:
             -no-boot-anim \
             -no-snapshot \
             -no-metrics \
-            -gpu swiftshader_indirect &
+            -gpu swiftshader_indirect \
+            > app/build/ci-artifacts/emulator.log 2>&1 &
+          echo "$!" > app/build/ci-artifacts/emulator.pid
 
           adb wait-for-device
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb devices -l | tee app/build/ci-artifacts/adb-devices-after-boot.txt
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
 
+      - name: Start logcat capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/build/ci-artifacts
+          adb logcat -c || true
+          adb logcat -v threadtime > app/build/ci-artifacts/connected-logcat.txt 2>&1 &
+          echo "$!" > app/build/ci-artifacts/logcat.pid
+
+      - name: Run connected Android tests
+        shell: bash
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
           ./gradlew :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace
+
+      - name: Collect connected test diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p app/build/ci-artifacts
+          if [ -f app/build/ci-artifacts/logcat.pid ]; then
+            kill "$(cat app/build/ci-artifacts/logcat.pid)" 2>/dev/null || true
+          fi
+          adb devices -l > app/build/ci-artifacts/adb-devices-final.txt 2>&1 || true
+          adb shell getprop > app/build/ci-artifacts/device-getprop.txt 2>&1 || true
+          adb shell dumpsys activity processes \
+            > app/build/ci-artifacts/activity-processes.txt 2>&1 || true
+          adb logcat -d -v threadtime \
+            > app/build/ci-artifacts/connected-logcat-final.txt 2>&1 || true
+          find app/build -maxdepth 6 \
+            \( -path '*androidTest-results*' -o -path '*reports/androidTests*' \) \
+            -print > app/build/ci-artifacts/android-test-report-paths.txt || true
+
+      - name: Upload connected test artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: connected-android-test-artifacts
+          if-no-files-found: ignore
+          path: |
+            app/build/ci-artifacts/**
+            app/build/outputs/androidTest-results/**
+            app/build/reports/androidTests/**
