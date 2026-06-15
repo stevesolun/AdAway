@@ -22,6 +22,7 @@ import static org.adaway.model.root.MountType.READ_WRITE;
 import static org.adaway.model.root.ShellUtils.mergeAllLines;
 
 import android.content.Context;
+import android.database.Cursor;
 
 import com.topjohnwu.superuser.Shell;
 
@@ -29,7 +30,6 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostsSourceDao;
-import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
@@ -154,9 +154,7 @@ public class RootModel extends AdBlockModel {
     }
 
     private void syncPreferences(Context context) {
-        if (PreferenceHelper.getWebServerEnabled(context) && !WebServerUtils.isWebServerRunning()) {
-            WebServerUtils.startWebServer(context);
-        }
+        WebServerUtils.stopWebServer();
     }
 
     private void deleteNewHostsFile() {
@@ -222,19 +220,24 @@ public class RootModel extends AdBlockModel {
         String redirectionIpv4 = PreferenceHelper.getRedirectionIpv4(this.context);
         String redirectionIpv6 = PreferenceHelper.getRedirectionIpv6(this.context);
         boolean enableIpv6 = PreferenceHelper.getEnableIpv6(this.context);
-        // Write each hostname
-        for (HostEntry entry : this.hostEntryDao.getAll()) {
-            String hostname = entry.getHost();
-            if (entry.getType() == REDIRECTED) {
-                writer.write(entry.getRedirection() + " " + hostname);
-                writer.newLine();
-            } else {
+        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursor()) {
+            int hostColumn = cursor.getColumnIndexOrThrow("host");
+            int typeColumn = cursor.getColumnIndexOrThrow("type");
+            int redirectionColumn = cursor.getColumnIndexOrThrow("redirection");
+            while (cursor.moveToNext()) {
+                String hostname = cursor.getString(hostColumn);
+                if (cursor.getInt(typeColumn) == REDIRECTED.getValue()) {
+                    writer.write(cursor.getString(redirectionColumn) + " " + hostname);
+                    writer.newLine();
+                    continue;
+                }
                 writer.write(redirectionIpv4 + " " + hostname);
                 writer.newLine();
-                if (enableIpv6) {
-                    writer.write(redirectionIpv6 + " " + hostname);
-                    writer.newLine();
+                if (!enableIpv6) {
+                    continue;
                 }
+                writer.write(redirectionIpv6 + " " + hostname);
+                writer.newLine();
             }
         }
     }

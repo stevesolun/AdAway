@@ -93,7 +93,14 @@ public enum FilterListCategory {
      */
     REGIONAL(R.string.filter_category_regional, R.string.filter_category_regional_desc,
              R.drawable.ic_category_regional, false, false),
-    
+
+    /**
+     * Sources imported from the FilterLists.com directory.
+     */
+    FILTERLISTS(R.string.filter_category_filterlists,
+            R.string.filter_category_filterlists_desc,
+            R.drawable.ic_category_custom, false, false),
+
     /**
      * Custom sources added by user.
      */

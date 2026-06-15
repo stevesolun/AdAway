@@ -607,6 +607,37 @@ public class FilterListCatalog {
         }
 
         /**
+         * Get the category for a source, preferring durable source metadata over URL matching.
+         */
+        public static FilterListCategory getCategoryForSource(HostsSource source) {
+                if (source == null) {
+                        return CUSTOM;
+                }
+                String url = source.getUrl();
+                if (url != null && url.startsWith(HostsSource.USER_SOURCE_URL)) {
+                        return USER;
+                }
+                if (hasFilterListsMetadata(source)) {
+                        return FILTERLISTS;
+                }
+                return getCategoryForUrl(url);
+        }
+
+        private static boolean hasFilterListsMetadata(HostsSource source) {
+                return source.getFilterListId() != null
+                        || notBlank(source.getFilterListName())
+                        || notBlank(source.getFilterListSyntaxIds())
+                        || notBlank(source.getFilterListCompatibility())
+                        || notBlank(source.getFilterListSelectedUrl())
+                        || notBlank(source.getFilterListTagIds())
+                        || notBlank(source.getFilterListLanguageIds());
+        }
+
+        private static boolean notBlank(String value) {
+                return value != null && !value.trim().isEmpty();
+        }
+
+        /**
          * Get the total number of available filter lists in the catalog.
          */
         public static int getCatalogSize() {

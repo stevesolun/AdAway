@@ -3,6 +3,7 @@ package org.adaway.model.source;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -130,5 +131,25 @@ public class FilterListsDirectoryApiTest {
         assertEquals(10, lang.id);
         assertEquals("French", lang.name);
         assertEquals("fr", lang.iso6391);
+    }
+
+    @Test
+    public void pickBestDownloadUrl_ignoresUnusableUrls() {
+        FilterListsDirectoryApi.ListDetails details = new FilterListsDirectoryApi.ListDetails(
+                1,
+                "Example",
+                "",
+                new int[]{1},
+                Arrays.asList(
+                        new FilterListsDirectoryApi.ViewUrl(0, 10,
+                                "http://example.com/hosts.txt"),
+                        new FilterListsDirectoryApi.ViewUrl(0, 9,
+                                "https://github.com/example/repo/blob/main/hosts.txt"),
+                        new FilterListsDirectoryApi.ViewUrl(0, 8,
+                                "https://raw.githubusercontent.com/example/repo/main/hosts.txt")
+                ));
+
+        assertEquals("https://raw.githubusercontent.com/example/repo/main/hosts.txt",
+                details.pickBestDownloadUrl());
     }
 }

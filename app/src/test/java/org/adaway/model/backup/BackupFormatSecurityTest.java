@@ -1,5 +1,7 @@
 package org.adaway.model.backup;
 
+import org.adaway.db.entity.HostListItem;
+import org.adaway.db.entity.RuleKind;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
@@ -75,5 +77,45 @@ public class BackupFormatSecurityTest {
         obj.put("enabled", true);
         // No redirect field — must NOT throw
         BackupFormat.hostFromJson(obj);
+    }
+
+    @Test
+    public void atk31_backupRoundTripsSuffixRuleKind() throws JSONException {
+        HostListItem item = new HostListItem();
+        item.setHost("example.com");
+        item.setKind(RuleKind.SUFFIX);
+        item.setEnabled(true);
+
+        JSONObject obj = BackupFormat.hostToJson(item);
+        assertEquals("suffix", obj.getString("kind"));
+
+        HostListItem restored = BackupFormat.hostFromJson(obj);
+        assertEquals(RuleKind.SUFFIX, restored.getKind());
+    }
+
+    @Test
+    public void atk31_backupDefaultsMissingRuleKindToExact() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("enabled", true);
+
+        HostListItem restored = BackupFormat.hostFromJson(obj);
+
+        assertEquals(RuleKind.EXACT, restored.getKind());
+    }
+
+    @Test
+    public void atk31_backupInvalidRuleKindRejected() throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("host", "example.com");
+        obj.put("enabled", true);
+        obj.put("kind", "browser-scriptlet");
+
+        try {
+            BackupFormat.hostFromJson(obj);
+            fail("Expected JSONException for unsupported rule kind in backup");
+        } catch (JSONException e) {
+            assertTrue("Error must mention invalid kind", e.getMessage().contains("Invalid"));
+        }
     }
 }

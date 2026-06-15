@@ -1,5 +1,10 @@
 package org.adaway.ui.domainchecker;
 
+import org.adaway.util.RegexUtils;
+
+import java.net.IDN;
+import java.util.Locale;
+
 /**
  * Pure-Java utility for normalising user input into a bare hostname.
  *
@@ -9,7 +14,7 @@ package org.adaway.ui.domainchecker;
  *   - Domains with a trailing path or query string
  *   - Mixed-case input — always returns lowercase
  *
- * Returns null for null, empty, or whitespace-only input.
+ * Returns null for null, empty, whitespace-only, or invalid hostname input.
  */
 public class DomainNormalizer {
 
@@ -18,8 +23,8 @@ public class DomainNormalizer {
     }
 
     /**
-     * Normalise {@code input} to a bare lowercase hostname, or null if the
-     * input is blank/null.
+     * Normalise {@code input} to a bare lowercase ASCII hostname, or null if the
+     * input is blank/null/invalid.
      */
     public static String normalize(String input) {
         if (input == null) {
@@ -32,9 +37,9 @@ public class DomainNormalizer {
 
         // Strip protocol prefix
         String host = trimmed;
-        if (host.startsWith("https://")) {
+        if (host.regionMatches(true, 0, "https://", 0, "https://".length())) {
             host = host.substring("https://".length());
-        } else if (host.startsWith("http://")) {
+        } else if (host.regionMatches(true, 0, "http://", 0, "http://".length())) {
             host = host.substring("http://".length());
         }
 
@@ -58,6 +63,20 @@ public class DomainNormalizer {
             host = host.substring(0, colonIdx);
         }
 
-        return host.isEmpty() ? null : host.toLowerCase();
+        host = host.trim();
+        if (host.endsWith(".")) {
+            host = host.substring(0, host.length() - 1);
+        }
+        if (host.isEmpty() || RegexUtils.isValidIP(host)) {
+            return null;
+        }
+
+        try {
+            host = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+
+        return RegexUtils.isValidHostname(host) ? host : null;
     }
 }

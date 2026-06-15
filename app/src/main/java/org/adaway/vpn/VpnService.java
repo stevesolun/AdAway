@@ -45,6 +45,7 @@ import android.net.ConnectivityManager.NetworkCallback;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -171,7 +172,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
 
     private void startVpn() {
         Timber.d("startVpn() called");
-        PreferenceHelper.setVpnServiceStatus(this, RUNNING);
+        PreferenceHelper.setVpnServiceStatus(this, STARTING);
         updateVpnStatus(STARTING);
         this.vpnWorker.start();
         Timber.i("VPN service started.");
@@ -199,14 +200,15 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
 
     private void updateVpnStatus(VpnStatus status) {
         Timber.d("updateVpnStatus called with status: %s", status);
+        PreferenceHelper.setVpnServiceStatus(this, status);
         Notification notification = getNotification(status);
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
         switch (status) {
             case STARTING:
             case RUNNING:
                 notificationManager.cancel(VPN_RESUME_SERVICE_NOTIFICATION_ID);
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    Timber.d("Calling startForeground for Android Q+");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    Timber.d("Calling startForeground with VPN special-use type");
                     try {
                         startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
                                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
@@ -224,9 +226,8 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
                 }
         }
 
-        // Persist status for UI/state checks (source of truth is PreferenceHelper).
-        // UI should observe AdBlockModel.isApplied() / VpnServiceControls.isRunning()
-        // rather than local broadcasts.
+        // Persisted status is the UI source of truth. RUNNING is emitted by VpnWorker
+        // only after VpnBuilder.establish() succeeds.
     }
 
     private Notification getNotification(VpnStatus status) {

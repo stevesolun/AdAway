@@ -27,6 +27,7 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class VpnModel extends AdBlockModel {
+    private static final int MAX_LOG_ENTRIES = 1000;
     private final HostEntryDao hostEntryDao;
     private final LruCache<String, HostEntry> blockCache;
     private final LinkedHashSet<String> logs;
@@ -45,7 +46,7 @@ public class VpnModel extends AdBlockModel {
         this.blockCache = new LruCache<String, HostEntry>(4 * 1024) {
             @Override
             protected HostEntry create(String key) {
-                return VpnModel.this.hostEntryDao.getEntry(key);
+                return VpnModel.this.hostEntryDao.resolveEntry(key);
             }
         };
         this.logs = new LinkedHashSet<>();
@@ -62,7 +63,7 @@ public class VpnModel extends AdBlockModel {
     @Override
     public void apply() throws HostErrorException {
         // Clear cache
-        this.blockCache.evictAll();
+        invalidateRulesCache();
         // Start VPN
         boolean started = VpnServiceControls.start(this.context);
         this.applied.postValue(started);
@@ -70,6 +71,14 @@ public class VpnModel extends AdBlockModel {
             throw new HostErrorException(ENABLE_VPN_FAIL);
         }
         setState(R.string.status_vpn_configuration_updated);
+    }
+
+    /**
+     * Clear cached rule lookups after the runtime rule table changes.
+     */
+    public void invalidateRulesCache() {
+        this.blockCache.evictAll();
+        this.requestCount = 0;
     }
 
     @Override
@@ -90,12 +99,16 @@ public class VpnModel extends AdBlockModel {
 
     @Override
     public List<String> getLogs() {
-        return new ArrayList<>(this.logs);
+        synchronized (this.logs) {
+            return new ArrayList<>(this.logs);
+        }
     }
 
     @Override
     public void clearLogs() {
-        this.logs.clear();
+        synchronized (this.logs) {
+            this.logs.clear();
+        }
     }
 
     /**
@@ -116,7 +129,12 @@ public class VpnModel extends AdBlockModel {
         }
         // Add host to logs
         if (this.recordingLogs) {
-            this.logs.add(host);
+            synchronized (this.logs) {
+                if (this.logs.add(host) && this.logs.size() > MAX_LOG_ENTRIES) {
+                    String first = this.logs.iterator().next();
+                    this.logs.remove(first);
+                }
+            }
         }
         // Check cache
         return this.blockCache.get(host);

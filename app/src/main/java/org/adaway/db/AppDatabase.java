@@ -11,6 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import org.adaway.R;
 import org.adaway.db.converter.ListTypeConverter;
+import org.adaway.db.converter.RuleKindConverter;
 import org.adaway.db.converter.ZonedDateTimeConverter;
 import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
@@ -18,8 +19,11 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsMeta;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.HostsStats;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.ListType;
+import org.adaway.db.entity.RootHostEntry;
+import org.adaway.db.entity.RootHostStageEntry;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.WaTgSafetyAllowlist;
 import org.adaway.util.AppExecutors;
@@ -34,6 +38,23 @@ import static org.adaway.db.Migrations.MIGRATION_7_8;
 import static org.adaway.db.Migrations.MIGRATION_8_9;
 import static org.adaway.db.Migrations.MIGRATION_9_10;
 import static org.adaway.db.Migrations.MIGRATION_10_11;
+import static org.adaway.db.Migrations.MIGRATION_11_12;
+import static org.adaway.db.Migrations.MIGRATION_12_13;
+import static org.adaway.db.Migrations.MIGRATION_13_14;
+import static org.adaway.db.Migrations.MIGRATION_14_15;
+import static org.adaway.db.Migrations.MIGRATION_15_16;
+import static org.adaway.db.Migrations.MIGRATION_16_17;
+import static org.adaway.db.Migrations.MIGRATION_17_18;
+import static org.adaway.db.Migrations.MIGRATION_18_19;
+import static org.adaway.db.Migrations.MIGRATION_19_20;
+import static org.adaway.db.Migrations.MIGRATION_20_21;
+import static org.adaway.db.Migrations.MIGRATION_21_22;
+import static org.adaway.db.Migrations.MIGRATION_22_23;
+import static org.adaway.db.Migrations.MIGRATION_23_24;
+import static org.adaway.db.Migrations.MIGRATION_24_25;
+import static org.adaway.db.Migrations.MIGRATION_25_26;
+import static org.adaway.db.Migrations.MIGRATION_26_27;
+import static org.adaway.db.Migrations.MIGRATION_27_28;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 
@@ -42,8 +63,19 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
-@Database(entities = {HostsSource.class, HostListItem.class, HostEntry.class, HostsMeta.class}, version = 11)
-@TypeConverters({ListTypeConverter.class, ZonedDateTimeConverter.class})
+@Database(
+        entities = {
+                HostsSource.class,
+                HostListItem.class,
+                HostEntry.class,
+                RootHostEntry.class,
+                RootHostStageEntry.class,
+                HostsMeta.class,
+                HostsStats.class
+        },
+        version = 28
+)
+@TypeConverters({ListTypeConverter.class, RuleKindConverter.class, ZonedDateTimeConverter.class})
 public abstract class AppDatabase extends RoomDatabase {
     /**
      * The database singleton instance.
@@ -68,12 +100,17 @@ public abstract class AppDatabase extends RoomDatabase {
                     .addCallback(new Callback() {
                         @Override
                         public void onCreate(@NonNull SupportSQLiteDatabase db) {
+                            optimizeCreatedDatabaseStorage(db);
                             // Ensure the single-row hosts_meta exists.
                             db.execSQL("INSERT OR IGNORE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
-                            AppExecutors.getInstance().diskIO().execute(
-                                    () -> AppDatabase.initialize(context, instance)
-                            );
-                            WaTgSafetyAllowlist.ensureAllowlist(context);
+                            db.execSQL("INSERT OR IGNORE INTO `hosts_stats` " +
+                                    "(`id`, `blocked_count`, `blocked_exact_count`, " +
+                                    "`allowed_count`, `redirected_count`, `active_rule_count`) " +
+                                    "VALUES (0, 0, 0, 0, 0, 0)");
+                            AppExecutors.getInstance().diskIO().execute(() -> {
+                                AppDatabase.initialize(context, instance);
+                                WaTgSafetyAllowlist.ensureAllowlistSync(context);
+                            });
                         }
                     }).addMigrations(
                             MIGRATION_1_2,
@@ -85,12 +122,40 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_7_8,
                             MIGRATION_8_9,
                             MIGRATION_9_10,
-                            MIGRATION_10_11
+                            MIGRATION_10_11,
+                            MIGRATION_11_12,
+                            MIGRATION_12_13,
+                            MIGRATION_13_14,
+                            MIGRATION_14_15,
+                            MIGRATION_15_16,
+                            MIGRATION_16_17,
+                            MIGRATION_17_18,
+                            MIGRATION_18_19,
+                            MIGRATION_19_20,
+                            MIGRATION_20_21,
+                            MIGRATION_21_22,
+                            MIGRATION_22_23,
+                            MIGRATION_23_24,
+                            MIGRATION_24_25,
+                            MIGRATION_25_26,
+                            MIGRATION_26_27,
+                            MIGRATION_27_28
                     ).build();
                 }
             }
         }
         return instance;
+    }
+
+    /**
+     * Apply storage optimizations Room cannot express in entity annotations.
+     *
+     * Direct database builders used by connected benchmarks should call this after opening the
+     * database so they measure the same table layout production creates in {@link Callback}.
+     */
+    public static void optimizeCreatedDatabaseStorage(@NonNull SupportSQLiteDatabase db) {
+        Migrations.optimizeHostEntriesStorage(db);
+        Migrations.optimizeRootHostEntriesStorage(db);
     }
 
     /**
@@ -121,6 +186,8 @@ public abstract class AppDatabase extends RoomDatabase {
         
         // Initialize Facebook whitelist - ensures Facebook always works
         initializeFacebookWhitelist(context, hostListItemDao);
+        hostsSourceDao.updateSize(USER_SOURCE_ID);
+        database.hostEntryDao().refreshStatsFromActiveGeneration();
     }
     
     /**

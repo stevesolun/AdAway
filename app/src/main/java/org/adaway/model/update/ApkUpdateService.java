@@ -13,7 +13,6 @@ import org.adaway.AdAwayApplication;
 import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
 
-import static androidx.work.ExistingPeriodicWorkPolicy.KEEP;
 import static androidx.work.ExistingPeriodicWorkPolicy.UPDATE;
 import static androidx.work.ListenableWorker.Result.success;
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -31,7 +30,7 @@ public final class ApkUpdateService {
     /**
      * The name of the periodic work.
      */
-    private static final String WORK_NAME = "ApkUpdateWork";
+    static final String WORK_NAME = "ApkUpdateWork";
 
     /**
      * Private constructor.
@@ -61,7 +60,7 @@ public final class ApkUpdateService {
 
     static void syncPreferences(Context context) {
         if (PreferenceHelper.getUpdateCheckAppDaily(context)) {
-            enqueueWork(context, KEEP);
+            enqueueWork(context, UPDATE);
         } else {
             disable(context);
         }

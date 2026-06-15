@@ -203,11 +203,11 @@ public class DohPacketProxy {
         try {
             dnsMsg = new Message(dnsRawData);
         } catch (IOException e) {
-            Timber.i(e, "handleDnsRequest: Discarding non-DNS or invalid packet");
+            Timber.d(e, "Discarding non-DNS or invalid packet.");
             return;
         }
         if (dnsMsg.getQuestion() == null) {
-            Timber.i("handleDnsRequest: Discarding DNS packet with no query %s", dnsMsg);
+            Timber.d("Discarding DNS packet with no query.");
             return;
         }
         Name name = dnsMsg.getQuestion().getName();
@@ -215,18 +215,18 @@ public class DohPacketProxy {
         HostEntry entry = getHostEntry(dnsQueryName);
         switch (entry.getType()) {
             case BLOCKED:
-                Timber.i("handleDnsRequest: DNS Name %s blocked!", dnsQueryName);
+                Timber.d("DNS query blocked.");
                 dnsMsg.getHeader().setFlag(Flags.QR);
                 dnsMsg.getHeader().setRcode(Rcode.NOERROR);
                 dnsMsg.addRecord(NEGATIVE_CACHE_SOA_RECORD, Section.AUTHORITY);
                 handleDnsResponse(ipPacket, dnsMsg.toWire());
                 break;
             case ALLOWED:
-                Timber.i("handleDnsRequest: DNS Name %s allowed, sending to %s.", dnsQueryName, dnsAddress);
+                Timber.d("DNS query allowed.");
                 AppExecutors.getInstance().networkIO().execute(() -> queryDohServer(ipPacket, dnsMsg, name));
                 break;
             case REDIRECTED:
-                Timber.i("handleDnsRequest: DNS Name %s redirected to %s.", dnsQueryName, entry.getRedirection());
+                Timber.d("DNS query redirected.");
                 dnsMsg.getHeader().setFlag(Flags.QR);
                 dnsMsg.getHeader().setFlag(Flags.AA);
                 dnsMsg.getHeader().unsetFlag(Flags.RD);
@@ -257,15 +257,15 @@ public class DohPacketProxy {
                 address = addresses.get(0);
             }
         } catch (UnknownHostException e) {
-            Timber.i(e, "Failed to query DNS Name %s.", dnsQueryName);
+            Timber.d(e, "Failed to query DNS name.");
         }
 
         if (address == null) {
-            Timber.i("No address was found for DNS Name %s.", dnsQueryName);
+            Timber.d("No address was found for DNS name.");
             return;
         }
 
-        Timber.i("handleDnsRequest: DNS Name %s redirected to %s.", dnsQueryName, address);
+        Timber.d("DNS query resolved through DoH.");
         dnsMsg.getHeader().setFlag(Flags.QR);
         dnsMsg.getHeader().setFlag(Flags.AA);
         dnsMsg.getHeader().unsetFlag(Flags.RD);

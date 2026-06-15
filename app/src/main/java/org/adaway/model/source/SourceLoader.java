@@ -3,6 +3,8 @@ package org.adaway.model.source;
 import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.adaway.db.entity.ListType.REDIRECTED;
+import static org.adaway.db.entity.RuleKind.EXACT;
+import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.adaway.util.Constants.BOGUS_IPV4;
 import static org.adaway.util.Constants.LOCALHOST_HOSTNAME;
 import static org.adaway.util.Constants.LOCALHOST_IPV4;
@@ -17,9 +19,11 @@ import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.util.RegexUtils;
 
 import java.io.BufferedReader;
+import java.util.Locale;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -29,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,7 +51,7 @@ import timber.log.Timber;
  */
 class SourceLoader {
     private static final String TAG = "SourceLoader";
-    private static final String END_OF_QUEUE_MARKER = "#EndOfQueueMarker";
+    private static final String END_OF_QUEUE_MARKER = "#endofqueuemarker";
     // Batch size tradeoff:
     // - Smaller => smoother UI updates but slower DB throughput
     // - Larger  => much faster parsing/DB insert for large filter sets
@@ -63,7 +68,8 @@ class SourceLoader {
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
     static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
-    private static final Pattern DNSMASQ_ADDRESS = Pattern.compile("^address=/([^/]+)/.*$");
+    private static final Pattern DNSMASQ_ADDRESS =
+            Pattern.compile("^address=/([^/]+)/([^\\s]*)\\s*(?:#.*)?$");
     private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
     private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
     // Unbound DNS: local-zone: "example.com" always_refuse
@@ -72,11 +78,16 @@ class SourceLoader {
     static final Pattern UNBOUND_LOCAL_DATA = Pattern.compile("^\\s*local-data:\\s*\"([^\\s\"]+)\\s.*$");
     // BIND RPZ: example.com CNAME .  (optionally: example.com 60 IN CNAME .)
     static final Pattern RPZ_CNAME_DOT = Pattern.compile("^([a-zA-Z0-9][a-zA-Z0-9._-]{0,252})\\s+(?:\\d+\\s+)?(?:IN\\s+)?CNAME\\s+\\..*$");
-    // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com or DOMAIN-FULL,example.com or DOMAIN,example.com
-    static final Pattern SURGE_DOMAIN_RULE = Pattern.compile("^DOMAIN(?:-SUFFIX|-FULL)?,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})\\s*(?:#.*)?$");
+    // Surge/Quantumult/Clash host rules. Action-bearing rules are accepted only
+    // when the action is a block action such as REJECT; DIRECT/proxy actions are skipped.
+    static final Pattern SURGE_DOMAIN_RULE = Pattern.compile(
+            "^DOMAIN(?:-FULL)?,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})"
+                    + "(?:,([^#\\s]+(?:,[^#\\s]+)*))?\\s*(?:#.*)?$");
+    static final Pattern SURGE_DOMAIN_SUFFIX_RULE = Pattern.compile(
+            "^DOMAIN-SUFFIX,([a-zA-Z0-9][a-zA-Z0-9._-]{1,252})"
+                    + "(?:,([^#\\s]+(?:,[^#\\s]+)*))?\\s*(?:#.*)?$");
     // BIND zone statement: zone "example.com" { type master; ... };
     static final Pattern BIND_ZONE_STMT = Pattern.compile("^\\s*zone\\s+\"([^\"]+)\"\\s*\\{.*$");
-
     private final HostsSource source;
     private final int generation;
 
@@ -88,6 +99,18 @@ class SourceLoader {
     SourceLoader(HostsSource hostsSource, int generation) {
         this.source = hostsSource;
         this.generation = generation;
+    }
+
+    static final class ExtractedRule {
+        @NonNull
+        final String host;
+        @NonNull
+        final RuleKind kind;
+
+        private ExtractedRule(@NonNull String host, @NonNull RuleKind kind) {
+            this.host = host;
+            this.kind = kind;
+        }
     }
 
     int parse(BufferedReader reader, HostListItemDao hostListItemDao) {
@@ -147,13 +170,39 @@ class SourceLoader {
                @Nullable java.util.Set<String> globalSeenHosts,
                int maxDedupEntries,
                @Nullable AtomicBoolean dedupCapReached) {
+        return parse(reader, hostListItemDao, db, onBatchInserted, globalSeenHosts,
+                maxDedupEntries, dedupCapReached, null);
+    }
+
+    int parse(BufferedReader reader,
+               HostListItemDao hostListItemDao,
+               @Nullable SupportSQLiteDatabase db,
+               @Nullable LongConsumer onBatchInserted,
+               @Nullable SqlUpdateDeduper sqlDeduper) {
+        return parse(reader, hostListItemDao, db, onBatchInserted, null,
+                Integer.MAX_VALUE, null, sqlDeduper);
+    }
+
+    private int parse(BufferedReader reader,
+               HostListItemDao hostListItemDao,
+               @Nullable SupportSQLiteDatabase db,
+               @Nullable LongConsumer onBatchInserted,
+               @Nullable java.util.Set<String> globalSeenHosts,
+               int maxDedupEntries,
+        @Nullable AtomicBoolean dedupCapReached,
+        @Nullable SqlUpdateDeduper sqlDeduper) {
         // Clear any previous partial import for THIS generation only (atomic updates keep old generations intact).
         hostListItemDao.clearSourceHostsForGeneration(this.source.getId(), this.generation);
+        if (db != null) {
+            clearRootExportStage(db, this.source.getId(), this.generation);
+        }
         // Create queues with bounded capacity to prevent OOM during parallel parsing
         LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
-        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT);
-        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db, this.generation, PARSER_COUNT, onBatchInserted);
+        AtomicReference<Throwable> sourceReadFailure = new AtomicReference<>();
+        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT, sourceReadFailure);
+        ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db,
+                this.generation, PARSER_COUNT, onBatchInserted, sourceReadFailure, sqlDeduper);
 
         // Shared counter for malformed lines across all parser threads
         AtomicInteger skippedLines = new AtomicInteger(0);
@@ -183,12 +232,32 @@ class SourceLoader {
             Timber.i("%s: %d host list items inserted, %d lines skipped.", this.source.getLabel(), inserted, skipped);
         } catch (ExecutionException e) {
             Timber.w(e, "Failed to parse hosts sources.");
+            hostListItemDao.clearSourceHostsForGeneration(this.source.getId(), this.generation);
+            if (db != null) {
+                clearRootExportStage(db, this.source.getId(), this.generation);
+            }
+            throw new IllegalStateException("Failed to parse hosts source.", e);
         } catch (InterruptedException e) {
             Timber.w(e, "Interrupted while parsing sources.");
             Thread.currentThread().interrupt();
+            hostListItemDao.clearSourceHostsForGeneration(this.source.getId(), this.generation);
+            if (db != null) {
+                clearRootExportStage(db, this.source.getId(), this.generation);
+            }
+            throw new IllegalStateException("Interrupted while parsing hosts source.", e);
+        } finally {
+            executorService.shutdown();
         }
-        executorService.shutdown();
         return skipped;
+    }
+
+    private static void clearRootExportStage(
+            @NonNull SupportSQLiteDatabase db, int sourceId, int generation) {
+        SupportSQLiteStatement statement = db.compileStatement(
+                "DELETE FROM root_host_entries_stage WHERE source_id = ? AND generation = ?");
+        statement.bindLong(1, sourceId);
+        statement.bindLong(2, generation);
+        statement.executeUpdateDelete();
     }
 
     /**
@@ -198,6 +267,18 @@ class SourceLoader {
      */
     @Nullable
     static String extractHostnameFromNonHostsSyntax(String rawLine) {
+        ExtractedRule rule = extractRuleFromNonHostsSyntax(rawLine);
+        return rule == null ? null : rule.host;
+    }
+
+    @Nullable
+    static RuleKind extractRuleKindFromNonHostsSyntax(String rawLine) {
+        ExtractedRule rule = extractRuleFromNonHostsSyntax(rawLine);
+        return rule == null ? null : rule.kind;
+    }
+
+    @Nullable
+    static ExtractedRule extractRuleFromNonHostsSyntax(String rawLine) {
         if (rawLine == null) return null;
         String line = rawLine.trim();
         if (line.isEmpty()) return null;
@@ -214,6 +295,29 @@ class SourceLoader {
             return null;
         }
 
+        // Skip exceptions
+        if (line.startsWith("@@")) {
+            return null;
+        }
+
+        // dnsmasq: address=/example.com/0.0.0.0 or address=/example.com/#
+        Matcher dnsmasq = DNSMASQ_ADDRESS.matcher(line);
+        if (dnsmasq.matches()) {
+            return isDnsmasqNullAddress(dnsmasq.group(2)) ? suffixRule(dnsmasq.group(1)) : null;
+        }
+
+        // dnsmasq: local=/example.com/ or local=/example.com
+        Matcher dnsmasqLocal = DNSMASQ_LOCAL.matcher(line);
+        if (dnsmasqLocal.matches()) {
+            return suffixRule(dnsmasqLocal.group(1));
+        }
+
+        // dnsmasq: server=/example.com/8.8.8.8 is upstream routing, not blocking.
+        Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
+        if (dnsmasqServer.matches()) {
+            return null;
+        }
+
         // Drop inline comments for common syntaxes (standalone # only, not ## which was handled above)
         int hash = line.indexOf('#');
         if (hash > 0) {
@@ -221,57 +325,39 @@ class SourceLoader {
         }
         if (line.isEmpty()) return null;
 
-        // Skip exceptions
-        if (line.startsWith("@@")) {
-            return null;
-        }
-
-        // dnsmasq: address=/example.com/0.0.0.0
-        Matcher dnsmasq = DNSMASQ_ADDRESS.matcher(line);
-        if (dnsmasq.matches()) {
-            return sanitizeHostname(dnsmasq.group(1));
-        }
-
-        // dnsmasq: local=/example.com/ or local=/example.com
-        Matcher dnsmasqLocal = DNSMASQ_LOCAL.matcher(line);
-        if (dnsmasqLocal.matches()) {
-            return sanitizeHostname(dnsmasqLocal.group(1));
-        }
-
-        // dnsmasq: server=/example.com/8.8.8.8
-        Matcher dnsmasqServer = DNSMASQ_SERVER.matcher(line);
-        if (dnsmasqServer.matches()) {
-            return sanitizeHostname(dnsmasqServer.group(1));
-        }
-
         // Unbound: local-zone: "example.com" always_refuse
         Matcher unboundZone = UNBOUND_LOCAL_ZONE.matcher(line);
         if (unboundZone.matches()) {
-            return sanitizeHostname(unboundZone.group(1));
+            return exactRule(unboundZone.group(1));
         }
 
         // Unbound: local-data: "example.com A 0.0.0.0"
         Matcher unboundData = UNBOUND_LOCAL_DATA.matcher(line);
         if (unboundData.matches()) {
-            return sanitizeHostname(unboundData.group(1));
+            return exactRule(unboundData.group(1));
         }
 
         // BIND RPZ: example.com CNAME .  (optionally with TTL/IN class)
         Matcher rpz = RPZ_CNAME_DOT.matcher(line);
         if (rpz.matches()) {
-            return sanitizeHostname(rpz.group(1));
+            return exactRule(rpz.group(1));
         }
 
-        // Surge/Quantumult/Clash: DOMAIN-SUFFIX,example.com
+        Matcher surgeSuffix = SURGE_DOMAIN_SUFFIX_RULE.matcher(line);
+        if (surgeSuffix.matches()) {
+            return isSurgeBlockAction(surgeSuffix.group(2)) ? suffixRule(surgeSuffix.group(1)) : null;
+        }
+
+        // Surge/Quantumult/Clash exact-host rules.
         Matcher surge = SURGE_DOMAIN_RULE.matcher(line);
         if (surge.matches()) {
-            return sanitizeHostname(surge.group(1));
+            return isSurgeBlockAction(surge.group(2)) ? exactRule(surge.group(1)) : null;
         }
 
-        // BIND zone statement: zone "example.com" { type master; ... };
+        // Generic BIND zones are ambiguous; only explicit RPZ CNAME . rules are block-safe.
         Matcher bindZone = BIND_ZONE_STMT.matcher(line);
         if (bindZone.matches()) {
-            return sanitizeHostname(bindZone.group(1));
+            return null;
         }
 
         // Plain domain line: example.com
@@ -281,13 +367,12 @@ class SourceLoader {
         if (!line.startsWith("|")) {
             String plain = sanitizeHostname(line);
             if (plain != null) {
-                return plain;
+                return new ExtractedRule(plain, EXACT);
             }
         }
 
-        // uBO/ABP style: ||example.com^  — skip ALL rules with $options or path components.
-        // - $options (e.g. $third-party): context-dependent, DNS cannot replicate
-        // - /path (e.g. ||youtube.com/pagead/): URL-path filter, DNS cannot do path filtering
+        // uBO/ABP style: ||example.com^ maps to a DNS suffix rule. Skip rules with
+        // $options or path components because DNS cannot represent their browser context.
         // Ad networks are covered by OISD/hosts-format entries instead.
         Matcher dbl = ADBLOCK_DOUBLE_PIPE.matcher(line);
         if (dbl.matches()) {
@@ -302,16 +387,40 @@ class SourceLoader {
                 // '$' anywhere after domain = filter options → skip
                 if (line.indexOf('$', 2 + captured.length()) >= 0) return null;
             }
-            return sanitizeHostname(captured);
+            return suffixRule(captured);
         }
 
         // URL style: |https://example.com/path
         Matcher url = URL_HOST.matcher(line);
         if (url.matches()) {
-            return sanitizeHostname(url.group(1));
+            return null;
         }
 
         return null;
+    }
+
+    @Nullable
+    private static ExtractedRule exactRule(String rawHost) {
+        String host = sanitizeHostname(rawHost);
+        return host == null ? null : new ExtractedRule(host, EXACT);
+    }
+
+    @Nullable
+    private static ExtractedRule suffixRule(String rawHost) {
+        String host = sanitizeHostname(rawHost);
+        return host == null ? null : new ExtractedRule(host, SUFFIX);
+    }
+
+    private static boolean isDnsmasqNullAddress(@NonNull String target) {
+        return target.equals("0.0.0.0") || target.equals("::") || target.equals("#");
+    }
+
+    private static boolean isSurgeBlockAction(@Nullable String rawAction) {
+        if (rawAction == null || rawAction.isEmpty()) {
+            return true;
+        }
+        String firstAction = rawAction.split(",", 2)[0].trim().toUpperCase(Locale.ROOT);
+        return firstAction.equals("REJECT") || firstAction.equals("REJECT-DROP");
     }
 
     @Nullable
@@ -355,11 +464,14 @@ class SourceLoader {
         private final BufferedReader reader;
         private final BlockingQueue<String> queue;
         private final int parserCount;
+        private final AtomicReference<Throwable> failure;
 
-        private SourceReader(BufferedReader reader, BlockingQueue<String> queue, int parserCount) {
+        private SourceReader(BufferedReader reader, BlockingQueue<String> queue, int parserCount,
+                AtomicReference<Throwable> failure) {
             this.reader = reader;
             this.queue = queue;
             this.parserCount = parserCount;
+            this.failure = failure;
         }
 
         @Override
@@ -375,6 +487,7 @@ class SourceLoader {
                     this.queue.put(line);  // put() blocks if queue is full, preventing OOM
                 }
             } catch (Throwable t) {
+                this.failure.compareAndSet(null, t);
                 Timber.w(t, "Failed to read hosts source.");
             } finally {
                 // Send end of queue marker to parsers
@@ -423,8 +536,7 @@ class SourceLoader {
                 try {
                     String line = this.lineQueue.take();
                     // Check end of queue marker
-                    //noinspection StringEquality
-                    if (line == END_OF_QUEUE_MARKER) {
+                    if (END_OF_QUEUE_MARKER.equals(line)) {
                         endOfSource = true;
                         // Send end of queue marker to inserter
                         HostListItem endItem = new HostListItem();
@@ -449,7 +561,7 @@ class SourceLoader {
                                 // Just hit the cap
                                 if (dedupCapReached != null) dedupCapReached.set(true);
                                 this.itemQueue.put(item);
-                            } else if (globalSeenHosts.add(item.getHost())) {
+                            } else if (globalSeenHosts.add(buildDedupKey(item))) {
                                 this.itemQueue.put(item);
                             }
                         }
@@ -466,14 +578,15 @@ class SourceLoader {
             Matcher matcher = HOSTS_PARSER_PATTERN.matcher(line);
             if (!matcher.matches()) {
                 // Best-effort: accept common "filter syntax" formats by extracting a hostname.
-                String extracted = extractHostnameFromNonHostsSyntax(line);
+                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
                 if (extracted == null) {
                     return null;  // Skip non-matching lines silently for performance
                 }
                 // Treat extracted domain as blocked (0.0.0.0 domain)
                 HostListItem item = new HostListItem();
                 item.setType(BLOCKED);
-                item.setHost(extracted);
+                item.setHost(extracted.host);
+                item.setKind(extracted.kind);
                 item.setEnabled(true);
                 item.setSourceId(this.source.getId());
                 return item;
@@ -500,11 +613,12 @@ class SourceLoader {
                 // structurally but which belong to another format — e.g. RPZ:
                 //   "ads.example.com CNAME . ; comment" → ip=ads.example.com, hostname=CNAME
                 // Fall through to non-hosts syntax extraction to recover these lines.
-                String extracted = extractHostnameFromNonHostsSyntax(line);
+                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
                 if (extracted != null) {
                     HostListItem item = new HostListItem();
                     item.setType(BLOCKED);
-                    item.setHost(extracted);
+                    item.setHost(extracted.host);
+                    item.setKind(extracted.kind);
                     item.setEnabled(true);
                     item.setSourceId(this.source.getId());
                     return item;
@@ -524,7 +638,9 @@ class SourceLoader {
 
         private HostListItem parseAllowListItem(String line) {
             // Try multi-format extraction first (ABP, dnsmasq, URL, plain domain).
-            String host = extractHostnameFromNonHostsSyntax(line);
+            ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
+            String host = extracted == null ? null : extracted.host;
+            RuleKind kind = extracted == null ? EXACT : extracted.kind;
             if (host == null) {
                 // Fall back: allow wildcard entries (*.example.com) which are valid for
                 // allow-lists but rejected by sanitizeHostname inside the extractor above.
@@ -542,6 +658,7 @@ class SourceLoader {
             HostListItem item = new HostListItem();
             item.setType(ALLOWED);
             item.setHost(host);
+            item.setKind(kind);
             item.setEnabled(true);
             item.setSourceId(this.source.getId());
             return item;
@@ -570,6 +687,14 @@ class SourceLoader {
         }
     }
 
+    static String buildDedupKey(HostListItem item) {
+        String redirection = item.getRedirection() == null ? "" : item.getRedirection();
+        return item.getType().getValue() + ":" +
+                item.getKind().getValue() + ":" +
+                item.getHost() + ":" +
+                redirection;
+    }
+
     private static class ItemInserter implements Callable<Integer> {
         private final BlockingQueue<HostListItem> hostListItemQueue;
         private final HostListItemDao hostListItemDao;
@@ -579,18 +704,25 @@ class SourceLoader {
         private final int parserCount;
         @Nullable
         private final LongConsumer onBatchInserted;
+        private final AtomicReference<Throwable> sourceReadFailure;
+        @Nullable
+        private final SqlUpdateDeduper sqlDeduper;
 
         private ItemInserter(BlockingQueue<HostListItem> itemQueue,
                              HostListItemDao hostListItemDao,
                              @Nullable SupportSQLiteDatabase db,
                              int generation,
-                             int parserCount, @Nullable LongConsumer onBatchInserted) {
+                             int parserCount, @Nullable LongConsumer onBatchInserted,
+                             AtomicReference<Throwable> sourceReadFailure,
+                             @Nullable SqlUpdateDeduper sqlDeduper) {
             this.hostListItemQueue = itemQueue;
             this.hostListItemDao = hostListItemDao;
             this.db = db;
             this.generation = generation;
             this.parserCount = parserCount;
             this.onBatchInserted = onBatchInserted;
+            this.sourceReadFailure = sourceReadFailure;
+            this.sqlDeduper = sqlDeduper;
         }
 
         @Override
@@ -611,31 +743,72 @@ class SourceLoader {
 
             // Optional fast path: compiled statement for bulk insert.
             final SupportSQLiteStatement insertStmt;
+            final SupportSQLiteStatement pendingStmt;
             if (db != null) {
                 insertStmt = db.compileStatement(
-                        "INSERT INTO hosts_lists (host, type, enabled, redirection, source_id, generation) VALUES (?, ?, ?, ?, ?, ?)"
+                        "INSERT INTO hosts_lists (host, reverse_host, type, kind, enabled, " +
+                                "redirection, source_id, generation) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                 );
+                if (this.sqlDeduper != null) {
+                    pendingStmt = this.sqlDeduper.compilePendingInsertStatement();
+                } else {
+                    pendingStmt = null;
+                }
+                db.beginTransaction();
             } else {
                 insertStmt = null;
+                pendingStmt = null;
             }
 
-            while (!queueEmptied) {
-                try {
-                    HostListItem item = this.hostListItemQueue.take();
-                    // Check end of queue marker
-                    //noinspection StringEquality
-                    if (item.getHost() == END_OF_QUEUE_MARKER) {
-                        workerStopped++;
-                        if (workerStopped >= this.parserCount) {
-                            queueEmptied = true;
-                        }
-                    } else {
-                        batch[cacheSize++] = item;
-                        if (cacheSize >= batch.length) {
-                            long t0 = SystemClock.elapsedRealtimeNanos();
-                            if (db != null && insertStmt != null) {
-                                long dbMs = bulkInsert(db, insertStmt, batch, cacheSize, this.generation);
-                                long batchDbMs = dbMs;
+            try {
+                while (!queueEmptied) {
+                    try {
+                        HostListItem item = this.hostListItemQueue.take();
+                        // Check end of queue marker
+                        if (END_OF_QUEUE_MARKER.equals(item.getHost())) {
+                            workerStopped++;
+                            if (workerStopped >= this.parserCount) {
+                                queueEmptied = true;
+                            }
+                        } else {
+                            batch[cacheSize++] = item;
+                            if (cacheSize >= batch.length) {
+                                long t0 = SystemClock.elapsedRealtimeNanos();
+                                if (db != null && insertStmt != null) {
+                                    BulkInsertResult result = bulkInsert(
+                                            insertStmt, pendingStmt,
+                                            batch, cacheSize, this.generation);
+                                    long batchDbMs = result.dbMs;
+                                    inserted += result.inserted;
+                                    if (perfLog) {
+                                        totalDbInsertMs += batchDbMs;
+                                        insertedSinceLastLog += result.inserted;
+                                        long nowMs = SystemClock.elapsedRealtime();
+                                        if (nowMs - lastLogMs >= 2000L) {
+                                            long windowMs = Math.max(1L, nowMs - lastLogMs);
+                                            double rowsPerSec = (insertedSinceLastLog * 1000.0) / windowMs;
+                                            double batchRowsPerSec = batchDbMs > 0
+                                                    ? (result.inserted * 1000.0) / batchDbMs : 0.0;
+                                            Timber.i("DB insert perf: win=%.0f rows/s, batch=%.0f rows/s (batchSize=%d, lastBatchMs=%d), totalInserted=%d, elapsed=%ds",
+                                                    rowsPerSec, batchRowsPerSec, cacheSize, batchDbMs, inserted, (nowMs - startMs) / 1000);
+                                            insertedSinceLastLog = 0;
+                                            lastLogMs = nowMs;
+                                        }
+                                    }
+                                    if (result.inserted > 0 && this.onBatchInserted != null) {
+                                        this.onBatchInserted.accept(result.inserted);
+                                    }
+                                    cacheSize = 0;
+                                    continue;
+                                } else {
+                                    // Ensure generation is set for Room insert
+                                    for (int i = 0; i < cacheSize; i++) {
+                                        if (batch[i] != null) batch[i].setGeneration(this.generation);
+                                    }
+                                    this.hostListItemDao.insert(batch);
+                                }
+                                long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
                                 inserted += cacheSize;
                                 if (perfLog) {
                                     totalDbInsertMs += batchDbMs;
@@ -651,116 +824,131 @@ class SourceLoader {
                                         lastLogMs = nowMs;
                                     }
                                 }
+                                // Notify callback of batch insert for live UI updates
                                 if (this.onBatchInserted != null) {
                                     this.onBatchInserted.accept(cacheSize);
                                 }
                                 cacheSize = 0;
-                                continue;
-                            } else {
-                                // Ensure generation is set for Room insert
-                                for (int i = 0; i < cacheSize; i++) {
-                                    if (batch[i] != null) batch[i].setGeneration(this.generation);
-                                }
-                                this.hostListItemDao.insert(batch);
                             }
-                            long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
-                            inserted += cacheSize;
-                            if (perfLog) {
-                                totalDbInsertMs += batchDbMs;
-                                insertedSinceLastLog += cacheSize;
-                                long nowMs = SystemClock.elapsedRealtime();
-                                if (nowMs - lastLogMs >= 2000L) {
-                                    long windowMs = Math.max(1L, nowMs - lastLogMs);
-                                    double rowsPerSec = (insertedSinceLastLog * 1000.0) / windowMs;
-                                    double batchRowsPerSec = batchDbMs > 0 ? (cacheSize * 1000.0) / batchDbMs : 0.0;
-                                    Timber.i("DB insert perf: win=%.0f rows/s, batch=%.0f rows/s (batchSize=%d, lastBatchMs=%d), totalInserted=%d, elapsed=%ds",
-                                            rowsPerSec, batchRowsPerSec, cacheSize, batchDbMs, inserted, (nowMs - startMs) / 1000);
-                                    insertedSinceLastLog = 0;
-                                    lastLogMs = nowMs;
-                                }
-                            }
-                            // Notify callback of batch insert for live UI updates
-                            if (this.onBatchInserted != null) {
-                                this.onBatchInserted.accept(cacheSize);
-                            }
-                            cacheSize = 0;
                         }
+                    } catch (InterruptedException e) {
+                        Timber.w(e, "Interrupted while inserted hosts list item.");
+                        queueEmptied = true;
+                        Thread.currentThread().interrupt();
                     }
-                } catch (InterruptedException e) {
-                    Timber.w(e, "Interrupted while inserted hosts list item.");
-                    queueEmptied = true;
-                    Thread.currentThread().interrupt();
                 }
-            }
-            // Flush current batch
-            HostListItem[] remaining = new HostListItem[cacheSize];
-            System.arraycopy(batch, 0, remaining, 0, remaining.length);
-            if (cacheSize > 0) {
-                long t0 = SystemClock.elapsedRealtimeNanos();
-                if (db != null && insertStmt != null) {
-                    long batchDbMs = bulkInsert(db, insertStmt, remaining, cacheSize, this.generation);
-                    totalDbInsertMs += batchDbMs;
+                // Flush current batch
+                HostListItem[] remaining = new HostListItem[cacheSize];
+                System.arraycopy(batch, 0, remaining, 0, remaining.length);
+                int finalInserted = 0;
+                if (cacheSize > 0) {
+                    long t0 = SystemClock.elapsedRealtimeNanos();
+                    finalInserted = cacheSize;
+                    if (db != null && insertStmt != null) {
+                        BulkInsertResult result = bulkInsert(
+                                insertStmt, pendingStmt, remaining,
+                                cacheSize, this.generation);
+                        totalDbInsertMs += result.dbMs;
+                        finalInserted = result.inserted;
+                    } else {
+                        for (int i = 0; i < cacheSize; i++) {
+                            if (remaining[i] != null) remaining[i].setGeneration(this.generation);
+                        }
+                        this.hostListItemDao.insert(remaining);
+                        long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
+                        totalDbInsertMs += batchDbMs;
+                    }
+                }
+                Throwable failure = this.sourceReadFailure.get();
+                if (failure != null) {
+                    throw new IllegalStateException("Failed to read hosts source.", failure);
+                }
+                int acceptedRows = inserted + finalInserted;
+                if (db != null && this.sqlDeduper != null) {
+                    long flushStartedNs = SystemClock.elapsedRealtimeNanos();
+                    int flushed = this.sqlDeduper.flushPendingRowsToHostsLists();
+                    long flushMs = (SystemClock.elapsedRealtimeNanos() - flushStartedNs) / 1_000_000L;
+                    totalDbInsertMs += flushMs;
+                    if (perfLog) {
+                        Timber.i("DB staged import flush: rows=%d accepted=%d flushMs=%d",
+                                flushed, acceptedRows, flushMs);
+                    }
+                    inserted = flushed;
                 } else {
-                    for (int i = 0; i < cacheSize; i++) {
-                        if (remaining[i] != null) remaining[i].setGeneration(this.generation);
-                    }
-                    this.hostListItemDao.insert(remaining);
-                    long batchDbMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
-                    totalDbInsertMs += batchDbMs;
+                    inserted = acceptedRows;
                 }
-            }
-            inserted += cacheSize;
-            // Notify callback of final batch
-            if (cacheSize > 0 && this.onBatchInserted != null) {
-                this.onBatchInserted.accept(cacheSize);
-            }
-            if (perfLog) {
-                long nowMs = SystemClock.elapsedRealtime();
-                long elapsedMs = Math.max(1L, nowMs - startMs);
-                double rowsPerSec = (inserted * 1000.0) / elapsedMs;
-                double dbOnlyRowsPerSec = totalDbInsertMs > 0 ? (inserted * 1000.0) / totalDbInsertMs : 0.0;
-                Timber.i("DB insert perf done: overall=%.0f rows/s, dbOnly=%.0f rows/s (totalInserted=%d, dbInsertMs=%d, elapsed=%ds)",
-                        rowsPerSec, dbOnlyRowsPerSec, inserted, totalDbInsertMs, elapsedMs / 1000);
+                if (db != null) {
+                    db.setTransactionSuccessful();
+                }
+                // Notify callback of final batch
+                if (finalInserted > 0 && this.onBatchInserted != null) {
+                    this.onBatchInserted.accept(finalInserted);
+                }
+                if (perfLog) {
+                    long nowMs = SystemClock.elapsedRealtime();
+                    long elapsedMs = Math.max(1L, nowMs - startMs);
+                    double rowsPerSec = (inserted * 1000.0) / elapsedMs;
+                    double dbOnlyRowsPerSec = totalDbInsertMs > 0 ? (inserted * 1000.0) / totalDbInsertMs : 0.0;
+                    Timber.i("DB insert perf done: overall=%.0f rows/s, dbOnly=%.0f rows/s (totalInserted=%d, dbInsertMs=%d, elapsed=%ds)",
+                            rowsPerSec, dbOnlyRowsPerSec, inserted, totalDbInsertMs, elapsedMs / 1000);
+                }
+            } finally {
+                if (db != null) {
+                    db.endTransaction();
+                }
             }
             // Return number of inserted items
             return inserted;
         }
 
-        /**
-         * Bulk insert using a compiled statement + a single transaction.
-         * Returns time spent inside DB transaction (ms).
-         */
-        private static long bulkInsert(@NonNull SupportSQLiteDatabase db,
-                                       @NonNull SupportSQLiteStatement stmt,
-                                       @NonNull HostListItem[] items,
-                                       int count,
-                                       int generation) {
+        private static BulkInsertResult bulkInsert(
+                @NonNull SupportSQLiteStatement stmt,
+                @Nullable SupportSQLiteStatement pendingStmt,
+                @NonNull HostListItem[] items,
+                int count,
+                int generation) {
             long t0 = SystemClock.elapsedRealtimeNanos();
-            db.beginTransaction();
-            try {
-                for (int i = 0; i < count; i++) {
-                    HostListItem it = items[i];
-                    if (it == null) continue;
-                    stmt.clearBindings();
-                    stmt.bindString(1, it.getHost());
-                    ListType type = it.getType();
-                    stmt.bindLong(2, type != null ? type.getValue() : 0);
-                    stmt.bindLong(3, it.isEnabled() ? 1L : 0L);
-                    String redirection = it.getRedirection();
-                    if (redirection != null) {
-                        stmt.bindString(4, redirection);
-                    } else {
-                        stmt.bindNull(4);
-                    }
-                    stmt.bindLong(5, it.getSourceId());
-                    stmt.bindLong(6, generation);
-                    stmt.executeInsert();
+            int inserted = 0;
+            for (int i = 0; i < count; i++) {
+                HostListItem it = items[i];
+                if (it == null) continue;
+                if (pendingStmt != null) {
+                    SqlUpdateDeduper.stagePending(pendingStmt, it, generation);
+                    inserted++;
+                    continue;
                 }
-                db.setTransactionSuccessful();
-            } finally {
-                db.endTransaction();
+                stmt.clearBindings();
+                stmt.bindString(1, it.getHost());
+                stmt.bindString(2, it.getReverseHost());
+                ListType type = it.getType();
+                stmt.bindLong(3, type != null ? type.getValue() : 0);
+                RuleKind kind = it.getKind();
+                stmt.bindLong(4, kind != null ? kind.getValue() : EXACT.getValue());
+                stmt.bindLong(5, it.isEnabled() ? 1L : 0L);
+                String redirection = it.getRedirection();
+                if (redirection != null) {
+                    stmt.bindString(6, redirection);
+                } else {
+                    stmt.bindNull(6);
+                }
+                stmt.bindLong(7, it.getSourceId());
+                stmt.bindLong(8, generation);
+                stmt.executeInsert();
+                inserted++;
             }
-            return (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L;
+            return new BulkInsertResult(
+                    (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L,
+                    inserted);
+        }
+
+        private static final class BulkInsertResult {
+            final long dbMs;
+            final int inserted;
+
+            BulkInsertResult(long dbMs, int inserted) {
+                this.dbMs = dbMs;
+                this.inserted = inserted;
+            }
         }
     }
 }

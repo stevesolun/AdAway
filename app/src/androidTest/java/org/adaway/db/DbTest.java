@@ -22,6 +22,7 @@ import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.RuleKind;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -81,6 +82,9 @@ public abstract class DbTest {
         this.db = Room.inMemoryDatabaseBuilder(context, AppDatabase.class)
                 .allowMainThreadQueries()
                 .build();
+        AppDatabase.optimizeCreatedDatabaseStorage(this.db.getOpenHelper().getWritableDatabase());
+        this.db.getOpenHelper().getWritableDatabase()
+                .execSQL("INSERT OR IGNORE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
     }
 
     protected void loadDao() {
@@ -122,12 +126,54 @@ public abstract class DbTest {
         this.hostListItemDao.insert(item);
     }
 
+    protected void insertBlockedHost(String host, int sourceId, int generation) {
+        HostListItem item = new HostListItem();
+        item.setType(BLOCKED);
+        item.setHost(host);
+        item.setEnabled(true);
+        item.setSourceId(sourceId);
+        item.setGeneration(generation);
+        this.hostListItemDao.insert(item);
+    }
+
+    protected void insertSuffixBlockedHost(String host, int sourceId, int generation) {
+        HostListItem item = new HostListItem();
+        item.setType(BLOCKED);
+        item.setKind(RuleKind.SUFFIX);
+        item.setHost(host);
+        item.setEnabled(true);
+        item.setSourceId(sourceId);
+        item.setGeneration(generation);
+        this.hostListItemDao.insert(item);
+    }
+
     protected void insertAllowedHost(String host, int sourceId) {
         HostListItem item = new HostListItem();
         item.setType(ALLOWED);
         item.setHost(host);
         item.setEnabled(true);
         item.setSourceId(sourceId);
+        this.hostListItemDao.insert(item);
+    }
+
+    protected void insertAllowedHost(String host, int sourceId, int generation) {
+        HostListItem item = new HostListItem();
+        item.setType(ALLOWED);
+        item.setHost(host);
+        item.setEnabled(true);
+        item.setSourceId(sourceId);
+        item.setGeneration(generation);
+        this.hostListItemDao.insert(item);
+    }
+
+    protected void insertSuffixAllowedHost(String host, int sourceId, int generation) {
+        HostListItem item = new HostListItem();
+        item.setType(ALLOWED);
+        item.setKind(RuleKind.SUFFIX);
+        item.setHost(host);
+        item.setEnabled(true);
+        item.setSourceId(sourceId);
+        item.setGeneration(generation);
         this.hostListItemDao.insert(item);
     }
 
@@ -139,6 +185,23 @@ public abstract class DbTest {
         item.setRedirection(redirection);
         item.setSourceId(sourceId);
         this.hostListItemDao.insert(item);
+    }
+
+    protected void insertRedirectedHost(String host, String redirection, int sourceId, int generation) {
+        HostListItem item = new HostListItem();
+        item.setType(REDIRECTED);
+        item.setHost(host);
+        item.setEnabled(true);
+        item.setRedirection(redirection);
+        item.setSourceId(sourceId);
+        item.setGeneration(generation);
+        this.hostListItemDao.insert(item);
+    }
+
+    protected void setActiveGeneration(int generation) {
+        this.db.getOpenHelper().getWritableDatabase()
+                .execSQL("INSERT OR REPLACE INTO hosts_meta (id, active_generation) VALUES (0, "
+                        + generation + ")");
     }
 
     protected HostsSource getSourceFromId(int id) {

@@ -118,16 +118,12 @@ public final class FilterListsDirectoryApi {
         public String pickBestDownloadUrl() {
             ViewUrl best = null;
             for (ViewUrl v : viewUrls) {
-                if (v.url == null) continue;
+                if (!FilterListCompatibility.isUsableDownloadUrl(v.url)) continue;
                 if (best == null || v.primariness > best.primariness) {
                     best = v;
                 }
             }
-            if (best == null || best.url == null) return null;
-            String u = best.url;
-            // AdAway only supports HTTPS URLs or content:// URLs.
-            // FilterLists "viewUrls" are typically direct list files; for all-syntax importing we accept any HTTPS viewUrl.
-            return u.startsWith("https://") ? u : null;
+            return best != null ? best.url.trim() : null;
         }
     }
 

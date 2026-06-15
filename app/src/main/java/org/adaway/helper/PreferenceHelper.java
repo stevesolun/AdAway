@@ -274,6 +274,17 @@ public final class PreferenceHelper {
         );
     }
 
+    public static boolean getVpnAllowAppBypass(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(
+                Constants.PREFS_NAME,
+                Context.MODE_PRIVATE
+        );
+        return prefs.getBoolean(
+                context.getString(R.string.pref_vpn_allow_app_bypass_key),
+                context.getResources().getBoolean(R.bool.pref_vpn_allow_app_bypass_def)
+        );
+    }
+
     public static boolean getDebugEnabled(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(
                 Constants.PREFS_NAME,

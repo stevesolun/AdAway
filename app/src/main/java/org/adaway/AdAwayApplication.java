@@ -12,6 +12,7 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.update.UpdateModel;
+import org.adaway.model.vpn.VpnModel;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.Constants;
@@ -85,6 +86,18 @@ public class AdAwayApplication extends Application {
             this.adBlockModel = AdBlockModel.build(this, method);
         }
         return this.adBlockModel;
+    }
+
+    /**
+     * Invalidate cached VPN rule lookups after direct runtime-table syncs.
+     *
+     * <p>Normal apply flows already clear the cache in {@link VpnModel#apply()}, but domain
+     * checker and AI actions can update user rules without restarting the VPN.</p>
+     */
+    public void invalidateVpnRulesCache() {
+        if (this.adBlockModel instanceof VpnModel) {
+            ((VpnModel) this.adBlockModel).invalidateRulesCache();
+        }
     }
 
     /**

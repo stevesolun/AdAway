@@ -183,35 +183,35 @@ public class DnsPacketProxy {
         }
 
         byte[] dnsRawData = udpPayload.getRawData();
-        Message dnsMsg;
-        try {
-            dnsMsg = new Message(dnsRawData);
-        } catch (IOException e) {
-            Timber.i(e, "handleDnsRequest: Discarding non-DNS or invalid packet");
-            return;
-        }
-        if (dnsMsg.getQuestion() == null) {
-            Timber.i("handleDnsRequest: Discarding DNS packet with no query %s", dnsMsg);
-            return;
-        }
+            Message dnsMsg;
+            try {
+                dnsMsg = new Message(dnsRawData);
+            } catch (IOException e) {
+            Timber.d(e, "Discarding non-DNS or invalid packet.");
+                return;
+            }
+            if (dnsMsg.getQuestion() == null) {
+            Timber.d("Discarding DNS packet with no query.");
+                return;
+            }
         Name name = dnsMsg.getQuestion().getName();
         String dnsQueryName = name.toString(true);
         HostEntry entry = getHostEntry(dnsQueryName);
         switch (entry.getType()) {
             case BLOCKED:
-                Timber.i("handleDnsRequest: DNS Name %s blocked!", dnsQueryName);
+                Timber.d("DNS query blocked.");
                 dnsMsg.getHeader().setFlag(Flags.QR);
                 dnsMsg.getHeader().setRcode(Rcode.NOERROR);
                 dnsMsg.addRecord(NEGATIVE_CACHE_SOA_RECORD, Section.AUTHORITY);
                 handleDnsResponse(ipPacket, dnsMsg.toWire());
                 break;
             case ALLOWED:
-                Timber.i("handleDnsRequest: DNS Name %s allowed, sending to %s.", dnsQueryName, dnsAddress);
+                Timber.d("DNS query allowed.");
                 DatagramPacket outPacket = new DatagramPacket(dnsRawData, 0, dnsRawData.length, dnsAddress, packetPort);
                 this.eventLoop.forwardPacket(outPacket, data -> handleDnsResponse(ipPacket, data));
                 break;
             case REDIRECTED:
-                Timber.i("handleDnsRequest: DNS Name %s redirected to %s.", dnsQueryName, entry.getRedirection());
+                Timber.d("DNS query redirected.");
                 dnsMsg.getHeader().setFlag(Flags.QR);
                 dnsMsg.getHeader().setFlag(Flags.AA);
                 dnsMsg.getHeader().unsetFlag(Flags.RD);

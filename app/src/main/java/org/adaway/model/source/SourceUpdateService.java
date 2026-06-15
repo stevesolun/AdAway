@@ -19,7 +19,6 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 
-import static androidx.work.ExistingPeriodicWorkPolicy.KEEP;
 import static androidx.work.ExistingPeriodicWorkPolicy.UPDATE;
 import static androidx.work.ListenableWorker.Result.failure;
 import static androidx.work.ListenableWorker.Result.retry;
@@ -39,7 +38,7 @@ public final class SourceUpdateService {
     /**
      * The name of the periodic work.
      */
-    private static final String WORK_NAME = "HostsUpdateWork";
+    static final String WORK_NAME = "HostsUpdateWork";
     /**
      * One-time work name used for "update now" triggers.
      */

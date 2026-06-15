@@ -2,6 +2,7 @@ package org.adaway.model.update;
 
 import static android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE;
 import static android.os.Build.VERSION.SDK_INT;
+import static org.adaway.model.update.UpdateStore.ADAWAY;
 import static org.adaway.model.update.UpdateStore.getApkStore;
 import static java.util.Objects.requireNonNull;
 
@@ -14,12 +15,15 @@ import android.net.Uri;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import androidx.core.content.ContextCompat;
 
+import org.adaway.BuildConfig;
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
@@ -108,6 +112,8 @@ public class UpdateModel {
         // Notify update
         if (manifest != null) {
             this.manifest.postValue(manifest);
+        } else {
+            this.manifest.postValue(null);
         }
     }
 
@@ -116,27 +122,37 @@ public class UpdateModel {
     }
 
     private Manifest downloadManifest() {
+        if (!canSelfUpdate()) {
+            return null;
+        }
         if (!this.versionInfo.isValid()) {
             return null;
         }
+        String channel = getChannel();
+        UpdateStore store = getStore();
         HttpUrl httpUrl = requireNonNull(HttpUrl.parse(MANIFEST_URL), "Failed to parse manifest URL")
                 .newBuilder()
                 .addQueryParameter("versionCode", Integer.toString(this.versionInfo.code))
                 .addQueryParameter("sdkCode", Integer.toString(SDK_INT))
-                .addQueryParameter("channel", getChannel())
-                .addQueryParameter("store", getStore().getName())
+                .addQueryParameter("channel", channel)
+                .addQueryParameter("store", store.getName())
                 .build();
         Request request = new Request.Builder()
                 .url(httpUrl)
                 .build();
         try (Response execute = this.client.newCall(request).execute();
-             ResponseBody body = execute.body()) {
+            ResponseBody body = execute.body()) {
             if (execute.isSuccessful() && body != null) {
-                return new Manifest(body.string(), this.versionInfo.code);
+                return new Manifest(
+                        body.string(),
+                        this.versionInfo.code,
+                        this.context.getString(R.string.update_manifest_public_key),
+                        channel,
+                        store.getName());
             } else {
                 return null;
             }
-        } catch (IOException | JSONException exception) {
+        } catch (IOException | JSONException | GeneralSecurityException exception) {
             Timber.e(exception, "Unable to download manifest.");
             // Return failed
             return null;
@@ -149,32 +165,73 @@ public class UpdateModel {
      * @return The download identifier ({@code -1} if download was not started).
      */
     public long update() {
+        if (!canSelfUpdate()) {
+            return -1;
+        }
         // Check manifest
         Manifest manifest = this.manifest.getValue();
         if (manifest == null) {
             return -1;
         }
-        // Check previous broadcast receiver
-        if (this.receiver != null) {
-            this.context.unregisterReceiver(this.receiver);
+        if (manifest.isExpired()) {
+            this.manifest.postValue(null);
+            return -1;
         }
+        // Check previous broadcast receiver
+        unregisterReceiver();
         // Queue download
         long downloadId = download(manifest);
+        if (downloadId == -1) {
+            return -1;
+        }
         // Register new broadcast receiver
-        this.receiver = new ApkDownloadReceiver(downloadId);
-        this.context.registerReceiver(this.receiver, new IntentFilter(ACTION_DOWNLOAD_COMPLETE));
+        this.receiver = new ApkDownloadReceiver(
+                downloadId,
+                manifest.apkSha256,
+                manifest.signingCertificateSha256,
+                this::clearReceiver);
+        IntentFilter filter = new IntentFilter(ACTION_DOWNLOAD_COMPLETE);
+        ContextCompat.registerReceiver(
+                this.context, this.receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        this.receiver.handleTerminalDownload(this.context);
         // Return download identifier
         return downloadId;
     }
 
+    private void unregisterReceiver() {
+        if (this.receiver == null) {
+            return;
+        }
+        try {
+            this.context.unregisterReceiver(this.receiver);
+        } catch (IllegalArgumentException exception) {
+            Timber.d(exception, "APK download receiver was already unregistered.");
+        } finally {
+            this.receiver = null;
+        }
+    }
+
+    private void clearReceiver() {
+        this.receiver = null;
+    }
+
     private long download(Manifest manifest) {
         Timber.i("Downloading " + manifest.version + ".");
-        Uri uri = Uri.parse(DOWNLOAD_URL + manifest.versionCode);
+        Uri uri = Uri.parse(manifest.apkUrl != null
+                ? manifest.apkUrl
+                : DOWNLOAD_URL + manifest.versionCode);
         DownloadManager.Request request = new DownloadManager.Request(uri)
                 .setTitle("AdAway " + manifest.version)
                 .setDescription(this.context.getString(R.string.update_notification_description));
         DownloadManager downloadManager = this.context.getSystemService(DownloadManager.class);
+        if (downloadManager == null) {
+            return -1;
+        }
         return downloadManager.enqueue(request);
+    }
+
+    private boolean canSelfUpdate() {
+        return BuildConfig.DIRECT_APK_UPDATES_ENABLED && getStore() == ADAWAY;
     }
 
     private static class VersionInfo {

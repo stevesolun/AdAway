@@ -6,10 +6,11 @@ import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.Query;
+import androidx.room.Transaction;
 import androidx.room.Update;
 
 import org.adaway.db.entity.HostListItem;
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,6 +73,9 @@ public interface HostListItemDao {
     @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 2 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     int getRedirectHostCountNow();
 
+    @Query("SELECT COUNT(*) FROM hosts_lists WHERE source_id = :sourceId AND generation = :generation")
+    int countSourceHostsForGeneration(int sourceId, int generation);
+
     @Query("DELETE FROM hosts_lists WHERE source_id = :sourceId")
     void clearSourceHosts(int sourceId);
 
@@ -87,9 +91,55 @@ public interface HostListItemDao {
     @Query("UPDATE hosts_lists SET generation = :newGeneration WHERE source_id = :sourceId AND generation = :oldGeneration")
     void migrateSourceGeneration(int sourceId, int oldGeneration, int newGeneration);
 
-    @Query("SELECT * FROM hosts_lists WHERE host = :host AND " +
+    /**
+     * Copy a source's active rows into a new import generation without moving the old rows.
+     * Used for failed or unchanged sources during atomic full updates: the previous active
+     * generation must remain valid until the final generation flip succeeds.
+     */
+    @Query("INSERT INTO hosts_lists " +
+            "(host, reverse_host, type, kind, enabled, redirection, source_id, generation) " +
+            "SELECT host, reverse_host, type, kind, enabled, redirection, source_id, " +
+            ":newGeneration " +
+            "FROM hosts_lists WHERE source_id = :sourceId AND generation = :oldGeneration")
+    void copySourceGeneration(int sourceId, int oldGeneration, int newGeneration);
+
+    @Transaction
+    default void copySourceGenerationReplacingTarget(
+            int sourceId, int oldGeneration, int newGeneration) {
+        clearSourceHostsForGeneration(sourceId, newGeneration);
+        copySourceGeneration(sourceId, oldGeneration, newGeneration);
+    }
+
+    @Transaction
+    default void replaceSourceGeneration(int sourceId, int oldGeneration, int newGeneration) {
+        clearSourceHostsForGeneration(sourceId, newGeneration);
+        migrateSourceGeneration(sourceId, oldGeneration, newGeneration);
+    }
+
+    @Query("SELECT * FROM hosts_lists WHERE host = :host AND kind = 0 AND " +
            "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
-    List<HostListItem> getEntriesForHost(String host);
+    List<HostListItem> getExactEntriesForHost(String host);
+
+    @Query("SELECT * FROM hosts_lists WHERE host = :host AND kind = 1 AND " +
+           "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
+    List<HostListItem> getSuffixEntriesForHost(String host);
+
+    default List<HostListItem> getEntriesForHost(String host) {
+        List<HostListItem> entries = new ArrayList<>(getExactEntriesForHost(host));
+        String candidate = host;
+        while (candidate != null && !candidate.isEmpty()) {
+            entries.addAll(getSuffixEntriesForHost(candidate));
+            int dot = candidate.indexOf('.');
+            candidate = dot < 0 ? null : candidate.substring(dot + 1);
+        }
+        return entries;
+    }
+
+    default List<HostListItem> getRootEntriesForHost(String host) {
+        List<HostListItem> entries = new ArrayList<>(getExactEntriesForHost(host));
+        entries.addAll(getSuffixEntriesForHost(host));
+        return entries;
+    }
 
     @Query("DELETE FROM hosts_lists WHERE id = :id")
     void deleteById(int id);

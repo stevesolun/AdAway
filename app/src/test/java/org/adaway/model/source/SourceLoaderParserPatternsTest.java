@@ -1,9 +1,16 @@
 package org.adaway.model.source;
 
+import org.adaway.db.entity.HostListItem;
 import org.junit.Test;
 
 import java.util.regex.Matcher;
 
+import static org.adaway.db.entity.ListType.ALLOWED;
+import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.adaway.db.entity.ListType.REDIRECTED;
+
+import static org.adaway.db.entity.RuleKind.EXACT;
+import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.adaway.model.source.SourceLoader.UNBOUND_LOCAL_ZONE;
 import static org.adaway.model.source.SourceLoader.UNBOUND_LOCAL_DATA;
 import static org.adaway.model.source.SourceLoader.RPZ_CNAME_DOT;
@@ -22,6 +29,45 @@ import static org.junit.Assert.*;
  * Also tests ABP/uBO $options rule handling in extractHostnameFromNonHostsSyntax.
  */
 public class SourceLoaderParserPatternsTest {
+
+    // -----------------------------------------------------------------------
+    // DEDUP KEY tests
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void dedupKey_keepsAllowRulesDistinctFromBlockedRules() {
+        HostListItem blocked = item("example.com", BLOCKED);
+        HostListItem allowed = item("example.com", ALLOWED);
+
+        assertNotEquals(SourceLoader.buildDedupKey(blocked), SourceLoader.buildDedupKey(allowed));
+    }
+
+    @Test
+    public void dedupKey_keepsRedirectTargetsDistinct() {
+        HostListItem first = item("example.com", REDIRECTED);
+        first.setRedirection("8.8.8.8");
+        HostListItem second = item("example.com", REDIRECTED);
+        second.setRedirection("1.1.1.1");
+
+        assertNotEquals(SourceLoader.buildDedupKey(first), SourceLoader.buildDedupKey(second));
+    }
+
+    @Test
+    public void dedupKey_deduplicatesEquivalentRules() {
+        HostListItem first = item("example.com", BLOCKED);
+        HostListItem second = item("example.com", BLOCKED);
+
+        assertEquals(SourceLoader.buildDedupKey(first), SourceLoader.buildDedupKey(second));
+    }
+
+    private static HostListItem item(String host, org.adaway.db.entity.ListType type) {
+        HostListItem item = new HostListItem();
+        item.setHost(host);
+        item.setType(type);
+        item.setKind(EXACT);
+        item.setEnabled(true);
+        return item;
+    }
 
     // -----------------------------------------------------------------------
     // UNBOUND_LOCAL_ZONE tests
@@ -160,8 +206,10 @@ public class SourceLoaderParserPatternsTest {
     public void surgeDomainRule_matchesDomainSuffix() {
         String line = "DOMAIN-SUFFIX,ads.example.com";
         Matcher m = SURGE_DOMAIN_RULE.matcher(line);
-        assertTrue("SURGE_DOMAIN_RULE should match DOMAIN-SUFFIX rule", m.matches());
-        assertEquals("ads.example.com", m.group(1));
+        assertFalse("SURGE_DOMAIN_RULE must not flatten suffix rules into exact hosts",
+                m.matches());
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
     }
 
     @Test
@@ -170,6 +218,7 @@ public class SourceLoaderParserPatternsTest {
         Matcher m = SURGE_DOMAIN_RULE.matcher(line);
         assertTrue("SURGE_DOMAIN_RULE should match DOMAIN-FULL rule", m.matches());
         assertEquals("tracking.example.com", m.group(1));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
     }
 
     @Test
@@ -200,8 +249,45 @@ public class SourceLoaderParserPatternsTest {
     public void surgeDomainRule_matchesWithTrailingWhitespace() {
         String line = "DOMAIN-SUFFIX,0z5jn.cn  ";
         Matcher m = SURGE_DOMAIN_RULE.matcher(line);
-        assertTrue("SURGE_DOMAIN_RULE should match with trailing whitespace", m.matches());
-        assertEquals("0z5jn.cn", m.group(1));
+        assertFalse("SURGE_DOMAIN_RULE must not flatten suffix rules with trailing whitespace",
+                m.matches());
+        assertEquals("0z5jn.cn", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void surgeDomainSuffixReject_isSuffixBlock() {
+        String line = "DOMAIN-SUFFIX,ads.example.com,REJECT";
+
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void surgeDomainSuffixRejectNoResolve_isSuffixBlock() {
+        String line = "DOMAIN-SUFFIX,ads.example.com,REJECT,no-resolve";
+
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void surgeDomainSuffixDirect_isSkipped() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "DOMAIN-SUFFIX,cdn.example.com,DIRECT"));
+    }
+
+    @Test
+    public void surgeDomainReject_isExactBlock() {
+        String line = "DOMAIN,exact.example.com,REJECT";
+
+        assertEquals("exact.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void surgeDomainKeywordReject_isSkipped() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("DOMAIN-KEYWORD,ad,REJECT"));
     }
 
     // -----------------------------------------------------------------------
@@ -250,12 +336,60 @@ public class SourceLoaderParserPatternsTest {
         assertFalse("BIND_ZONE_STMT should not match plain domain", m.matches());
     }
 
+    @Test
+    public void dnsmasqAddressNullIpv4_isSuffixBlock() {
+        String line = "address=/example.com/0.0.0.0";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressNullIpv6_isSuffixBlock() {
+        String line = "address=/example.com/::";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressNullHash_isSuffixBlock() {
+        String line = "address=/example.com/#";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressPublicRedirect_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("address=/example.com/8.8.8.8"));
+    }
+
+    @Test
+    public void dnsmasqLocalRule_isSuffixBlock() {
+        String line = "local=/example.com/";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqServerRule_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("server=/example.com/8.8.8.8"));
+    }
+
+    @Test
+    public void bindZoneStatement_notExtractedAsBlock() {
+        String line = "zone \"ads.example.com\" { type master; file \"null.zone.file\"; };";
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(line));
+    }
+
     // -----------------------------------------------------------------------
     // ABP/uBO $options rules
     //
     // Content-type options ($script, $image, etc.) make a rule browser-only — skip at DNS level.
-    // Context-only options ($third-party, $important) ARE valid DNS-level domain blocks:
-    //   ||taboola.com^$third-party = "taboola.com is a pure ad network" → block it at DNS level.
+    // Context-only options ($third-party, $important) are still browser-context rules.
+    // They are unsafe to flatten into DNS-level blocks without modelling the option semantics.
     // -----------------------------------------------------------------------
 
     @Test
@@ -312,15 +446,21 @@ public class SourceLoaderParserPatternsTest {
     }
 
     @Test
-    public void abpRule_noOptions_extracted() {
-        // ||ads.example.com^ with no $options IS a full domain block
-        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax("||ads.example.com^"));
+    public void abpRule_noOptions_isSuffixRule() {
+        // Browser-anchor rules are suffix semantics, not exact-host entries.
+        assertEquals("ads.example.com",
+                SourceLoader.extractHostnameFromNonHostsSyntax("||ads.example.com^"));
+        assertEquals(SUFFIX,
+                SourceLoader.extractRuleKindFromNonHostsSyntax("||ads.example.com^"));
     }
 
     @Test
-    public void abpRule_noCaretNoOptions_extracted() {
-        // ||tracker.net (bare domain, no ^ and no $) — still a domain block
-        assertEquals("tracker.net", SourceLoader.extractHostnameFromNonHostsSyntax("||tracker.net"));
+    public void abpRule_noCaretNoOptions_isSuffixRule() {
+        // Browser-anchor rules without a caret are still not exact-host entries.
+        assertEquals("tracker.net",
+                SourceLoader.extractHostnameFromNonHostsSyntax("||tracker.net"));
+        assertEquals(SUFFIX,
+                SourceLoader.extractRuleKindFromNonHostsSyntax("||tracker.net"));
     }
 
     // -----------------------------------------------------------------------
@@ -342,9 +482,12 @@ public class SourceLoaderParserPatternsTest {
     }
 
     @Test
-    public void abpRule_domainWithCaret_extracted() {
-        // ||ads.youtube.com^ — full domain block (no path) — IS a valid DNS block
-        assertEquals("ads.youtube.com", SourceLoader.extractHostnameFromNonHostsSyntax("||ads.youtube.com^"));
+    public void abpRule_domainWithCaret_isSuffixRule() {
+        // Browser-anchor rules are now stored as suffix rules, not flattened exact hosts.
+        assertEquals("ads.youtube.com",
+                SourceLoader.extractHostnameFromNonHostsSyntax("||ads.youtube.com^"));
+        assertEquals(SUFFIX,
+                SourceLoader.extractRuleKindFromNonHostsSyntax("||ads.youtube.com^"));
     }
 
     // -----------------------------------------------------------------------

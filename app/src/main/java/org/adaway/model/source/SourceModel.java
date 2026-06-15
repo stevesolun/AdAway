@@ -4,6 +4,7 @@ import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED;
 import static org.adaway.model.error.HostError.DOWNLOAD_FAILED;
 import static org.adaway.model.error.HostError.NO_CONNECTION;
+import static org.adaway.model.error.HostError.UPDATE_IN_PROGRESS;
 import static java.net.HttpURLConnection.HTTP_NOT_MODIFIED;
 import static java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME;
 import static java.time.format.FormatStyle.MEDIUM;
@@ -16,6 +17,9 @@ import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -24,6 +28,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.converter.ZonedDateTimeConverter;
@@ -35,6 +40,7 @@ import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.git.GitHostsSource;
+import org.adaway.util.AppExecutors;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -49,6 +55,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,8 +71,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.adaway.util.AppExecutors;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
@@ -84,6 +90,7 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class SourceModel {
+    private static final long FILTER_OPERATION_PROGRESS_THROTTLE_MS = 250L;
     /**
      * The HTTP client cache size.
      */
@@ -106,33 +113,17 @@ public class SourceModel {
     private static final int DOWNLOAD_PARALLELISM = Math.max(12, Math.min(CPU_CORES * 4, 32));
 
     /**
-     * Parse parallelism: Memory intensive, based on heap size.
-     * Each SourceLoader can use 50-100MB for large lists.
-     * - <128MB heap: 2 parsers
-     * - 128-256MB heap: 4 parsers
-     * - 256-512MB heap: 6 parsers
-     * - >512MB heap: 8 parsers
-     */
-    private static final int PARSE_PARALLELISM;
-    static {
-        long heapMB = MAX_MEMORY / (1024 * 1024);
-        if (heapMB < 128) {
-            PARSE_PARALLELISM = 2;
-        } else if (heapMB < 256) {
-            PARSE_PARALLELISM = 4;
-        } else if (heapMB < 512) {
-            PARSE_PARALLELISM = 6;
-        } else {
-            PARSE_PARALLELISM = 8;
-        }
-    }
-
-    /**
      * Parser threads per source (internal to SourceLoader).
-     * Reduced to 2 since we now parse multiple sources in parallel.
-     * Total threads = PARSE_PARALLELISM * PARSER_THREADS_PER_SOURCE = 8 * 2 = 16 (manageable).
+     * The outer import lane is serialized, so this is the only parser parallelism active while
+     * SQLite is receiving rows.
      */
     static final int PARSER_THREADS_PER_SOURCE = 2;
+    /**
+     * Only one SourceLoader may write to hosts_lists at a time.
+     * Downloads remain parallel, and SourceLoader still parses lines with worker threads, but the
+     * SQLite insert transaction is serialized to avoid writer contention and WAL/page-cache churn.
+     */
+    private static final int IMPORT_WRITER_PARALLELISM = 1;
     private static final String LAST_MODIFIED_HEADER = "Last-Modified";
     private static final String IF_NONE_MATCH_HEADER = "If-None-Match";
     private static final String IF_MODIFIED_SINCE_HEADER = "If-Modified-Since";
@@ -142,6 +133,10 @@ public class SourceModel {
      * The application context.
      */
     private final Context context;
+    /**
+     * The application database.
+     */
+    private final AppDatabase database;
     /**
      * The {@link HostsSource} DAO.
      */
@@ -171,9 +166,19 @@ public class SourceModel {
      */
     private final MutableLiveData<MultiPhaseProgress> multiPhaseProgress;
     /**
+     * Shared operation state for filter update/import UI surfaces.
+     */
+    private final MutableLiveData<FilterOperationState> filterOperationState;
+    /**
      * Builder for multi-phase progress updates.
      */
     private final MultiPhaseProgressBuilder progressBuilder;
+    private final Handler mainHandler;
+    private long filterOperationStartedElapsedMs = 0L;
+    private long lastFilterOperationEmitElapsedMs = 0L;
+    private int lastFilterOperationPercent = -1;
+    private boolean lastFilterOperationActive = false;
+    private final AtomicInteger terminalIdleToken = new AtomicInteger(0);
     /**
      * The HTTP client to download hosts sources ({@code null} until initialized by {@link #getHttpClient()}).
      */
@@ -193,6 +198,12 @@ public class SourceModel {
      */
     private final AtomicBoolean updateInProgress = new AtomicBoolean(false);
     /**
+     * Runtime cache rebuilds are compatibility work for UI counters and legacy table readers.
+     * Protection decisions read active hosts_lists truth directly, so cache rebuild failures must
+     * never roll back a generation publish.
+     */
+    private final AtomicBoolean runtimeCacheRefreshInProgress = new AtomicBoolean(false);
+    /**
      * Target generation for the current import run.
      * - For full updates: set to next generation, and flipped active at the end (atomic swap).
      * - For single-source updates: set to current active generation (in-place update).
@@ -205,8 +216,12 @@ public class SourceModel {
      * @param context The application context.
      */
     public SourceModel(Context context) {
+        this(context, AppDatabase.getInstance(context));
+    }
+
+    SourceModel(@NonNull Context context, @NonNull AppDatabase database) {
         this.context = context;
-        AppDatabase database = AppDatabase.getInstance(this.context);
+        this.database = database;
         this.hostsSourceDao = database.hostsSourceDao();
         this.hostListItemDao = database.hostsListItemDao();
         this.hostEntryDao = database.hostEntryDao();
@@ -217,7 +232,10 @@ public class SourceModel {
         this.progress.postValue(Progress.idle());
         this.multiPhaseProgress = new MutableLiveData<>();
         this.multiPhaseProgress.postValue(MultiPhaseProgress.idle());
+        this.filterOperationState = new MutableLiveData<>();
+        this.filterOperationState.postValue(FilterOperationState.idle());
         this.progressBuilder = new MultiPhaseProgressBuilder();
+        this.mainHandler = new Handler(Looper.getMainLooper());
         this.updateAvailable = new MutableLiveData<>();
         this.updateAvailable.postValue(false);
         SourceUpdateService.syncPreferences(context);
@@ -246,25 +264,41 @@ public class SourceModel {
         return this.multiPhaseProgress;
     }
 
+    public LiveData<FilterOperationState> getFilterOperationState() {
+        return this.filterOperationState;
+    }
+
     /**
      * Request pause of the current update operation.
      */
     public void requestPause() {
+        if (!canControlCurrentUpdate()) {
+            return;
+        }
         this.progressBuilder.setPaused(true);
+        postMultiPhaseProgress(this.progressBuilder.build(), true);
     }
 
     /**
      * Resume a paused update operation.
      */
     public void requestResume() {
+        if (!canControlCurrentUpdate()) {
+            return;
+        }
         this.progressBuilder.setPaused(false);
+        postMultiPhaseProgress(this.progressBuilder.build(), true);
     }
 
     /**
      * Request stop of the current update operation.
      */
     public void requestStop() {
+        if (!canControlCurrentUpdate()) {
+            return;
+        }
         this.progressBuilder.setStopped(true);
+        postMultiPhaseProgress(this.progressBuilder.build(), true);
     }
 
     /**
@@ -273,6 +307,55 @@ public class SourceModel {
      */
     public void setSchedulerTaskName(String name) {
         this.progressBuilder.setSchedulerTaskName(name);
+    }
+
+    private boolean canControlCurrentUpdate() {
+        return this.updateInProgress.get()
+                && !this.progressBuilder.isStopped()
+                && !this.progressBuilder.isFinalizing()
+                && !this.progressBuilder.isComplete();
+    }
+
+    private boolean beginUpdateOperation(@NonNull String operationName) throws HostErrorException {
+        if (!this.updateInProgress.compareAndSet(false, true)) {
+            Timber.w("Update already in progress - ignoring %s", operationName);
+            throw new HostErrorException(UPDATE_IN_PROGRESS);
+        }
+        return true;
+    }
+
+    private void finishUpdateOperation() {
+        this.updateInProgress.set(false);
+        synchronized (this) {
+            this.currentDownloadPool = null;
+            this.currentParsePool = null;
+        }
+    }
+
+    private void scheduleRuntimeCacheRefresh() {
+        if (!this.runtimeCacheRefreshInProgress.compareAndSet(false, true)) {
+            Timber.i("Runtime cache refresh already in progress; skipping duplicate request.");
+            return;
+        }
+
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            long startedMs = SystemClock.elapsedRealtime();
+            try {
+                this.hostEntryDao.refreshStatsFromActiveGeneration();
+                this.database.runInTransaction(() -> {
+                    SupportSQLiteDatabase db =
+                            this.database.getOpenHelper().getWritableDatabase();
+                    this.hostEntryDao.rebuildFromActiveGeneration(db);
+                });
+                Timber.i("Runtime cache refresh completed in %dms",
+                        SystemClock.elapsedRealtime() - startedMs);
+            } catch (RuntimeException exception) {
+                Timber.w(exception, "Runtime cache refresh failed; active hosts_lists truth " +
+                        "remains authoritative.");
+            } finally {
+                this.runtimeCacheRefreshInProgress.set(false);
+            }
+        });
     }
 
     /**
@@ -460,25 +543,37 @@ public class SourceModel {
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */
     public void retrieveHostsSources() throws HostErrorException {
+        if (useStagedPipelineForLegacyRetrieve()) {
+            checkAndRetrieveHostsSources();
+            return;
+        }
         // Check connection status
         if (isDeviceOffline()) {
             throw new HostErrorException(NO_CONNECTION);
         }
+        if (!beginUpdateOperation("retrieveHostsSources")) {
+            return;
+        }
         // Update state to downloading
         setState(R.string.status_retrieve);
+        try {
+            final SupportSQLiteDatabase writableDb = this.database.getOpenHelper().getWritableDatabase();
+            final int importGeneration = ensureAndGetActiveGeneration(writableDb);
+            this.currentImportGeneration = importGeneration;
 
-        // Split sources:
-        // - Disabled: clear DB entries
-        // - Enabled FILE: read sequentially (no network)
-        // - Enabled URL: download in parallel (capped) + parse sequentially to avoid DB contention
-        List<HostsSource> all = this.hostsSourceDao.getAll();
-        List<HostsSource> enabledUrlSources = new ArrayList<>();
-        List<HostsSource> enabledFileSources = new ArrayList<>();
+            // Split sources:
+            // - Disabled: clear DB entries
+            // - Enabled FILE: read sequentially (no network)
+            // - Enabled URL: download in parallel (capped) + import sequentially to avoid DB contention
+            List<HostsSource> all = this.hostsSourceDao.getAll();
+            List<HostsSource> enabledUrlSources = new ArrayList<>();
+            List<HostsSource> enabledFileSources = new ArrayList<>();
 
         for (HostsSource source : all) {
             if (!source.isEnabled()) {
                 int sourceId = source.getId();
                 this.hostListItemDao.clearSourceHosts(sourceId);
+                clearRootExportStageForSource(writableDb, sourceId);
                 this.hostsSourceDao.clearProperties(sourceId);
                 continue;
             }
@@ -507,7 +602,7 @@ public class SourceModel {
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
             numberOfCopies++;
             try {
-                readSourceFile(source);
+                readSourceFile(source, importGeneration);
                 ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
                 if (onlineModificationDate == null) {
                     onlineModificationDate = now;
@@ -523,20 +618,18 @@ public class SourceModel {
             postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
         }
 
-        // Then handle URL sources with parallel downloads but bounded parallel parsing.
-        // Downloads are network-bound (safe to parallelize), but parsing is memory-intensive.
-        // We use adaptive parallelism based on hardware capabilities.
+        // Then handle URL sources with parallel downloads and one import writer.
+        // Downloads are network-bound; SQLite writes are serialized to avoid contention.
         if (!enabledUrlSources.isEmpty()) {
             int downloadParallelism = Math.min(DOWNLOAD_PARALLELISM, enabledUrlSources.size());
-            // Parse pool can have more threads, but semaphore limits actual concurrent parsing
-            int parsePoolSize = PARSE_PARALLELISM + 1;
+            int parsePoolSize = IMPORT_WRITER_PARALLELISM;
 
             ExecutorService downloadPool = Executors.newFixedThreadPool(downloadParallelism);
             ExecutorService parsePool = Executors.newFixedThreadPool(parsePoolSize);
             CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(downloadPool);
 
-            // Semaphore limits concurrent SourceLoader.parse() calls to prevent OOM
-            final Semaphore parseSemaphore = new Semaphore(PARSE_PARALLELISM);
+            // Semaphore enforces the single SQLite writer/import lane.
+            final Semaphore parseSemaphore = new Semaphore(IMPORT_WRITER_PARALLELISM);
 
             // Global deduplication set - ensures each host is inserted only once across ALL sources
             final java.util.Set<String> globalSeenHosts = ConcurrentHashMap.newKeySet();
@@ -575,11 +668,12 @@ public class SourceModel {
                         final DownloadResult finalResult = result;
                         parseFutures.add(parsePool.submit(() -> {
                             try {
-                                // Acquire permit before parsing - blocks if PARSE_PARALLELISM already running
+                                // Acquire permit before parsing - enforces one source import at a time.
                                 parseSemaphore.acquire();
                                 try (BufferedReader reader = finalResult.openReader()) {
                                     // Pass globalSeenHosts for cross-source deduplication
-                                    parseSourceInputStream(finalResult.source, reader, globalSeenHosts);
+                                    parseSourceInputStream(finalResult.source, reader,
+                                            globalSeenHosts, importGeneration);
                                 } finally {
                                     parseSemaphore.release();
                                 }
@@ -641,6 +735,13 @@ public class SourceModel {
         // Mark no update available
         this.updateAvailable.postValue(false);
         postProgress(total, total, null, 10000, 100);
+        } finally {
+            finishUpdateOperation();
+        }
+    }
+
+    private static boolean useStagedPipelineForLegacyRetrieve() {
+        return true;
     }
 
     /**
@@ -658,32 +759,42 @@ public class SourceModel {
         if (isDeviceOffline()) {
             throw new HostErrorException(NO_CONNECTION);
         }
-        if (!updateInProgress.compareAndSet(false, true)) {
-            Timber.w("Update already in progress - ignoring new request");
+        if (!beginUpdateOperation("checkAndRetrieveHostsSources")) {
             return;
         }
-        // Balanced durability speed-up for bulk import:
-        // Reduce fsync frequency during the update window. If the device crashes mid-update,
-        // the user can re-run the update (correctness is preserved by rebuilding).
-        final SupportSQLiteDatabase writableDb = AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
-        applyBalancedImportPragmas(writableDb);
-
+        SupportSQLiteDatabase writableDb = null;
+        final SqlUpdateDeduper[] sqlDeduperRef = new SqlUpdateDeduper[1];
         try {
+            // Balanced durability speed-up for bulk import:
+            // Reduce fsync frequency during the update window. If the device crashes mid-update,
+            // the user can re-run the update (correctness is preserved by rebuilding).
+            writableDb = this.database.getOpenHelper().getWritableDatabase();
+            applyBalancedImportPragmas(writableDb);
+
             // Reset progress builder for this operation
             progressBuilder.reset();
+            terminalIdleToken.incrementAndGet();
+            resetFilterOperationPublisher();
             // Atomic update: build next generation, then flip active generation at the end.
             int activeGen = ensureAndGetActiveGeneration(writableDb);
-            this.currentImportGeneration = activeGen + 1;
+            final int importGeneration = activeGen + 1;
+            this.currentImportGeneration = importGeneration;
 
         // Get all sources and categorize
         List<HostsSource> all = this.hostsSourceDao.getAll();
         List<HostsSource> enabledUrlSources = new ArrayList<>();
         List<HostsSource> enabledFileSources = new ArrayList<>();
+        List<Integer> disabledSourceIds = new ArrayList<>();
+        final List<SourceCommit> sourceCommits =
+                Collections.synchronizedList(new ArrayList<>());
+        final List<SourceFailure> sourceFailures =
+                Collections.synchronizedList(new ArrayList<>());
+        boolean runtimeRebuildRequired = false;
 
         for (HostsSource source : all) {
             if (!source.isEnabled()) {
-                int sourceId = source.getId();
-                this.hostsSourceDao.clearProperties(sourceId);
+                disabledSourceIds.add(source.getId());
+                runtimeRebuildRequired = true;
                 continue;
             }
             switch (source.getType()) {
@@ -700,7 +811,13 @@ public class SourceModel {
 
         final int totalSources = enabledUrlSources.size() + enabledFileSources.size();
         if (totalSources == 0) {
+            if (runtimeRebuildRequired) {
+                finalizeNoChange(
+                        importGeneration, disabledSourceIds, sourceCommits, sourceFailures, true);
+            }
             this.updateAvailable.postValue(false);
+            postProgress(0, 0, null, 10000, 100);
+            postMultiPhaseProgress(MultiPhaseProgress.idle());
             return;
         }
 
@@ -715,6 +832,14 @@ public class SourceModel {
         ZonedDateTime now = ZonedDateTime.now();
         ZonedDateTime lastWeek = now.minus(1, WEEKS);
         final AtomicInteger failedCount = new AtomicInteger(0);
+        final AtomicInteger successfulSourceCount = new AtomicInteger(0);
+        final AtomicInteger changedSourceCount = new AtomicInteger(0);
+        final AtomicInteger upToDateCount = new AtomicInteger(0);
+        final AtomicBoolean generationUnsafe = new AtomicBoolean(false);
+        final List<HostsSource> deferredCarryForwardSources =
+                Collections.synchronizedList(new ArrayList<>());
+        final SqlUpdateDeduper sqlDeduper = new SqlUpdateDeduper(writableDb);
+        sqlDeduperRef[0] = sqlDeduper;
 
         // Handle FILE sources first (quick, no network) - count as check+download+parse in one
         for (HostsSource source : enabledFileSources) {
@@ -732,16 +857,21 @@ public class SourceModel {
             postMultiPhaseProgress(progressBuilder.build());
 
             try {
-                readSourceFile(source);
+                readSourceFile(source, importGeneration, sqlDeduper);
                 ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
                 if (onlineModificationDate == null) onlineModificationDate = now;
                 ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-                this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
-                this.hostsSourceDao.updateSize(source.getId());
+                sourceCommits.add(SourceCommit.changed(
+                        source.getId(), null, localModificationDate, onlineModificationDate,
+                        importGeneration));
+                successfulSourceCount.incrementAndGet();
+                changedSourceCount.incrementAndGet();
                 progressBuilder.incrementDownloaded();
                 progressBuilder.incrementParsed();
             } catch (IOException e) {
                 Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
+                deferredCarryForwardSources.add(source);
+                sourceFailures.add(SourceFailure.of(source.getId(), e));
                 failedCount.incrementAndGet();
                 progressBuilder.incrementDownloaded();
                 progressBuilder.incrementParsed(); // Still count as parsed (failed)
@@ -752,16 +882,12 @@ public class SourceModel {
         // SIMPLIFIED 2-PHASE PIPELINE - no check phase, direct download with conditional GET
         // Download uses If-Modified-Since headers - server returns 304 if unchanged (fast, no body)
         if (!enabledUrlSources.isEmpty()) {
-            // Global deduplication set
-            final java.util.Set<String> globalSeenHosts = ConcurrentHashMap.newKeySet();
             long heapMB = MAX_MEMORY / (1024 * 1024);
-            final int maxDedupEntries = heapMB < 256 ? 500_000 : heapMB < 512 ? 1_000_000 : 2_000_000;
-            final AtomicBoolean dedupCapReached = new AtomicBoolean(false);
 
             // Create DEDICATED thread pools for THIS update (not shared)
             // Store them so they can be shut down if a new update starts
             int downloadParallelism = Math.min(12, enabledUrlSources.size());
-            int parseParallelism = AppExecutors.getParseParallelism();
+            int parseParallelism = IMPORT_WRITER_PARALLELISM;
             ExecutorService downloadPool;
             ExecutorService parsePool;
             synchronized (this) {
@@ -780,8 +906,8 @@ public class SourceModel {
             }
 
             final int totalSourcesToProcess = enabledUrlSources.size();
-            Timber.d("Pipeline start: cores=%d, heap=%dMB, sources=%d (direct download, no check phase)",
-                    CPU_CORES, heapMB, totalSourcesToProcess);
+            Timber.d("Pipeline start: cores=%d, heap=%dMB, sources=%d, importWriters=%d",
+                    CPU_CORES, heapMB, totalSourcesToProcess, parseParallelism);
             long pipelineStartTime = System.currentTimeMillis();
 
             Semaphore parseSemaphore = new Semaphore(parseParallelism);
@@ -791,8 +917,6 @@ public class SourceModel {
             final AtomicInteger downloadsCompleted = new AtomicInteger(0);
             final AtomicInteger parsesSubmitted = new AtomicInteger(0);
             final AtomicInteger parsesCompleted = new AtomicInteger(0);
-            final AtomicInteger upToDateCount = new AtomicInteger(0);
-
             // CompletionServices for both phases
             CompletionService<DownloadResult> downloadCompletion = new ExecutorCompletionService<>(downloadPool);
             CompletionService<Void> parseCompletion = new ExecutorCompletionService<>(parsePool);
@@ -802,13 +926,20 @@ public class SourceModel {
                 // Track download stage as "sources processed", regardless of 200/304.
                 progressBuilder.incrementTotalToDownload();
                 downloadCompletion.submit(() -> {
-                    if (progressBuilder.isStopped()) return DownloadResult.failed(source);
-                    while (progressBuilder.isPaused() && !progressBuilder.isStopped()) {
-                        Thread.sleep(100);
+                    try {
+                        if (progressBuilder.isStopped()) return DownloadResult.failed(source);
+                        while (progressBuilder.isPaused() && !progressBuilder.isStopped()) {
+                            Thread.sleep(100);
+                        }
+                        progressBuilder.setCurrentLabel(source.getLabel());
+                        setState(R.string.status_download_source, source.getUrl());
+                        return downloadToTempFile(source, null);
+                    } catch (Exception e) {
+                        Timber.w(e, "Download worker failed for %s", source.getUrl());
+                        String message = e.getMessage() != null ? e.getMessage()
+                                : e.getClass().getSimpleName();
+                        return DownloadResult.failed(source, message);
                     }
-                    progressBuilder.setCurrentLabel(source.getLabel());
-                    setState(R.string.status_download_source, source.getUrl());
-                    return downloadToTempFile(source, null);
                 });
             }
 
@@ -827,15 +958,10 @@ public class SourceModel {
 
                             if (result.notModified) {
                                 // 304 Not Modified - source is up-to-date; clear any stale error
-                                hostsSourceDao.clearDownloadError(result.source.getId());
-                                // Migrate this source's existing rows to the new generation so they
-                                // survive cleanupNonActiveGenerations() at the end of the pipeline.
-                                // Without this, a 304 response on any run after the first would cause
-                                // all of that source's entries to be silently deleted.
-                                int oldGeneration = currentImportGeneration - 1;
-                                hostListItemDao.migrateSourceGeneration(
-                                        result.source.getId(), oldGeneration, currentImportGeneration);
+                                sourceCommits.add(SourceCommit.unchanged(result.source.getId()));
+                                deferredCarryForwardSources.add(result.source);
                                 upToDateCount.incrementAndGet();
+                                successfulSourceCount.incrementAndGet();
                                 progressBuilder.incrementChecked(); // Count as checked
                                 progressBuilder.incrementDownloaded(); // Count as processed in "download" stage
                                 progressBuilder.incrementParsed(); // No parsing needed -> count as done for parse phase
@@ -856,18 +982,20 @@ public class SourceModel {
                                         }
                                         setState(R.string.status_parse_source, result.source.getLabel());
                                         try (BufferedReader reader = result.openReader()) {
-                                            parseSourceInputStream(result.source, reader, globalSeenHosts, maxDedupEntries, dedupCapReached);
-                                        }
-                                        if (result.entityTag != null) {
-                                            hostsSourceDao.updateEntityTag(result.source.getId(), result.entityTag);
+                                            parseSourceInputStream(result.source, reader,
+                                                    importGeneration, sqlDeduper);
                                         }
                                         ZonedDateTime onlineMod = result.onlineModificationDate != null ? result.onlineModificationDate : nowFinal;
                                         ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
-                                        hostsSourceDao.updateModificationDates(result.source.getId(), localMod, onlineMod);
-                                        hostsSourceDao.updateSize(result.source.getId());
-                                        hostsSourceDao.clearDownloadError(result.source.getId());
+                                        sourceCommits.add(SourceCommit.changed(
+                                                result.source.getId(), result.entityTag,
+                                                localMod, onlineMod, importGeneration));
+                                        successfulSourceCount.incrementAndGet();
+                                        changedSourceCount.incrementAndGet();
                                     } catch (Exception e) {
                                         Timber.w(e, "Failed to parse %s", result.source.getUrl());
+                                        deferredCarryForwardSources.add(result.source);
+                                        sourceFailures.add(SourceFailure.of(result.source.getId(), e));
                                         failedCount.incrementAndGet();
                                     } finally {
                                         parseSemaphore.release();
@@ -888,12 +1016,14 @@ public class SourceModel {
                                 Timber.d("Source %s download failed (success=%b, notModified=%b)",
                                         result.source.getLabel(), result.success, result.notModified);
                                 String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
-                                hostsSourceDao.updateDownloadError(result.source.getId(), errMsg);
+                                sourceFailures.add(SourceFailure.of(result.source.getId(), errMsg));
+                                deferredCarryForwardSources.add(result.source);
                             }
                             postMultiPhaseProgress(progressBuilder.build());
                         }
                     } catch (Exception e) {
                         Timber.w(e, "Download task failed");
+                        generationUnsafe.set(true);
                         downloadsCompleted.incrementAndGet();
                         failedCount.incrementAndGet();
                         progressBuilder.incrementChecked();
@@ -932,12 +1062,10 @@ public class SourceModel {
             }
 
             long totalTime = System.currentTimeMillis() - pipelineStartTime;
-            Timber.i("Pipeline complete in %ds: %d sources (%d up-to-date, %d updated, %d failed), %d unique hosts",
+            Timber.i("Pipeline complete in %ds: %d sources (%d up-to-date, %d updated, %d failed), %d accepted host rows",
                     totalTime / 1000, totalSourcesToProcess, upToDateCount.get(),
-                    parsesCompleted.get(), failedCount.get(), globalSeenHosts.size());
-            if (dedupCapReached.get()) {
-                Timber.w("Dedup cap reached - some duplicates may exist");
-            }
+                    parsesCompleted.get(), failedCount.get(),
+                    progressBuilder.getParsedHostCount());
             
             // Show user-friendly message if everything was already up-to-date
             if (upToDateCount.get() == totalSourcesToProcess && failedCount.get() == 0) {
@@ -960,30 +1088,79 @@ public class SourceModel {
         MultiPhaseProgress finalProgress = progressBuilder.build();
         int totalDownloaded = finalProgress.downloadedCount;
 
-        if (totalDownloaded == 0 && totalFailed > 0) {
+        if (progressBuilder.isStopped()) {
+            cleanupGeneration(writableDb, importGeneration);
+            progressBuilder.setFinalizing(false);
+            progressBuilder.setComplete(false);
+            postMultiPhaseProgress(progressBuilder.build(), true);
+            postIdleAfterTerminal();
+            return;
+        }
+
+        if (totalFailed == 0
+                && changedSourceCount.get() == 0
+                && upToDateCount.get() == totalSources) {
+            progressBuilder.setFinalizing(true);
+            progressBuilder.setCurrentLabel(null);
+            postMultiPhaseProgress(progressBuilder.build(), true);
+            long noChangeStartedMs = SystemClock.elapsedRealtime();
+            FinalizeTimings noChangeTimings = finalizeNoChange(
+                    importGeneration, disabledSourceIds, sourceCommits, sourceFailures,
+                    runtimeRebuildRequired);
+            this.updateAvailable.postValue(false);
+            postProgress(totalSources, totalSources, null, 10000, 100);
+            Timber.i("Pipeline no-change fast path: %d sources up-to-date, skipped carry-forward, "
+                            + "generation activation, and cleanup in %dms (runtimeRebuild=%b, syncMs=%d).",
+                    totalSources,
+                    SystemClock.elapsedRealtime() - noChangeStartedMs,
+                    runtimeRebuildRequired,
+                    noChangeTimings.syncMs);
+            progressBuilder.setFinalizing(false);
+            progressBuilder.setComplete(true);
+            postMultiPhaseProgress(progressBuilder.build(), true);
+            postIdleAfterTerminal();
+            return;
+        }
+
+        progressBuilder.setFinalizing(true);
+        progressBuilder.setCurrentLabel(null);
+        postMultiPhaseProgress(progressBuilder.build(), true);
+        long carryForwardStartedMs = SystemClock.elapsedRealtime();
+        for (HostsSource source : deferredCarryForwardSources) {
+            if (!carryForwardPreviousGeneration(source, importGeneration, sqlDeduper)) {
+                generationUnsafe.set(true);
+            }
+        }
+        long carryForwardMs = SystemClock.elapsedRealtime() - carryForwardStartedMs;
+
+        if ((successfulSourceCount.get() == 0 && totalFailed > 0) || generationUnsafe.get()) {
+            abortUnsafeGeneration(writableDb, importGeneration, sourceFailures);
+            postMultiPhaseProgress(MultiPhaseProgress.idle());
             throw new HostErrorException(DOWNLOAD_FAILED);
         }
 
-        // Atomic swap: activate the newly built generation before syncing host_entries.
-        setActiveGeneration(writableDb, this.currentImportGeneration);
-        // Cleanup old generations (keep user source id=1)
-        cleanupNonActiveGenerations(writableDb, this.currentImportGeneration);
-
-        // Synchronize hosts entries (reads from active generation via DAO filters)
-        syncHostEntries();
+        FinalizeTimings finalizeTimings = finalizeActivatedGeneration(
+                importGeneration, disabledSourceIds, sourceCommits, sourceFailures);
         this.updateAvailable.postValue(false);
         postProgress(totalSources, totalSources, null, 10000, 100);
         Timber.i("Pipeline update complete: %d sources checked, %d downloaded, %d failed",
                 finalProgress.checkedCount, totalDownloaded, totalFailed);
-        // Always end multi-phase UI (prevents the stuck progress panel on 'up-to-date' runs)
-        postMultiPhaseProgress(MultiPhaseProgress.idle());
+        Timber.i("Pipeline finalize perf: deferredCarryForwardSources=%d carryForwardMs=%d "
+                        + "cleanupMs=%d syncMs=%d",
+                deferredCarryForwardSources.size(), carryForwardMs,
+                finalizeTimings.cleanupMs, finalizeTimings.syncMs);
+        progressBuilder.setFinalizing(false);
+        progressBuilder.setComplete(true);
+        postMultiPhaseProgress(progressBuilder.build(), true);
+        postIdleAfterTerminal();
         } finally {
-            restoreImportPragmas(writableDb);
-            updateInProgress.set(false);
-            synchronized (this) {
-                currentDownloadPool = null;
-                currentParsePool = null;
+            if (sqlDeduperRef[0] != null) {
+                sqlDeduperRef[0].drop();
             }
+            if (writableDb != null) {
+                restoreImportPragmas(writableDb);
+            }
+            finishUpdateOperation();
         }
     }
 
@@ -1008,6 +1185,386 @@ public class SourceModel {
 
     private static void cleanupNonActiveGenerations(@NonNull SupportSQLiteDatabase db, int activeGeneration) {
         db.execSQL("DELETE FROM `hosts_lists` WHERE `source_id` != 1 AND `generation` != " + activeGeneration);
+        db.execSQL("DELETE FROM `root_host_entries_stage` WHERE `source_id` != 1 " +
+                "AND `generation` != " + activeGeneration);
+    }
+
+    private static void cleanupGeneration(@NonNull SupportSQLiteDatabase db, int generation) {
+        db.execSQL("DELETE FROM `hosts_lists` WHERE `source_id` != 1 AND `generation` = " + generation);
+        db.execSQL("DELETE FROM `root_host_entries_stage` WHERE `source_id` != 1 " +
+                "AND `generation` = " + generation);
+    }
+
+    private FinalizeTimings finalizeActivatedGeneration(
+            int importGeneration,
+            @NonNull List<Integer> disabledSourceIds,
+            @NonNull List<SourceCommit> sourceCommits,
+            @NonNull List<SourceFailure> sourceFailures) {
+        setState(R.string.status_sync_database);
+        final long[] cleanupMs = {0L};
+        final long[] syncMs = {0L};
+        this.database.runInTransaction(() -> {
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+            applyDisabledSourceFinalization(disabledSourceIds);
+            applySourceFailures(sourceFailures);
+            applySourceCommits(sourceCommits);
+            setActiveGeneration(db, importGeneration);
+            long cleanupStartedMs = SystemClock.elapsedRealtime();
+            cleanupNonActiveGenerations(db, importGeneration);
+            cleanupMs[0] = SystemClock.elapsedRealtime() - cleanupStartedMs;
+            this.hostEntryDao.invalidateRootExportMaterializedCache();
+        });
+        invalidateVpnRulesCache();
+        scheduleRuntimeCacheRefresh();
+        return new FinalizeTimings(cleanupMs[0], syncMs[0]);
+    }
+
+    private FinalizeTimings finalizeNoChange(
+            int importGeneration,
+            @NonNull List<Integer> disabledSourceIds,
+            @NonNull List<SourceCommit> sourceCommits,
+            @NonNull List<SourceFailure> sourceFailures,
+            boolean runtimeRebuildRequired) {
+        setState(R.string.status_sync_database);
+        final long[] syncMs = {0L};
+        this.database.runInTransaction(() -> {
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+            cleanupGeneration(db, importGeneration);
+            applyDisabledSourceFinalization(disabledSourceIds);
+            applySourceFailures(sourceFailures);
+            applySourceCommits(sourceCommits);
+            if (runtimeRebuildRequired) {
+                this.hostEntryDao.invalidateRootExportMaterializedCache();
+            }
+        });
+        if (runtimeRebuildRequired) {
+            invalidateVpnRulesCache();
+            scheduleRuntimeCacheRefresh();
+        }
+        return new FinalizeTimings(0L, syncMs[0]);
+    }
+
+    private void abortUnsafeGeneration(
+            @NonNull SupportSQLiteDatabase db,
+            int importGeneration,
+            @NonNull List<SourceFailure> sourceFailures) {
+        this.database.runInTransaction(() -> {
+            cleanupGeneration(db, importGeneration);
+            applySourceFailures(sourceFailures);
+        });
+    }
+
+    private void applyDisabledSourceFinalization(@NonNull List<Integer> disabledSourceIds) {
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        for (int sourceId : disabledSourceIds) {
+            this.hostListItemDao.clearSourceHosts(sourceId);
+            clearRootExportStageForSource(db, sourceId);
+            this.hostsSourceDao.clearProperties(sourceId);
+        }
+    }
+
+    private void applySourceCommits(@NonNull List<SourceCommit> commits) {
+        for (SourceCommit commit : commits) {
+            if (commit.entityTag != null) {
+                this.hostsSourceDao.updateEntityTag(commit.sourceId, commit.entityTag);
+            }
+            if (commit.localModificationDate != null && commit.onlineModificationDate != null) {
+                this.hostsSourceDao.updateModificationDates(
+                        commit.sourceId, commit.localModificationDate,
+                        commit.onlineModificationDate);
+            }
+            if (commit.sizeGeneration >= 0) {
+                this.hostsSourceDao.updateSizeForGeneration(
+                        commit.sourceId, commit.sizeGeneration);
+            }
+            if (commit.clearDownloadError) {
+                this.hostsSourceDao.clearDownloadError(commit.sourceId);
+            }
+        }
+    }
+
+    private void applySourceFailures(@NonNull List<SourceFailure> failures) {
+        for (SourceFailure failure : failures) {
+            this.hostsSourceDao.updateDownloadError(failure.sourceId, failure.errorMessage);
+        }
+    }
+
+    private void finalizeStagedSourceGeneration(
+            int sourceId, int activeGeneration, int stagingGeneration) {
+        finalizeStagedSourceGeneration(sourceId, activeGeneration, stagingGeneration, null);
+    }
+
+    private void finalizeStagedSourceGeneration(
+            int sourceId,
+            int activeGeneration,
+            int stagingGeneration,
+            @Nullable SourceCommit sourceCommit) {
+        setState(R.string.status_sync_database);
+        this.database.runInTransaction(() -> {
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+            promoteStagedSourceGeneration(sourceId, activeGeneration, stagingGeneration);
+            if (sourceCommit != null) {
+                applySourceCommits(Collections.singletonList(sourceCommit));
+            }
+            this.hostEntryDao.invalidateRootExportMaterializedCache();
+        });
+        invalidateVpnRulesCache();
+        scheduleRuntimeCacheRefresh();
+    }
+
+    private void finalizeStagedSourceGenerations(@NonNull List<TargetedSourceUpdate> updates) {
+        if (updates.isEmpty()) {
+            return;
+        }
+        setState(R.string.status_sync_database);
+        final boolean[] runtimeRebuildRequired = {false};
+        this.database.runInTransaction(() -> {
+            List<Integer> disabledSourceIds = new ArrayList<>();
+            List<SourceCommit> commits = new ArrayList<>();
+            for (TargetedSourceUpdate update : updates) {
+                if (update.clearSource) {
+                    disabledSourceIds.add(update.sourceId);
+                }
+                if (update.hasStagedGeneration()) {
+                    promoteStagedSourceGeneration(
+                            update.sourceId, update.activeGeneration, update.stagingGeneration);
+                }
+                if (update.sourceCommit != null) {
+                    commits.add(update.sourceCommit);
+                }
+                runtimeRebuildRequired[0] |= update.requiresRuntimeRebuild;
+            }
+            applyDisabledSourceFinalization(disabledSourceIds);
+            applySourceCommits(commits);
+            if (runtimeRebuildRequired[0]) {
+                this.hostEntryDao.invalidateRootExportMaterializedCache();
+            }
+        });
+        if (runtimeRebuildRequired[0]) {
+            invalidateVpnRulesCache();
+            scheduleRuntimeCacheRefresh();
+        }
+    }
+
+    private void cleanupStagedSourceGenerations(@NonNull List<TargetedSourceUpdate> updates) {
+        if (updates.isEmpty()) {
+            return;
+        }
+        this.database.runInTransaction(() -> {
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+            for (TargetedSourceUpdate update : updates) {
+                if (update.hasStagedGeneration()) {
+                    this.hostListItemDao.clearSourceHostsForGeneration(
+                            update.sourceId, update.stagingGeneration);
+                    clearRootExportStageForSourceGeneration(
+                            db, update.sourceId, update.stagingGeneration);
+                }
+            }
+        });
+    }
+
+    private static final class FinalizeTimings {
+        final long cleanupMs;
+        final long syncMs;
+
+        FinalizeTimings(long cleanupMs, long syncMs) {
+            this.cleanupMs = cleanupMs;
+            this.syncMs = syncMs;
+        }
+    }
+
+    private static final class SourceCommit {
+        final int sourceId;
+        @Nullable
+        final String entityTag;
+        @Nullable
+        final ZonedDateTime localModificationDate;
+        @Nullable
+        final ZonedDateTime onlineModificationDate;
+        final int sizeGeneration;
+        final boolean clearDownloadError;
+
+        private SourceCommit(
+                int sourceId,
+                @Nullable String entityTag,
+                @Nullable ZonedDateTime localModificationDate,
+                @Nullable ZonedDateTime onlineModificationDate,
+                int sizeGeneration,
+                boolean clearDownloadError) {
+            this.sourceId = sourceId;
+            this.entityTag = entityTag;
+            this.localModificationDate = localModificationDate;
+            this.onlineModificationDate = onlineModificationDate;
+            this.sizeGeneration = sizeGeneration;
+            this.clearDownloadError = clearDownloadError;
+        }
+
+        static SourceCommit changed(
+                int sourceId,
+                @Nullable String entityTag,
+                @NonNull ZonedDateTime localModificationDate,
+                @NonNull ZonedDateTime onlineModificationDate,
+                int sizeGeneration) {
+            return new SourceCommit(
+                    sourceId, entityTag, localModificationDate, onlineModificationDate,
+                    sizeGeneration, true);
+        }
+
+        static SourceCommit unchanged(int sourceId) {
+            return new SourceCommit(sourceId, null, null, null, -1, true);
+        }
+
+        static SourceCommit unchanged(
+                int sourceId,
+                @Nullable String entityTag,
+                @NonNull ZonedDateTime localModificationDate,
+                @NonNull ZonedDateTime onlineModificationDate,
+                int sizeGeneration) {
+            return new SourceCommit(
+                    sourceId, entityTag, localModificationDate, onlineModificationDate,
+                    sizeGeneration, true);
+        }
+    }
+
+    private static final class SourceFailure {
+        final int sourceId;
+        @NonNull
+        final String errorMessage;
+
+        private SourceFailure(int sourceId, @NonNull String errorMessage) {
+            this.sourceId = sourceId;
+            this.errorMessage = errorMessage;
+        }
+
+        static SourceFailure of(int sourceId, @NonNull Throwable throwable) {
+            String message = throwable.getMessage() != null
+                    ? throwable.getMessage() : throwable.getClass().getSimpleName();
+            return of(sourceId, message);
+        }
+
+        static SourceFailure of(int sourceId, @NonNull String errorMessage) {
+            return new SourceFailure(sourceId, errorMessage);
+        }
+    }
+
+    private static final class TargetedSourceUpdate {
+        final int sourceId;
+        final int activeGeneration;
+        final int stagingGeneration;
+        @Nullable
+        final SourceCommit sourceCommit;
+        final boolean requiresRuntimeRebuild;
+        final boolean clearSource;
+
+        private TargetedSourceUpdate(
+                int sourceId,
+                int activeGeneration,
+                int stagingGeneration,
+                @Nullable SourceCommit sourceCommit,
+                boolean requiresRuntimeRebuild,
+                boolean clearSource) {
+            this.sourceId = sourceId;
+            this.activeGeneration = activeGeneration;
+            this.stagingGeneration = stagingGeneration;
+            this.sourceCommit = sourceCommit;
+            this.requiresRuntimeRebuild = requiresRuntimeRebuild;
+            this.clearSource = clearSource;
+        }
+
+        static TargetedSourceUpdate changed(
+                int sourceId,
+                int activeGeneration,
+                int stagingGeneration,
+                @NonNull SourceCommit sourceCommit) {
+            return new TargetedSourceUpdate(
+                    sourceId, activeGeneration, stagingGeneration, sourceCommit, true, false);
+        }
+
+        static TargetedSourceUpdate runtimeOnly() {
+            return new TargetedSourceUpdate(-1, -1, -1, null, true, false);
+        }
+
+        static TargetedSourceUpdate disabled(int sourceId) {
+            return new TargetedSourceUpdate(sourceId, -1, -1, null, true, true);
+        }
+
+        static TargetedSourceUpdate metadataOnly(@NonNull SourceCommit sourceCommit) {
+            return new TargetedSourceUpdate(
+                    sourceCommit.sourceId, -1, -1, sourceCommit, false, false);
+        }
+
+        boolean hasStagedGeneration() {
+            return this.stagingGeneration >= 0;
+        }
+
+        boolean requiresFinalization() {
+            return hasStagedGeneration() || this.sourceCommit != null || this.clearSource;
+        }
+    }
+
+    private boolean carryForwardPreviousGeneration(@NonNull HostsSource source) {
+        return carryForwardPreviousGeneration(source, this.currentImportGeneration);
+    }
+
+    private boolean carryForwardPreviousGeneration(@NonNull HostsSource source, int importGeneration) {
+        return carryForwardPreviousGeneration(source, importGeneration, null);
+    }
+
+    private boolean carryForwardPreviousGeneration(
+            @NonNull HostsSource source,
+            int importGeneration,
+            @Nullable SqlUpdateDeduper sqlDeduper) {
+        int oldGeneration = importGeneration - 1;
+        if (oldGeneration < 0) {
+            return false;
+        }
+        int activeRows = this.hostListItemDao.countSourceHostsForGeneration(source.getId(), oldGeneration);
+        if (activeRows <= 0 && source.getLocalModificationDate() == null) {
+            Timber.w("Cannot carry forward source %s: no previous active rows.", source.getUrl());
+            return false;
+        }
+        if (sqlDeduper != null) {
+            sqlDeduper.copyUnseenSourceGeneration(source.getId(), oldGeneration, importGeneration);
+        } else {
+            this.hostListItemDao.copySourceGenerationReplacingTarget(
+                    source.getId(), oldGeneration, importGeneration);
+            copyRootExportStageFromHostsListsReplacingTarget(
+                    source.getId(), importGeneration);
+        }
+        return true;
+    }
+
+    private void promoteStagedSourceGeneration(
+            int sourceId, int activeGeneration, int stagingGeneration) {
+        this.hostListItemDao.replaceSourceGeneration(sourceId, stagingGeneration, activeGeneration);
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        clearRootExportStageForSourceGeneration(db, sourceId, activeGeneration);
+        db.execSQL("UPDATE `root_host_entries_stage` SET `generation` = " + activeGeneration +
+                " WHERE `source_id` = " + sourceId + " AND `generation` = " +
+                stagingGeneration);
+    }
+
+    private static void clearRootExportStageForSource(
+            @NonNull SupportSQLiteDatabase db, int sourceId) {
+        db.execSQL("DELETE FROM `root_host_entries_stage` WHERE `source_id` = " + sourceId);
+    }
+
+    private static void clearRootExportStageForSourceGeneration(
+            @NonNull SupportSQLiteDatabase db, int sourceId, int generation) {
+        db.execSQL("DELETE FROM `root_host_entries_stage` WHERE `source_id` = " + sourceId +
+                " AND `generation` = " + generation);
+    }
+
+    private void copyRootExportStageFromHostsListsReplacingTarget(
+            int sourceId, int generation) {
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        clearRootExportStageForSourceGeneration(db, sourceId, generation);
+        db.execSQL("INSERT INTO `root_host_entries_stage` " +
+                "(`host`, `reverse_host`, `type`, `redirection`, `source_id`, `generation`) " +
+                "SELECT `host`, `reverse_host`, `type`, `redirection`, `source_id`, " +
+                "`generation` FROM `hosts_lists` WHERE `source_id` = " + sourceId +
+                " AND `generation` = " + generation +
+                " AND `enabled` = 1 AND `type` IN (0, 2)");
     }
 
     private static void applyBalancedImportPragmas(@NonNull SupportSQLiteDatabase db) {
@@ -1034,32 +1591,99 @@ public class SourceModel {
      * @throws HostErrorException If the hosts source could not be downloaded.
      */
     public void retrieveHostsSource(int sourceId) throws HostErrorException {
+        if (!beginUpdateOperation("retrieveHostsSource")) {
+            return;
+        }
+        try {
+            retrieveHostsSource(sourceId, true);
+        } finally {
+            finishUpdateOperation();
+        }
+    }
+
+    /**
+     * Retrieve several hosts sources and rebuild runtime entries once at the end.
+     *
+     * @param sourceIds The source ids to update.
+     * @throws HostErrorException If a hosts source could not be downloaded.
+     */
+    public void retrieveHostsSources(@NonNull List<Integer> sourceIds) throws HostErrorException {
+        if (sourceIds.isEmpty()) {
+            return;
+        }
+        List<Integer> uniqueSourceIds = new ArrayList<>(new LinkedHashSet<>(sourceIds));
+        if (!beginUpdateOperation("retrieveHostsSources(list)")) {
+            return;
+        }
+        List<TargetedSourceUpdate> finalizationUpdates = new ArrayList<>();
+        boolean runtimeRebuildRequired = false;
+        try {
+            for (int sourceId : uniqueSourceIds) {
+                TargetedSourceUpdate update = retrieveHostsSource(sourceId, false);
+                if (update == null) {
+                    continue;
+                }
+                runtimeRebuildRequired |= update.requiresRuntimeRebuild;
+                if (update.requiresFinalization()) {
+                    finalizationUpdates.add(update);
+                }
+            }
+            if (!finalizationUpdates.isEmpty()) {
+                finalizeStagedSourceGenerations(finalizationUpdates);
+            } else if (runtimeRebuildRequired) {
+                syncHostEntries();
+            }
+            this.updateAvailable.postValue(false);
+            postProgress(uniqueSourceIds.size(), uniqueSourceIds.size(), null, 10000, 100);
+        } catch (HostErrorException | RuntimeException e) {
+            cleanupStagedSourceGenerations(finalizationUpdates);
+            if (runtimeRebuildRequired) {
+                syncHostEntries();
+            }
+            throw e;
+        } finally {
+            finishUpdateOperation();
+        }
+    }
+
+    private TargetedSourceUpdate retrieveHostsSource(int sourceId, boolean syncAfter)
+            throws HostErrorException {
         // Check connection status
         if (isDeviceOffline()) {
             throw new HostErrorException(NO_CONNECTION);
         }
         HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
         if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) {
-            return;
+            return null;
         }
         postProgress(0, 1, source.getLabel(), 0, 0);
         if (!source.isEnabled()) {
-            // Keep DB clean for disabled sources
-            this.hostListItemDao.clearSourceHosts(sourceId);
-            this.hostsSourceDao.clearProperties(sourceId);
-            syncHostEntries();
-            postProgress(1, 1, source.getLabel(), 10000, 100);
-            return;
+            if (syncAfter) {
+                // Keep DB clean for disabled sources
+                this.hostListItemDao.clearSourceHosts(sourceId);
+                clearRootExportStageForSource(
+                        this.database.getOpenHelper().getWritableDatabase(), sourceId);
+                this.hostsSourceDao.clearProperties(sourceId);
+                syncHostEntries();
+                this.updateAvailable.postValue(false);
+                postProgress(1, 1, source.getLabel(), 10000, 100);
+            }
+            return syncAfter ? null : TargetedSourceUpdate.disabled(sourceId);
         }
 
         // Compute current date in UTC timezone
         ZonedDateTime now = ZonedDateTime.now();
 
         // Download/read + parse (URL uses conditional GET; no HEAD pre-check)
-        final SupportSQLiteDatabase writableDb = AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
+        final SupportSQLiteDatabase writableDb = this.database.getOpenHelper().getWritableDatabase();
         applyBalancedImportPragmas(writableDb);
-        // Single-source update: update in-place in the current active generation.
-        this.currentImportGeneration = ensureAndGetActiveGeneration(writableDb);
+        int activeGeneration = ensureAndGetActiveGeneration(writableDb);
+        int stagingGeneration = activeGeneration + 1;
+        // Single-source update: parse into a staging generation, then promote on success.
+        this.currentImportGeneration = stagingGeneration;
+        SqlUpdateDeduper sqlDeduper = new SqlUpdateDeduper(writableDb);
+        boolean runtimeRebuiltWithPromotion = false;
+        TargetedSourceUpdate stagedUpdate = null;
         try {
             switch (source.getType()) {
                 case URL:
@@ -1068,49 +1692,87 @@ public class SourceModel {
                         int basisPoints = (int) Math.floor(Math.min(0.999d, Math.max(0d, withinFraction)) * 10000.0);
                         postProgress(0, 1, label, basisPoints, withinPercent);
                     });
-                    if (!result.success) {
-                        throw new IOException("Download failed");
-                    }
-                    if (!result.notModified) {
-                        try (BufferedReader reader = result.openReader()) {
-                            parseSourceInputStream(source, reader);
+                    try {
+                        if (!result.success) {
+                            throw new IOException("Download failed");
                         }
+                        if (!result.notModified) {
+                            try (BufferedReader reader = result.openReader()) {
+                                parseSourceInputStream(source, reader, stagingGeneration, sqlDeduper);
+                            }
+                            ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
+                            ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                            SourceCommit commit = SourceCommit.changed(
+                                    sourceId, result.entityTag, localModificationDate,
+                                    onlineModificationDate, activeGeneration);
+                            if (syncAfter) {
+                                finalizeStagedSourceGeneration(
+                                        sourceId, activeGeneration, stagingGeneration, commit);
+                                runtimeRebuiltWithPromotion = true;
+                            } else {
+                                stagedUpdate = TargetedSourceUpdate.changed(
+                                        sourceId, activeGeneration, stagingGeneration, commit);
+                            }
+                        } else {
+                            ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
+                            ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
+                            SourceCommit unchangedCommit = SourceCommit.unchanged(
+                                    sourceId, result.entityTag, localModificationDate,
+                                    onlineModificationDate, activeGeneration);
+                            if (syncAfter) {
+                                applySourceCommits(Collections.singletonList(unchangedCommit));
+                            } else {
+                                stagedUpdate = TargetedSourceUpdate.metadataOnly(unchangedCommit);
+                            }
+                        }
+                    } finally {
+                        result.cleanup();
                     }
-                    if (result.entityTag != null) {
-                        this.hostsSourceDao.updateEntityTag(source.getId(), result.entityTag);
-                    }
-                    ZonedDateTime onlineModificationDate = result.onlineModificationDate != null ? result.onlineModificationDate : now;
-                    ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-                    this.hostsSourceDao.updateModificationDates(sourceId, localModificationDate, onlineModificationDate);
-                    this.hostsSourceDao.updateSize(sourceId);
-                    result.cleanup();
                     break;
                 case FILE:
-                    readSourceFile(source);
+                    readSourceFile(source, stagingGeneration, sqlDeduper);
                     ZonedDateTime onlineModificationDateFile = getHostsSourceLastUpdate(source);
                     if (onlineModificationDateFile == null) {
                         onlineModificationDateFile = now;
                     }
                     ZonedDateTime localModificationDateFile = onlineModificationDateFile.isAfter(now) ? onlineModificationDateFile : now;
-                    this.hostsSourceDao.updateModificationDates(sourceId, localModificationDateFile, onlineModificationDateFile);
-                    this.hostsSourceDao.updateSize(sourceId);
+                    SourceCommit fileCommit = SourceCommit.changed(
+                            sourceId, null, localModificationDateFile,
+                            onlineModificationDateFile, activeGeneration);
+                    if (syncAfter) {
+                        finalizeStagedSourceGeneration(
+                                sourceId, activeGeneration, stagingGeneration, fileCommit);
+                        runtimeRebuiltWithPromotion = true;
+                    } else {
+                        stagedUpdate = TargetedSourceUpdate.changed(
+                                sourceId, activeGeneration, stagingGeneration, fileCommit);
+                    }
                     break;
                 default:
                     Timber.w("Hosts source type is not supported.");
-                    return;
+                    return null;
             }
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            this.hostListItemDao.clearSourceHostsForGeneration(sourceId, stagingGeneration);
+            clearRootExportStageForSourceGeneration(writableDb, sourceId, stagingGeneration);
             Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
             throw new HostErrorException(DOWNLOAD_FAILED);
         } finally {
+            sqlDeduper.drop();
             restoreImportPragmas(writableDb);
         }
 
-        // Synchronize hosts entries
-        syncHostEntries();
-        // Mark no update available
-        this.updateAvailable.postValue(false);
+        if (syncAfter) {
+            // Synchronize hosts entries when the source was unchanged.
+            // Changed sources rebuild runtime entries atomically with promotion above.
+            if (!runtimeRebuiltWithPromotion) {
+                syncHostEntries();
+            }
+            // Mark no update available
+            this.updateAvailable.postValue(false);
+        }
         postProgress(1, 1, source.getLabel(), 10000, 100);
+        return stagedUpdate;
     }
 
     /**
@@ -1118,7 +1780,18 @@ public class SourceModel {
      */
     public void syncHostEntries() {
         setState(R.string.status_sync_database);
-        this.hostEntryDao.sync();
+        this.database.runInTransaction(() -> {
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+            this.hostEntryDao.rebuildFromActiveGeneration(db);
+        });
+        invalidateVpnRulesCache();
+    }
+
+    private void invalidateVpnRulesCache() {
+        Context appContext = this.context.getApplicationContext();
+        if (appContext instanceof AdAwayApplication) {
+            ((AdAwayApplication) appContext).invalidateVpnRulesCache();
+        }
     }
 
     /**
@@ -1522,6 +2195,17 @@ public class SourceModel {
      * @throws IOException If the hosts source could not be copied.
      */
     private void readSourceFile(HostsSource hostsSource) throws IOException {
+        readSourceFile(hostsSource, this.currentImportGeneration);
+    }
+
+    private void readSourceFile(HostsSource hostsSource, int generation) throws IOException {
+        readSourceFile(hostsSource, generation, null);
+    }
+
+    private void readSourceFile(
+            HostsSource hostsSource,
+            int generation,
+            @Nullable SqlUpdateDeduper sqlDeduper) throws IOException {
         // Get hosts file URI
         String hostsFileUrl = hostsSource.getUrl();
         Uri fileUri = Uri.parse(hostsFileUrl);
@@ -1531,7 +2215,7 @@ public class SourceModel {
         try (InputStream inputStream = this.context.getContentResolver().openInputStream(fileUri);
              InputStreamReader reader = new InputStreamReader(inputStream);
              BufferedReader bufferedReader = new BufferedReader(reader)) {
-            parseSourceInputStream(hostsSource, bufferedReader);
+            parseSourceInputStream(hostsSource, bufferedReader, generation, sqlDeduper);
         } catch (IOException e) {
             throw new IOException("Error while reading hosts file from " + hostsFileUrl + ".", e);
         }
@@ -1544,7 +2228,32 @@ public class SourceModel {
      * @param reader      The host source reader.
      */
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader) {
-        parseSourceInputStream(hostsSource, reader, null);
+        parseSourceInputStream(hostsSource, reader, this.currentImportGeneration);
+    }
+
+    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader, int generation) {
+        parseSourceInputStream(hostsSource, reader, null, generation);
+    }
+
+    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
+                                        int generation,
+                                        @Nullable SqlUpdateDeduper sqlDeduper) {
+        setState(R.string.status_parse_source, hostsSource.getLabel());
+        long startTime = System.currentTimeMillis();
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        int skippedCount = new SourceLoader(hostsSource, generation).parse(
+                reader,
+                this.hostListItemDao,
+                db,
+                count -> {
+                    progressBuilder.addParsedHosts(count);
+                    MultiPhaseProgress mp = progressBuilder.build();
+                    postMultiPhaseProgress(mp);
+                },
+                sqlDeduper);
+        this.hostsSourceDao.updateSkippedCount(hostsSource.getId(), skippedCount);
+        long endTime = System.currentTimeMillis();
+        Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");
     }
 
     /**
@@ -1556,7 +2265,14 @@ public class SourceModel {
      */
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
                                         @Nullable java.util.Set<String> globalSeenHosts) {
-        parseSourceInputStream(hostsSource, reader, globalSeenHosts, Integer.MAX_VALUE, null);
+        parseSourceInputStream(hostsSource, reader, globalSeenHosts, this.currentImportGeneration);
+    }
+
+    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
+                                        @Nullable java.util.Set<String> globalSeenHosts,
+                                        int generation) {
+        parseSourceInputStream(hostsSource, reader, globalSeenHosts,
+                Integer.MAX_VALUE, null, generation);
     }
 
     /**
@@ -1573,12 +2289,21 @@ public class SourceModel {
                                         @Nullable java.util.Set<String> globalSeenHosts,
                                         int maxDedupEntries,
                                         @Nullable AtomicBoolean dedupCapReached) {
+        parseSourceInputStream(hostsSource, reader, globalSeenHosts, maxDedupEntries,
+                dedupCapReached, this.currentImportGeneration);
+    }
+
+    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
+                                        @Nullable java.util.Set<String> globalSeenHosts,
+                                        int maxDedupEntries,
+                                        @Nullable AtomicBoolean dedupCapReached,
+                                        int generation) {
         setState(R.string.status_parse_source, hostsSource.getLabel());
         long startTime = System.currentTimeMillis();
         // Use raw SQLite handle for high-throughput bulk insert in SourceLoader.
-        SupportSQLiteDatabase db = AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
-        // Pass callback to update live blocked count in UI
-        int skippedCount = new SourceLoader(hostsSource, this.currentImportGeneration).parse(reader, this.hostListItemDao, db, count -> {
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        // Pass callback to update live accepted-rule progress in UI.
+        int skippedCount = new SourceLoader(hostsSource, generation).parse(reader, this.hostListItemDao, db, count -> {
             progressBuilder.addParsedHosts(count);
             MultiPhaseProgress mp = progressBuilder.build();
             postMultiPhaseProgress(mp);
@@ -1616,10 +2341,70 @@ public class SourceModel {
     }
 
     private void postMultiPhaseProgress(MultiPhaseProgress mp) {
+        postMultiPhaseProgress(mp, false);
+    }
+
+    private void postMultiPhaseProgress(MultiPhaseProgress mp, boolean force) {
+        long now = SystemClock.elapsedRealtime();
+        if (!shouldPublishFilterOperation(mp, now, force)) {
+            return;
+        }
+
         this.progress.postValue(mp.toLegacyProgress());
-        // Use setValue on main thread to avoid postValue() coalescing when updates are frequent.
-        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-        mainHandler.post(() -> this.multiPhaseProgress.setValue(mp));
+        FilterOperationState operationState = FilterOperationState.fromMultiPhaseProgress(
+                mp, this.filterOperationStartedElapsedMs, now);
+        this.mainHandler.post(() -> {
+            this.multiPhaseProgress.setValue(mp);
+            this.filterOperationState.setValue(operationState);
+        });
+    }
+
+    private void postIdleAfterTerminal() {
+        int token = this.terminalIdleToken.incrementAndGet();
+        this.mainHandler.postDelayed(() -> {
+            if (this.terminalIdleToken.get() == token && !this.updateInProgress.get()) {
+                postMultiPhaseProgress(MultiPhaseProgress.idle(), true);
+            }
+        }, 750L);
+    }
+
+    private synchronized void resetFilterOperationPublisher() {
+        this.filterOperationStartedElapsedMs = 0L;
+        this.lastFilterOperationEmitElapsedMs = 0L;
+        this.lastFilterOperationPercent = -1;
+        this.lastFilterOperationActive = false;
+    }
+
+    private synchronized boolean shouldPublishFilterOperation(
+            @NonNull MultiPhaseProgress progress, long nowElapsedMs, boolean force) {
+        boolean active = progress.isActive();
+        if (active && !this.lastFilterOperationActive) {
+            this.filterOperationStartedElapsedMs = nowElapsedMs;
+        }
+
+        int percent = active ? progress.getOverallPercent() : 0;
+        boolean shouldPublish = force
+                || active != this.lastFilterOperationActive
+                || percent != this.lastFilterOperationPercent
+                || !active
+                || progress.isPaused
+                || progress.isStopped
+                || progress.isFinalizing
+                || progress.isComplete
+                || nowElapsedMs - this.lastFilterOperationEmitElapsedMs
+                >= FILTER_OPERATION_PROGRESS_THROTTLE_MS;
+
+        if (!shouldPublish) {
+            return false;
+        }
+
+        this.lastFilterOperationActive = active;
+        this.lastFilterOperationPercent = percent;
+        this.lastFilterOperationEmitElapsedMs = nowElapsedMs;
+        if (!active) {
+            this.filterOperationStartedElapsedMs = 0L;
+        }
+        return true;
     }
 
     /**
@@ -1667,13 +2452,15 @@ public class SourceModel {
         public final int parsedCount;
         public final int totalToParse;
         public final int parseQueued;      // Waiting to parse
-        public final long parsedHostCount; // Live count of blocked hosts parsed
+        public final long parsedHostCount; // Live count of accepted host rows parsed.
 
         // Scheduler info
         @Nullable
         public final String schedulerTaskName;
         public final boolean isPaused;
         public final boolean isStopped;
+        public final boolean isFinalizing;
+        public final boolean isComplete;
 
         // Current activity
         @Nullable
@@ -1691,6 +2478,7 @@ public class SourceModel {
                 int parsedCount, int totalToParse, int parseQueued,
                 long parsedHostCount,
                 @Nullable String schedulerTaskName, boolean isPaused, boolean isStopped,
+                boolean isFinalizing, boolean isComplete,
                 @Nullable String currentLabel,
                 int monotonicCheckPercent, int monotonicDownloadPercent,
                 int monotonicParsePercent, int monotonicOverallPercent) {
@@ -1706,6 +2494,8 @@ public class SourceModel {
             this.schedulerTaskName = schedulerTaskName;
             this.isPaused = isPaused;
             this.isStopped = isStopped;
+            this.isFinalizing = isFinalizing;
+            this.isComplete = isComplete;
             this.currentLabel = currentLabel;
             this.monotonicCheckPercent = monotonicCheckPercent;
             this.monotonicDownloadPercent = monotonicDownloadPercent;
@@ -1714,12 +2504,15 @@ public class SourceModel {
         }
 
         public static MultiPhaseProgress idle() {
-            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, null, false, false, null, 0, 0, 0, 0);
+            return new MultiPhaseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, null, false,
+                    false, false, false, null, 0, 0, 0, 0);
         }
 
         public boolean isActive() {
             // Active if any phase has work remaining (using >= for safety since counts can exceed totals)
-            return totalToCheck > 0 && (getCheckPercent() < 100 || getDownloadPercent() < 100 || getParsePercent() < 100);
+            return totalToCheck > 0 && (isStopped || isFinalizing || isComplete
+                    || getCheckPercent() < 100 || getDownloadPercent() < 100
+                    || getParsePercent() < 100);
         }
 
         public int getCheckPercent() {
@@ -1800,6 +2593,8 @@ public class SourceModel {
         private volatile String schedulerTaskName;
         private volatile boolean isPaused;
         private volatile boolean isStopped;
+        private volatile boolean isFinalizing;
+        private volatile boolean isComplete;
         private volatile String currentLabel;
 
         public void setTotalToCheck(int total) { totalToCheck.set(total); }
@@ -1818,9 +2613,13 @@ public class SourceModel {
         public void setSchedulerTaskName(String name) { schedulerTaskName = name; }
         public void setPaused(boolean paused) { isPaused = paused; }
         public void setStopped(boolean stopped) { isStopped = stopped; }
+        public void setFinalizing(boolean finalizing) { isFinalizing = finalizing; }
+        public void setComplete(boolean complete) { isComplete = complete; }
         public void setCurrentLabel(String label) { currentLabel = label; }
         public boolean isPaused() { return isPaused; }
         public boolean isStopped() { return isStopped; }
+        public boolean isFinalizing() { return isFinalizing; }
+        public boolean isComplete() { return isComplete; }
 
         public MultiPhaseProgress build() {
             // Calculate current percentages
@@ -1849,7 +2648,8 @@ public class SourceModel {
                     downloadedCount.get(), totalToDownload.get(), downloadQueued.get(),
                     parsedCount.get(), totalToParse.get(), parseQueued.get(),
                     parsedHostCount.get(),
-                    schedulerTaskName, isPaused, isStopped, currentLabel,
+                    schedulerTaskName, isPaused, isStopped, isFinalizing, isComplete,
+                    currentLabel,
                     maxCheckPercent.get(), maxDownloadPercent.get(), maxParsePercent.get(), maxOverallPercent.get()
             );
         }
@@ -1871,6 +2671,8 @@ public class SourceModel {
             schedulerTaskName = null;
             isPaused = false;
             isStopped = false;
+            isFinalizing = false;
+            isComplete = false;
             currentLabel = null;
         }
     }

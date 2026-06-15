@@ -45,6 +45,7 @@ import static org.adaway.model.root.ShellUtils.runBundledExecutable;
 import timber.log.Timber;
 
 class TcpdumpUtils {
+    static final boolean TCPDUMP_CAPTURE_ENABLED = false;
     private static final String TCPDUMP_EXECUTABLE = "tcpdump";
     private static final String TCPDUMP_LOG = "dns_log.txt";
     private static final String TCPDUMP_HOSTNAME_REGEX = "(?:A\\?|AAAA\\?)\\s(\\S+)\\.\\s";
@@ -63,7 +64,7 @@ class TcpdumpUtils {
      * @return true if tcpdump is running
      */
     static boolean isTcpdumpRunning() {
-        return isBundledExecutableRunning(TCPDUMP_EXECUTABLE);
+        return TCPDUMP_CAPTURE_ENABLED && isBundledExecutableRunning(TCPDUMP_EXECUTABLE);
     }
 
     /**
@@ -73,8 +74,12 @@ class TcpdumpUtils {
      * @return returns true if starting worked
      */
     static boolean startTcpdump(Context context) {
-        Timber.d("Starting tcpdump...");
-        checkSystemTcpdump();
+        Timber.w("Root tcpdump DNS logging is disabled pending a maintained native capture path.");
+        stopTcpdump();
+        clearLogFile(context);
+        if (!TCPDUMP_CAPTURE_ENABLED) {
+            return false;
+        }
 
         File file = getLogFile(context);
         try {
@@ -142,6 +147,9 @@ class TcpdumpUtils {
      * @return The tcpdump log file content.
      */
     static List<String> getLogs(Context context) {
+        if (!TCPDUMP_CAPTURE_ENABLED) {
+            return emptyList();
+        }
         Path logPath = getLogFile(context).toPath();
         // Check if the log file exists
         if (!Files.exists(logPath)) {

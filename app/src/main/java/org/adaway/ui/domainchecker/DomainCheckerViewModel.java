@@ -6,12 +6,16 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.MutableLiveData;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.db.AppDatabase;
+import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.util.AppExecutors;
 
 import java.util.ArrayList;
@@ -36,12 +40,14 @@ public class DomainCheckerViewModel extends AndroidViewModel {
     public final MutableLiveData<DomainCheckResult> checkResult = new MutableLiveData<>();
 
     private final HostListItemDao mHostListItemDao;
+    private final HostEntryDao mHostEntryDao;
     private final HostsSourceDao mHostsSourceDao;
 
     public DomainCheckerViewModel(@NonNull Application application) {
         super(application);
         AppDatabase database = AppDatabase.getInstance(application);
         mHostListItemDao = database.hostsListItemDao();
+        mHostEntryDao = database.hostEntryDao();
         mHostsSourceDao = database.hostsSourceDao();
     }
 
@@ -63,19 +69,26 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         loading.postValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
             // Fetch only the rows for this specific host — O(hosts) not O(all entries)
-            List<HostListItem> entries = mHostListItemDao.getEntriesForHost(domain);
+            boolean rootMode = PreferenceHelper.getAdBlockMethod(getApplication())
+                    == AdBlockMethod.ROOT;
+            List<HostListItem> entries = rootMode
+                    ? mHostListItemDao.getRootEntriesForHost(domain)
+                    : mHostListItemDao.getEntriesForHost(domain);
             List<HostsSource> allSources = mHostsSourceDao.getAll();
 
             List<DomainCheckResult.BlockingSource> blockingSources = new ArrayList<>();
             boolean userAllowed = false;
-            boolean blocked = false;
+            ListType runtimeType = rootMode
+                    ? mHostEntryDao.getRootTypeForHost(domain)
+                    : mHostEntryDao.getTypeForHost(domain);
+            boolean blocked = runtimeType == ListType.BLOCKED || runtimeType == ListType.REDIRECTED;
 
             for (HostListItem item : entries) {
                 if (!item.isEnabled()) {
                     continue;
                 }
-                if (item.getType() == ListType.BLOCKED) {
-                    blocked = true;
+                if (blocked && (item.getType() == ListType.BLOCKED
+                        || item.getType() == ListType.REDIRECTED)) {
                     boolean isUserRule = item.getSourceId() == USER_SOURCE_ID;
                     String sourceName = resolveSourceName(allSources, item.getSourceId());
                     blockingSources.add(
@@ -113,6 +126,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             item.setEnabled(true);
             item.setSourceId(USER_SOURCE_ID);
             mHostListItemDao.insert(item);
+            syncRuntimeRules();
 
             // Refresh the check so UI reflects the new allow rule
             loading.postValue(false);
@@ -128,6 +142,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         loading.setValue(true);
         AppExecutors.getInstance().diskIO().execute(() -> {
             mHostListItemDao.deleteById(itemId);
+            syncRuntimeRules();
             loading.postValue(false);
             checkDomain(domain);
         });
@@ -151,6 +166,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             item.setEnabled(true);
             item.setSourceId(USER_SOURCE_ID);
             mHostListItemDao.insert(item);
+            syncRuntimeRules();
             loading.postValue(false);
             checkDomain(normalizedDomain);
         });
@@ -173,6 +189,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                     break;
                 }
             }
+            syncRuntimeRules();
             loading.postValue(false);
             checkDomain(normalizedDomain);
         });
@@ -208,5 +225,9 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             }
         }
         return "Source " + sourceId;
+    }
+
+    private void syncRuntimeRules() {
+        ((AdAwayApplication) getApplication()).getSourceModel().syncHostEntries();
     }
 }

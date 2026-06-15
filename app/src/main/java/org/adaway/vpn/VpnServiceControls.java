@@ -4,11 +4,14 @@ import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static org.adaway.broadcast.Command.START;
 import static org.adaway.broadcast.Command.STOP;
+import static org.adaway.vpn.VpnStatus.RUNNING;
 import static org.adaway.vpn.VpnStatus.STOPPED;
 
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.os.Build;
 
 import org.adaway.helper.PreferenceHelper;
 
@@ -39,13 +42,24 @@ public final class VpnServiceControls {
      *         otherwise.
      */
     public static boolean isRunning(Context context) {
-        boolean networkVpnCapability = checkAnyNetworkVpnCapability(context);
+        return isTunnelEstablished(context);
+    }
+
+    /**
+     * Check if AdAway has an established VPN tunnel.
+     *
+     * @param context The application context.
+     * @return {@code true} only when AdAway has persisted a post-establish
+     *         {@link VpnStatus#RUNNING} status and Android reports a VPN network.
+     */
+    public static boolean isTunnelEstablished(Context context) {
+        boolean networkVpnCapability = checkAdAwayNetworkVpnCapability(context);
         VpnStatus status = PreferenceHelper.getVpnServiceStatus(context);
-        if (status.isStarted() && !networkVpnCapability) {
+        if (status == RUNNING && !networkVpnCapability) {
             status = STOPPED;
             PreferenceHelper.setVpnServiceStatus(context, status);
         }
-        return status.isStarted();
+        return status == RUNNING && networkVpnCapability;
     }
 
     /**
@@ -76,12 +90,7 @@ public final class VpnServiceControls {
         START.appendToIntent(intent);
         try {
             Timber.d("Attempting to launch service intent");
-            android.content.ComponentName component;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                component = context.startForegroundService(intent);
-            } else {
-                component = context.startService(intent);
-            }
+            android.content.ComponentName component = context.startForegroundService(intent);
 
             boolean started = component != null;
             Timber.d("Service launch result: %s", component);
@@ -111,11 +120,24 @@ public final class VpnServiceControls {
         context.startService(intent);
     }
 
-    private static boolean checkAnyNetworkVpnCapability(Context context) {
+    private static boolean checkAdAwayNetworkVpnCapability(Context context) {
         ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) {
+            return false;
+        }
         return Arrays.stream(connectivityManager.getAllNetworks())
                 .map(connectivityManager::getNetworkCapabilities)
                 .filter(Objects::nonNull)
-                .anyMatch(networkCapabilities -> networkCapabilities.hasTransport(TRANSPORT_VPN));
+                .anyMatch(networkCapabilities -> isAdAwayVpnNetwork(context, networkCapabilities));
+    }
+
+    private static boolean isAdAwayVpnNetwork(Context context, NetworkCapabilities networkCapabilities) {
+        if (!networkCapabilities.hasTransport(TRANSPORT_VPN)) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return true;
+        }
+        return networkCapabilities.getOwnerUid() == context.getApplicationInfo().uid;
     }
 }

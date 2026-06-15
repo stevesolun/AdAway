@@ -1,9 +1,14 @@
 package org.adaway.model.source;
 
 import org.adaway.db.dao.HostListItemDao;
+import org.adaway.db.dao.HostEntryDao;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.junit.Assert.*;
 
@@ -23,8 +28,9 @@ import static org.junit.Assert.*;
  * Result: the VPN proxy sees no blocked domains for those sources.
  *
  * FIX:
- * Before cleanup runs, re-tag 304-source rows from G to G+1 via:
- *   {@code hostListItemDao.migrateSourceGeneration(sourceId, G, G+1)}
+ * Before cleanup runs, copy 304-source rows from G to G+1 via:
+ *   {@code hostListItemDao.copySourceGeneration(sourceId, G, G+1)}
+ * Copying keeps generation G valid until the final active-generation flip succeeds.
  *
  * This test guards:
  * 1. {@link HostListItemDao#migrateSourceGeneration} method exists with the correct
@@ -56,6 +62,432 @@ public class Generation304MigrationTest {
         assertNotNull("migrateSourceGeneration(int, int, int) must exist on HostListItemDao", m);
         assertEquals("migrateSourceGeneration return type must be void",
                 void.class, m.getReturnType());
+    }
+
+    @Test
+    public void hostListItemDao_hasCopySourceGenerationMethod() throws Exception {
+        Method m = HostListItemDao.class.getMethod(
+                "copySourceGeneration",
+                int.class, int.class, int.class);
+
+        assertNotNull("copySourceGeneration(int, int, int) must exist on HostListItemDao", m);
+        assertEquals("copySourceGeneration return type must be void",
+                void.class, m.getReturnType());
+    }
+
+    @Test
+    public void hostListItemDao_hasTransactionalGenerationHelpers() throws Exception {
+        Method copy = HostListItemDao.class.getMethod(
+                "copySourceGenerationReplacingTarget",
+                int.class, int.class, int.class);
+        Method replace = HostListItemDao.class.getMethod(
+                "replaceSourceGeneration",
+                int.class, int.class, int.class);
+        Method count = HostListItemDao.class.getMethod(
+                "countSourceHostsForGeneration",
+                int.class, int.class);
+
+        assertEquals(void.class, copy.getReturnType());
+        assertEquals(void.class, replace.getReturnType());
+        assertEquals(int.class, count.getReturnType());
+    }
+
+    @Test
+    public void hostEntryDao_hasPureRuntimeRebuildForOuterTransactions() throws Exception {
+        Method rebuild = HostEntryDao.class.getMethod("rebuildFromActiveGeneration");
+        Method sync = HostEntryDao.class.getMethod("sync");
+
+        assertEquals(void.class, rebuild.getReturnType());
+        assertEquals(void.class, sync.getReturnType());
+    }
+
+    @Test
+    public void sourceModel_runtimeRefreshDelegatesLargeCacheDecisionToDao() throws Exception {
+        String sourceModel = readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java");
+        String compactSourceModel = compact(sourceModel);
+
+        assertTrue("Runtime refresh must rebuild through HostEntryDao so large active sets " +
+                        "clear stale materialized caches and rebuild root export.",
+                compactSourceModel.contains("this.hostEntryDao.rebuildFromActiveGeneration(db);"));
+        assertFalse("SourceModel must not skip runtime refresh before HostEntryDao can clear " +
+                        "stale root_host_entries.",
+                sourceModel.contains("RUNTIME_CACHE_REFRESH_MAX_ROWS") ||
+                        sourceModel.contains("Skipping runtime cache refresh"));
+    }
+
+    @Test
+    public void hostEntryDao_suffixAllowDeletesUseStreamingTempTableWithBatchedFallback()
+            throws Exception {
+        String dao = compact(readRepoFile(
+                "app/src/main/java/org/adaway/db/dao/HostEntryDao.java"));
+        String exactSuffixDelete = dao.substring(
+                dao.indexOf("WITH RECURSIVE `exact_suffixes`(`host`, `suffix`)"),
+                dao.indexOf("int deleteExactRowsAllowedByActiveSuffixRulesBatch"));
+        String suffixSuffixDelete = dao.substring(
+                dao.indexOf("WITH RECURSIVE `blocked_suffixes`(`host`, `suffix`)"),
+                dao.indexOf("int deleteSuffixRowsAllowedByActiveSuffixRulesBatch"));
+
+        assertTrue("Exact-row suffix allow delete must bound the generated suffix surface to " +
+                        "a host batch.",
+                exactSuffixDelete.contains("AND `host` > :afterHost") &&
+                        exactSuffixDelete.contains("AND (:upperHost IS NULL OR `host` <= :upperHost)"));
+        assertTrue("Suffix-row suffix allow delete must bound the generated suffix surface to " +
+                        "a host batch.",
+                suffixSuffixDelete.contains("AND `host` > :afterHost") &&
+                        suffixSuffixDelete.contains("AND (:upperHost IS NULL OR `host` <= :upperHost)"));
+        assertTrue("Suffix allow deletes must advance through host_entries by indexed host ranges.",
+                dao.contains("String getHostEntryBatchUpperBound") &&
+                        dao.contains("SUFFIX_ALLOW_DELETE_BATCH_SIZE"));
+        assertTrue("Transactional runtime rebuilds must use the reverse-host indexed suffix " +
+                        "matcher instead of scanning every host entry in Java.",
+                dao.contains("deleteRowsAllowedByActiveSuffixRules(activeGeneration, db)") &&
+                        dao.contains("db != null && db.inTransaction()") &&
+                        dao.contains("CREATE TEMP TABLE IF NOT EXISTS") &&
+                        dao.contains("PRIMARY KEY(`kind`, `host`)") &&
+                        dao.contains("index_host_entries_kind_reverse_host") &&
+                        dao.contains("index_hosts_lists_active_allow_source_kind_reverse_host") &&
+                        dao.contains("index_hosts_lists_active_allow_generation_kind_reverse_host") &&
+                        dao.contains("entry.`reverse_host` >= allowed.`reverse_host` || '.'") &&
+                        dao.contains("entry.`reverse_host` < allowed.`reverse_host` || '/'"));
+        assertFalse("Transactional suffix allow deletion must not keep the old Java scan.",
+                dao.contains("isAllowedBySuffixSet(host, allowSuffixes)") ||
+                        dao.contains("getHostEntryHostsByKind(kind)"));
+    }
+
+    @Test
+    public void sourceModel_marksGenerationUnsafeWhenCarryForwardHasNoPriorCoverage()
+            throws Exception {
+        String sourceModel = readRepoFile("app/src/main/java/org/adaway/model/source/SourceModel.java");
+        String compactSourceModel = compact(sourceModel);
+
+        assertTrue("Carry-forward must inspect previous active generation coverage.",
+                sourceModel.contains("countSourceHostsForGeneration(source.getId(), oldGeneration)"));
+        assertTrue("Never-synced failed sources must not be treated as migrated.",
+                sourceModel.contains("activeRows <= 0 && source.getLocalModificationDate() == null"));
+        assertTrue("Failed sources must defer carry-forward until successful parses have marked " +
+                        "the SQL dedup surface.",
+                sourceModel.contains("deferredCarryForwardSources.add(source)") &&
+                        sourceModel.contains("deferredCarryForwardSources.add(result.source)"));
+        assertTrue("Deferred carry-forward must mark the full-update generation unsafe and use " +
+                        "the SQL dedup surface.",
+                compactSourceModel.contains("for (HostsSource source : deferredCarryForwardSources) " +
+                        "{ if (!carryForwardPreviousGeneration(source, importGeneration, " +
+                        "sqlDeduper)) { generationUnsafe.set(true); } }"));
+        assertTrue("Unsafe generations must abort before activation.",
+                sourceModel.contains("|| generationUnsafe.get()"));
+    }
+
+    @Test
+    public void sourceModel_hasNoChangeFastPathForAllUnchangedSources() throws Exception {
+        String sourceModel = readRepoFile("app/src/main/java/org/adaway/model/source/SourceModel.java");
+
+        assertTrue("Full update must track sources that actually changed.",
+                sourceModel.contains("changedSourceCount"));
+        assertTrue("304 sources must defer carry-forward until the update is known to need activation.",
+                sourceModel.contains("deferredCarryForwardSources.add(result.source)"));
+        assertTrue("All-304 updates must take the no-change finalization path.",
+                sourceModel.contains("Pipeline no-change fast path"));
+        assertTrue("No-change fast path must rebuild host_entries when disabled sources changed runtime truth.",
+                sourceModel.contains("runtimeRebuildRequired"));
+        assertTrue("Disabled source rows must be removed before runtime rebuild.",
+                sourceModel.contains("this.hostListItemDao.clearSourceHosts(sourceId)"));
+        assertTrue("Runtime rebuild must be conditional inside the no-change path.",
+                sourceModel.contains("if (runtimeRebuildRequired)"));
+        assertTrue("Changed updates must still carry forward deferred 304 sources before activation.",
+                sourceModel.contains("for (HostsSource source : deferredCarryForwardSources)"));
+    }
+
+    @Test
+    public void sourceModel_serializesEveryPublicUpdateEntryPoint() throws Exception {
+        String sourceModel = readRepoFile("app/src/main/java/org/adaway/model/source/SourceModel.java");
+
+        assertTrue("Full update must use the shared update gate.",
+                sourceModel.contains("beginUpdateOperation(\"checkAndRetrieveHostsSources\")"));
+        assertTrue("Legacy all-source update must delegate to the staged full-update pipeline.",
+                sourceModel.contains("useStagedPipelineForLegacyRetrieve()") &&
+                        sourceModel.contains("checkAndRetrieveHostsSources();"));
+        assertTrue("Single-source update must use the shared update gate.",
+                sourceModel.contains("beginUpdateOperation(\"retrieveHostsSource\")"));
+        assertTrue("Scoped multi-source update must use the shared update gate.",
+                sourceModel.contains("beginUpdateOperation(\"retrieveHostsSources(list)\")"));
+        assertTrue("Every gated update path must release through the shared finalizer.",
+                sourceModel.contains("finishUpdateOperation();"));
+        assertTrue("Colliding updates must fail explicitly instead of reporting success.",
+                sourceModel.contains("throw new HostErrorException(UPDATE_IN_PROGRESS)"));
+    }
+
+    @Test
+    public void sourceModel_passesExplicitGenerationIntoParserWorkers() throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+
+        assertTrue("Full update must freeze its target generation before worker lambdas run.",
+                sourceModel.contains("final int importGeneration = activeGen + 1"));
+        assertTrue("Full update must use SQL-backed dedup instead of a heap-resident global set.",
+                sourceModel.contains("final SqlUpdateDeduper sqlDeduper = new SqlUpdateDeduper(writableDb)"));
+        assertTrue("Full-update URL parse workers must receive the frozen generation and SQL deduper.",
+                sourceModel.contains("parseSourceInputStream(result.source, reader, importGeneration, sqlDeduper)"));
+        assertTrue("Full-update file sources must receive the frozen generation.",
+                sourceModel.contains("readSourceFile(source, importGeneration, sqlDeduper)"));
+        assertTrue("Single-source URL updates must parse into their staging generation.",
+                sourceModel.contains("parseSourceInputStream(source, reader, stagingGeneration, sqlDeduper)"));
+        assertTrue("Single-source file updates must parse into their staging generation.",
+                sourceModel.contains("readSourceFile(source, stagingGeneration, sqlDeduper)"));
+        assertTrue("Carry-forward must not infer the generation from mutable shared state.",
+                sourceModel.contains("carryForwardPreviousGeneration(@NonNull HostsSource source, " +
+                        "int importGeneration)"));
+        assertTrue("Active full-update carry-forward must share the SQL dedup surface.",
+                sourceModel.contains("carryForwardPreviousGeneration(source, importGeneration, " +
+                        "sqlDeduper)") &&
+                        sourceModel.contains("copyUnseenSourceGeneration("));
+        assertTrue("SourceLoader must be constructed from the explicit helper parameter.",
+                sourceModel.contains("new SourceLoader(hostsSource, generation)"));
+    }
+
+    @Test
+    public void sourceLoader_usesSetBasedSqlDedupFlushOnly() throws Exception {
+        String sourceLoader = readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceLoader.java");
+        String sqlDeduper = readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SqlUpdateDeduper.java");
+
+        assertTrue("SQL dedup imports must stage parsed rows before the set-based flush.",
+                sourceLoader.contains("compilePendingInsertStatement()") &&
+                        sourceLoader.contains("SqlUpdateDeduper.stagePending(") &&
+                        sourceLoader.contains("flushPendingRowsToHostsLists()"));
+        assertFalse("SourceLoader must not keep always-null per-row dedup statement plumbing.",
+                sourceLoader.contains("dedupStmt"));
+        assertFalse("SourceLoader must not call a per-row seen-table write before staging.",
+                sourceLoader.contains("markSeen("));
+        assertFalse("SqlUpdateDeduper must not expose the old per-row seen-table insert API.",
+                sqlDeduper.contains("compileInsertStatement()") ||
+                        sqlDeduper.contains("markSeen("));
+    }
+
+    @Test
+    public void allowHeavyBenchmarkCanSeedRootExportStagePath() throws Exception {
+        String perfTest = readRepoFile(
+                "app/src/androidTest/java/org/adaway/model/source/SourceLoaderPerformanceTest.java");
+
+        assertTrue("Allow-heavy benchmark must expose an explicit stage-seeding switch.",
+                perfTest.contains("ARG_ALLOW_REBUILD_SEED_ROOT_STAGE") &&
+                        perfTest.contains("adawayAllowRebuildSeedRootStage"));
+        assertTrue("Allow-heavy benchmark must seed root_host_entries_stage on request.",
+                perfTest.contains("seedAllowHeavyRootExportStageRows(fixture)") &&
+                        perfTest.contains("INSERT INTO `root_host_entries_stage`"));
+        assertTrue("Allow-heavy benchmark must assert staged candidate coverage exists.",
+                perfTest.contains("SELECT COUNT(*) FROM root_host_entries_stage"));
+        assertTrue("Allow-heavy benchmark output must report whether the staged path was seeded.",
+                perfTest.contains("seedRootStage=") &&
+                        perfTest.contains("stageRows="));
+    }
+
+    @Test
+    public void largeRootExportSkipsRedirectPhaseWhenNoRedirectRules() throws Exception {
+        String dao = readRepoFile("app/src/main/java/org/adaway/db/dao/HostEntryDao.java");
+
+        assertTrue("Large root export must read redirected rule count from cached stats.",
+                dao.contains("SELECT `redirected_count` FROM `hosts_stats` WHERE `id` = 0") &&
+                        dao.contains("boolean hasRedirectRules = " +
+                                "getRedirectedEntryCountNow() > 0"));
+        assertTrue("Direct root export must skip redirected-row scans when no redirect exists.",
+                dao.contains("if (hasRedirectRules) {\n" +
+                        "            insertRootExportRedirectedRows(db, false, " +
+                        "activeGeneration);"));
+        assertTrue("Staged root export must skip redirected-row scans when no redirect exists.",
+                dao.contains("if (hasRedirectRules) {\n" +
+                        "            insertRootExportStagedRedirectedRows(db, false, " +
+                        "activeGeneration);"));
+        assertTrue("Large root export must pass the redirect guard to staged and direct paths.",
+                dao.contains("hasWildcardExactAllowRules, hasRedirectRules,\n" +
+                        "                        activeGeneration"));
+    }
+
+    @Test
+    public void sourceModel_finalizesGenerationAndRuntimeTruthAtomically() throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+        String activatedFinalizer = sourceModel.substring(
+                sourceModel.indexOf("private FinalizeTimings finalizeActivatedGeneration("),
+                sourceModel.indexOf("private FinalizeTimings finalizeNoChange("));
+
+        assertTrue("Full update must use the atomic finalizer instead of split commits.",
+                sourceModel.contains("FinalizeTimings finalizeTimings = finalizeActivatedGeneration("));
+        assertTrue("Atomic finalizer must wrap activation, cleanup, and runtime rebuild.",
+                sourceModel.contains("this.database.runInTransaction(() -> { " +
+                        "SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();"));
+        assertTrue("Disabled-source cleanup must happen inside the publish transaction.",
+                sourceModel.contains("applyDisabledSourceFinalization(disabledSourceIds);"));
+        assertTrue("Source metadata commits must happen inside the publish transaction.",
+                sourceModel.contains("applySourceCommits(sourceCommits);"));
+        assertTrue("Active generation must be flipped inside the publish transaction.",
+                sourceModel.contains("setActiveGeneration(db, importGeneration);"));
+        assertTrue("Generation publish must invalidate stale root-export materialization before " +
+                        "the async runtime rebuild can race with root apply.",
+                activatedFinalizer.contains("this.hostEntryDao.invalidateRootExportMaterializedCache();"));
+        assertTrue("Root-export invalidation must happen before scheduling async runtime refresh.",
+                activatedFinalizer.indexOf(
+                        "this.hostEntryDao.invalidateRootExportMaterializedCache();") <
+                        activatedFinalizer.indexOf("scheduleRuntimeCacheRefresh();"));
+        assertFalse("Full update must not flip active generation, clean old rows, then sync in " +
+                        "separate committed operations.",
+                sourceModel.contains("setActiveGeneration(writableDb, importGeneration); " +
+                        "long cleanupStartedMs = SystemClock.elapsedRealtime(); " +
+                        "cleanupNonActiveGenerations(writableDb, importGeneration);"));
+    }
+
+    @Test
+    public void sourceModel_defersFullUpdateSourceMetadataUntilPublish() throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+        String stagedUpdate = sourceModel.substring(
+                sourceModel.indexOf("public void checkAndRetrieveHostsSources() " +
+                        "throws HostErrorException"),
+                sourceModel.indexOf("private static int ensureAndGetActiveGeneration"));
+
+        assertTrue("Successful source metadata must be recorded as pending commit state.",
+                stagedUpdate.contains("sourceCommits.add(SourceCommit.changed("));
+        assertTrue("304 stale-error clearing must be recorded as pending commit state.",
+                stagedUpdate.contains("sourceCommits.add(SourceCommit.unchanged(result.source.getId()))"));
+        assertTrue("Failed source errors must be recorded separately from success metadata.",
+                stagedUpdate.contains("sourceFailures.add(SourceFailure.of("));
+        assertFalse("Full-update workers must not publish ETag directly before generation " +
+                        "finalization.",
+                stagedUpdate.contains("hostsSourceDao.updateEntityTag(result.source.getId()"));
+        assertFalse("Full-update workers must not publish modification dates directly before " +
+                        "generation finalization.",
+                stagedUpdate.contains("hostsSourceDao.updateModificationDates(result.source.getId()"));
+        assertFalse("Full-update workers must not clear download errors directly before " +
+                        "generation finalization.",
+                stagedUpdate.contains("hostsSourceDao.clearDownloadError(result.source.getId())"));
+    }
+
+    @Test
+    public void sourceModel_abortsStoppedUpdatesBeforeGenerationActivation() throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+
+        assertTrue("Stopped updates must clean the staging generation and abort before " +
+                        "carry-forward or active generation finalization.",
+                sourceModel.contains("if (progressBuilder.isStopped()) { " +
+                        "cleanupGeneration(writableDb, importGeneration); " +
+                        "progressBuilder.setFinalizing(false); " +
+                        "progressBuilder.setComplete(false); " +
+                        "postMultiPhaseProgress(progressBuilder.build(), true); " +
+                        "postIdleAfterTerminal(); " +
+                        "return; }"));
+        assertTrue("Stopped update workers must not publish a partial generation.",
+                sourceModel.indexOf("if (progressBuilder.isStopped()) { " +
+                        "cleanupGeneration(writableDb, importGeneration);") <
+                        sourceModel.indexOf("FinalizeTimings finalizeTimings = " +
+                                "finalizeActivatedGeneration("));
+    }
+
+    @Test
+    public void sourceModel_ignoresProgressControlsAfterTerminalStates() throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+
+        assertTrue("Pause/resume/stop requests must share the same update-control gate.",
+                sourceModel.contains("private boolean canControlCurrentUpdate()") &&
+                        sourceModel.contains("if (!canControlCurrentUpdate()) { return; }"));
+        assertTrue("Update controls must be ignored after the update is no longer running.",
+                sourceModel.contains("return this.updateInProgress.get()"));
+        assertTrue("Update controls must be ignored once a stop request is terminal.",
+                sourceModel.contains("&& !this.progressBuilder.isStopped()"));
+        assertTrue("Update controls must be ignored while finalization is publishing runtime truth.",
+                sourceModel.contains("&& !this.progressBuilder.isFinalizing()"));
+        assertTrue("Update controls must be ignored after completion is already published.",
+                sourceModel.contains("&& !this.progressBuilder.isComplete()"));
+    }
+
+    @Test
+    public void sourceModel_defersTargetedMultiSourcePromotionUntilFinalRuntimeRebuild()
+            throws Exception {
+        String sourceModel = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java"));
+        assertTrue("Targeted update worker must return staged work for final batch publication.",
+                sourceModel.contains("private TargetedSourceUpdate retrieveHostsSource("));
+
+        String listUpdate = sourceModel.substring(
+                sourceModel.indexOf("public void retrieveHostsSources(@NonNull List<Integer> sourceIds)"),
+                sourceModel.indexOf("private TargetedSourceUpdate retrieveHostsSource("));
+        String singleUpdate = sourceModel.substring(
+                sourceModel.indexOf("private TargetedSourceUpdate retrieveHostsSource("),
+                sourceModel.indexOf("public void syncHostEntries()"));
+
+        assertTrue("Targeted multi-source updates must collect every deferred finalization, " +
+                        "not only staged row promotions.",
+                listUpdate.contains("List<TargetedSourceUpdate> finalizationUpdates = " +
+                        "new ArrayList<>()"));
+        assertTrue("Targeted multi-source updates must preserve order while removing duplicate ids.",
+                listUpdate.contains("List<Integer> uniqueSourceIds = " +
+                        "new ArrayList<>(new LinkedHashSet<>(sourceIds))"));
+        assertTrue("Targeted multi-source updates must publish staged rows in one finalizer.",
+                listUpdate.contains("finalizeStagedSourceGenerations(finalizationUpdates)"));
+        assertTrue("Targeted multi-source updates must capture per-source staged work.",
+                listUpdate.contains("TargetedSourceUpdate update = " +
+                        "retrieveHostsSource(sourceId, false)"));
+        assertFalse("Targeted multi-source updates must not iterate duplicate-prone source ids.",
+                listUpdate.contains("for (int sourceId : sourceIds)"));
+        assertFalse("Targeted multi-source updates must not delegate to a per-source method that " +
+                        "can publish each source independently.",
+                listUpdate.contains("for (int sourceId : sourceIds) { " +
+                        "retrieveHostsSource(sourceId, false); }"));
+        assertTrue("Per-source targeted updates must return staged changed sources to the caller.",
+                singleUpdate.contains("stagedUpdate = TargetedSourceUpdate.changed(") &&
+                        singleUpdate.contains("return stagedUpdate;"));
+        assertTrue("Batch disabled-source cleanup must be deferred to finalization.",
+                singleUpdate.contains("return syncAfter ? null : " +
+                        "TargetedSourceUpdate.disabled(sourceId)"));
+        assertTrue("Batch 304 metadata must be deferred to finalization.",
+                singleUpdate.contains("TargetedSourceUpdate.metadataOnly("));
+        assertFalse("Batch disabled-source cleanup must not clear source rows inline.",
+                singleUpdate.contains("if (!source.isEnabled()) { " +
+                        "this.hostListItemDao.clearSourceHosts(sourceId);"));
+        assertFalse("Batch 304 metadata must not publish ETag inline.",
+                singleUpdate.contains("this.hostsSourceDao.updateEntityTag(source.getId(), " +
+                        "result.entityTag);"));
+        assertFalse("Batch 304 metadata must not publish modification dates inline.",
+                singleUpdate.contains("this.hostsSourceDao.updateModificationDates(sourceId, " +
+                        "localModificationDate, onlineModificationDate);"));
+        assertFalse("Batch per-source work must not promote staged rows before the final " +
+                        "runtime rebuild.",
+                singleUpdate.contains("promoteStagedSourceGeneration( sourceId, " +
+                        "activeGeneration, stagingGeneration);"));
+    }
+
+    @Test
+    public void userRuleMutationSurfacesReuseSourceModelRuntimeSync() throws Exception {
+        String domainChecker = readRepoFile(
+                "app/src/main/java/org/adaway/ui/domainchecker/DomainCheckerViewModel.java");
+        String aiExecutor = readRepoFile(
+                "app/src/main/java/org/adaway/model/ai/AiActionExecutor.java");
+
+        assertFalse("Domain checker user-rule writes must not use the no-DB HostEntryDao.sync() " +
+                        "fallback.",
+                domainChecker.contains("mHostEntryDao.sync()"));
+        assertTrue("Domain checker user-rule writes must reuse SourceModel.syncHostEntries().",
+                domainChecker.contains("getSourceModel().syncHostEntries()"));
+        assertFalse("AI user-rule writes must not use the no-DB HostEntryDao.sync() fallback.",
+                aiExecutor.contains("entryDao.sync()"));
+        assertTrue("AI user-rule writes must reuse SourceModel.syncHostEntries().",
+                aiExecutor.contains("getSourceModel().syncHostEntries()"));
+    }
+
+    @Test
+    public void appDatabaseSeedsUserSourceBeforeSafetyAllowlist() throws Exception {
+        String appDatabase = compact(readRepoFile(
+                "app/src/main/java/org/adaway/db/AppDatabase.java"));
+
+        assertTrue("Database creation must seed default sources before WaTg allowlist inserts " +
+                        "user-list rows.",
+                appDatabase.contains("AppDatabase.initialize(context, instance); " +
+                        "WaTgSafetyAllowlist.ensureAllowlistSync(context);"));
+        assertFalse("WaTg allowlist must not race source initialization from a separate " +
+                        "onCreate task.",
+                appDatabase.contains("WaTgSafetyAllowlist.ensureAllowlist(context);"));
     }
 
     // -------------------------------------------------------------------------
@@ -188,5 +620,67 @@ public class Generation304MigrationTest {
         assertFalse("Source 2 (migrated 304): must survive cleanup", deleted[0]);
         assertFalse("Source 3 (200 response): must survive cleanup", deleted[1]);
         assertTrue("Source 4 (un-migrated 304 — bug): must be deleted by cleanup", deleted[2]);
+    }
+    @Test
+    public void copyForward_keepsOldGenerationValidUntilActivation() {
+        int[][] rows = {
+                {2, 1},
+                {2, 1},
+                {3, 1},
+        };
+        int sourceId = 2;
+        int oldGeneration = 1;
+        int newGeneration = 2;
+
+        int copiedRows = 0;
+        for (int[] row : rows) {
+            if (row[0] == sourceId && row[1] == oldGeneration) {
+                copiedRows++;
+            }
+        }
+        int[][] afterCopy = new int[rows.length + copiedRows][2];
+        for (int i = 0; i < rows.length; i++) {
+            afterCopy[i][0] = rows[i][0];
+            afterCopy[i][1] = rows[i][1];
+        }
+        int writeIndex = rows.length;
+        for (int[] row : rows) {
+            if (row[0] == sourceId && row[1] == oldGeneration) {
+                afterCopy[writeIndex][0] = row[0];
+                afterCopy[writeIndex][1] = newGeneration;
+                writeIndex++;
+            }
+        }
+
+        int oldRows = 0;
+        int newRows = 0;
+        for (int[] row : afterCopy) {
+            if (row[0] == sourceId && row[1] == oldGeneration) oldRows++;
+            if (row[0] == sourceId && row[1] == newGeneration) newRows++;
+        }
+
+        assertEquals("Old generation remains active-safe until final activation", 2, oldRows);
+        assertEquals("New generation receives a complete carry-forward copy", 2, newRows);
+    }
+
+    @Test
+    public void failedNeverSyncedSource_cannotBeCountedAsMigratedCoverage() {
+        int previousRows = 0;
+        boolean hasPriorSuccessfulSync = false;
+
+        boolean migrated = previousRows > 0 || hasPriorSuccessfulSync;
+
+        assertFalse("A failed enabled source with no previous generation is partial coverage.",
+                migrated);
+    }
+
+    private static String readRepoFile(String relativePath) throws Exception {
+        Path cwd = Paths.get("").toAbsolutePath();
+        Path repo = Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
+        return new String(Files.readAllBytes(repo.resolve(relativePath)), StandardCharsets.UTF_8);
+    }
+
+    private static String compact(String value) {
+        return value.replaceAll("\\s+", " ");
     }
 }

@@ -50,6 +50,15 @@ public class DnsServerMapper {
             "208.67.222.222", "208.67.220.220"  // OpenDNS
     };
     /**
+     * Known DNS-over-HTTPS provider IPv6 addresses matching {@link #DOH_PROVIDER_IPV4}.
+     */
+    private static final String[] DOH_PROVIDER_IPV6 = {
+            "2606:4700:4700::1111", "2606:4700:4700::1001", // Cloudflare
+            "2001:4860:4860::8888", "2001:4860:4860::8844", // Google
+            "2620:fe::fe", "2620:fe::9",                    // Quad9
+            "2620:119:35::35", "2620:119:53::53"             // OpenDNS
+    };
+    /**
      * The TEST NET addresses blocks, defined in RFC5735.
      */
     private static final String[] TEST_NET_ADDRESS_BLOCKS = {
@@ -108,7 +117,7 @@ public class DnsServerMapper {
             }
         }
         // Block DoH providers so Chrome falls back to system UDP/53 DNS (captured by AdAway)
-        addDohBlockRoutes(builder);
+        addDohBlockRoutes(builder, ipv6Subnet != null);
     }
 
     /**
@@ -116,15 +125,25 @@ public class DnsServerMapper {
      * Since DnsPacketProxy only handles UDP/53, TCP/443 DoH connections entering the tunnel
      * will be silently dropped, forcing browsers to fall back to system UDP/53 DNS.
      */
-    private void addDohBlockRoutes(VpnService.Builder builder) {
+    private void addDohBlockRoutes(VpnService.Builder builder, boolean includeIpv6) {
         for (String ip : DOH_PROVIDER_IPV4) {
-            try {
-                InetAddress address = InetAddress.getByName(ip);
-                builder.addRoute(address, 32);
-                Timber.d("Added DoH block route for %s/32.", ip);
-            } catch (UnknownHostException e) {
-                Timber.w(e, "Failed to add DoH block route for %s.", ip);
-            }
+            addDohBlockRoute(builder, ip, 32);
+        }
+        if (!includeIpv6) {
+            return;
+        }
+        for (String ip : DOH_PROVIDER_IPV6) {
+            addDohBlockRoute(builder, ip, 128);
+        }
+    }
+
+    private void addDohBlockRoute(VpnService.Builder builder, String ip, int prefixLength) {
+        try {
+            InetAddress address = InetAddress.getByName(ip);
+            builder.addRoute(address, prefixLength);
+            Timber.d("Added DoH block route for %s/%d.", ip, prefixLength);
+        } catch (UnknownHostException e) {
+            Timber.w(e, "Failed to add DoH block route for %s.", ip);
         }
     }
 

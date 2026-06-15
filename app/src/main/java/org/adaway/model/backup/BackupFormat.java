@@ -2,9 +2,12 @@ package org.adaway.model.backup;
 
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.util.RegexUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.util.Locale;
 
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 
@@ -31,6 +34,7 @@ final class BackupFormat {
     static final String REDIRECTED_KEY = "redirected";
     static final String ENABLED_ATTRIBUTE = "enabled";
     static final String HOST_ATTRIBUTE = "host";
+    static final String KIND_ATTRIBUTE = "kind";
     static final String REDIRECT_ATTRIBUTE = "redirect";
 
     BackupFormat() {
@@ -68,6 +72,7 @@ final class BackupFormat {
         if (redirection != null && !redirection.isEmpty()) {
             hostObject.put(REDIRECT_ATTRIBUTE, redirection);
         }
+        hostObject.put(KIND_ATTRIBUTE, host.getKind().name().toLowerCase(Locale.ROOT));
         hostObject.put(ENABLED_ATTRIBUTE, host.isEnabled());
         return hostObject;
     }
@@ -75,6 +80,16 @@ final class BackupFormat {
     static HostListItem hostFromJson(JSONObject hostObject) throws JSONException {
         HostListItem host = new HostListItem();
         host.setHost(hostObject.getString(HOST_ATTRIBUTE));
+        if (hostObject.has(KIND_ATTRIBUTE)) {
+            try {
+                host.setKind(RuleKind.valueOf(hostObject.getString(KIND_ATTRIBUTE)
+                        .trim()
+                        .toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException exception) {
+                throw new JSONException("Invalid rule kind in backup: " +
+                        hostObject.getString(KIND_ATTRIBUTE));
+            }
+        }
         if (hostObject.has(REDIRECT_ATTRIBUTE)) {
             String redirection = hostObject.getString(REDIRECT_ATTRIBUTE);
             // ATK-23: reject private/reserved IPs as redirect targets (same as SourceLoader check).

@@ -12,6 +12,9 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
@@ -37,6 +40,7 @@ public class DomainCheckerFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        applyTopInsets(view);
         viewModel = new ViewModelProvider(this).get(DomainCheckerViewModel.class);
 
         TextInputEditText domainEditText = view.findViewById(R.id.domainEditText);
@@ -75,7 +79,8 @@ public class DomainCheckerFragment extends Fragment {
         viewModel.checkResult.observe(getViewLifecycleOwner(), result -> {
             if (result == null) return;
             resultCard.setVisibility(View.VISIBLE);
-            domainCheckedTextView.setText(result.domain);
+            domainCheckedTextView.setText(getString(
+                    R.string.domain_checker_checked_domain, result.domain));
 
             // Reset all conditional views
             sourcesLabel.setVisibility(View.GONE);
@@ -88,7 +93,7 @@ public class DomainCheckerFragment extends Fragment {
             sourcesContainer.removeAllViews();
 
             if (result.blocked) {
-                statusBadge.setText("\uD83D\uDD34 BLOCKED");
+                statusBadge.setText(R.string.domain_checker_status_blocked);
                 statusBadge.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
                 sourcesLabel.setVisibility(View.VISIBLE);
                 sourcesContainer.setVisibility(View.VISIBLE);
@@ -103,8 +108,10 @@ public class DomainCheckerFragment extends Fragment {
                     TextView tv = new TextView(requireContext());
                     tv.setLayoutParams(new LinearLayout.LayoutParams(
                             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                    // ✏️ icon for user rules, 🛡️ icon for filter sources
-                    tv.setText((src.isUserRule ? "\u270F\uFE0F " : "\uD83D\uDEE1\uFE0F ") + src.name);
+                    int sourceText = src.isUserRule
+                            ? R.string.domain_checker_user_source_format
+                            : R.string.domain_checker_filter_source_format;
+                    tv.setText(getString(sourceText, src.name));
                     tv.setTextSize(13f);
                     row.addView(tv);
 
@@ -138,7 +145,7 @@ public class DomainCheckerFragment extends Fragment {
                     });
                 }
             } else {
-                statusBadge.setText("\uD83D\uDFE2 NOT BLOCKED");
+                statusBadge.setText(R.string.domain_checker_status_not_blocked);
                 statusBadge.setTextColor(getResources().getColor(android.R.color.holo_green_dark, null));
                 notBlockedLabel.setVisibility(View.VISIBLE);
                 blockButton.setVisibility(View.VISIBLE);
@@ -149,5 +156,18 @@ public class DomainCheckerFragment extends Fragment {
                 });
             }
         });
+    }
+
+    private static void applyTopInsets(@NonNull View view) {
+        int initialLeft = view.getPaddingLeft();
+        int initialTop = view.getPaddingTop();
+        int initialRight = view.getPaddingRight();
+        int initialBottom = view.getPaddingBottom();
+        ViewCompat.setOnApplyWindowInsetsListener(view, (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(initialLeft, initialTop + systemBars.top, initialRight, initialBottom);
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(view);
     }
 }

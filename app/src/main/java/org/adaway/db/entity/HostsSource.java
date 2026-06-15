@@ -66,11 +66,83 @@ public class HostsSource {
     @ColumnInfo(name = "skipped_count")
     private int skippedCount;
     /**
+     * The number of enabled active rows for this source.
+     */
+    @ColumnInfo(name = "active_rule_count")
+    private int activeRuleCount;
+    /**
+     * The number of enabled active blocked rows for this source.
+     */
+    @ColumnInfo(name = "blocked_count")
+    private int blockedCount;
+    /**
+     * The number of enabled active exact blocked rows for this source.
+     */
+    @ColumnInfo(name = "blocked_exact_count")
+    private int blockedExactCount;
+    /**
+     * The number of enabled active allowed rows for this source.
+     */
+    @ColumnInfo(name = "allowed_count")
+    private int allowedCount;
+    /**
+     * The number of enabled active redirected rows for this source.
+     */
+    @ColumnInfo(name = "redirected_count")
+    private int redirectedCount;
+    /**
      * The last download error message, or {@code null} if the last download succeeded.
      */
     @ColumnInfo(name = "last_download_error")
     @Nullable
     private String lastDownloadError;
+    /**
+     * FilterLists.com list identifier when this source came from the directory.
+     */
+    @ColumnInfo(name = "filter_list_id")
+    @Nullable
+    private Integer filterListId;
+    /**
+     * Comma-separated FilterLists syntax ids captured at subscription time.
+     */
+    @ColumnInfo(name = "filter_list_syntax_ids")
+    @Nullable
+    private String filterListSyntaxIds;
+    /**
+     * Conservative compatibility label shown for FilterLists-derived sources.
+     */
+    @ColumnInfo(name = "filter_list_compatibility")
+    @Nullable
+    private String filterListCompatibility;
+    /**
+     * Conservative compatibility score captured at subscription time.
+     */
+    @ColumnInfo(name = "filter_list_compatibility_score")
+    private int filterListCompatibilityScore;
+    /**
+     * The exact selected URL from FilterLists viewUrls.
+     */
+    @ColumnInfo(name = "filter_list_selected_url")
+    @Nullable
+    private String filterListSelectedUrl;
+    /**
+     * Original FilterLists.com directory name captured at subscription time.
+     */
+    @ColumnInfo(name = "filter_list_name")
+    @Nullable
+    private String filterListName;
+    /**
+     * Comma-separated FilterLists tag ids captured at subscription time.
+     */
+    @ColumnInfo(name = "filter_list_tag_ids")
+    @Nullable
+    private String filterListTagIds;
+    /**
+     * Comma-separated FilterLists language ids captured at subscription time.
+     */
+    @ColumnInfo(name = "filter_list_language_ids")
+    @Nullable
+    private String filterListLanguageIds;
 
     /**
      * Check whether an URL is valid for as host source.<br>
@@ -194,6 +266,46 @@ public class HostsSource {
         this.skippedCount = skippedCount;
     }
 
+    public int getActiveRuleCount() {
+        return this.activeRuleCount;
+    }
+
+    public void setActiveRuleCount(int activeRuleCount) {
+        this.activeRuleCount = activeRuleCount;
+    }
+
+    public int getBlockedCount() {
+        return this.blockedCount;
+    }
+
+    public void setBlockedCount(int blockedCount) {
+        this.blockedCount = blockedCount;
+    }
+
+    public int getBlockedExactCount() {
+        return this.blockedExactCount;
+    }
+
+    public void setBlockedExactCount(int blockedExactCount) {
+        this.blockedExactCount = blockedExactCount;
+    }
+
+    public int getAllowedCount() {
+        return this.allowedCount;
+    }
+
+    public void setAllowedCount(int allowedCount) {
+        this.allowedCount = allowedCount;
+    }
+
+    public int getRedirectedCount() {
+        return this.redirectedCount;
+    }
+
+    public void setRedirectedCount(int redirectedCount) {
+        this.redirectedCount = redirectedCount;
+    }
+
     @Nullable
     public String getLastDownloadError() {
         return this.lastDownloadError;
@@ -201,6 +313,77 @@ public class HostsSource {
 
     public void setLastDownloadError(@Nullable String lastDownloadError) {
         this.lastDownloadError = lastDownloadError;
+    }
+
+    @Nullable
+    public Integer getFilterListId() {
+        return this.filterListId;
+    }
+
+    public void setFilterListId(@Nullable Integer filterListId) {
+        this.filterListId = filterListId;
+    }
+
+    @Nullable
+    public String getFilterListSyntaxIds() {
+        return this.filterListSyntaxIds;
+    }
+
+    public void setFilterListSyntaxIds(@Nullable String filterListSyntaxIds) {
+        this.filterListSyntaxIds = filterListSyntaxIds;
+    }
+
+    @Nullable
+    public String getFilterListCompatibility() {
+        return this.filterListCompatibility;
+    }
+
+    public void setFilterListCompatibility(@Nullable String filterListCompatibility) {
+        this.filterListCompatibility = filterListCompatibility;
+    }
+
+    public int getFilterListCompatibilityScore() {
+        return this.filterListCompatibilityScore;
+    }
+
+    public void setFilterListCompatibilityScore(int filterListCompatibilityScore) {
+        this.filterListCompatibilityScore = filterListCompatibilityScore;
+    }
+
+    @Nullable
+    public String getFilterListSelectedUrl() {
+        return this.filterListSelectedUrl;
+    }
+
+    public void setFilterListSelectedUrl(@Nullable String filterListSelectedUrl) {
+        this.filterListSelectedUrl = filterListSelectedUrl;
+    }
+
+    @Nullable
+    public String getFilterListName() {
+        return this.filterListName;
+    }
+
+    public void setFilterListName(@Nullable String filterListName) {
+        this.filterListName = filterListName;
+    }
+
+    @Nullable
+    public String getFilterListTagIds() {
+        return this.filterListTagIds;
+    }
+
+    public void setFilterListTagIds(@Nullable String filterListTagIds) {
+        this.filterListTagIds = filterListTagIds;
+    }
+
+    @Nullable
+    public String getFilterListLanguageIds() {
+        return this.filterListLanguageIds;
+    }
+
+    public void setFilterListLanguageIds(@Nullable String filterListLanguageIds) {
+        this.filterListLanguageIds = filterListLanguageIds;
     }
 
     @Override
