@@ -2,5 +2,5 @@
 <resources>
     <string name="hosts_title">Vertsfilkilder</string>
     <!-- List -->
-    <string name="hosts_not_available">ikke tilgjengelig</string>
+
     </resources>

@@ -4,15 +4,10 @@
     <!-- Hosts install category -->
     <string name="pref_hosts_installation">Hosts Installation</string>
     <string name="pref_root_open_hosts">Hosts-Datei öffnen</string>
-    <string name="pref_apply_method">Zu benutzende Hosts-Datei</string>
-    <string name="pref_apply_method_summary">Bevor Sie diese Einstellung ändern, bitte die Hilfe zu dem Thema lesen.</string>
-    <string-array name="pref_apply_method_entries">
-        <item>/system/etc/hosts</item>
-        <item>/data/hosts</item>
-        <item>/data/data/hosts</item>
-        <item>Benutzerdefiniertes Ziel</item>
-    </string-array>
-    <string name="pref_custom_target">Benutzerdefiniertes Ziel</string>
+
+
+
+
     <string name="pref_never_reboot">Neustartdialog verstecken</string>
     <!-- Redirection category -->
     <string name="pref_hosts_redirection">Umleitung</string>
@@ -25,10 +20,10 @@
     <string name="pref_webserver_summary">Der lokale Webserver überwacht lokale IP-Adressen um auf blockierte Hostnamen zu antworten. Dies kann helfen wenn Apps einfrieren bei blockierter Verbindung.</string>
     <string name="pref_webserver_enabled">Webserver aktivieren</string>
     <string name="pref_webserver_test">Webserver testen</string>
-    <string name="pref_webserver_certificate">Selbstsigniertes Zertifikat installieren</string>
-    <string name="pref_webserver_certificate_dialog_title">Zertifikat manuell installieren</string>
-    <string name="pref_webserver_certificate_dialog_content">Ab Android 11 (R), kann die Anwendung die Zertifizierungsstelle (CA) nicht mehr automatisch installieren.\n\nGehen Sie zu \"Sicherheit\"-Einstellungen, \"Verschlüsselung und Anmeldeinformationen\" und dann zu \"Zertifikat installieren\". Wählen Sie dort \"CA-Zertifikat\" und wählen Sie die neu exportierte Zertifikatsdatei aus.</string>
-    <string name="pref_webserver_certificate_dialog_action">\"Sicherheit\"-Einstellungen öffnen</string>
+
+
+
+
     <string name="pref_webserver_state_checking">Überprüfe…</string>
     <string name="pref_webserver_state_not_running">Läuft nicht</string>
     <string name="pref_webserver_state_running_not_installed">Läuft aber Zertifikat nicht installiert</string>

@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">ネット接続なし</string>
     <string name="error_no_connection_details">インターネットへの接続を確立できません。端末の接続状態を確認してください。</string>
     <string name="error_download_failed_message">hostsソースのダウンロードに失敗しました</string>
-    <string name="error_download_failed_details">有効にしたhostsソースに到達できません。インターネットに正しく接続されているか確認してください。</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">プライベートファイルの作成に失敗しました</string>
     <string name="error_private_file_failed_details">新しいhostsソースを構築するためのプライベートファイルを作成できません。端末の空き容量を確認してください。</string>

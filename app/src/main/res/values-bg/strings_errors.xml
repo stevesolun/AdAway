@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Няма връзка с интернет</string>
     <string name="error_no_connection_details">Не може да се установи връзка с Интернет. Моля, проверете свързаността на устройството Ви.</string>
     <string name="error_download_failed_message">Свалянето източника на хостове се провали</string>
-    <string name="error_download_failed_details">Никои от Вашите включени източници на хостове са достъпни. Моля, проверете дали сте свързани към Интернет.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Създаването на частен файл се провали</string>
     <string name="error_private_file_failed_details">Невъзможно е създаването на частен файл за сглобяване на нов източник на хостове. Моля, проверете свободното пространство на Вашето устройство.</string>

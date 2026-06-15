@@ -20,12 +20,10 @@
     <string name="help_label">Amosar axuda</string>
 
     <!-- Project card -->
-    <string name="project_label">Abrir páxina de GitHub</string>
+
 
     <string name="preferences_drawer_item">Preferences</string>
 
-    <string name="update_button">Actualizar dominios bloqueados</string>
-    <string name="show_log_button">Amosar dominios solicitados</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Por favor ler Axuda para máis información.</string>

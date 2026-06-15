@@ -25,20 +25,16 @@
     <string name="help_label">Toon help\nand tips</string>
 
     <!-- Project card -->
-    <string name="project_label">GitHub-pagina openen</string>
+
 
     <!-- Support card -->
     <string name="support_label">Project steunen</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub project</string>
     <string name="preferences_drawer_item">Instellingen</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Navigatiemenu openen</string>
     <string name="adblock_pause_button_description">Advertentieblokkering onderbreken/hervatten</string>
-    <string name="update_button">Geblokkeerde domeinen bijwerken</string>
-    <string name="show_log_button">Domeinaanvragen tonen</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Bekijk de hulpsectie voor meer informatie.</string>

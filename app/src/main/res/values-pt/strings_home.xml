@@ -27,20 +27,16 @@
     <string name="help_label">Mostrar ajuda/e dicas</string>
 
     <!-- Project card -->
-    <string name="project_label">Abrir página do GitHub</string>
+
 
     <!-- Support card -->
     <string name="support_label">Apoiar o projeto</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">Projeto no GitHub</string>
     <string name="preferences_drawer_item">Preferências</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Abrir painel de navegação</string>
     <string name="adblock_pause_button_description">Parar/retomar bloqueio de publicidade</string>
-    <string name="update_button">Atualizar domínios bloqueados</string>
-    <string name="show_log_button">Mostrar domínios pedidos</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Para mais informação, por favor, leia a Ajuda.</string>

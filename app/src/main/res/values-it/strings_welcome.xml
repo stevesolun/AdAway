@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="welcome_title">Benvenuto</string>
-    <string name="welcome_first_step">Procedura Guida primo passo</string>
-    <string name="welcome_second_step">Procedura Guida secondo passo</string>
-    <string name="welcome_last_step">Procedura Guida ultimo passo</string>
+
+
+
+
 
     <!-- Method UI -->
-    <string name="welcome_method_header">Benvenuto in AdAway!</string>
-    <string name="welcome_method_summary">AdAway ha due modalità per bloccare le pubblicità. Scegli quella che preferisci:</string>
 
-    <string name="welcome_root_method_logo">Logo root</string>
-    <string name="welcome_root_method_title">Blocco pubblicità\ntramite root</string>
-    <string name="welcome_root_method_text1">Più veloce</string>
-    <string name="welcome_root_method_text2">Non ha impatto sulla batteria</string>
-    <string name="welcome_root_method_text3">Richiede il root</string>
 
-    <string name="welcome_vpn_method_logo">Logo VPN</string>
+
+
+
+
+
+
+
+
     <string name="welcome_vpn_method_title">Blocco pubblicità\ntramite VPN</string>
-    <string name="welcome_vpn_method_text1">Più lento</string>
-    <string name="welcome_vpn_method_text2">Esecuzione in background</string>
-    <string name="welcome_vpn_method_text3">Compatibilità</string>
+
+
+
 
     <string name="welcome_root_missing_title">Richiesto Android con root</string>
     <string name="welcome_root_missile_description">Non è stato trovato il binario SU o non hai concesso i permessi di root ad AdAway.\n\nPuò succedere quando il tuo dispositivo non ha i permessi di root.\nPuoi trovare maggiori informazioni su come abilitarli per il tuo dispositivo su wiki.lineageos.org o su altri siti web riguardanti Android.</string>
@@ -29,30 +29,30 @@
     <string name="welcome_vpn_alwayson_blocked_description">AdAway non è riuscito a richiedere l\'accesso alla VPN.\n\nPotrebbe dipendere dal fatto che un\'altra VPN ha l\'impostazione \"VPN always-on\" attiva. Controlla se una diversa VPN ha questa impostazione abilitata e disabilitala prima di riprovare.</string>
     <string name="welcome_vpn_alwayson_settings_action">Apri Impostazioni \"VPN\"</string>
 
-    <string name="welcome_method_pro_logo">Pro</string>
-    <string name="welcome_method_con_logo">Contro</string>
+
+
 
     <!-- Sync UI -->
-    <string name="welcome_sync_done_logo">Sincronizzazione completata</string>
-    <string name="welcome_sync_error_logo">Errore durante la sincronizzazione</string>
 
-    <string name="welcome_sync_header">Sincronizzazione in corso</string>
-    <string name="welcome_synced_header">Sincronizzato!</string>
-    <string name="welcome_sync_summary">AdAway scarica da sorgenti online le reti pubblicitarie da bloccare. Puoi personalizzarle dalle impostazioni</string>
-    <string name="welcome_sync_retry_logo">Riprova sincronizzazione</string>
-    <string name="welcome_sync_error">Sincronizzazione fallita: %1$s Vuoi riprovare adesso?</string>
-    <string name="welcome_sync_notifications">Può inviare notifiche per mostrare lo stato e i controlli del blocco pubblicità, e per segnalare la disponibilità di aggiornamenti dell\'app (poche volte all\'anno). Abilitale se vuoi rimanere aggiornato.</string>
+
+
+
+
+
+
+
+
 
     <!-- Support -->
-    <string name="welcome_support_logo">Supporto</string>
-    <string name="welcome_support_header">Supportami!</string>
-    <string name="welcome_support_summary">AdAway è un\'app gratuita e open-source che sviluppo nel mio tempo libero. Se ti piace, sentiti libero di mostrare il tuo sostegno:</string>
-    <string name="welcome_support_button">Dona tramite PayPal</string>
-    <string name="welcome_support_telemetry_summary">Ti piacciono i bug? Neanche a me.</string>
-    <string name="welcome_support_telemetry_button">Abilita la telemetria per inviarmi le segnalazioni di errori</string>
+
+
+
+
+
+
 
     <!-- Navigation buttons -->
-    <string name="welcome_back_button">Indietro</string>
-    <string name="welcome_next_button">Avanti</string>
-    <string name="welcome_finish_button">Fine</string>
+
+
+
 </resources>

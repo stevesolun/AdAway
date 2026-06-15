@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Nu există conexiune la internet</string>
     <string name="error_no_connection_details">Imposibil de conectat la internet. Verificați conexiunea dispozitivului.</string>
     <string name="error_download_failed_message">Imposibil de descărcat sursele hosts</string>
-    <string name="error_download_failed_details">Nici una din sursele active pentru fisierele \"hosts\" nu pot fi accesate! Exista conexiune internet?</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Imposibil de creat fișierul hosts</string>
     <string name="error_private_file_failed_details">Imposibil de creat fișierul hosts privat pentru generarea unei noi surse. Verifică dacă există spațiu de stocare disponibil pe dispozitiv.</string>

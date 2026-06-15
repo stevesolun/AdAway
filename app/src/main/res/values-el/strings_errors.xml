@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Δεν υπάρχει σύνδεση στο ίντερνετ</string>
     <string name="error_no_connection_details">Δεν είναι δυνατή η σύνδεση στο Διαδίκτυο. Ελέγξτε τη συνδεσιμότητα της συσκευής σας.</string>
     <string name="error_download_failed_message">Αποτυχία λήψης πηγής hosts</string>
-    <string name="error_download_failed_details">Καμία από τις ενεργοποιημένες πηγές hosts σας δεν είναι προσβάσιμη. Ελέγξτε ότι είστε σωστά συνδεδεμένοι στο Διαδίκτυο.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Αποτυχία δημιουργίας ιδιωτικού αρχείου</string>
     <string name="error_private_file_failed_details">Δεν είναι δυνατή η δημιουργία ενός ιδιωτικού αρχείου για τη δημιουργία μιας νέας πηγής hosts. Ελέγξτε τον διαθέσιμο χώρο στη συσκευή σας.</string>

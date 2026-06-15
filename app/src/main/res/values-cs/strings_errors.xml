@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Bez připojení k internetu</string>
     <string name="error_no_connection_details">Není možné navázat připojení k internetu. Zkontrolujte, prosím, internetové připojení vašeho zařízení.</string>
     <string name="error_download_failed_message">Není možné stáhnout zdroj hostitelů</string>
-    <string name="error_download_failed_details">Žádný z vašich povolených zdrojů hostitelů není dostupný. Zkontrolujte, prosím, že je vaše připojení k internetu v pořádku.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Vytváření soukromého souboru selhalo</string>
     <string name="error_private_file_failed_details">Není možné vytvořit soukromý soubor potřebný pro sestavení nového souboru hostitelů. Zkontrolujte, prosím, že je na vašem zařízení dostatek volného místa.</string>

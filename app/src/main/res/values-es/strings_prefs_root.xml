@@ -4,15 +4,10 @@
     <!-- Hosts install category -->
     <string name="pref_hosts_installation">Instalación de hosts</string>
     <string name="pref_root_open_hosts">Abrir el archivo hosts</string>
-    <string name="pref_apply_method">Ruta del archivo hosts</string>
-    <string name="pref_apply_method_summary">Antes de cambiar esta configuración, lea la Ayuda sobre esta funcionalidad.</string>
-    <string-array name="pref_apply_method_entries">
-        <item>/system/etc/hosts</item>
-        <item>/data/hosts</item>
-        <item>/data/data/hosts</item>
-        <item>Ruta personalizada</item>
-    </string-array>
-    <string name="pref_custom_target">Ruta personalizada</string>
+
+
+
+
     <string name="pref_never_reboot">Ocultar cuadro de diálogo de reinicio</string>
     <!-- Redirection category -->
     <string name="pref_hosts_redirection">Redirección</string>
@@ -25,10 +20,10 @@
     <string name="pref_webserver_summary">El servidor web local escucha las direcciones IP locales para responder a las peticiones de nombres de host bloqueadas. Puede ayudar con la congelación de aplicaciones en conexiones bloqueadas.</string>
     <string name="pref_webserver_enabled">Habilitar servidor web</string>
     <string name="pref_webserver_test">Probar servidor web</string>
-    <string name="pref_webserver_certificate">Instalar certificado autofirmado</string>
-    <string name="pref_webserver_certificate_dialog_title">Instalación manual del certificado</string>
-    <string name="pref_webserver_certificate_dialog_content">A partir de Android 11 (R), la aplicación ya no puede instalar automáticamente la autoridad de certificación (CA).\n\nVe a la configuración de \"Seguridad\", \"Cifrado y credenciales\" y luego a \"Instalar un certificado\". Desde allí, elige \"Certificado de CA\" y seleccione el archivo del certificado recién exportado.</string>
-    <string name="pref_webserver_certificate_dialog_action">Abrir configuración de \"Seguridad\"</string>
+
+
+
+
     <string name="pref_webserver_state_checking">Comprobando…</string>
     <string name="pref_webserver_state_not_running">No se está ejecutando</string>
     <string name="pref_webserver_state_running_not_installed">En ejecución pero el certificado no está instalado</string>

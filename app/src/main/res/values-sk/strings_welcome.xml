@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <string name="welcome_title">Vitajte</string>
-    <string name="welcome_first_step">Sprievodca – 1. krok</string>
-    <string name="welcome_second_step">Sprievodca – 2. krok</string>
-    <string name="welcome_last_step">Sprievodca – posledný krok</string>
+
+
+
+
 
     <!-- Method UI -->
-    <string name="welcome_method_header">Vitajte v AdAway!</string>
-    <string name="welcome_method_summary">AdAway poskytuje 2 metódy blokovania. Vyberte si jednu:</string>
 
-    <string name="welcome_root_method_logo">Logo rootu</string>
-    <string name="welcome_root_method_title">Blokovač reklám\npomocou rootu</string>
-    <string name="welcome_root_method_text1">Rýchlejšie</string>
-    <string name="welcome_root_method_text2">Šetrné k batérii</string>
-    <string name="welcome_root_method_text3">Vyžaduje root</string>
 
-    <string name="welcome_vpn_method_logo">Logo VPN</string>
+
+
+
+
+
+
+
+
     <string name="welcome_vpn_method_title">Blokovač reklám\npomocou VPN</string>
-    <string name="welcome_vpn_method_text1">Pomalšie</string>
-    <string name="welcome_vpn_method_text2">Beží na pozadí</string>
-    <string name="welcome_vpn_method_text3">Kombatibilita</string>
+
+
+
 
     <string name="welcome_root_missing_title">Je potrebné rootnuté zariadenie</string>
     <string name="welcome_root_missile_description">Buď sa nepodarilo nájsť binárny súbor SU alebo ste nepovolili oprávnenie roota v AdAway.\n\nK tomuto dochádza, keď vaše zariadenie nie je rootnuté. Informácie o tom, ako rootnuť vaše zariadenia nájdete na wiki.lineageos.org alebo na inej stránke o zariadeniach s Androidom.</string>
@@ -29,30 +29,30 @@
     <string name="welcome_vpn_alwayson_blocked_description">Aplikácii AdAway sa nepodarilo vyžiadať prístup k sieti VPN.\n\nMôže to byť spôsobené tým, že iná sieť VPN má aktívne nastavenie \"VPN vždy zapnuté\". Pred ďalším pokusom skontrolujte, či má niektorá VPN toto nastavenie povolené, a vypnite ho.</string>
     <string name="welcome_vpn_alwayson_settings_action">Otvoriť nastavenie \"VPN\"</string>
 
-    <string name="welcome_method_pro_logo">Výhody</string>
-    <string name="welcome_method_con_logo">Nevýhody</string>
+
+
 
     <!-- Sync UI -->
-    <string name="welcome_sync_done_logo">Synchronizácia skončila</string>
-    <string name="welcome_sync_error_logo">Nastala chyba počas synchronizácie</string>
 
-    <string name="welcome_sync_header">Synchronizácia</string>
-    <string name="welcome_synced_header">Synchronizované!</string>
-    <string name="welcome_sync_summary">AdAway sťahuje reklamné siete na blokovanie z online zdrojov. Neskôr ich môžete upraviť.</string>
-    <string name="welcome_sync_retry_logo">Zopakovať synchronizáciu</string>
-    <string name="welcome_sync_error">Synchronizácia zlyhala: %1$s Skúsiť znova?</string>
-    <string name="welcome_sync_notifications">Môže posielať upozornenia na zobrazenie stavu a kontroly blokovania reklám a upozorniť na dostupnú aktualizáciu aplikácie (niekoľko za rok). Ak ich chcete mať stále aktuálne, povoľte ich.</string>
+
+
+
+
+
+
+
+
 
     <!-- Support -->
-    <string name="welcome_support_logo">Podpora</string>
-    <string name="welcome_support_header">Podporte ma!</string>
-    <string name="welcome_support_summary">Je bezplatná aplikácia s otvoreným kódom, ktorú robím vo svojom voľnom čase. Ak sa Vám teda páči, neváhajte vyjadriť svoju podporu:</string>
-    <string name="welcome_support_button">Podpora na PayPal</string>
-    <string name="welcome_support_telemetry_summary">Máte radi chyby? Ani ja nie.</string>
-    <string name="welcome_support_telemetry_button">Povoliť telemetriu a posielať hlásenia o chybe</string>
+
+
+
+
+
+
 
     <!-- Navigation buttons -->
-    <string name="welcome_back_button">Späť</string>
-    <string name="welcome_next_button">Ďalej</string>
-    <string name="welcome_finish_button">Dokončiť</string>
+
+
+
 </resources>

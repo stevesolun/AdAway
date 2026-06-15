@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">No hay conexión a Internet</string>
     <string name="error_no_connection_details">No se pudo conectar a Internet. Comprueba la conectividad del dispositivo.</string>
     <string name="error_download_failed_message">No se pudo descargar la fuente del archivo hosts</string>
-    <string name="error_download_failed_details">No se pudo conectar a ninguna de las fuentes de hosts habilitadas. Comprueba que tienes conexión a Internet.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">No se pudo crear el archivo privado</string>
     <string name="error_private_file_failed_details">No se pudo crear un archivo privado para generar una nueva fuente de hosts. Revisa que el dispositivo tenga espacio libre disponible.</string>

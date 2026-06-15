@@ -25,20 +25,16 @@
     <string name="help_label">Yardım\ipuçlarını göster</string>
 
     <!-- Project card -->
-    <string name="project_label">GitHub sayfasını aç</string>
+
 
     <!-- Support card -->
     <string name="support_label">Projeyi destekle</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub projesi</string>
     <string name="preferences_drawer_item">Tercihler</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Gezinme çekmecesini aç</string>
     <string name="adblock_pause_button_description">Reklam engellemeyi duraklat/devam ettir</string>
-    <string name="update_button">Engellenen alan adlarını güncelle</string>
-    <string name="show_log_button">Alan adlarının isteklerini göster</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Daha fazla bilgi için Yardım\'ı okuyunuz.</string>

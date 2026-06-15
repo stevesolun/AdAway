@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Немає з\'єднання з Інтернет</string>
     <string name="error_no_connection_details">Не вдалося з\'єднатися з Інтернетом. Перевірте підключення на вашому пристої.</string>
     <string name="error_download_failed_message">Не вдалося завантажити джерело хостів</string>
-    <string name="error_download_failed_details">Жоден з увімкнених джерел хостів недоступний. Перевірте, чи є з\'єднання з Інтернетом.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Не вдалося створити приватний файл</string>
     <string name="error_private_file_failed_details">Не вдалося створити приватний файл, щоб сформувати джерело хостів. Перевірте, чи є вільне місце на вашому пристрої.</string>

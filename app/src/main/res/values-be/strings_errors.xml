@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Няма злучэння з інтэрнэтам</string>
     <string name="error_no_connection_details">Немагчыма ўсталяваць злучэнне з інтэрнэтам. Калі ласка, праверце падлучэнне вашай прылады.</string>
     <string name="error_download_failed_message">Не атрымалася загрузіць крыніцу hosts</string>
-    <string name="error_download_failed_details">Ні водная з вашых уключаных крыніц hosts недаступна. Калі ласка, праверце падлучэнне да інтэрнэту.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Не атрымалася стварыць прыватны файл</string>
     <string name="error_private_file_failed_details">Не атрымалася стварыць прыватны файл для генерацыі hosts. Пераканайцеся, што на вашай прыладзе ёсць месца.</string>

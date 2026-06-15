@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">인터넷 연결 안됨</string>
     <string name="error_no_connection_details">인터넷 연결을 설정할 수 없습니다. 장치 연결을 확인하십시오.</string>
     <string name="error_download_failed_message">호스트 소스 다운로드 실패</string>
-    <string name="error_download_failed_details">활성화된 호스트 소스에 연결할 수 없습니다. 인터넷에 제대로 연결되어 있는지 확인하십시오.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">개인 파일 생성 실패</string>
     <string name="error_private_file_failed_details">새 호스트 소스를 빌드하기 위한 개인 파일을 생성할 수 없습니다. 장치에서 사용 가능한 고간을 확인하십시오.</string>

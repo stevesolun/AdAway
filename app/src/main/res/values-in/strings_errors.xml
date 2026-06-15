@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Tidak ada koneksi internet</string>
     <string name="error_no_connection_details">Tidak bisa menyambung koneksi ke internet. Tolong cek koneksi perangkat anda. </string>
     <string name="error_download_failed_message">Gagal mengunduh sumber hosts</string>
-    <string name="error_download_failed_details">Tidak ada satupun sumber hosts anda dapat terjangkau. Tolong cek bahwa anda sudah benar terkoneksi ke internet. </string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Gagal untuk membuat file private</string>
     <string name="error_private_file_failed_details">Gagal membuat file private untuk membangun sumber hosts baru. Tolong cek ruang penyimpanan yang tersedia di perangkat anda. </string>

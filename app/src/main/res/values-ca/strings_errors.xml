@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">No hi ha connexió a internet</string>
     <string name="error_no_connection_details">No es pot establir una connexió a Internet. Comproveu la connectivitat del vostre dispositiu.</string>
     <string name="error_download_failed_message">No s\'ha pogut baixar la font dels amfitrions</string>
-    <string name="error_download_failed_details">Cap de les fonts dels vostres amfitrions habilitats és accessible. Comproveu que esteu connectat correctament a Internet.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">No s\'ha pogut crear el fitxer privat</string>
     <string name="error_private_file_failed_details">No es pot crear un fitxer privat per crear una font d\'amfitrió nova. Comproveu l\'espai lliure disponible al vostre dispositiu.</string>

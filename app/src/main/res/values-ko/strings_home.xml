@@ -23,20 +23,16 @@
     <string name="help_label">도움말 보기</string>
 
     <!-- Project card -->
-    <string name="project_label">GitHub 접속</string>
+
 
     <!-- Support card -->
     <string name="support_label">지원하기</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">Github 프로젝트</string>
     <string name="preferences_drawer_item">환경 설정</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">네비게이션 서랍 열기</string>
     <string name="adblock_pause_button_description">광고 차단 일시정지/재개</string>
-    <string name="update_button">차단된 도메인 업데이트</string>
-    <string name="show_log_button">요청된 도메인 보기</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">더 많은 정보는 도움말을 참조해주세요.</string>

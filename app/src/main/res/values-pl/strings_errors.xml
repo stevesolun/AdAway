@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Brak połączenia z Internetem</string>
     <string name="error_no_connection_details">Nie można nawiązać połączenia z Internetem. Sprawdź podłączenie urządzenia do sieci.</string>
     <string name="error_download_failed_message">Nie można pobrać źródła hostów</string>
-    <string name="error_download_failed_details">Żadne z włączonych źródeł hostów nie jest osiągalne. Sprawdź, czy masz prawidłowe połączenie z Internetem.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Nie udało się utworzyć prywatnego pliku</string>
     <string name="error_private_file_failed_details">Nie można utworzyć prywatnego pliku, aby zbudować nowe źródło hostów. Sprawdź wolne miejsce dostępne w urządzeniu.</string>

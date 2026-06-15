@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Geen internetverbinding</string>
     <string name="error_no_connection_details">Er kan geen verbinding worden gemaakt met het internet. Controleer uw internetverbinding.</string>
     <string name="error_download_failed_message">De hosts-bron kan niet worden opgehaald</string>
-    <string name="error_download_failed_details">Geen van de geselecteerde hosts-bronnen zijn bereikbaar. Controleer uw internetverbinding.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Het privébestand kan niet worden aangemaakt</string>
     <string name="error_private_file_failed_details">Het privébestand, dat nodig is voor de nieuwe hosts-bron, kan niet worden aangemaakt. Controleer of u beschikt over voldoende schijfruimte.</string>

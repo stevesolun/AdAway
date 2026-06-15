@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Ni internetne povezave</string>
     <string name="error_no_connection_details">Ni mogoče vzpostaviti povezave z internetom. Preverite povezljivost vaše naprave.</string>
     <string name="error_download_failed_message">Prenos vira gostiteljev ni uspel</string>
-    <string name="error_download_failed_details">Noben od vaših omogočenih virov gostiteljev ni dosegljiv. Preverite, ali ste pravilno povezani z internetom.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Zasebne datoteke ni bilo mogoče ustvariti</string>
     <string name="error_private_file_failed_details">Ni mogoče ustvariti zasebne datoteke za izdelavo novega vira gostiteljev. Preverite prosti prostor na vaši napravi.</string>

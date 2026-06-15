@@ -7,12 +7,12 @@
     <!-- Update activity -->
     <string name="update_up_to_date_header">Sei aggiornato</string>
     <string name="update_update_available_header">Aggiornamento disponibile</string>
-    <string name="update_updating_header">Aggiornando AdAway</string>
+
     <string name="update_update_button">Aggiorna ora</string>
     <string name="update_progress_label">%1$s/%2$s</string>
     <string name="update_complete_label">Completato</string>
     <string name="update_last_changelog_title">Le ultime novità:</string>
-    <string name="update_new_changelog_title">Registro modifiche</string>
+
     <string name="update_support_title">Supporta lo sviluppo</string>
     <string name="update_donate_button">Fai una donazione</string>
     <string name="update_sponsor_button">Sponsor</string>

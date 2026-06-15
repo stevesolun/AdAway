@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Ez dago Internet elkarketarik</string>
     <string name="error_no_connection_details">Ezin izan da internetera konektatu. Egiaztatu zure gailuaren konexioa.</string>
     <string name="error_download_failed_message">Huts egin du ostalari-iturburuak deskargatzeak</string>
-    <string name="error_download_failed_details">Gaitutako ostalari-iturburu bat ere ez dago eskuragarri! Egiaztatu intenetera konektatuta zaudela.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Ezin izan da fitxategi pribatua sortu</string>
     <string name="error_private_file_failed_details">Ezin izan da ostalari-iturburu berria idazteko fitxategi pribatua sortu. Egiaztatu gailuak nahikoa toki duela.</string>

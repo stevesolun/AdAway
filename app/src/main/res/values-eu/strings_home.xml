@@ -25,20 +25,16 @@
     <string name="help_label">Erakutsi Laguntza\neta aholkuak</string>
 
     <!-- Project card -->
-    <string name="project_label">Ireki GitHub-en orria</string>
+
 
     <!-- Support card -->
     <string name="support_label">Lagundu proiektua</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub proiektua</string>
     <string name="preferences_drawer_item">Hobespenak</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Ireki nabigazio-tiradera</string>
     <string name="adblock_pause_button_description">Eten/Jarraitu irakargien blokeoa</string>
-    <string name="update_button">Eguneratu blokeatutako domeinuak</string>
-    <string name="show_log_button">Erakutsi eskatutako domeinuak</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Irakurri Laguntza argibide gehiagorako.</string>

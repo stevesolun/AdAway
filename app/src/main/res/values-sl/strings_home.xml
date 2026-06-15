@@ -29,20 +29,16 @@
     <string name="help_label">Prikaži pomoč\in namige</string>
 
     <!-- Project card -->
-    <string name="project_label">Odpri stran GitHub</string>
+
 
     <!-- Support card -->
     <string name="support_label">Podpri projekt</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">Projekt GitHub</string>
     <string name="preferences_drawer_item">Nastavitve</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Odpri predal za krmarjenje</string>
     <string name="adblock_pause_button_description">Začasno ustavi/nadaljuj zaviranje oglasov</string>
-    <string name="update_button">Posodobi onemogočene domene</string>
-    <string name="show_log_button">Prikaži zahtevane domene</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Prosimo, preberite pomoč za več informacij.</string>

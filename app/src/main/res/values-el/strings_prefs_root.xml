@@ -4,15 +4,10 @@
     <!-- Hosts install category -->
     <string name="pref_hosts_installation">Hosts εγκατάσταση</string>
     <string name="pref_root_open_hosts">Άνοιγμα του αρχείου hosts</string>
-    <string name="pref_apply_method">Αρχείο hosts προορισμού</string>
-    <string name="pref_apply_method_summary">Πριν μεταβάλετε αυτή την ρύθμιση, διαβάστε την Βοήθεια σχετικά με αυτή την λειτουργικότητα.</string>
-    <string-array name="pref_apply_method_entries">
-        <item>/system/etc/hosts</item>
-        <item>/data/hosts</item>
-        <item>/data/data/hosts</item>
-        <item>Παραμετροποιημένος προορισμός</item>
-    </string-array>
-    <string name="pref_custom_target">Παραμετροποιημένος προορισμός</string>
+
+
+
+
     <string name="pref_never_reboot">Απόκρυψη διαλόγου επανεκκίνησης</string>
     <!-- Redirection category -->
     <string name="pref_hosts_redirection">Ανακατεύθυνση </string>
@@ -25,10 +20,10 @@
     <string name="pref_webserver_summary">Ο τοπικός διακομιστής ιστού ακούει τοπικές διευθύνσεις IP για να απαντήσει σε αποκλεισμένες αιτήσεις hostsname. Μπορεί να βοηθήσει στην κατάψυξη εφαρμογών σε αποκλεισμένη σύνδεση.</string>
     <string name="pref_webserver_enabled">Ενεργοποίηση του διακομιστή ιστοσελίδων</string>
     <string name="pref_webserver_test">Δοκιμή σέρβερ</string>
-    <string name="pref_webserver_certificate">Εγκατάσταση αυτο-υπογραφόμενου πιστοποιητικού</string>
-    <string name="pref_webserver_certificate_dialog_title">Χειροκίνητη εγκατάσταση πιστοποιητικού</string>
-    <string name="pref_webserver_certificate_dialog_content">Ξεκινώντας από το Android 11 (R), η εφαρμογή δεν μπορεί πλέον να εγκαταστήσει αυτόματα την αρχή έκδοσης πιστοποιητικών (CA).\n\nΜεταβείτε στις ρυθμίσεις \"Ασφάλεια\", \"Κρυπτογράφηση &amp; διαπιστευτήρια\" και στη συνέχεια, \"Εγκαταστήστε ένα πιστοποιητικό\". Από εκεί, επιλέξτε \"Πιστοποιητικό CA\" και επιλέξτε το αρχείο πιστοποιητικού που εξήχθη πρόσφατα.</string>
-    <string name="pref_webserver_certificate_dialog_action">Ανοίξτε τις ρυθμίσεις \"Ασφάλεια\"</string>
+
+
+
+
     <string name="pref_webserver_state_checking">Ελεγχος…</string>
     <string name="pref_webserver_state_not_running">Δεν εκτελείται</string>
     <string name="pref_webserver_state_running_not_installed">Εκτελείται αλλα το πιστοποιητικό δεν έχει εγκατασταθεί</string>

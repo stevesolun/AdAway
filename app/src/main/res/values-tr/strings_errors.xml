@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">İnternet bağlantısı yok</string>
     <string name="error_no_connection_details">İnternet bağlantısı kurulamıyor. Lütfen cihaz bağlantınızı kontrol edin.</string>
     <string name="error_download_failed_message">Hosts kaynağı indirilemedi</string>
-    <string name="error_download_failed_details">Etkin hosts kaynaklarınızın hiçbirine ulaşılamıyor. Lütfen İnternet\'e düzgün şekilde bağlandığınızı kontrol edin.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Özel dosya oluşturulamadı</string>
     <string name="error_private_file_failed_details">Yeni bir hosts kaynağı inşa etmek için özel dosya oluşturulamıyor. Lütfen cihazınızda kullanılabilir boş alanı kontrol edin.</string>

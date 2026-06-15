@@ -25,20 +25,16 @@
     <string name="help_label">Show help\nand tips</string>
 
     <!-- Project card -->
-    <string name="project_label">Öppna GitHub-sidan</string>
+
 
     <!-- Support card -->
     <string name="support_label">Stöd projektet</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub project</string>
     <string name="preferences_drawer_item">Inställningar</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">Öppna navigeringsmapp</string>
     <string name="adblock_pause_button_description">Pausa/återuppta annonsblockering</string>
-    <string name="update_button">Uppdatera blockerade domäner</string>
-    <string name="show_log_button">Visa begärda domäner</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Läs Hjälp för mer information.</string>

@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">אין חיבור לאינטרנט</string>
     <string name="error_no_connection_details">לא ניתן ליצור חיבור לאינטרנט. אנא בדוק את קישוריות המכשיר שלך.</string>
     <string name="error_download_failed_message">הורדת מקור קובץ המארחים נכשלה</string>
-    <string name="error_download_failed_details">לא ניתן להגיע לאף אחד ממקורות המארחים המופעלים שלך. אנא בדוק שאתה מחובר כראוי לאינטרנט.</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">יצירת קובץ פרטי נכשלה</string>
     <string name="error_private_file_failed_details">לא ניתן היה ליצור קובץ פרטי לבניית מקור מארחים חדש. אנא בדוק את שטח האחסון הפנוי הזמין במכשיר שלך.</string>

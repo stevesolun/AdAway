@@ -25,20 +25,16 @@
     <string name="help_label">Hilfe\n und Tipps anzeigen</string>
 
     <!-- Project card -->
-    <string name="project_label">GitHub-Seite öffnen</string>
+
 
     <!-- Support card -->
     <string name="support_label">Das Projekt unterstützen</string>
 
     <!-- App bar drawer -->
-    <string name="github_project_drawer_item">GitHub Project</string>
     <string name="preferences_drawer_item">Einstellungen</string>
 
     <!-- App bar buttons -->
-    <string name="open_drawer_button_description">App-Navigation öffnen</string>
     <string name="adblock_pause_button_description">Werbeblockade anhalten/wiederaufnehmen</string>
-    <string name="update_button">Blockierte Domänen aktualisieren</string>
-    <string name="show_log_button">Abgefragte Domänen anzeigen</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">Bitte die Hilfe für mehr Informationen lesen.</string>

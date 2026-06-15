@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Internet nedostupan</string>
     <string name="error_no_connection_details">Nemoguće uspostavljanje povezivanja s internetom. Provjerite svoju mrežnu povezivost uređaja.</string>
     <string name="error_download_failed_message">Neuspjelo preuzimanje izvora poslužitelja</string>
-    <string name="error_download_failed_details">Niti jedan od vaših omogućenih izvora poslužitelja nije dostupan! Provjerite jeste li ispravno povezani na internet?</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Neuspjelo stvaranje privatne datoteke</string>
     <string name="error_private_file_failed_details">Neuspjelo stvaranje privatne datoteke za izgradnju novog izvora poslužitelja. Provjerite slobodan prostor na vašem uređaju.</string>

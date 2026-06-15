@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">Nessuna connessione Internet</string>
     <string name="error_no_connection_details">Impossibile stabilire una connessione Internet. Controlla la connessione del tuo dispositivo</string>
     <string name="error_download_failed_message">Impossibile scaricare dalla sorgente hosts</string>
-    <string name="error_download_failed_details">Nessuna delle sorgenti hosts abilitate è raggiungibile. Assicurati di essere correttamente connesso ad Internet</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Impossibile creare file privato</string>
     <string name="error_private_file_failed_details">Impossibile creare il file privato per assemblare la nuova sorgente hosts. Assicurati che ci sia spazio disponibile sul tuo dispositivo</string>

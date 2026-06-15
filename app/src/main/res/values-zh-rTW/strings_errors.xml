@@ -4,7 +4,7 @@
     <string name="error_no_connection_message">沒有網路連線</string>
     <string name="error_no_connection_details">無法建立網路連接。請檢查您的設備連線。</string>
     <string name="error_download_failed_message">無法下載 hosts 來源</string>
-    <string name="error_download_failed_details">無法存取已啟用的 hosts 來源。請檢查您是否正確連線到網際網路。</string>
+
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">無法建立私人的檔案</string>
     <string name="error_private_file_failed_details">無法建立私人檔案以生成新的 hosts 來源。請檢查裝置上的可用空間。</string>
