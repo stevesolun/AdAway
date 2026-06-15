@@ -939,6 +939,9 @@ public class SecurityHardeningTest {
                         "./gradlew :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace"));
         assertTrue("CodeQL autobuild replacement must use strict dependency verification.",
                 codeqlWorkflow.contains("./gradlew assembleDebug --dependency-verification=strict"));
+        assertTrue("CodeQL Java build must rerun compile tasks so extraction sees source.",
+                codeqlWorkflow.contains(
+                        "./gradlew assembleDebug --dependency-verification=strict --rerun-tasks"));
         assertTrue("CodeQL C++ must use buildless mode when Android debug build compiles no C/C++.",
                 codeqlWorkflow.contains("Initialize CodeQL for C++") &&
                         codeqlWorkflow.contains("if: matrix.language == 'cpp'") &&

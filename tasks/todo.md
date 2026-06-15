@@ -5379,6 +5379,9 @@
   the previous initializer shape because CI proved `build-mode: manual` finalizes with no
   Java/Kotlin extracted; Android SDK setup and `./gradlew assembleDebug
   --dependency-verification=strict` now run only for the Java job.
+- The later Java-only failure was caused by CodeQL seeing an up-to-date/cached `assembleDebug`
+  build that did not execute Java compilation. The Java CodeQL build now adds `--rerun-tasks` so
+  extraction observes real compile work on every run.
 
 ## Plan - 2026-06-15 Goal Continuation 97 Subscribe-All Guard Replacement
 - [x] Replace the Subscribe-All cancellation source-text test with behavior coverage.
