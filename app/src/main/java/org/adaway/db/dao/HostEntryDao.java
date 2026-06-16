@@ -1086,6 +1086,24 @@ public interface HostEntryDao {
     @Query("SELECT `host`, `type`, `redirection` FROM `root_host_entries`")
     Cursor getRootHostsFileCursorMaterialized();
 
+    @Query("SELECT (CASE WHEN `type` = 2 THEN `redirection` ELSE :redirectionIpv4 END) " +
+            "|| ' ' || `host` AS `line` FROM `root_host_entries`")
+    Cursor getRootHostsFileLineCursorMaterializedIpv4(String redirectionIpv4);
+
+    @Query("SELECT (CASE WHEN `type` = 2 THEN `redirection` ELSE :redirectionIpv4 END) " +
+            "|| ' ' || `host` AS `line` FROM `root_host_entries` " +
+            "UNION ALL SELECT :redirectionIpv6 || ' ' || `host` AS `line` " +
+            "FROM `root_host_entries` WHERE `type` != 2")
+    Cursor getRootHostsFileLineCursorMaterializedIpv6(String redirectionIpv4,
+            String redirectionIpv6);
+
+    default Cursor getRootHostsFileLineCursorMaterialized(String redirectionIpv4,
+            String redirectionIpv6, boolean enableIpv6) {
+        return enableIpv6
+                ? getRootHostsFileLineCursorMaterializedIpv6(redirectionIpv4, redirectionIpv6)
+                : getRootHostsFileLineCursorMaterializedIpv4(redirectionIpv4);
+    }
+
     @Query(ROOT_EXPORT_ACTIVE_QUERY)
     List<HostEntry> getAllForRootHostsFileActive();
 

@@ -5281,6 +5281,43 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-16 Goal Continuation 99 Root Hosts Writer Path
+- [x] Add a materialized root-export line cursor so the production root writer can read one
+  preformatted line column instead of assembling every materialized row from three cursor columns.
+- [x] Route `RootModel` through the line cursor only when `root_host_entries` is a valid
+  materialized export, preserving the active-generation fallback for non-materialized runtime truth.
+- [x] Add focused database coverage proving IPv4-only and IPv6-enabled root file lines match the
+  current redirect/block semantics.
+- [x] Run focused compile/test gates and the root-hosts-file benchmark for this slice.
+
+## Review - 2026-06-16 Root Hosts Writer Path
+- `HostEntryDao` now exposes materialized root-export line cursors for IPv4 and IPv6 root hosts
+  files. The IPv6 cursor avoids the first sorted-UNION attempt that measured poorly at 1M rows.
+- `RootModel` uses the line cursor only when `root_export_materialized` is true and keeps the
+  active-generation cursor fallback for non-materialized runtime truth.
+- `RootModel` now writes generated hosts files with a 1 MiB `BufferedWriter` buffer.
+- `SourceDbTest.testRootHostsLineCursorMaterializesFileLines` covers blocked, redirected, suffix,
+  allow-filtered, IPv4-only, and IPv6-enabled line output.
+- Fixed the `SourceLoaderPerformanceTest` root-write fixture to create the same `hosts_stats`
+  metadata row as the production database callback and to mark seeded `root_host_entries` as a
+  valid materialized export.
+- Verification passed:
+  `.\gradlew.bat :app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Connected verification passed on `adaway-api34(AVD)`:
+  `.\gradlew.bat :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.db.SourceDbTest#testRootHostsLineCursorMaterializesFileLines'
+  --dependency-verification=strict --stacktrace`.
+- Budgeted 1M root writer benchmark passed on `adaway-api34(AVD)`:
+  `.\gradlew.bat :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceLoaderPerformanceTest#rootModelCreateHostsFile_requestedRows_recordsWriteBenchmark'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayRootWriteRows=1000000'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayRootWriteIpv4BudgetMs=30000'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayRootWriteIpv6BudgetMs=70000'
+  --dependency-verification=strict --stacktrace`; measured
+  `RootModelHostsFileWriteBenchmark rows=1000000 ipv4Ms=23826 ipv4Bytes=35869214
+  ipv6Ms=51173 ipv6Bytes=65459216`.
+
 ## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
 - [x] Reconfirm PR #6 is green after the CI/CD repair slice.
 - [x] Confirm local JDK 21, Android SDK, NDK `27.2.12479018`, and an API 34 AVD are available.

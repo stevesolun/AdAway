@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -538,6 +539,32 @@ public class SourceDbTest extends DbTest {
     }
 
     @Test
+    public void testRootHostsLineCursorMaterializesFileLines() {
+        setActiveGeneration(2);
+        insertBlockedHost("blocked-line.example", EXTERNAL_SOURCE_ID, 2);
+        insertRedirectedHost("redirect-line.example", "1.1.1.1", EXTERNAL_SOURCE_ID, 2);
+        insertSuffixBlockedHost("suffix-line.example", EXTERNAL_SOURCE_ID, 2);
+        insertBlockedHost("allowed-line.example", EXTERNAL_SOURCE_ID, 2);
+        insertAllowedHost("allowed-line.example", USER_SOURCE_ID, 0);
+
+        this.hostEntryDao.sync();
+
+        assertTrue(this.hostEntryDao.hasMaterializedRootExportRows());
+        assertRootLines(Arrays.asList(
+                "0.0.0.0 blocked-line.example",
+                "1.1.1.1 redirect-line.example",
+                "0.0.0.0 suffix-line.example"),
+                rootLinesFromMaterializedCursor("0.0.0.0", "::", false));
+        assertRootLines(Arrays.asList(
+                "0.0.0.0 blocked-line.example",
+                "1.1.1.1 redirect-line.example",
+                "0.0.0.0 suffix-line.example",
+                ":: blocked-line.example",
+                ":: suffix-line.example"),
+                rootLinesFromMaterializedCursor("0.0.0.0", "::", true));
+    }
+
+    @Test
     public void testRootHostsCursorReadsActiveTruthAndMatchesListApi() {
         setActiveGeneration(2);
         insertRuntimeScaleFixture();
@@ -909,6 +936,25 @@ public class SourceDbTest extends DbTest {
             while (cursor.moveToNext()) {
                 rows.add(cursor.getString(host) + "|" + EXACT.getValue() + "|"
                         + cursor.getInt(type) + "|" + cursor.getString(redirection));
+            }
+        }
+        return rows;
+    }
+
+    private static void assertRootLines(List<String> expected, List<String> actual) {
+        Collections.sort(expected);
+        Collections.sort(actual);
+        assertEquals(expected, actual);
+    }
+
+    private List<String> rootLinesFromMaterializedCursor(String ipv4, String ipv6,
+            boolean enableIpv6) {
+        List<String> rows = new ArrayList<>();
+        try (Cursor cursor = this.hostEntryDao.getRootHostsFileLineCursorMaterialized(
+                ipv4, ipv6, enableIpv6)) {
+            int line = cursor.getColumnIndexOrThrow("line");
+            while (cursor.moveToNext()) {
+                rows.add(cursor.getString(line));
             }
         }
         return rows;

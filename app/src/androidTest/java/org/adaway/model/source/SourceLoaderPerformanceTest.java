@@ -736,8 +736,12 @@ public class SourceLoaderPerformanceTest {
     }
 
     private void insertHostsMeta() {
-        this.db.getOpenHelper().getWritableDatabase()
-                .execSQL("INSERT OR IGNORE INTO hosts_meta (id, active_generation) VALUES (0, 0)");
+        SupportSQLiteDatabase database = this.db.getOpenHelper().getWritableDatabase();
+        database.execSQL("INSERT OR IGNORE INTO hosts_meta " +
+                "(id, active_generation) VALUES (0, 0)");
+        database.execSQL("INSERT OR IGNORE INTO hosts_stats " +
+                "(id, blocked_count, blocked_exact_count, allowed_count, redirected_count, " +
+                "active_rule_count, root_export_materialized) VALUES (0, 0, 0, 0, 0, 0, 0)");
     }
 
     private static void insertSource(HostsSourceDao hostsSourceDao, int id, String url,
@@ -812,6 +816,7 @@ public class SourceLoaderPerformanceTest {
                 }
                 insert.executeInsert();
             }
+            this.hostEntryDao.setRootExportMaterialized(true);
         });
     }
 
