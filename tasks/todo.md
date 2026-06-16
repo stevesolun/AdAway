@@ -5281,6 +5281,70 @@
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
 
+## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
+- [x] Reconfirm PR #6 is green after the CI/CD repair slice.
+- [x] Confirm local JDK 21, Android SDK, NDK `27.2.12479018`, and an API 34 AVD are available.
+- [x] Run the current-head connected runtime-truth/update gates against `43081eff+`.
+- [x] Run focused unit coverage for the parser/security contracts touched by the CI/security slice.
+- [x] Start the next scale/performance gate from existing `SourceLoaderPerformanceTest`
+  benchmarks and record whether 100k/1M/5M are green or still architectural gaps.
+
+## Review - 2026-06-16 Goal Continuation 101
+- PR #6 checks were green before this continuation:
+  `Development build`, `Connected Android tests`, `Analyze (cpp)`, `Analyze (java)`, and
+  aggregate `CodeQL` all passed on `43081eff`.
+- Local environment is usable: JDK 21 is active; `local.properties` points to
+  `C:/Users/solun/AppData/Local/Android/Sdk`; platform-tools, emulator, cmdline-tools, and
+  NDK `27.2.12479018` exist. `adb` is not on PATH, so local commands use the SDK tools by
+  absolute path.
+- The local `adaway-api34` AVD is attached as `emulator-5554` on API 34 with
+  `sys.boot_completed=1`.
+- Current-head connected runtime truth/update gates passed locally:
+  `SourceModelGenerationFailureTest`, `SourceModelHttpConditionalTest`,
+  `DomainCheckerRuntimeTruthTest`, and `MigrationTest` passed with 28 tests and 0 failures;
+  `SourceUpdateServiceWorkManagerTest`, `VpnModelCacheInvalidationTest`, and
+  `DomainCheckerRuntimeTruthTest` passed with 6 tests and 0 failures; and the Subscribe-All
+  worker guards `FilterListsSubscribeAllWorkerDoWorkTest` and
+  `FilterListsSubscribeAllWorkerRoomTest` passed with 6 tests and 0 failures.
+- Focused unit/parser/security coverage passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --tests org.adaway.security.SecurityHardeningTest --dependency-verification=strict
+  --stacktrace`.
+- The 100k allow-heavy runtime/root benchmark passed on `adaway-api34`:
+  `HostEntryAllowHeavySeedBenchmark blockedRows=100000 exactAllowRules=100
+  suffixAllowRules=100 seedRootStage=false stageRows=0 seedMs=15274 checkpointMs=19`;
+  final rebuild metric `runtimeRows=99700 rootRows=99700 materializedRuntimeCache=true
+  syncMs=6190 rootCursorMs=1599`.
+- The direct 1M allow-heavy benchmark is red at the root-cursor gate:
+  `syncMs=49150 rootCursorMs=21229`, failing the explicit `10000ms` root cursor budget.
+- The staged 1M allow-heavy benchmark is also red at the root-cursor gate on both AVDs. On
+  `adaway-api34`, the run failed with `syncMs=22336 rootCursorMs=15495`. On
+  `adaway-api34-16g`, the repeated run failed with `syncMs=25128 rootCursorMs=14901`; its DAO
+  phase evidence was `HostEntryDao.root-export-stage totalMs=19478`, followed by
+  `HostEntryDao.sync skipped materialized runtime cache and rebuilt root export:
+  activeRuleRows=1002000 maxRows=500000 clearMs=2054 rootExportMs=19482 totalMs=21536`.
+- Root-cursor investigation evidence:
+  a device-local SQLite probe showed the current cursor query is a full `root_host_entries`
+  table scan, while a forced covering `(host, type, redirection)` index is a covering scan.
+  The in-app instrumentation probe on the same 1M fixture measured DAO scan `14279ms`, raw
+  table scan `11371ms`, forced covering scan `9512ms`, and covering-index creation `3121ms`.
+- WIP schema/cursor patch evidence:
+  Room schema v29 with covering `index_root_host_entries_host(host, type, redirection)` compiles,
+  and focused migration/runtime plan tests passed:
+  `MigrationTest#migration28To29_rebuildsRootExportCursorIndex` plus
+  `SourceDbTest#testRootHostsCursorReadsActiveTruthAndMatchesListApi`.
+- Negative WIP performance evidence:
+  covering index plus materialized split cursor produced one transient pass at
+  `syncMs=16963 rootCursorMs=9939`, but repeated follow-up attempts were not stable: the
+  extra type-first cursor index regressed to `syncMs=26821 rootCursorMs=18420`, the Java
+  no-redirect split cursor failed at `syncMs=19647 rootCursorMs=11070`, and the SQLite
+  no-redirect constant cursor failed at `syncMs=19489 rootCursorMs=13883`.
+- Current conclusion: PR CI and runtime correctness are green, and the 100k gate is green. The
+  current-head 1M gate is blocked by the materialized root export read path, not by generation
+  activation or update correctness. Do not claim the performance phase complete, and do not
+  merge the current WIP cursor patch as a fix, until the root apply/read architecture is changed
+  enough to pass the 10s 1M cursor gate with margin.
+
 ## Plan - 2026-06-15 Goal Continuation 100 Connected CI Evidence
 - [x] Re-check PR #6 after the CodeQL and dependency fixes.
 - [x] Confirm `Development build`, `Analyze (cpp)`, `Analyze (java)`, and aggregate `CodeQL`
