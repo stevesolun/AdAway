@@ -5318,6 +5318,50 @@
   `RootModelHostsFileWriteBenchmark rows=1000000 ipv4Ms=23826 ipv4Bytes=35869214
   ipv6Ms=51173 ipv6Bytes=65459216`.
 
+## Plan - 2026-06-16 Root Performance Gate Cleanup
+- [x] Audit `getRootHostsFileCursor()` production callers and classify whether root-cursor timing is
+  still user-path performance evidence.
+- [x] Replace large performance-gate cursor timing with production root hosts file write timing,
+  keeping cursor/list checks as correctness-only coverage elsewhere.
+- [x] Add or update source guards so the allow-heavy benchmark exposes root-write budgets rather
+  than stale root-cursor budgets.
+- [x] Run focused compile/unit/connected gates plus 1M and 5M root writer proof.
+- [ ] Push the branch and inspect CI status.
+
+## Review - 2026-06-16 Root Performance Gate Cleanup
+- Production caller audit found `getRootHostsFileCursor()` is no longer the normal materialized
+  root apply hot path. `RootModel` uses materialized root export rows when
+  `root_export_materialized` is true and only falls back to the active cursor when the materialized
+  export is unavailable.
+- `SourceLoaderPerformanceTest` now reports production root hosts file generation metrics:
+  `rootWriteMs` and `rootWriteBytes`. The stale large-gate root-cursor budget arguments were
+  replaced with `adawayPerfRootWriteBudgetMs` and `adawayAllowRebuildRootWriteBudgetMs`.
+- `Generation304MigrationTest.allowHeavyBenchmarkCanSeedRootExportStagePath` now guards that the
+  allow-heavy benchmark exposes the root-write budget and does not keep the old root-cursor budget.
+- The initial 5M root-writer proof exposed a real writer bottleneck: the SQL line-concatenation
+  cursor failed the 300s IPv4 budget at `ipv4Ms=321075` on `adaway-api34-16g`.
+- Replaced the SQL line-concatenation writer with a single materialized row cursor and piece-wise
+  writes for redirection, separator, and hostname. This avoids materializing every full hosts line
+  inside SQLite and preserves the active cursor fallback.
+- Verification passed:
+  `.\gradlew.bat :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest --dependency-verification=strict
+  --stacktrace` and `.\gradlew.bat :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Connected semantics gate passed on `adaway-api34-16g(AVD)`:
+  `SourceDbTest#testRootHostsMaterializedCursorBuildsFileLines`.
+- Connected 10k update/root-apply gate passed:
+  `SourceLoaderPerformanceTest lines=10000 inserted=9500 runtimeRows=9000 progressEvents=5
+  parseMs=5324 syncMs=199 rootRows=9000 rootWriteMs=319 rootWriteBytes=276558`.
+- Connected 1M staged allow-heavy update plus immediate root-write gate passed:
+  `HostEntryAllowHeavyRebuildBenchmark blockedRows=1000000 ... syncMs=19175
+  rootRows=997000 rootWriteMs=14556 rootWriteBytes=53126324`, under explicit
+  `30000ms` sync and root-write budgets.
+- Connected 5M root-writer proof passed on `adaway-api34-16g(AVD)`:
+  `RootModelHostsFileWriteBenchmark rows=5000000 ipv4Ms=196724 ipv4Bytes=183789214
+  ipv6Ms=232078 ipv6Bytes=336139216`, under explicit `300000ms` IPv4 and `600000ms`
+  IPv6 budgets.
+
 ## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
 - [x] Reconfirm PR #6 is green after the CI/CD repair slice.
 - [x] Confirm local JDK 21, Android SDK, NDK `27.2.12479018`, and an API 34 AVD are available.

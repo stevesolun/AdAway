@@ -539,7 +539,7 @@ public class SourceDbTest extends DbTest {
     }
 
     @Test
-    public void testRootHostsLineCursorMaterializesFileLines() {
+    public void testRootHostsMaterializedCursorBuildsFileLines() {
         setActiveGeneration(2);
         insertBlockedHost("blocked-line.example", EXTERNAL_SOURCE_ID, 2);
         insertRedirectedHost("redirect-line.example", "1.1.1.1", EXTERNAL_SOURCE_ID, 2);
@@ -554,14 +554,14 @@ public class SourceDbTest extends DbTest {
                 "0.0.0.0 blocked-line.example",
                 "1.1.1.1 redirect-line.example",
                 "0.0.0.0 suffix-line.example"),
-                rootLinesFromMaterializedCursor("0.0.0.0", "::", false));
+                rootLinesFromMaterializedCursorRows("0.0.0.0", "::", false));
         assertRootLines(Arrays.asList(
                 "0.0.0.0 blocked-line.example",
                 "1.1.1.1 redirect-line.example",
                 "0.0.0.0 suffix-line.example",
                 ":: blocked-line.example",
                 ":: suffix-line.example"),
-                rootLinesFromMaterializedCursor("0.0.0.0", "::", true));
+                rootLinesFromMaterializedCursorRows("0.0.0.0", "::", true));
     }
 
     @Test
@@ -947,14 +947,23 @@ public class SourceDbTest extends DbTest {
         assertEquals(expected, actual);
     }
 
-    private List<String> rootLinesFromMaterializedCursor(String ipv4, String ipv6,
+    private List<String> rootLinesFromMaterializedCursorRows(String ipv4, String ipv6,
             boolean enableIpv6) {
         List<String> rows = new ArrayList<>();
-        try (Cursor cursor = this.hostEntryDao.getRootHostsFileLineCursorMaterialized(
-                ipv4, ipv6, enableIpv6)) {
-            int line = cursor.getColumnIndexOrThrow("line");
+        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursorMaterialized()) {
+            int host = cursor.getColumnIndexOrThrow("host");
+            int type = cursor.getColumnIndexOrThrow("type");
+            int redirection = cursor.getColumnIndexOrThrow("redirection");
             while (cursor.moveToNext()) {
-                rows.add(cursor.getString(line));
+                String hostname = cursor.getString(host);
+                if (cursor.getInt(type) == REDIRECTED.getValue()) {
+                    rows.add(cursor.getString(redirection) + " " + hostname);
+                    continue;
+                }
+                rows.add(ipv4 + " " + hostname);
+                if (enableIpv6) {
+                    rows.add(ipv6 + " " + hostname);
+                }
             }
         }
         return rows;

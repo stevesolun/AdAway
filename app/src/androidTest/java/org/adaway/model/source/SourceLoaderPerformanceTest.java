@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Connected performance gate for the hot update path: parse, raw bulk insert,
- * runtime sync, and root hosts export cursor drain on a file-backed WAL database.
+ * runtime sync, and root hosts file generation on a file-backed WAL database.
  */
 @RunWith(AndroidJUnit4.class)
 public class SourceLoaderPerformanceTest {
@@ -57,7 +57,7 @@ public class SourceLoaderPerformanceTest {
     private static final String ARG_SCALE_LINES = "adawayPerfLines";
     private static final String ARG_SCALE_PARSE_BUDGET_MS = "adawayPerfParseBudgetMs";
     private static final String ARG_SCALE_SYNC_BUDGET_MS = "adawayPerfSyncBudgetMs";
-    private static final String ARG_SCALE_ROOT_CURSOR_BUDGET_MS = "adawayPerfRootCursorBudgetMs";
+    private static final String ARG_SCALE_ROOT_WRITE_BUDGET_MS = "adawayPerfRootWriteBudgetMs";
     private static final String ARG_ROOT_WRITE_ROWS = "adawayRootWriteRows";
     private static final String ARG_ROOT_WRITE_IPV4_BUDGET_MS = "adawayRootWriteIpv4BudgetMs";
     private static final String ARG_ROOT_WRITE_IPV6_BUDGET_MS = "adawayRootWriteIpv6BudgetMs";
@@ -69,8 +69,8 @@ public class SourceLoaderPerformanceTest {
             "adawayAllowRebuildSuffixRules";
     private static final String ARG_ALLOW_REBUILD_SYNC_BUDGET_MS =
             "adawayAllowRebuildSyncBudgetMs";
-    private static final String ARG_ALLOW_REBUILD_ROOT_CURSOR_BUDGET_MS =
-            "adawayAllowRebuildRootCursorBudgetMs";
+    private static final String ARG_ALLOW_REBUILD_ROOT_WRITE_BUDGET_MS =
+            "adawayAllowRebuildRootWriteBudgetMs";
     private static final String ARG_ALLOW_REBUILD_SEED_ROOT_STAGE =
             "adawayAllowRebuildSeedRootStage";
     private static final String ARG_ALLOW_STATS_BLOCKED_ROWS =
@@ -110,7 +110,7 @@ public class SourceLoaderPerformanceTest {
 
     private static final long PARSE_INSERT_BUDGET_MS = 45_000L;
     private static final long SYNC_BUDGET_MS = 45_000L;
-    private static final long ROOT_CURSOR_BUDGET_MS = 10_000L;
+    private static final long ROOT_WRITE_BUDGET_MS = 10_000L;
     private static final int MAX_PROGRESS_EVENTS = 10;
 
     private Context context;
@@ -155,7 +155,7 @@ public class SourceLoaderPerformanceTest {
     }
 
     @Test
-    public void parseInsertSyncAndRootCursor_mixedRules10k_staysWithinBudget() {
+    public void parseInsertSyncAndRootApply_mixedRules10k_staysWithinBudget() throws Exception {
         SourceLoader loader = new SourceLoader(this.source, GENERATION);
         AtomicLong insertedByCallback = new AtomicLong();
         AtomicInteger progressEvents = new AtomicInteger();
@@ -193,9 +193,8 @@ public class SourceLoaderPerformanceTest {
         assertTrue("HostEntryDao.sync after 10k-line import exceeded " + SYNC_BUDGET_MS
                 + "ms: " + syncMs + "ms", syncMs < SYNC_BUDGET_MS);
 
-        long cursorStartMs = SystemClock.elapsedRealtime();
-        int rootRows = drainRootHostsCursor();
-        long cursorMs = SystemClock.elapsedRealtime() - cursorStartMs;
+        long rootRows = materializedRootRowCount();
+        RootWriteResult rootWrite = createRootHostsFileWithTestDatabase(false);
 
         System.out.println("SourceLoaderPerformanceTest lines=" + TOTAL_LINES
                 + " inserted=" + INSERTED_ROWS
@@ -203,14 +202,18 @@ public class SourceLoaderPerformanceTest {
                 + " progressEvents=" + progressEvents.get()
                 + " parseMs=" + parseMs
                 + " syncMs=" + syncMs
-                + " rootCursorMs=" + cursorMs);
+                + " rootRows=" + rootRows
+                + " rootWriteMs=" + rootWrite.elapsedMs
+                + " rootWriteBytes=" + rootWrite.bytes);
         assertEquals(RUNTIME_ROWS, rootRows);
-        assertTrue("Root hosts cursor after 10k-line import exceeded " + ROOT_CURSOR_BUDGET_MS
-                + "ms: " + cursorMs + "ms", cursorMs < ROOT_CURSOR_BUDGET_MS);
+        assertRootWriteBytes(rootWrite, rootRows);
+        assertTrue("Root hosts file write after 10k-line import exceeded "
+                + ROOT_WRITE_BUDGET_MS + "ms: " + rootWrite.elapsedMs + "ms",
+                rootWrite.elapsedMs < ROOT_WRITE_BUDGET_MS);
     }
 
     @Test
-    public void parseInsertSyncAndRootCursor_requestedScale_recordsBenchmark() {
+    public void parseInsertSyncAndRootApply_requestedScale_recordsBenchmark() throws Exception {
         Bundle arguments = InstrumentationRegistry.getArguments();
         int totalLines = getPositiveIntArgument(arguments, ARG_SCALE_LINES, 0);
         assumeTrue("Set instrumentation arg " + ARG_SCALE_LINES
@@ -250,9 +253,8 @@ public class SourceLoaderPerformanceTest {
         assertEquals(expectedMaterializedRuntimeRows(fixture.runtimeRows),
                 scalarLong("SELECT COUNT(*) FROM host_entries"));
 
-        long cursorStartMs = SystemClock.elapsedRealtime();
-        int rootRows = drainRootHostsCursor();
-        long cursorMs = SystemClock.elapsedRealtime() - cursorStartMs;
+        long rootRows = materializedRootRowCount();
+        RootWriteResult rootWrite = createRootHostsFileWithTestDatabase(false);
 
         System.out.println("SourceLoaderScaleBenchmark lines=" + fixture.totalLines
                 + " inserted=" + fixture.insertedRows
@@ -260,16 +262,20 @@ public class SourceLoaderPerformanceTest {
                 + " progressEvents=" + progressEvents.get()
                 + " parseMs=" + parseMs
                 + " syncMs=" + syncMs
-                + " rootCursorMs=" + cursorMs);
+                + " rootRows=" + rootRows
+                + " rootWriteMs=" + rootWrite.elapsedMs
+                + " rootWriteBytes=" + rootWrite.bytes);
         assertEquals(fixture.runtimeRows, rootRows);
+        assertRootWriteBytes(rootWrite, rootRows);
 
         assertWithinOptionalBudget(arguments, ARG_SCALE_PARSE_BUDGET_MS, parseMs);
         assertWithinOptionalBudget(arguments, ARG_SCALE_SYNC_BUDGET_MS, syncMs);
-        assertWithinOptionalBudget(arguments, ARG_SCALE_ROOT_CURSOR_BUDGET_MS, cursorMs);
+        assertWithinOptionalBudget(arguments, ARG_SCALE_ROOT_WRITE_BUDGET_MS,
+                rootWrite.elapsedMs);
     }
 
     @Test
-    public void sqlUpdateDedupAndCarryForward_requestedScale_recordsBenchmark() {
+    public void sqlUpdateDedupAndCarryForward_requestedScale_recordsBenchmark() throws Exception {
         Bundle arguments = InstrumentationRegistry.getArguments();
         int totalLines = getPositiveIntArgument(arguments, ARG_SCALE_LINES, 0);
         assumeTrue("Set instrumentation arg " + ARG_SCALE_LINES
@@ -352,10 +358,9 @@ public class SourceLoaderPerformanceTest {
         runtimeCountMs = SystemClock.elapsedRealtime() - runtimeCountStartMs;
         logScalePhase("runtime-count", runtimeCountMs);
 
-        long cursorStartMs = SystemClock.elapsedRealtime();
-        int rootRows = drainRootHostsCursor();
-        long cursorMs = SystemClock.elapsedRealtime() - cursorStartMs;
-        logScalePhase("root-cursor", cursorMs);
+        long rootRows = materializedRootRowCount();
+        RootWriteResult rootWrite = createRootHostsFileWithTestDatabase(false);
+        logScalePhase("root-write", rootWrite.elapsedMs);
 
         System.out.println("SourceLoaderSqlDedupCarryForwardScaleBenchmark lines="
                 + fixture.totalLines
@@ -370,12 +375,16 @@ public class SourceLoaderPerformanceTest {
                 + " dedupCountMs=" + dedupCountMs
                 + " syncMs=" + syncMs
                 + " runtimeCountMs=" + runtimeCountMs
-                + " rootCursorMs=" + cursorMs);
+                + " rootRows=" + rootRows
+                + " rootWriteMs=" + rootWrite.elapsedMs
+                + " rootWriteBytes=" + rootWrite.bytes);
         assertEquals(expectedRuntimeRows, rootRows);
+        assertRootWriteBytes(rootWrite, rootRows);
 
         assertWithinOptionalBudget(arguments, ARG_SCALE_PARSE_BUDGET_MS, parseMs);
         assertWithinOptionalBudget(arguments, ARG_SCALE_SYNC_BUDGET_MS, syncMs);
-        assertWithinOptionalBudget(arguments, ARG_SCALE_ROOT_CURSOR_BUDGET_MS, cursorMs);
+        assertWithinOptionalBudget(arguments, ARG_SCALE_ROOT_WRITE_BUDGET_MS,
+                rootWrite.elapsedMs);
     }
 
     @Test
@@ -387,33 +396,31 @@ public class SourceLoaderPerformanceTest {
 
         seedRootExportRows(rootRows);
 
-        AppDatabase previousDatabase = swapAppDatabaseSingleton(this.db);
         try {
-            long ipv4Ms = createRootHostsFile(false);
-            long ipv4Bytes = getGeneratedHostsFile().length();
+            RootWriteResult ipv4 = createRootHostsFileWithTestDatabase(false);
 
-            long ipv6Ms = createRootHostsFile(true);
-            long ipv6Bytes = getGeneratedHostsFile().length();
+            RootWriteResult ipv6 = createRootHostsFileWithTestDatabase(true);
 
             System.out.println("RootModelHostsFileWriteBenchmark rows=" + rootRows
-                    + " ipv4Ms=" + ipv4Ms
-                    + " ipv4Bytes=" + ipv4Bytes
-                    + " ipv6Ms=" + ipv6Ms
-                    + " ipv6Bytes=" + ipv6Bytes);
+                    + " ipv4Ms=" + ipv4.elapsedMs
+                    + " ipv4Bytes=" + ipv4.bytes
+                    + " ipv6Ms=" + ipv6.elapsedMs
+                    + " ipv6Bytes=" + ipv6.bytes);
 
-            assertTrue("Generated IPv4 hosts file should not be empty", ipv4Bytes > rootRows);
+            assertTrue("Generated IPv4 hosts file should not be empty", ipv4.bytes > rootRows);
             assertTrue("IPv6-enabled hosts file should be larger than IPv4-only output",
-                    ipv6Bytes > ipv4Bytes);
-            assertWithinOptionalBudget(arguments, ARG_ROOT_WRITE_IPV4_BUDGET_MS, ipv4Ms);
-            assertWithinOptionalBudget(arguments, ARG_ROOT_WRITE_IPV6_BUDGET_MS, ipv6Ms);
+                    ipv6.bytes > ipv4.bytes);
+            assertWithinOptionalBudget(arguments, ARG_ROOT_WRITE_IPV4_BUDGET_MS,
+                    ipv4.elapsedMs);
+            assertWithinOptionalBudget(arguments, ARG_ROOT_WRITE_IPV6_BUDGET_MS,
+                    ipv6.elapsedMs);
         } finally {
-            swapAppDatabaseSingleton(previousDatabase);
             this.context.deleteFile(HOSTS_FILENAME);
         }
     }
 
     @Test
-    public void rebuildRuntimeEntries_allowHeavyRequestedRows_recordsBenchmark() {
+    public void rebuildRuntimeEntries_allowHeavyRequestedRows_recordsBenchmark() throws Exception {
         Bundle arguments = InstrumentationRegistry.getArguments();
         int blockedRows = getPositiveIntArgument(arguments, ARG_ALLOW_REBUILD_BLOCKED_ROWS, 1_000);
         assumeTrue("Set instrumentation arg " + ARG_ALLOW_REBUILD_BLOCKED_ROWS
@@ -462,12 +469,10 @@ public class SourceLoaderPerformanceTest {
         assertEquals(materializedRuntimeCacheExpected ? fixture.expectedRuntimeRows() : 0,
                 runtimeRows);
 
-        long rootCursorMs = 0L;
-        int rootRows = 0;
-        long rootCursorStartMs = SystemClock.elapsedRealtime();
-        rootRows = drainRootHostsCursor();
-        rootCursorMs = SystemClock.elapsedRealtime() - rootCursorStartMs;
+        long rootRows = materializedRootRowCount();
+        RootWriteResult rootWrite = createRootHostsFileWithTestDatabase(false);
         assertEquals(fixture.expectedRootRows(), rootRows);
+        assertRootWriteBytes(rootWrite, rootRows);
         assertEquals(expectedActiveRows, this.hostEntryDao.getActiveRuntimeRuleCountNow());
 
         System.out.println("HostEntryAllowHeavyRebuildBenchmark blockedRows="
@@ -485,11 +490,13 @@ public class SourceLoaderPerformanceTest {
                 + " seedRootStage=" + seedRootStage
                 + " stageRows=" + stageRows
                 + " syncMs=" + syncMs
-                + " rootCursorMs=" + rootCursorMs);
+                + " rootRows=" + rootRows
+                + " rootWriteMs=" + rootWrite.elapsedMs
+                + " rootWriteBytes=" + rootWrite.bytes);
 
         assertWithinOptionalBudget(arguments, ARG_ALLOW_REBUILD_SYNC_BUDGET_MS, syncMs);
-        assertWithinOptionalBudget(arguments, ARG_ALLOW_REBUILD_ROOT_CURSOR_BUDGET_MS,
-                rootCursorMs);
+        assertWithinOptionalBudget(arguments, ARG_ALLOW_REBUILD_ROOT_WRITE_BUDGET_MS,
+                rootWrite.elapsedMs);
     }
 
     @Test
@@ -1022,6 +1029,18 @@ public class SourceLoaderPerformanceTest {
         return SystemClock.elapsedRealtime() - startMs;
     }
 
+    private RootWriteResult createRootHostsFileWithTestDatabase(boolean enableIpv6)
+            throws Exception {
+        AppDatabase previousDatabase = swapAppDatabaseSingleton(this.db);
+        try {
+            long elapsedMs = createRootHostsFile(enableIpv6);
+            return new RootWriteResult(elapsedMs, getGeneratedHostsFile().length());
+        } finally {
+            swapAppDatabaseSingleton(previousDatabase);
+            this.context.deleteFile(HOSTS_FILENAME);
+        }
+    }
+
     private void setEnableIpv6(boolean enabled) {
         this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -1099,14 +1118,15 @@ public class SourceLoaderPerformanceTest {
         System.out.println(message);
     }
 
-    private int drainRootHostsCursor() {
-        int count = 0;
-        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursor()) {
-            while (cursor.moveToNext()) {
-                count++;
-            }
-        }
-        return count;
+    private long materializedRootRowCount() {
+        assertTrue("Root export should be materialized before timing root file generation",
+                this.hostEntryDao.hasMaterializedRootExportRows());
+        return scalarLong("SELECT COUNT(*) FROM root_host_entries");
+    }
+
+    private static void assertRootWriteBytes(RootWriteResult rootWrite, long rootRows) {
+        assertTrue("Generated root hosts file should not be empty: rows=" + rootRows
+                + " bytes=" + rootWrite.bytes, rootWrite.bytes > rootRows);
     }
 
     private void rebuildRuntimeEntries() {
@@ -1116,6 +1136,16 @@ public class SourceLoaderPerformanceTest {
 
     private static long expectedMaterializedRuntimeRows(long activeRows) {
         return activeRows <= HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS ? activeRows : 0L;
+    }
+
+    private static final class RootWriteResult {
+        final long elapsedMs;
+        final long bytes;
+
+        RootWriteResult(long elapsedMs, long bytes) {
+            this.elapsedMs = elapsedMs;
+            this.bytes = bytes;
+        }
     }
 
     private static BufferedReader failingAfterFirstLineReader() {

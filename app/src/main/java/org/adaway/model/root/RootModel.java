@@ -233,38 +233,43 @@ public class RootModel extends AdBlockModel {
 
     private void writeMaterializedHosts(BufferedWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
-        try (Cursor cursor = this.hostEntryDao.getRootHostsFileLineCursorMaterialized(
-                redirectionIpv4, redirectionIpv6, enableIpv6)) {
-            int lineColumn = cursor.getColumnIndexOrThrow("line");
-            while (cursor.moveToNext()) {
-                writer.write(cursor.getString(lineColumn));
-                writer.newLine();
-            }
+        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursorMaterialized()) {
+            writeHostsFromCursor(writer, cursor, redirectionIpv4, redirectionIpv6, enableIpv6);
         }
     }
 
     private void writeActiveHosts(BufferedWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
         try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursor()) {
-            int hostColumn = cursor.getColumnIndexOrThrow("host");
-            int typeColumn = cursor.getColumnIndexOrThrow("type");
-            int redirectionColumn = cursor.getColumnIndexOrThrow("redirection");
-            while (cursor.moveToNext()) {
-                String hostname = cursor.getString(hostColumn);
-                if (cursor.getInt(typeColumn) == REDIRECTED.getValue()) {
-                    writer.write(cursor.getString(redirectionColumn) + " " + hostname);
-                    writer.newLine();
-                    continue;
-                }
-                writer.write(redirectionIpv4 + " " + hostname);
-                writer.newLine();
-                if (!enableIpv6) {
-                    continue;
-                }
-                writer.write(redirectionIpv6 + " " + hostname);
-                writer.newLine();
+            writeHostsFromCursor(writer, cursor, redirectionIpv4, redirectionIpv6, enableIpv6);
+        }
+    }
+
+    private static void writeHostsFromCursor(BufferedWriter writer, Cursor cursor,
+            String redirectionIpv4, String redirectionIpv6, boolean enableIpv6)
+            throws IOException {
+        int hostColumn = cursor.getColumnIndexOrThrow("host");
+        int typeColumn = cursor.getColumnIndexOrThrow("type");
+        int redirectionColumn = cursor.getColumnIndexOrThrow("redirection");
+        while (cursor.moveToNext()) {
+            String hostname = cursor.getString(hostColumn);
+            if (cursor.getInt(typeColumn) == REDIRECTED.getValue()) {
+                writeHostLine(writer, cursor.getString(redirectionColumn), hostname);
+                continue;
+            }
+            writeHostLine(writer, redirectionIpv4, hostname);
+            if (enableIpv6) {
+                writeHostLine(writer, redirectionIpv6, hostname);
             }
         }
+    }
+
+    private static void writeHostLine(BufferedWriter writer, String redirection, String hostname)
+            throws IOException {
+        writer.write(redirection);
+        writer.write(' ');
+        writer.write(hostname);
+        writer.newLine();
     }
 
     /**

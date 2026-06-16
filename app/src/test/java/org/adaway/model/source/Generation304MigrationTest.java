@@ -281,6 +281,13 @@ public class Generation304MigrationTest {
         assertTrue("Allow-heavy benchmark output must report whether the staged path was seeded.",
                 perfTest.contains("seedRootStage=") &&
                         perfTest.contains("stageRows="));
+        assertTrue("Allow-heavy benchmark must budget the production root write path.",
+                perfTest.contains("ARG_ALLOW_REBUILD_ROOT_WRITE_BUDGET_MS") &&
+                        perfTest.contains("adawayAllowRebuildRootWriteBudgetMs") &&
+                        perfTest.contains("rootWriteMs="));
+        assertFalse("Allow-heavy benchmark must not keep stale root-cursor performance budgets.",
+                perfTest.contains("ARG_ALLOW_REBUILD_ROOT_CURSOR_BUDGET_MS") ||
+                        perfTest.contains("adawayAllowRebuildRootCursorBudgetMs"));
     }
 
     @Test
