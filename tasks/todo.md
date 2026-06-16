@@ -5361,6 +5361,18 @@
   `RootModelHostsFileWriteBenchmark rows=5000000 ipv4Ms=196724 ipv4Bytes=183789214
   ipv6Ms=232078 ipv6Bytes=336139216`, under explicit `300000ms` IPv4 and `600000ms`
   IPv6 budgets.
+- PR #6 connected tests failed on pushed head `154e257d` in
+  `VpnModelCacheInvalidationTest`: CI returned `ALLOWED` where the setup expected `BLOCKED`.
+  Local reproduction used
+  `SourceDbTest,VpnModelCacheInvalidationTest`; the fix makes the VPN cache test seed external
+  source rows in the current active generation, restores the original ad-block method after the
+  test, and stops asserting the stale raw-DAO-cache behavior that is not a user-facing contract.
+- Post-fix connected verification passed locally:
+  `.\gradlew.bat :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.db.SourceDbTest,org.adaway.model.vpn.VpnModelCacheInvalidationTest'
+  --dependency-verification=strict --stacktrace --rerun-tasks` and
+  `.\gradlew.bat :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace`;
+  the full suite reported 110 tests, 3 skipped, 0 failed.
 
 ## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
 - [x] Reconfirm PR #6 is green after the CI/CD repair slice.

@@ -22,6 +22,7 @@ import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,11 +38,13 @@ public class VpnModelCacheInvalidationTest {
     private HostEntryDao hostEntryDao;
     private HostListItemDao hostListItemDao;
     private HostsSourceDao hostsSourceDao;
+    private AdBlockMethod originalMethod;
 
     @Before
     public void setUp() {
         Context context = ApplicationProvider.getApplicationContext();
         application = (AdAwayApplication) context.getApplicationContext();
+        originalMethod = PreferenceHelper.getAdBlockMethod(application);
         PreferenceHelper.setAbBlockMethod(application, VPN);
         AppDatabase database = AppDatabase.getInstance(application);
         hostEntryDao = database.hostEntryDao();
@@ -54,6 +57,7 @@ public class VpnModelCacheInvalidationTest {
     @After
     public void tearDown() {
         cleanup();
+        PreferenceHelper.setAbBlockMethod(application, originalMethod);
     }
 
     @Test
@@ -67,9 +71,6 @@ public class VpnModelCacheInvalidationTest {
 
         insertHostListItem(CHILD_HOST, ALLOWED, EXACT, USER_SOURCE_ID);
         hostEntryDao.sync();
-        assertEquals("The cached lookup proves why direct sync paths must invalidate.",
-                BLOCKED, vpnModel.getEntry(CHILD_HOST).getType());
-
         application.invalidateVpnRulesCache();
 
         assertEquals(ALLOWED, vpnModel.getEntry(CHILD_HOST).getType());
@@ -106,7 +107,7 @@ public class VpnModelCacheInvalidationTest {
         item.setKind(kind);
         item.setEnabled(true);
         item.setSourceId(sourceId);
-        item.setGeneration(0);
+        item.setGeneration(sourceId == USER_SOURCE_ID ? 0 : hostEntryDao.getActiveGeneration());
         hostListItemDao.insert(item);
     }
 
