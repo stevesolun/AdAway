@@ -5326,7 +5326,7 @@
 - [x] Add or update source guards so the allow-heavy benchmark exposes root-write budgets rather
   than stale root-cursor budgets.
 - [x] Run focused compile/unit/connected gates plus 1M and 5M root writer proof.
-- [ ] Push the branch and inspect CI status.
+- [x] Push the branch and inspect CI status.
 
 ## Review - 2026-06-16 Root Performance Gate Cleanup
 - Production caller audit found `getRootHostsFileCursor()` is no longer the normal materialized
@@ -5373,6 +5373,9 @@
   --dependency-verification=strict --stacktrace --rerun-tasks` and
   `.\gradlew.bat :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace`;
   the full suite reported 110 tests, 3 skipped, 0 failed.
+- Pushed `e77abc40` to PR #6 and inspected replacement checks. GitHub reported
+  `Development build`, `Connected Android tests`, `CodeQL`, `Analyze (cpp)`, and
+  `Analyze (java)` all passing on the pushed head.
 
 ## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
 - [x] Reconfirm PR #6 is green after the CI/CD repair slice.
