@@ -502,7 +502,8 @@ public class SecurityHardeningTest {
                 cleanupWorkflow.contains("delete_tags:") &&
                         cleanupWorkflow.contains("${{ inputs.delete_tags }}"));
         assertTrue("Manual release cleanup must keep source archive tags.",
-                cleanupWorkflow.contains("delete_tags: false"));
+                cleanupWorkflow.contains("gh release delete") &&
+                        !cleanupWorkflow.contains("--cleanup-tag"));
         assertTrue("Release docs must say generated release notes are disabled.",
                 releasing.contains("disables generated") &&
                         releasing.contains("release notes"));

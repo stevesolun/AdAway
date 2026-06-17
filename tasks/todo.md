@@ -5715,6 +5715,10 @@
 - Replaced `dev-drprasad/delete-older-releases` with `gh release list` and `gh release delete`
   because its latest tag still declares `node20`; the replacement keeps tags by avoiding
   `--cleanup-tag`.
+- First pushed CI run failed in `SecurityHardeningTest` because the old regression expected the
+  removed `delete_tags: false` action input. Updated the test to assert the new invariant directly:
+  cleanup uses `gh release delete` and does not pass `--cleanup-tag`.
 - Verification passed:
   Python parsed every `.github/workflows/*.yml` file, `git diff --check` passed with only existing
-  CRLF warnings, and the action metadata verifier reported only `node24` or `composite` runtimes.
+  CRLF warnings, the action metadata verifier reported only `node24` or `composite` runtimes, and
+  `.\gradlew.bat --no-daemon test --dependency-verification=strict --stacktrace` passed.
