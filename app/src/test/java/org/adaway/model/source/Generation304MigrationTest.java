@@ -291,6 +291,18 @@ public class Generation304MigrationTest {
     }
 
     @Test
+    public void rootModelUsesExplicitRootApplyCursors() throws Exception {
+        String rootModel = readRepoFile("app/src/main/java/org/adaway/model/root/RootModel.java");
+
+        assertTrue("Root apply must use the materialized root export cursor for the normal path.",
+                rootModel.contains("getRootHostsFileCursorMaterialized()"));
+        assertTrue("Root apply fallback must use the explicit active streaming cursor.",
+                rootModel.contains("getActiveRootHostsFileCursor()"));
+        assertFalse("Root apply must not use the ambiguous materialized-or-active cursor.",
+                rootModel.contains("hostEntryDao.getRootHostsFileCursor()"));
+    }
+
+    @Test
     public void largeRootExportSkipsRedirectPhaseWhenNoRedirectRules() throws Exception {
         String dao = readRepoFile("app/src/main/java/org/adaway/db/dao/HostEntryDao.java");
 

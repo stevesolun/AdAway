@@ -1158,7 +1158,7 @@ public interface HostEntryDao {
         }
 
         List<HostEntry> entries = new ArrayList<>();
-        try (Cursor cursor = getRootHostsFileCursorActiveFiltered()) {
+        try (Cursor cursor = getActiveRootHostsFileCursor()) {
             int hostColumn = cursor.getColumnIndexOrThrow("host");
             int typeColumn = cursor.getColumnIndexOrThrow("type");
             int redirectionColumn = cursor.getColumnIndexOrThrow("redirection");
@@ -1178,6 +1178,10 @@ public interface HostEntryDao {
         return hasMaterializedRootExportRows()
                 ? getRootHostsFileCursorMaterialized()
                 : getRootHostsFileCursorActiveFiltered();
+    }
+
+    default Cursor getActiveRootHostsFileCursor() {
+        return getRootHostsFileCursorActiveFiltered();
     }
 
     private Cursor getRootHostsFileCursorActiveFiltered() {

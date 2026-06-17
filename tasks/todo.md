@@ -5376,6 +5376,24 @@
 - Pushed `e77abc40` to PR #6 and inspected replacement checks. GitHub reported
   `Development build`, `Connected Android tests`, `CodeQL`, `Analyze (cpp)`, and
   `Analyze (java)` all passing on the pushed head.
+- Final completion audit found `RootModel.writeActiveHosts(...)` still called the ambiguous
+  materialized-or-active `getRootHostsFileCursor()` fallback directly. Replaced that production
+  caller with explicit `getActiveRootHostsFileCursor()` and added a source-contract guard so root
+  apply uses `getRootHostsFileCursorMaterialized()` for the normal path and the named active
+  streaming cursor for the fallback.
+- Re-running the 5M proof on JDK 21 initially exposed a current-state regression:
+  `RootModelHostsFileWriteBenchmark rows=5000000 ipv4Ms=332097 ipv4Bytes=183789214
+  ipv6Ms=297052 ipv6Bytes=336139216`, failing the explicit `300000ms` IPv4 budget.
+  Replaced the hot `BufferedWriter`/`OutputStreamWriter` hosts-line path with a reusable buffered
+  byte writer while preserving UTF-8 handling for headers/source labels.
+- Post-writer verification passed on JDK 21:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `SourceDbTest#testRootHostsMaterializedCursorBuildsFileLines`; and the required 5M proof:
+  `RootModelHostsFileWriteBenchmark rows=5000000 ipv4Ms=267232 ipv4Bytes=183789214
+  ipv6Ms=236081 ipv6Bytes=336139216`, under explicit `300000ms` IPv4 and `600000ms`
+  IPv6 budgets.
 
 ## Plan - 2026-06-16 Goal Continuation 101 Current-Head Runtime And Scale Proof
 - [x] Reconfirm PR #6 is green after the CI/CD repair slice.

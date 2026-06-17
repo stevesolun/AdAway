@@ -38,11 +38,13 @@ import org.adaway.model.error.HostErrorException;
 import org.adaway.util.AppExecutors;
 import org.adaway.util.WebServerUtils;
 
-import java.io.BufferedWriter;
+import java.io.BufferedOutputStream;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -178,9 +180,8 @@ public class RootModel extends AdBlockModel {
      */
     private void createNewHostsFile() throws HostErrorException {
         deleteNewHostsFile();
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
-                this.context.openFileOutput(HOSTS_FILENAME, MODE_PRIVATE)),
-                HOSTS_FILE_BUFFER_SIZE)) {
+        try (HostsFileWriter writer = new HostsFileWriter(
+                this.context.openFileOutput(HOSTS_FILENAME, MODE_PRIVATE))) {
             writeHostsHeader(writer);
             writeLoopbackToHosts(writer);
             writeHosts(writer);
@@ -189,7 +190,7 @@ public class RootModel extends AdBlockModel {
         }
     }
 
-    private void writeHostsHeader(BufferedWriter writer) throws IOException {
+    private void writeHostsHeader(HostsFileWriter writer) throws IOException {
         // Format current date
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
         Date now = new Date();
@@ -211,14 +212,14 @@ public class RootModel extends AdBlockModel {
         writer.newLine();
     }
 
-    private void writeLoopbackToHosts(BufferedWriter writer) throws IOException {
+    private void writeLoopbackToHosts(HostsFileWriter writer) throws IOException {
         writer.write(LOCALHOST_IPV4 + " " + LOCALHOST_HOSTNAME);
         writer.newLine();
         writer.write(LOCALHOST_IPV6 + " " + LOCALHOST_HOSTNAME);
         writer.newLine();
     }
 
-    private void writeHosts(BufferedWriter writer) throws IOException {
+    private void writeHosts(HostsFileWriter writer) throws IOException {
         // Get user preferences
         String redirectionIpv4 = PreferenceHelper.getRedirectionIpv4(this.context);
         String redirectionIpv6 = PreferenceHelper.getRedirectionIpv6(this.context);
@@ -231,21 +232,21 @@ public class RootModel extends AdBlockModel {
         writeActiveHosts(writer, redirectionIpv4, redirectionIpv6, enableIpv6);
     }
 
-    private void writeMaterializedHosts(BufferedWriter writer, String redirectionIpv4,
+    private void writeMaterializedHosts(HostsFileWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
         try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursorMaterialized()) {
             writeHostsFromCursor(writer, cursor, redirectionIpv4, redirectionIpv6, enableIpv6);
         }
     }
 
-    private void writeActiveHosts(BufferedWriter writer, String redirectionIpv4,
+    private void writeActiveHosts(HostsFileWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
-        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursor()) {
+        try (Cursor cursor = this.hostEntryDao.getActiveRootHostsFileCursor()) {
             writeHostsFromCursor(writer, cursor, redirectionIpv4, redirectionIpv6, enableIpv6);
         }
     }
 
-    private static void writeHostsFromCursor(BufferedWriter writer, Cursor cursor,
+    private static void writeHostsFromCursor(HostsFileWriter writer, Cursor cursor,
             String redirectionIpv4, String redirectionIpv6, boolean enableIpv6)
             throws IOException {
         int hostColumn = cursor.getColumnIndexOrThrow("host");
@@ -264,12 +265,72 @@ public class RootModel extends AdBlockModel {
         }
     }
 
-    private static void writeHostLine(BufferedWriter writer, String redirection, String hostname)
+    private static void writeHostLine(HostsFileWriter writer, String redirection, String hostname)
             throws IOException {
         writer.write(redirection);
         writer.write(' ');
         writer.write(hostname);
         writer.newLine();
+    }
+
+    private static final class HostsFileWriter implements Closeable {
+        private final OutputStream output;
+        private final byte[] buffer;
+        private int position;
+
+        HostsFileWriter(OutputStream output) {
+            this.output = new BufferedOutputStream(output, HOSTS_FILE_BUFFER_SIZE);
+            this.buffer = new byte[HOSTS_FILE_BUFFER_SIZE];
+        }
+
+        void write(String value) throws IOException {
+            if (value == null) {
+                return;
+            }
+            int length = value.length();
+            for (int index = 0; index < length; index++) {
+                char character = value.charAt(index);
+                if (character <= 0x7F) {
+                    write((byte) character);
+                    continue;
+                }
+                writeUtf8(value.substring(index));
+                return;
+            }
+        }
+
+        void write(char value) throws IOException {
+            write((byte) value);
+        }
+
+        void newLine() throws IOException {
+            write(LINE_SEPARATOR);
+        }
+
+        private void writeUtf8(String value) throws IOException {
+            flushBuffer();
+            this.output.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private void write(byte value) throws IOException {
+            if (this.position == this.buffer.length) {
+                flushBuffer();
+            }
+            this.buffer[this.position++] = value;
+        }
+
+        private void flushBuffer() throws IOException {
+            if (this.position > 0) {
+                this.output.write(this.buffer, 0, this.position);
+                this.position = 0;
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            flushBuffer();
+            this.output.close();
+        }
     }
 
     /**
