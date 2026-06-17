@@ -169,8 +169,6 @@ public class SourceLoaderPerformanceTest {
                     insertedByCallback.addAndGet(inserted);
                     progressEvents.incrementAndGet();
                 },
-                null,
-                Integer.MAX_VALUE,
                 null);
         long parseMs = SystemClock.elapsedRealtime() - parseStartMs;
 
@@ -233,8 +231,6 @@ public class SourceLoaderPerformanceTest {
                     insertedByCallback.addAndGet(inserted);
                     progressEvents.incrementAndGet();
                 },
-                null,
-                Integer.MAX_VALUE,
                 null);
         long parseMs = SystemClock.elapsedRealtime() - parseStartMs;
 
@@ -566,8 +562,7 @@ public class SourceLoaderPerformanceTest {
 
         try {
             loader.parse(failingAfterFirstLineReader(), this.hostListItemDao,
-                    this.db.getOpenHelper().getWritableDatabase(), null, null,
-                    Integer.MAX_VALUE, null);
+                    this.db.getOpenHelper().getWritableDatabase(), null, null);
             fail("Expected parse failure for a reader that throws mid-stream");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("Failed to parse hosts source"));

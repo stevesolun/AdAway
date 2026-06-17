@@ -31,7 +31,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
@@ -114,7 +113,7 @@ class SourceLoader {
     }
 
     int parse(BufferedReader reader, HostListItemDao hostListItemDao) {
-        return parse(reader, hostListItemDao, null, null, null, Integer.MAX_VALUE, null);
+        return parse(reader, hostListItemDao, null, null, null);
     }
 
     /**
@@ -125,36 +124,7 @@ class SourceLoader {
      * @return The number of skipped (malformed or unrecognized) lines.
      */
     int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted) {
-        return parse(reader, hostListItemDao, null, onBatchInserted, null, Integer.MAX_VALUE, null);
-    }
-
-    /**
-     * Parse hosts source and insert into database with global deduplication.
-     * @param reader The source reader.
-     * @param hostListItemDao The DAO for inserting items.
-     * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
-     * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
-     * @return The number of skipped (malformed or unrecognized) lines.
-     */
-    int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
-               @Nullable java.util.Set<String> globalSeenHosts) {
-        return parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, Integer.MAX_VALUE, null);
-    }
-
-    /**
-     * Parse hosts source and insert into database with global deduplication and memory cap.
-     * @param reader The source reader.
-     * @param hostListItemDao The DAO for inserting items.
-     * @param onBatchInserted Callback called after each batch insert with the count of inserted items.
-     * @param globalSeenHosts Set of globally seen hosts for deduplication across sources. Can be null.
-     * @param maxDedupEntries Maximum entries in dedup set before disabling dedup to prevent OOM.
-     * @param dedupCapReached Flag set to true when dedup cap is reached (may be null).
-     * @return The number of skipped (malformed or unrecognized) lines.
-     */
-    int parse(BufferedReader reader, HostListItemDao hostListItemDao, @Nullable LongConsumer onBatchInserted,
-               @Nullable java.util.Set<String> globalSeenHosts, int maxDedupEntries,
-               @Nullable AtomicBoolean dedupCapReached) {
-        return parse(reader, hostListItemDao, null, onBatchInserted, globalSeenHosts, maxDedupEntries, dedupCapReached);
+        return parse(reader, hostListItemDao, null, onBatchInserted, null);
     }
 
     /**
@@ -167,30 +137,7 @@ class SourceLoader {
                HostListItemDao hostListItemDao,
                @Nullable SupportSQLiteDatabase db,
                @Nullable LongConsumer onBatchInserted,
-               @Nullable java.util.Set<String> globalSeenHosts,
-               int maxDedupEntries,
-               @Nullable AtomicBoolean dedupCapReached) {
-        return parse(reader, hostListItemDao, db, onBatchInserted, globalSeenHosts,
-                maxDedupEntries, dedupCapReached, null);
-    }
-
-    int parse(BufferedReader reader,
-               HostListItemDao hostListItemDao,
-               @Nullable SupportSQLiteDatabase db,
-               @Nullable LongConsumer onBatchInserted,
                @Nullable SqlUpdateDeduper sqlDeduper) {
-        return parse(reader, hostListItemDao, db, onBatchInserted, null,
-                Integer.MAX_VALUE, null, sqlDeduper);
-    }
-
-    private int parse(BufferedReader reader,
-               HostListItemDao hostListItemDao,
-               @Nullable SupportSQLiteDatabase db,
-               @Nullable LongConsumer onBatchInserted,
-               @Nullable java.util.Set<String> globalSeenHosts,
-               int maxDedupEntries,
-        @Nullable AtomicBoolean dedupCapReached,
-        @Nullable SqlUpdateDeduper sqlDeduper) {
         // Clear any previous partial import for THIS generation only (atomic updates keep old generations intact).
         hostListItemDao.clearSourceHostsForGeneration(this.source.getId(), this.generation);
         if (db != null) {
@@ -219,7 +166,7 @@ class SourceLoader {
         executorService.execute(sourceReader);
         for (int i = 0; i < PARSER_COUNT; i++) {
             executorService.execute(new HostListItemParser(this.source, hostsLineQueue, hostsListItemQueue,
-                    globalSeenHosts, maxDedupEntries, dedupCapReached, skippedLines));
+                    skippedLines));
         }
         Future<Integer> inserterFuture = executorService.submit(inserter);
         int skipped = 0;
@@ -506,25 +453,14 @@ class SourceLoader {
         private final HostsSource source;
         private final BlockingQueue<String> lineQueue;
         private final BlockingQueue<HostListItem> itemQueue;
-        @Nullable
-        private final java.util.Set<String> globalSeenHosts;
-        private final int maxDedupEntries;
-        @Nullable
-        private final AtomicBoolean dedupCapReached;
         private final AtomicInteger skippedLines;
 
         private HostListItemParser(HostsSource source, BlockingQueue<String> lineQueue,
                                    BlockingQueue<HostListItem> itemQueue,
-                                   @Nullable java.util.Set<String> globalSeenHosts,
-                                   int maxDedupEntries,
-                                   @Nullable AtomicBoolean dedupCapReached,
                                    AtomicInteger skippedLines) {
             this.source = source;
             this.lineQueue = lineQueue;
             this.itemQueue = itemQueue;
-            this.globalSeenHosts = globalSeenHosts;
-            this.maxDedupEntries = maxDedupEntries;
-            this.dedupCapReached = dedupCapReached;
             this.skippedLines = skippedLines;
         }
 
@@ -551,19 +487,7 @@ class SourceLoader {
                             // Track failed parse attempts
                             this.skippedLines.incrementAndGet();
                         } else {
-                            // Memory-safe deduplication with cap
-                            if (globalSeenHosts == null) {
-                                this.itemQueue.put(item);
-                            } else if (dedupCapReached != null && dedupCapReached.get()) {
-                                // Cap reached - allow through without dedup (correctness over memory)
-                                this.itemQueue.put(item);
-                            } else if (globalSeenHosts.size() >= maxDedupEntries) {
-                                // Just hit the cap
-                                if (dedupCapReached != null) dedupCapReached.set(true);
-                                this.itemQueue.put(item);
-                            } else if (globalSeenHosts.add(buildDedupKey(item))) {
-                                this.itemQueue.put(item);
-                            }
+                            this.itemQueue.put(item);
                         }
                     }
                 } catch (InterruptedException e) {
@@ -685,14 +609,6 @@ class SourceLoader {
             }
             return RegexUtils.isValidWildcardHostname(hostname);
         }
-    }
-
-    static String buildDedupKey(HostListItem item) {
-        String redirection = item.getRedirection() == null ? "" : item.getRedirection();
-        return item.getType().getValue() + ":" +
-                item.getKind().getValue() + ":" +
-                item.getHost() + ":" +
-                redirection;
     }
 
     private static class ItemInserter implements Callable<Integer> {

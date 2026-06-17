@@ -1,13 +1,8 @@
 package org.adaway.model.source;
 
-import org.adaway.db.entity.HostListItem;
 import org.junit.Test;
 
 import java.util.regex.Matcher;
-
-import static org.adaway.db.entity.ListType.ALLOWED;
-import static org.adaway.db.entity.ListType.BLOCKED;
-import static org.adaway.db.entity.ListType.REDIRECTED;
 
 import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.db.entity.RuleKind.SUFFIX;
@@ -30,45 +25,6 @@ import static org.junit.Assert.*;
  * Also tests ABP/uBO $options rule handling in extractHostnameFromNonHostsSyntax.
  */
 public class SourceLoaderParserPatternsTest {
-
-    // -----------------------------------------------------------------------
-    // DEDUP KEY tests
-    // -----------------------------------------------------------------------
-
-    @Test
-    public void dedupKey_keepsAllowRulesDistinctFromBlockedRules() {
-        HostListItem blocked = item("example.com", BLOCKED);
-        HostListItem allowed = item("example.com", ALLOWED);
-
-        assertNotEquals(SourceLoader.buildDedupKey(blocked), SourceLoader.buildDedupKey(allowed));
-    }
-
-    @Test
-    public void dedupKey_keepsRedirectTargetsDistinct() {
-        HostListItem first = item("example.com", REDIRECTED);
-        first.setRedirection("8.8.8.8");
-        HostListItem second = item("example.com", REDIRECTED);
-        second.setRedirection("1.1.1.1");
-
-        assertNotEquals(SourceLoader.buildDedupKey(first), SourceLoader.buildDedupKey(second));
-    }
-
-    @Test
-    public void dedupKey_deduplicatesEquivalentRules() {
-        HostListItem first = item("example.com", BLOCKED);
-        HostListItem second = item("example.com", BLOCKED);
-
-        assertEquals(SourceLoader.buildDedupKey(first), SourceLoader.buildDedupKey(second));
-    }
-
-    private static HostListItem item(String host, org.adaway.db.entity.ListType type) {
-        HostListItem item = new HostListItem();
-        item.setHost(host);
-        item.setType(type);
-        item.setKind(EXACT);
-        item.setEnabled(true);
-        return item;
-    }
 
     // -----------------------------------------------------------------------
     // UNBOUND_LOCAL_ZONE tests

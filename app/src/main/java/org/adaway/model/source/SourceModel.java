@@ -9,7 +9,6 @@ import static java.net.HttpURLConnection.HTTP_NOT_MODIFIED;
 import static java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME;
 import static java.time.format.FormatStyle.MEDIUM;
 import static java.time.temporal.ChronoUnit.WEEKS;
-import static java.util.Objects.requireNonNull;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -48,7 +47,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.time.ZonedDateTime;
@@ -60,9 +58,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -77,11 +73,6 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import okio.Buffer;
-import okio.BufferedSource;
-import okio.ForwardingSource;
-import okio.Okio;
-import okio.Source;
 import timber.log.Timber;
 
 /**
@@ -538,210 +529,12 @@ public class SourceModel {
     }
 
     /**
-     * Retrieve all hosts sources files to copy into a private local file.
+     * Retrieve all enabled hosts sources through the staged full-update pipeline.
      *
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */
     public void retrieveHostsSources() throws HostErrorException {
-        if (useStagedPipelineForLegacyRetrieve()) {
-            checkAndRetrieveHostsSources();
-            return;
-        }
-        // Check connection status
-        if (isDeviceOffline()) {
-            throw new HostErrorException(NO_CONNECTION);
-        }
-        if (!beginUpdateOperation("retrieveHostsSources")) {
-            return;
-        }
-        // Update state to downloading
-        setState(R.string.status_retrieve);
-        try {
-            final SupportSQLiteDatabase writableDb = this.database.getOpenHelper().getWritableDatabase();
-            final int importGeneration = ensureAndGetActiveGeneration(writableDb);
-            this.currentImportGeneration = importGeneration;
-
-            // Split sources:
-            // - Disabled: clear DB entries
-            // - Enabled FILE: read sequentially (no network)
-            // - Enabled URL: download in parallel (capped) + import sequentially to avoid DB contention
-            List<HostsSource> all = this.hostsSourceDao.getAll();
-            List<HostsSource> enabledUrlSources = new ArrayList<>();
-            List<HostsSource> enabledFileSources = new ArrayList<>();
-
-        for (HostsSource source : all) {
-            if (!source.isEnabled()) {
-                int sourceId = source.getId();
-                this.hostListItemDao.clearSourceHosts(sourceId);
-                clearRootExportStageForSource(writableDb, sourceId);
-                this.hostsSourceDao.clearProperties(sourceId);
-                continue;
-            }
-            switch (source.getType()) {
-                case URL:
-                    enabledUrlSources.add(source);
-                    break;
-                case FILE:
-                    enabledFileSources.add(source);
-                    break;
-                default:
-                    Timber.w("Hosts source type is not supported.");
-            }
-        }
-
-        final int total = enabledUrlSources.size() + enabledFileSources.size();
-        postProgress(0, total, null, total > 0 ? 0 : 0, 0);
-
-        int numberOfCopies = 0;
-        int numberOfFailedCopies = 0;
-        int done = 0;
-
-        // First handle FILE sources sequentially (they are usually quick and keep UX predictable).
-        ZonedDateTime now = ZonedDateTime.now();
-        for (HostsSource source : enabledFileSources) {
-            postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-            numberOfCopies++;
-            try {
-                readSourceFile(source, importGeneration);
-                ZonedDateTime onlineModificationDate = getHostsSourceLastUpdate(source);
-                if (onlineModificationDate == null) {
-                    onlineModificationDate = now;
-                }
-                ZonedDateTime localModificationDate = onlineModificationDate.isAfter(now) ? onlineModificationDate : now;
-                this.hostsSourceDao.updateModificationDates(source.getId(), localModificationDate, onlineModificationDate);
-                this.hostsSourceDao.updateSize(source.getId());
-            } catch (IOException e) {
-                Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
-                numberOfFailedCopies++;
-            }
-            done++;
-            postProgress(done, total, source.getLabel(), total > 0 ? (int) Math.floor(done * 10000.0 / total) : 0, 0);
-        }
-
-        // Then handle URL sources with parallel downloads and one import writer.
-        // Downloads are network-bound; SQLite writes are serialized to avoid contention.
-        if (!enabledUrlSources.isEmpty()) {
-            int downloadParallelism = Math.min(DOWNLOAD_PARALLELISM, enabledUrlSources.size());
-            int parsePoolSize = IMPORT_WRITER_PARALLELISM;
-
-            ExecutorService downloadPool = Executors.newFixedThreadPool(downloadParallelism);
-            ExecutorService parsePool = Executors.newFixedThreadPool(parsePoolSize);
-            CompletionService<DownloadResult> completion = new ExecutorCompletionService<>(downloadPool);
-
-            // Semaphore enforces the single SQLite writer/import lane.
-            final Semaphore parseSemaphore = new Semaphore(IMPORT_WRITER_PARALLELISM);
-
-            // Global deduplication set - ensures each host is inserted only once across ALL sources
-            final java.util.Set<String> globalSeenHosts = ConcurrentHashMap.newKeySet();
-
-            // Submit all downloads
-            for (HostsSource source : enabledUrlSources) {
-                completion.submit(new DownloadCallable(source, null));
-            }
-
-            // Collect parse futures to wait for them at the end
-            List<Future<?>> parseFutures = new ArrayList<>();
-            final AtomicInteger failedCount = new AtomicInteger(0);
-            final ZonedDateTime nowFinal = now;
-
-            // Process download results as they complete - parsing goes to background
-            int urlTotal = enabledUrlSources.size();
-            for (int i = 0; i < urlTotal; i++) {
-                try {
-                    DownloadResult result = completion.take().get();
-                    HostsSource source = result.source;
-                    numberOfCopies++;
-
-                    // Download finished = done++ (immediate progress update)
-                    done++;
-                    postProgress(done, total, source.getLabel(), done * 10000 / Math.max(1, total), 0);
-
-                    if (!result.success) {
-                        failedCount.incrementAndGet();
-                        String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
-                        hostsSourceDao.updateDownloadError(result.source.getId(), errMsg);
-                    } else if (result.notModified) {
-                        // 304 Not Modified — source is up-to-date; clear any stale error
-                        hostsSourceDao.clearDownloadError(result.source.getId());
-                    } else {
-                        // Queue parsing in background with semaphore-bounded concurrency
-                        final DownloadResult finalResult = result;
-                        parseFutures.add(parsePool.submit(() -> {
-                            try {
-                                // Acquire permit before parsing - enforces one source import at a time.
-                                parseSemaphore.acquire();
-                                try (BufferedReader reader = finalResult.openReader()) {
-                                    // Pass globalSeenHosts for cross-source deduplication
-                                    parseSourceInputStream(finalResult.source, reader,
-                                            globalSeenHosts, importGeneration);
-                                } finally {
-                                    parseSemaphore.release();
-                                }
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                Timber.w(e, "Parse interrupted for %s", finalResult.source.getUrl());
-                            } catch (IOException e) {
-                                Timber.w(e, "Failed to parse %s", finalResult.source.getUrl());
-                            } finally {
-                                finalResult.cleanup();
-                            }
-                            // Update DB
-                            if (finalResult.entityTag != null) {
-                                hostsSourceDao.updateEntityTag(finalResult.source.getId(), finalResult.entityTag);
-                            }
-                            ZonedDateTime onlineMod = finalResult.onlineModificationDate != null ? finalResult.onlineModificationDate : nowFinal;
-                            ZonedDateTime localMod = onlineMod.isAfter(nowFinal) ? onlineMod : nowFinal;
-                            hostsSourceDao.updateModificationDates(finalResult.source.getId(), localMod, onlineMod);
-                            hostsSourceDao.updateSize(finalResult.source.getId());
-                            hostsSourceDao.clearDownloadError(finalResult.source.getId());
-                        }));
-                    }
-
-                } catch (Exception e) {
-                    Timber.w(e, "Failed to retrieve a URL host source.");
-                    failedCount.incrementAndGet();
-                    done++;
-                    postProgress(done, total, null, done * 10000 / Math.max(1, total), 0);
-                }
-            }
-
-            numberOfFailedCopies += failedCount.get();
-            downloadPool.shutdown();
-
-            // Wait for all parsing to complete
-            setState(R.string.status_parse_source, "Finishing parsing...");
-            for (Future<?> f : parseFutures) {
-                try {
-                    f.get();
-                } catch (Exception e) {
-                    Timber.w(e, "Parse task failed");
-                }
-            }
-            parsePool.shutdown();
-            try {
-                parsePool.awaitTermination(10, TimeUnit.MINUTES);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            Timber.i("Global deduplication: %d unique hosts stored (duplicates skipped)", globalSeenHosts.size());
-        }
-
-        if (numberOfCopies == numberOfFailedCopies && numberOfCopies != 0) {
-            throw new HostErrorException(DOWNLOAD_FAILED);
-        }
-
-        // Synchronize hosts entries
-        syncHostEntries();
-        // Mark no update available
-        this.updateAvailable.postValue(false);
-        postProgress(total, total, null, 10000, 100);
-        } finally {
-            finishUpdateOperation();
-        }
-    }
-
-    private static boolean useStagedPipelineForLegacyRetrieve() {
-        return true;
+        checkAndRetrieveHostsSources();
     }
 
     /**
@@ -957,7 +750,6 @@ public class SourceModel {
                             DownloadResult result = dlFuture.get();
 
                             if (result.notModified) {
-                                // 304 Not Modified - source is up-to-date; clear any stale error
                                 sourceCommits.add(SourceCommit.unchanged(result.source.getId()));
                                 deferredCarryForwardSources.add(result.source);
                                 upToDateCount.incrementAndGet();
@@ -1913,73 +1705,7 @@ public class SourceModel {
     }
 
     /**
-     * Download an hosts source file and append it to the database.
-     *
-     * @param source The hosts source to download.
-     * @throws IOException If the hosts source could not be downloaded.
-     */
-    private void downloadHostSource(HostsSource source) throws IOException {
-        // Get hosts file URL
-        String hostsFileUrl = source.getUrl();
-        Timber.v("Downloading hosts file: %s.", hostsFileUrl);
-        // Set state to downloading hosts source
-        setState(R.string.status_download_source, hostsFileUrl);
-        // Create request
-        Request request = getRequestFor(source).build();
-        // Request hosts file and open byte stream
-        try (Response response = getHttpClient().newCall(request).execute()) {
-            // Skip source parsing if not modified (304 responses have no body — check BEFORE body access)
-            if (response.code() == HTTP_NOT_MODIFIED) {
-                Timber.d("Source %s was not updated since last fetch.", source.getUrl());
-                return;
-            }
-            ResponseBody rawBody = requireNonNull(response.body());
-            // Extract ETag if present
-            String entityTag = response.header(ENTITY_TAG_HEADER);
-            if (entityTag != null) {
-                if (entityTag.startsWith(WEAK_ENTITY_TAG_PREFIX)) {
-                    entityTag = entityTag.substring(WEAK_ENTITY_TAG_PREFIX.length());
-                }
-                this.hostsSourceDao.updateEntityTag(source.getId(), entityTag);
-            }
-            // Parse source (with progress updates while reading bytes).
-            ResponseBody body = new ProgressResponseBody(rawBody, (bytesRead, contentLength, done) -> {
-                // Best-effort "within current source" progress fraction.
-                double within;
-                if (contentLength > 0L) {
-                    within = Math.min(0.999d, Math.max(0d, bytesRead / (double) contentLength));
-                } else {
-                    // Unknown content-length: still advance smoothly as bytes are read.
-                    // 1 - exp(-x/k) grows quickly then slows down (bounded).
-                    final double k = 750_000d; // ~0.75MB
-                    within = 1d - Math.exp(-(bytesRead / k));
-                    within = Math.min(0.95d, Math.max(0d, within));
-                }
-                // Convert to overall percent using current "done/total sources" progress as base.
-                Progress p = this.progress.getValue();
-                int doneSources = p != null ? p.done : 0;
-                int totalSources = p != null ? p.total : 0;
-                if (totalSources <= 0) {
-                    return;
-                }
-                // doneSources is "completed so far"; while reading current source, we are between doneSources and doneSources+1.
-                double overall = (doneSources + within) / (double) totalSources;
-                int basisPoints = (int) Math.floor(overall * 10000.0);
-                int withinPercent = (int) Math.floor(within * 100.0);
-                // Re-post progress to force UI refresh even if done/total unchanged.
-                postProgress(doneSources, totalSources, source.getLabel(), basisPoints, withinPercent);
-            });
-            try (Reader reader = body.charStream();
-                 BufferedReader bufferedReader = new BufferedReader(reader)) {
-                parseSourceInputStream(source, bufferedReader);
-            }
-        } catch (IOException e) {
-            throw new IOException("Exception while downloading hosts file from " + hostsFileUrl + ".", e);
-        }
-    }
-
-    /**
-     * Progress callback used during parallel download.
+     * Progress callback used while copying a downloaded URL source to a staging file.
      */
     private interface DownloadProgress {
         void onProgress(@NonNull String label, double withinFraction);
@@ -2022,12 +1748,26 @@ public class SourceModel {
 
             // Write response to temp file
             tmp = File.createTempFile("adaway-src-", ".txt", this.context.getCacheDir());
+            long contentLength = body.contentLength();
+            long totalRead = 0L;
             try (InputStream in = body.byteStream();
                  OutputStream out = new FileOutputStream(tmp)) {
                 byte[] buf = new byte[32 * 1024];
                 int read;
                 while ((read = in.read(buf)) != -1) {
                     out.write(buf, 0, read);
+                    totalRead += read;
+                    if (progress != null) {
+                        double within;
+                        if (contentLength > 0L) {
+                            within = totalRead / (double) contentLength;
+                        } else {
+                            final double k = 750_000d;
+                            within = 1d - Math.exp(-(totalRead / k));
+                        }
+                        progress.onProgress(source.getLabel(),
+                                Math.min(0.999d, Math.max(0d, within)));
+                    }
                 }
                 out.flush();
             }
@@ -2049,7 +1789,6 @@ public class SourceModel {
      */
     private static final class DownloadResult {
         final HostsSource source;
-        final int sourceId;
         final boolean success;
         final boolean notModified;
         @Nullable
@@ -2069,20 +1808,12 @@ public class SourceModel {
                                @Nullable ZonedDateTime onlineModificationDate,
                                @Nullable String errorMessage) {
             this.source = source;
-            this.sourceId = source != null ? source.getId() : -1;  // -1 for sentinel
             this.success = success;
             this.notModified = notModified;
             this.tmpFile = tmpFile;
             this.entityTag = entityTag;
             this.onlineModificationDate = onlineModificationDate;
             this.errorMessage = errorMessage;
-        }
-
-        /**
-         * Creates a sentinel result used to signal parse workers to stop.
-         */
-        static DownloadResult sentinel() {
-            return new DownloadResult(null, false, false, null, null, null, null);
         }
 
         static DownloadResult notModified(@NonNull HostsSource source) {
@@ -2118,86 +1849,11 @@ public class SourceModel {
     }
 
     /**
-     * Callable wrapper so we can parallelize downloads.
-     */
-    private final class DownloadCallable implements Callable<DownloadResult> {
-        private final HostsSource source;
-
-        DownloadCallable(@NonNull HostsSource source, @Nullable DownloadProgress ignored) {
-            this.source = source;
-        }
-
-        @Override
-        public DownloadResult call() {
-            return downloadToTempFile(source, null);
-        }
-    }
-
-    /**
-     * Listener for bytes read while downloading a URL source.
-     */
-    private interface ProgressListener {
-        void update(long bytesRead, long contentLength, boolean done);
-    }
-
-    /**
-     * Wraps an OkHttp ResponseBody to report incremental read progress.
-     */
-    private static final class ProgressResponseBody extends ResponseBody {
-        private final ResponseBody delegate;
-        private final ProgressListener listener;
-        private BufferedSource bufferedSource;
-
-        ProgressResponseBody(@NonNull ResponseBody delegate, @NonNull ProgressListener listener) {
-            this.delegate = delegate;
-            this.listener = listener;
-        }
-
-        @Override
-        public long contentLength() {
-            return delegate.contentLength();
-        }
-
-        @Override
-        public okhttp3.MediaType contentType() {
-            return delegate.contentType();
-        }
-
-        @Override
-        public BufferedSource source() {
-            if (bufferedSource == null) {
-                bufferedSource = Okio.buffer(wrapSource(delegate.source()));
-            }
-            return bufferedSource;
-        }
-
-        private Source wrapSource(Source source) {
-            return new ForwardingSource(source) {
-                long totalBytesRead = 0L;
-
-                @Override
-                public long read(@NonNull Buffer sink, long byteCount) throws IOException {
-                    long bytesRead = super.read(sink, byteCount);
-                    if (bytesRead > 0) {
-                        totalBytesRead += bytesRead;
-                    }
-                    listener.update(totalBytesRead, contentLength(), bytesRead == -1);
-                    return bytesRead;
-                }
-            };
-        }
-    }
-
-    /**
      * Read a hosts source file and append it to the database.
      *
      * @param hostsSource The hosts source to copy.
      * @throws IOException If the hosts source could not be copied.
      */
-    private void readSourceFile(HostsSource hostsSource) throws IOException {
-        readSourceFile(hostsSource, this.currentImportGeneration);
-    }
-
     private void readSourceFile(HostsSource hostsSource, int generation) throws IOException {
         readSourceFile(hostsSource, generation, null);
     }
@@ -2227,12 +1883,8 @@ public class SourceModel {
      * @param hostsSource The host source to parse.
      * @param reader      The host source reader.
      */
-    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader) {
-        parseSourceInputStream(hostsSource, reader, this.currentImportGeneration);
-    }
-
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader, int generation) {
-        parseSourceInputStream(hostsSource, reader, null, generation);
+        parseSourceInputStream(hostsSource, reader, generation, null);
     }
 
     private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
@@ -2251,63 +1903,6 @@ public class SourceModel {
                     postMultiPhaseProgress(mp);
                 },
                 sqlDeduper);
-        this.hostsSourceDao.updateSkippedCount(hostsSource.getId(), skippedCount);
-        long endTime = System.currentTimeMillis();
-        Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");
-    }
-
-    /**
-     * Parse a source from its input stream to store it into database with global deduplication.
-     *
-     * @param hostsSource      The host source to parse.
-     * @param reader           The host source reader.
-     * @param globalSeenHosts  Set for global deduplication across sources (null to disable).
-     */
-    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
-                                        @Nullable java.util.Set<String> globalSeenHosts) {
-        parseSourceInputStream(hostsSource, reader, globalSeenHosts, this.currentImportGeneration);
-    }
-
-    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
-                                        @Nullable java.util.Set<String> globalSeenHosts,
-                                        int generation) {
-        parseSourceInputStream(hostsSource, reader, globalSeenHosts,
-                Integer.MAX_VALUE, null, generation);
-    }
-
-    /**
-     * Parse a source from its input stream to store it into database with global deduplication
-     * and memory-safe cap.
-     *
-     * @param hostsSource      The host source to parse.
-     * @param reader           The host source reader.
-     * @param globalSeenHosts  Set for global deduplication across sources (null to disable).
-     * @param maxDedupEntries  Maximum entries in dedup set before disabling dedup.
-     * @param dedupCapReached  Flag set to true when cap is reached (may be null).
-     */
-    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
-                                        @Nullable java.util.Set<String> globalSeenHosts,
-                                        int maxDedupEntries,
-                                        @Nullable AtomicBoolean dedupCapReached) {
-        parseSourceInputStream(hostsSource, reader, globalSeenHosts, maxDedupEntries,
-                dedupCapReached, this.currentImportGeneration);
-    }
-
-    private void parseSourceInputStream(HostsSource hostsSource, BufferedReader reader,
-                                        @Nullable java.util.Set<String> globalSeenHosts,
-                                        int maxDedupEntries,
-                                        @Nullable AtomicBoolean dedupCapReached,
-                                        int generation) {
-        setState(R.string.status_parse_source, hostsSource.getLabel());
-        long startTime = System.currentTimeMillis();
-        // Use raw SQLite handle for high-throughput bulk insert in SourceLoader.
-        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
-        // Pass callback to update live accepted-rule progress in UI.
-        int skippedCount = new SourceLoader(hostsSource, generation).parse(reader, this.hostListItemDao, db, count -> {
-            progressBuilder.addParsedHosts(count);
-            MultiPhaseProgress mp = progressBuilder.build();
-            postMultiPhaseProgress(mp);
-        }, globalSeenHosts, maxDedupEntries, dedupCapReached);
         this.hostsSourceDao.updateSkippedCount(hostsSource.getId(), skippedCount);
         long endTime = System.currentTimeMillis();
         Timber.i("Parsed " + hostsSource.getUrl() + " in " + (endTime - startTime) / 1000 + "s");

@@ -5118,12 +5118,12 @@
 - [x] Correct packaged logo/icon provenance text while keeping the bird assets in the app.
 - [x] Move `REQUEST_INSTALL_PACKAGES` out of the base manifest and gate it to the direct APK
   update distribution path only.
-- [ ] Harden `scripts/run-ux-matrix.ps1` so instrumentation timeouts cleanly stop app/test
+- [x] Harden `scripts/run-ux-matrix.ps1` so instrumentation timeouts cleanly stop app/test
   processes and cannot wedge future matrix runs.
-- [ ] Replace the Domain Checker hardcoded `80dp`/focus workaround with the simplest reusable
+- [x] Replace the Domain Checker hardcoded `80dp`/focus workaround with the simplest reusable
   platform-inset path and keep the visual/top-scroll guard.
-- [ ] Remove duplicated UX-matrix idle waits where the Domain Checker scroll assertion runs.
-- [ ] Run focused unit/static checks, script parser checks, license-boundary checks, and a
+- [x] Remove duplicated UX-matrix idle waits where the Domain Checker scroll assertion runs.
+- [x] Run focused unit/static checks, script parser checks, license-boundary checks, and a
   Ponytail re-review of the resulting diff.
 
 ## Review - 2026-06-17 Bird Branding License Provenance
@@ -5152,7 +5152,7 @@
   mutation, user-rule mutation, scheduled update, and mixed 200/304/failure source updates.
 - [x] Re-run scale/perf gates only after correctness is green: 100k, 1M, 5M, immediate root
   apply, VPN exact/suffix lookup, and no-ANR checks.
-- [ ] Apply Ponytail simplification only after behavior coverage: delete dead legacy update
+- [x] Apply Ponytail simplification only after behavior coverage: delete dead legacy update
   paths, replace brittle source-text tests, and defer native/Room/release refactors until their
   policies are explicit.
 - [x] Split the broad worktree into reviewable slices: crash/stability, DB/runtime truth, UX,
@@ -5717,7 +5717,7 @@
 - [x] Replace the release cleanup action that still runs on Node 20 with an equivalent `gh release`
   shell step that keeps source tags.
 - [x] Verify workflow YAML parses and every referenced action reports `node24` or `composite`.
-- [ ] Commit, push, and inspect PR CI for this slice.
+- [x] Commit, push, and inspect PR CI for this slice.
 
 ## Review - 2026-06-17 CI Runtime Hygiene
 - Updated Android CI, CodeQL, locale validation, release, and issue workflows away from
@@ -5770,3 +5770,43 @@
   --dependency-verification=strict --stacktrace` with `110` tests, `0` failures, `3` skipped,
   and `.\scripts\run-ux-matrix.ps1 -OutputDir
   app\build\reports\ux-matrix-ci-failure-fix -InstrumentationTimeoutSeconds 420`.
+
+## Plan - 2026-06-17 Ponytail Legacy Pipeline Cleanup
+- [x] Confirm the latest pushed bird-provenance slice is green in Android CI and CodeQL.
+- [x] Delete the unreachable pre-staged `retrieveHostsSources()` implementation and the
+  always-true delegation switch.
+- [x] Remove the unused Java-side global de-dup parser path now that staged SQL de-dup is the
+  live production path.
+- [x] Keep single-source list-download progress working through `downloadToTempFile`.
+- [x] Run focused unit/compile, connected SourceModel, license-boundary, and hygiene gates.
+- [x] Commit, push, and inspect CI for this slice.
+
+## Review - 2026-06-17 Ponytail Legacy Pipeline Cleanup
+- Android CI run `27703347485` passed on `0f1df8a8`: development build, unit tests, lint,
+  debug build, and connected Android tests were all green. CodeQL run `27703347888` also passed.
+- Simplified `SourceModel.retrieveHostsSources()` to delegate directly to
+  `checkAndRetrieveHostsSources()` and removed the old unreachable download/import body,
+  `useStagedPipelineForLegacyRetrieve()`, the unused `downloadHostSource()` wrapper, the
+  unused `DownloadCallable`, and stale sentinel/source id plumbing from `DownloadResult`.
+- Simplified `SourceLoader` by deleting the no-longer-called Java global de-dup overloads and
+  `buildDedupKey()`. The active staged SQL de-dup path remains the single production model.
+- Restored real current-list progress reporting inside `downloadToTempFile` while copying a
+  source response to its temporary staging file.
+- Focused verification passed:
+  `.\gradlew.bat --no-daemon :app:compileDebugJavaWithJavac :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest --tests
+  org.adaway.model.source.SourceLoaderParserPatternsTest --dependency-verification=strict
+  --stacktrace`.
+- Android-test compile passed:
+  `.\gradlew.bat --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Connected verification passed:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelGenerationFailureTest,org.adaway.model.source.SourceModelHttpConditionalTest"
+  --dependency-verification=strict --stacktrace`; Gradle reported 10 tests on
+  `adaway-api34-16g(AVD) - 14`, 0 failed.
+- Full local unit verification passed:
+  `.\gradlew.bat --no-daemon test --dependency-verification=strict --stacktrace`.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.

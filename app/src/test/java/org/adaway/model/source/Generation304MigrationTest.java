@@ -204,9 +204,16 @@ public class Generation304MigrationTest {
 
         assertTrue("Full update must use the shared update gate.",
                 sourceModel.contains("beginUpdateOperation(\"checkAndRetrieveHostsSources\")"));
-        assertTrue("Legacy all-source update must delegate to the staged full-update pipeline.",
-                sourceModel.contains("useStagedPipelineForLegacyRetrieve()") &&
-                        sourceModel.contains("checkAndRetrieveHostsSources();"));
+        String legacyRetrieve = sourceModel.substring(
+                sourceModel.indexOf("public void retrieveHostsSources() throws HostErrorException"),
+                sourceModel.indexOf("public void checkAndRetrieveHostsSources()"));
+        assertTrue("Legacy all-source update must delegate directly to the staged full-update " +
+                        "pipeline.",
+                legacyRetrieve.contains("checkAndRetrieveHostsSources();"));
+        assertFalse("Legacy all-source update must not keep the deleted pre-staged body.",
+                legacyRetrieve.contains("beginUpdateOperation(\"retrieveHostsSources\")") ||
+                        legacyRetrieve.contains("useStagedPipelineForLegacyRetrieve()") ||
+                        legacyRetrieve.contains("ConcurrentHashMap.newKeySet()"));
         assertTrue("Single-source update must use the shared update gate.",
                 sourceModel.contains("beginUpdateOperation(\"retrieveHostsSource\")"));
         assertTrue("Scoped multi-source update must use the shared update gate.",
@@ -475,6 +482,9 @@ public class Generation304MigrationTest {
                         "runtime rebuild.",
                 singleUpdate.contains("promoteStagedSourceGeneration( sourceId, " +
                         "activeGeneration, stagingGeneration);"));
+        assertTrue("Single-source downloads must keep reporting current-list progress.",
+                singleUpdate.contains("downloadToTempFile(source, (label, withinFraction)") &&
+                        sourceModel.contains("progress.onProgress(source.getLabel()"));
     }
 
     @Test
