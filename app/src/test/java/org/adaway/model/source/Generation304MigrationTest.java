@@ -305,6 +305,12 @@ public class Generation304MigrationTest {
                 rootModel.contains("getRootHostsFileCursorMaterialized()"));
         assertTrue("Root apply fallback must use the explicit active streaming cursor.",
                 rootModel.contains("getActiveRootHostsFileCursor()"));
+        assertTrue("Materialized root apply must use bounded chunk cursors.",
+                rootModel.contains("getActiveRuntimeRuleCountNow() > 0") &&
+                        rootModel.contains("HOSTS_FILE_CHUNK_ROWS") &&
+                        rootModel.contains("writeMaterializedHostChunks") &&
+                        rootModel.contains("getRootHostsFileChunkCursorMaterialized(") &&
+                        rootModel.contains("getRootHostsFileChunkCursorMaterializedIpv6("));
         assertFalse("Root apply must not use the ambiguous materialized-or-active cursor.",
                 rootModel.contains("hostEntryDao.getRootHostsFileCursor()"));
     }

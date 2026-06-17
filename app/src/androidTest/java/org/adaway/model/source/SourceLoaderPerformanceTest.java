@@ -390,7 +390,9 @@ public class SourceLoaderPerformanceTest {
         assumeTrue("Set instrumentation arg " + ARG_ROOT_WRITE_ROWS
                 + " to run the root hosts file write benchmark", rootRows > 0);
 
+        long seedStartMs = SystemClock.elapsedRealtime();
         seedRootExportRows(rootRows);
+        long seedMs = SystemClock.elapsedRealtime() - seedStartMs;
 
         try {
             RootWriteResult ipv4 = createRootHostsFileWithTestDatabase(false);
@@ -398,6 +400,7 @@ public class SourceLoaderPerformanceTest {
             RootWriteResult ipv6 = createRootHostsFileWithTestDatabase(true);
 
             System.out.println("RootModelHostsFileWriteBenchmark rows=" + rootRows
+                    + " seedMs=" + seedMs
                     + " ipv4Ms=" + ipv4.elapsedMs
                     + " ipv4Bytes=" + ipv4.bytes
                     + " ipv6Ms=" + ipv6.elapsedMs
@@ -818,6 +821,12 @@ public class SourceLoaderPerformanceTest {
                 }
                 insert.executeInsert();
             }
+            int redirectedRows = (rows + 99) / 100;
+            this.db.getOpenHelper().getWritableDatabase()
+                    .execSQL("UPDATE hosts_stats SET blocked_count = ?, blocked_exact_count = ?, " +
+                                    "redirected_count = ?, active_rule_count = ? WHERE id = 0",
+                            new Object[]{rows - redirectedRows, rows - redirectedRows,
+                                    redirectedRows, rows});
             this.hostEntryDao.setRootExportMaterialized(true);
         });
     }

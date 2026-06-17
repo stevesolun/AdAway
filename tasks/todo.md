@@ -5810,3 +5810,50 @@
 - License and hygiene checks passed:
   `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
   -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+
+## Plan - 2026-06-18 Root Hosts Writer Scale Proof
+- [x] Reproduce the 5M mixed root-writer failure with corrected benchmark metadata.
+- [x] Reject the redirect-map and computed-line cursor experiments when they failed or regressed
+  the proof gate.
+- [x] Replace row-by-row materialized root export with bounded SQLite line chunks and direct
+  chunk writes.
+- [x] Preserve active-cursor fallback behavior and materialized root output semantics.
+- [x] Prove the 1M and 5M mixed root-writer gates under explicit budgets.
+- [x] Run focused compile/unit, connected root/database semantics, full unit, hygiene, and
+  license-boundary checks.
+
+## Review - 2026-06-18 Root Hosts Writer Scale Proof
+- Corrected `rootModelCreateHostsFile_requestedRows_recordsWriteBenchmark` to print `seedMs`
+  and seed `hosts_stats` consistently with its mixed blocked/redirected fixture. This exposed
+  that stale metadata could hide redirect-capable root writer cost.
+- Rejected the hash-map and streaming-merge redirect experiments as insufficient at 5M:
+  `RootModelHostsFileWriteBenchmark rows=5000000 seedMs=835532 ipv4Ms=400626
+  ipv6Ms=360311` failed the explicit `300000ms` budgets even though semantics stayed correct.
+- Rejected the computed-line per-row cursor because it regressed 1M to
+  `ipv4Ms=13905 ipv6Ms=24809` versus the faster streaming baseline.
+- Implemented bounded materialized chunks: `HostEntryDao` now returns `GROUP_CONCAT` line
+  chunks of `8192` root rows ordered by `root_host_entries.id`, and `RootModel` writes each
+  chunk through the direct UTF-8 path. This avoids millions of Java cursor-row callbacks while
+  keeping memory bounded.
+- 1M proof passed:
+  `RootModelHostsFileWriteBenchmark rows=1000000 seedMs=248727 ipv4Ms=2562
+  ipv4Bytes=35869214 ipv6Ms=3494 ipv6Bytes=65459216`, under explicit `30000ms`
+  IPv4 and IPv6 budgets.
+- 5M proof passed:
+  `RootModelHostsFileWriteBenchmark rows=5000000 seedMs=1068890 ipv4Ms=150041
+  ipv4Bytes=183789214 ipv6Ms=147501 ipv6Bytes=336139216`, under explicit `300000ms`
+  IPv4 and IPv6 budgets.
+- Focused verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Connected root/database semantics passed:
+  `.\gradlew.bat --no-daemon :app:connectedDebugAndroidTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.db.SourceDbTest#testRootHostsMaterializedCursorBuildsFileLines,org.adaway.db.SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage,org.adaway.db.SourceDbTest#testIncompleteRootExportStageFallsBackToActiveRules,org.adaway.db.SourceDbTest#testCompleteRootExportStageIgnoresDisabledSources"
+  --dependency-verification=strict --stacktrace`; Gradle reported 4 tests on
+  `adaway-api34-16g(AVD) - 14`.
+- Full local unit verification passed:
+  `.\gradlew.bat --no-daemon test --dependency-verification=strict --stacktrace`.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.

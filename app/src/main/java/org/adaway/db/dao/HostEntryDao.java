@@ -1086,6 +1086,24 @@ public interface HostEntryDao {
     @Query("SELECT `host`, `type`, `redirection` FROM `root_host_entries`")
     Cursor getRootHostsFileCursorMaterialized();
 
+    @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
+            "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
+            "SELECT `id`, CASE WHEN `type` = 2 THEN COALESCE(`redirection`, '') " +
+            "ELSE :redirectionIpv4 END || ' ' || `host` AS `line` " +
+            "FROM `root_host_entries` WHERE `id` > :afterId ORDER BY `id` LIMIT :limit)")
+    Cursor getRootHostsFileChunkCursorMaterialized(
+            String redirectionIpv4, String lineSeparator, long afterId, int limit);
+
+    @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
+            "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
+            "SELECT `id`, CASE WHEN `type` = 2 THEN COALESCE(`redirection`, '') || ' ' || " +
+            "`host` ELSE :redirectionIpv4 || ' ' || `host` || :lineSeparator || " +
+            ":redirectionIpv6 || ' ' || `host` END AS `line` " +
+            "FROM `root_host_entries` WHERE `id` > :afterId ORDER BY `id` LIMIT :limit)")
+    Cursor getRootHostsFileChunkCursorMaterializedIpv6(
+            String redirectionIpv4, String redirectionIpv6, String lineSeparator, long afterId,
+            int limit);
+
     @Query(ROOT_EXPORT_ACTIVE_QUERY)
     List<HostEntry> getAllForRootHostsFileActive();
 

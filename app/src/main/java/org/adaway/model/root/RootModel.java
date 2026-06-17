@@ -63,6 +63,9 @@ public class RootModel extends AdBlockModel {
     private static final String HEADER2 = "# Please do not modify it directly, it will be overwritten when AdAway is applied again.";
     private static final String HEADER_SOURCES = "# This file is generated from the following sources:";
     private static final int HOSTS_FILE_BUFFER_SIZE = 1024 * 1024;
+    private static final int HOSTS_FILE_CHUNK_ROWS = 8192;
+    private static final byte[] LINE_SEPARATOR_BYTES =
+            LINE_SEPARATOR.getBytes(StandardCharsets.UTF_8);
     private final HostsSourceDao hostsSourceDao;
     private final HostEntryDao hostEntryDao;
 
@@ -234,8 +237,42 @@ public class RootModel extends AdBlockModel {
 
     private void writeMaterializedHosts(HostsFileWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
+        if (this.hostEntryDao.getActiveRuntimeRuleCountNow() > 0) {
+            writeMaterializedHostChunks(writer, redirectionIpv4, redirectionIpv6, enableIpv6);
+            return;
+        }
         try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursorMaterialized()) {
             writeHostsFromCursor(writer, cursor, redirectionIpv4, redirectionIpv6, enableIpv6);
+        }
+    }
+
+    private void writeMaterializedHostChunks(HostsFileWriter writer, String redirectionIpv4,
+            String redirectionIpv6, boolean enableIpv6) throws IOException {
+        long afterId = 0;
+        while (true) {
+            try (Cursor cursor = enableIpv6
+                    ? this.hostEntryDao.getRootHostsFileChunkCursorMaterializedIpv6(
+                            redirectionIpv4, redirectionIpv6, LINE_SEPARATOR, afterId,
+                            HOSTS_FILE_CHUNK_ROWS)
+                    : this.hostEntryDao.getRootHostsFileChunkCursorMaterialized(
+                            redirectionIpv4, LINE_SEPARATOR, afterId, HOSTS_FILE_CHUNK_ROWS)) {
+                if (!cursor.moveToFirst()) {
+                    return;
+                }
+                int rowCountColumn = cursor.getColumnIndexOrThrow("row_count");
+                int rowCount = cursor.getInt(rowCountColumn);
+                if (rowCount == 0) {
+                    return;
+                }
+                int linesColumn = cursor.getColumnIndexOrThrow("lines");
+                writer.writeChunk(cursor.getString(linesColumn));
+                writer.newLine();
+                int lastIdColumn = cursor.getColumnIndexOrThrow("last_id");
+                afterId = cursor.getLong(lastIdColumn);
+                if (rowCount < HOSTS_FILE_CHUNK_ROWS) {
+                    return;
+                }
+            }
         }
     }
 
@@ -249,6 +286,8 @@ public class RootModel extends AdBlockModel {
     private static void writeHostsFromCursor(HostsFileWriter writer, Cursor cursor,
             String redirectionIpv4, String redirectionIpv6, boolean enableIpv6)
             throws IOException {
+        byte[] redirectionIpv4Prefix = createRedirectionPrefix(redirectionIpv4);
+        byte[] redirectionIpv6Prefix = createRedirectionPrefix(redirectionIpv6);
         int hostColumn = cursor.getColumnIndexOrThrow("host");
         int typeColumn = cursor.getColumnIndexOrThrow("type");
         int redirectionColumn = cursor.getColumnIndexOrThrow("redirection");
@@ -258,11 +297,22 @@ public class RootModel extends AdBlockModel {
                 writeHostLine(writer, cursor.getString(redirectionColumn), hostname);
                 continue;
             }
-            writeHostLine(writer, redirectionIpv4, hostname);
+            writeHostLine(writer, redirectionIpv4Prefix, hostname);
             if (enableIpv6) {
-                writeHostLine(writer, redirectionIpv6, hostname);
+                writeHostLine(writer, redirectionIpv6Prefix, hostname);
             }
         }
+    }
+
+    private static byte[] createRedirectionPrefix(String redirection) {
+        return (redirection + " ").getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static void writeHostLine(HostsFileWriter writer, byte[] redirectionPrefix,
+            String hostname) throws IOException {
+        writer.write(redirectionPrefix);
+        writer.write(hostname);
+        writer.newLine();
     }
 
     private static void writeHostLine(HostsFileWriter writer, String redirection, String hostname)
@@ -288,14 +338,25 @@ public class RootModel extends AdBlockModel {
                 return;
             }
             int length = value.length();
-            for (int index = 0; index < length; index++) {
-                char character = value.charAt(index);
-                if (character <= 0x7F) {
-                    write((byte) character);
-                    continue;
+            int index = 0;
+            while (index < length) {
+                if (this.position == this.buffer.length) {
+                    flushBuffer();
                 }
-                writeUtf8(value.substring(index));
-                return;
+                int count = Math.min(this.buffer.length - this.position, length - index);
+                int copied = 0;
+                while (copied < count) {
+                    char character = value.charAt(index + copied);
+                    if (character > 0x7F) {
+                        this.position += copied;
+                        writeUtf8(value.substring(index + copied));
+                        return;
+                    }
+                    this.buffer[this.position + copied] = (byte) character;
+                    copied++;
+                }
+                this.position += copied;
+                index += copied;
             }
         }
 
@@ -303,13 +364,33 @@ public class RootModel extends AdBlockModel {
             write((byte) value);
         }
 
+        void writeChunk(String value) throws IOException {
+            if (value == null) {
+                return;
+            }
+            writeUtf8(value);
+        }
+
         void newLine() throws IOException {
-            write(LINE_SEPARATOR);
+            write(LINE_SEPARATOR_BYTES);
         }
 
         private void writeUtf8(String value) throws IOException {
             flushBuffer();
             this.output.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private void write(byte[] value) throws IOException {
+            int index = 0;
+            while (index < value.length) {
+                if (this.position == this.buffer.length) {
+                    flushBuffer();
+                }
+                int count = Math.min(this.buffer.length - this.position, value.length - index);
+                System.arraycopy(value, index, this.buffer, this.position, count);
+                this.position += count;
+                index += count;
+            }
         }
 
         private void write(byte value) throws IOException {
