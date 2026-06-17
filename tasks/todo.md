@@ -5722,3 +5722,21 @@
   Python parsed every `.github/workflows/*.yml` file, `git diff --check` passed with only existing
   CRLF warnings, the action metadata verifier reported only `node24` or `composite` runtimes, and
   `.\gradlew.bat --no-daemon test --dependency-verification=strict --stacktrace` passed.
+- The replacement Android CI run passed development build and CodeQL, then timed out during the
+  connected-test lane while running `org.adaway.ui.UxDeviceMatrixTest`. The CI log reached
+  `Tests 89/107 completed...` and then showed only continuous emulator frame stats without an
+  instrumentation completion line.
+- Replaced the UX matrix test's unbounded `waitForIdleSync()` calls with bounded main-thread drains
+  around the existing fixed idle wait. This keeps the screenshot audit deterministic when an
+  activity continues rendering and avoids letting instrumentation block forever waiting for a fully
+  idle UI.
+- Post-fix verification passed:
+  `.\gradlew.bat --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`,
+  focused connected `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.UxDeviceMatrixTest
+  --dependency-verification=strict --stacktrace`, and
+  `.\scripts\run-ux-matrix.ps1 -OutputDir app\build\reports\ux-matrix-ci-idle-fix
+  -InstrumentationTimeoutSeconds 420`.
+- The UX matrix runner exited 0 for `baseline`, `font-1.3`, and `font-1.3-rtl`, each with
+  `OK (1 test)`, and pulled 21 screenshots total.

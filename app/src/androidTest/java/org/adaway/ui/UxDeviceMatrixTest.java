@@ -137,11 +137,11 @@ public class UxDeviceMatrixTest {
     }
 
     private <T extends Activity> void captureAfterIdle(ActivityScenario<T> scenario, String name,
-                                                      Consumer<T> afterIdleAssertion)
+                                                       Consumer<T> afterIdleAssertion)
             throws IOException {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        drainMainThread();
         SystemClock.sleep(IDLE_WAIT_MS);
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        drainMainThread();
 
         final List<String> failures = new ArrayList<>();
         final IOException[] writeFailure = new IOException[1];
@@ -162,6 +162,10 @@ public class UxDeviceMatrixTest {
         }
         assertTrue("UX accessibility failures for " + name + ":\n"
                 + TextUtils.join("\n", failures), failures.isEmpty());
+    }
+
+    private void drainMainThread() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> { });
     }
 
     private void auditView(String screenName, View view, List<String> failures) {
