@@ -5682,7 +5682,7 @@
 - [x] Harden the UX matrix to catch visible ellipsized or vertically clipped text under the
   existing baseline, large-font, and RTL variants.
 - [x] Run focused compile/unit verification and the device UX matrix.
-- [ ] Commit, push, and inspect CI for this slice.
+- [x] Commit, push, and inspect CI for this slice.
 
 ## Review - 2026-06-17 Remaining Work Map And UX Text-Fit Matrix
 - Current map: full release/signing proof still needs signing secrets; physical release smoke
@@ -5699,3 +5699,22 @@
   app\build\reports\ux-matrix-continuation-current -InstrumentationTimeoutSeconds 420`.
 - The UX matrix produced 21 screenshots: seven screens each for `baseline`, `font-1.3`, and
   `font-1.3-rtl`.
+
+## Plan - 2026-06-17 CI Runtime Hygiene
+- [x] Inspect the current PR head, workflow files, and CI warning output.
+- [x] Update SHA-pinned GitHub Actions to current Node 24-compatible refs while preserving pinning.
+- [x] Replace the release cleanup action that still runs on Node 20 with an equivalent `gh release`
+  shell step that keeps source tags.
+- [x] Verify workflow YAML parses and every referenced action reports `node24` or `composite`.
+- [ ] Commit, push, and inspect PR CI for this slice.
+
+## Review - 2026-06-17 CI Runtime Hygiene
+- Updated Android CI, CodeQL, locale validation, release, and issue workflows away from
+  Node 16/20 action runtimes. CodeQL now uses the v4 line instead of the deprecated v3 line.
+- Kept all third-party actions pinned to immutable SHAs instead of floating tags.
+- Replaced `dev-drprasad/delete-older-releases` with `gh release list` and `gh release delete`
+  because its latest tag still declares `node20`; the replacement keeps tags by avoiding
+  `--cleanup-tag`.
+- Verification passed:
+  Python parsed every `.github/workflows/*.yml` file, `git diff --check` passed with only existing
+  CRLF warnings, and the action metadata verifier reported only `node24` or `composite` runtimes.

@@ -16,12 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete older releases
-        uses: dev-drprasad/delete-older-releases@dfbe6be2a006e9475dfcbe5b8d201f1824c2a9fe
-        with:
-          keep_latest: ${{ inputs.keep_latest }}
-          # Keep tags: source archives and GPL source provenance are tag-addressed.
-          delete_tags: false
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP_LATEST: ${{ inputs.keep_latest }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$KEEP_LATEST" =~ ^[0-9]+$ ]]; then
+            echo "::error::keep_latest must be a non-negative integer."
+            exit 1
+          fi
+
+          mapfile -t releases < <(
+            gh release list \
+              --limit 1000 \
+              --json tagName,createdAt \
+              --jq 'sort_by(.createdAt) | reverse | .[].tagName'
+          )
+
+          for index in "${!releases[@]}"; do
+            if [ "$index" -lt "$KEEP_LATEST" ]; then
+              continue
+            fi
+            # Keep tags: source archives and GPL source provenance are tag-addressed.
+            gh release delete "${releases[$index]}" --yes
+          done
 
 

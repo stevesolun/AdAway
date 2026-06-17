@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout project
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
 
       - name: Set up JDK 21
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287
         with:
           distribution: 'temurin'
           java-version: 21
@@ -35,7 +35,7 @@ jobs:
           java .github/workflows/AndroidLocaleChecker.java ${ALL_CHANGED_FILES}
 
       - name: Commit patch
-        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403
+        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9
         if: steps.validation.outputs.patch_applied == 'true'
         with:
           message: 'chore: Fix contribution'

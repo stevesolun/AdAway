@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
         with:
           fetch-depth: 0
 
@@ -52,16 +52,16 @@ jobs:
           git verify-tag "$GITHUB_REF_NAME"
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
+        uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92
 
       - name: Set up JDK 21
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
 
       - name: Install Android SDK/NDK (required for native modules)
         shell: bash
@@ -308,7 +308,7 @@ jobs:
             -StrictArtifacts
 
       - name: Attest release artifacts
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
         with:
           subject-path: |
             ${{ steps.apk.outputs.path }}
@@ -319,13 +319,13 @@ jobs:
             ${{ steps.sbom.outputs.sha256_path }}
 
       - name: Attest release SBOM
-        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
         with:
           subject-path: ${{ steps.apk.outputs.path }}
           sbom-path: ${{ steps.sbom.outputs.path }}
 
       - name: Create GitHub Release + upload APK
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
           generate_release_notes: false
           body: |
