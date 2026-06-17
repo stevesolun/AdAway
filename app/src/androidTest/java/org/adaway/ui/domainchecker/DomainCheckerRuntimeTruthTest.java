@@ -11,6 +11,7 @@ import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.os.Looper;
 
 import androidx.annotation.Nullable;
 import androidx.lifecycle.Observer;
@@ -108,7 +109,7 @@ public class DomainCheckerRuntimeTruthTest {
             public void onChanged(@Nullable DomainCheckResult value) {
                 result[0] = value;
                 latch.countDown();
-                viewModel.checkResult.removeObserver(this);
+                removeObserverOnMain(viewModel, this);
             }
         };
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
@@ -116,10 +117,20 @@ public class DomainCheckerRuntimeTruthTest {
             viewModel.checkDomain(host);
         });
         if (!latch.await(3, TimeUnit.SECONDS)) {
-            viewModel.checkResult.removeObserver(observer);
+            removeObserverOnMain(viewModel, observer);
             fail("Timed out waiting for domain checker result.");
         }
         return result[0];
+    }
+
+    private static void removeObserverOnMain(DomainCheckerViewModel viewModel,
+            Observer<DomainCheckResult> observer) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            viewModel.checkResult.removeObserver(observer);
+            return;
+        }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> viewModel.checkResult.removeObserver(observer));
     }
 
     private void insertSource() {

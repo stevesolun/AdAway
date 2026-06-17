@@ -5811,6 +5811,38 @@
   `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
   -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
 
+## Plan - 2026-06-18 Domain Checker CI Observer Cleanup
+- [x] Inspect replacement CI for `456e7b30`.
+- [x] Pull the failing connected-test log and identify the exact failure.
+- [x] Fix the failing test helper without changing production domain-checker behavior.
+- [x] Verify the exact failing connected test locally.
+- [x] Run focused compile/unit, hygiene, and license-boundary checks.
+- [x] Commit, push, and inspect replacement CI.
+
+## Review - 2026-06-18 Domain Checker CI Observer Cleanup
+- CodeQL run `27725893043` passed on `456e7b30`.
+- Android CI run `27725893032` passed the development build job, then failed in the connected
+  Android tests job. The failing test was
+  `DomainCheckerRuntimeTruthTest.domainCheckerUsesRootExactTruthAndVpnSuffixTruth`.
+- CI failure evidence:
+  `java.lang.IllegalStateException: Cannot invoke removeObserver on a background thread` at
+  `DomainCheckerRuntimeTruthTest.check(DomainCheckerRuntimeTruthTest.java:119)`.
+- Fixed the test helper by routing `checkResult.removeObserver(...)` through
+  `InstrumentationRegistry.getInstrumentation().runOnMainSync(...)` whenever the callback or
+  timeout cleanup is not already on the Android main thread.
+- Focused connected verification passed:
+  `.\gradlew.bat --no-daemon :app:connectedDebugAndroidTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerUsesRootExactTruthAndVpnSuffixTruth"
+  --dependency-verification=strict --stacktrace`; Gradle reported 1 test on
+  `adaway-api34-16g(AVD) - 14`.
+- Focused compile/unit verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.source.Generation304MigrationTest :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+
 ## Plan - 2026-06-18 Root Hosts Writer Scale Proof
 - [x] Reproduce the 5M mixed root-writer failure with corrected benchmark metadata.
 - [x] Reject the redirect-map and computed-line cursor experiments when they failed or regressed
