@@ -31,14 +31,16 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class VpnModelCacheInvalidationTest {
     private static final int TEST_SOURCE_ID = 909090;
-    private static final String SUFFIX_HOST = "cache-invalidation.example";
-    private static final String CHILD_HOST = "ads.cache-invalidation.example";
+    private static final String TEST_HOST_PATTERN = "%cache-invalidation%.invalid";
 
     private AdAwayApplication application;
+    private AppDatabase database;
     private HostEntryDao hostEntryDao;
     private HostListItemDao hostListItemDao;
     private HostsSourceDao hostsSourceDao;
     private AdBlockMethod originalMethod;
+    private String suffixHost;
+    private String childHost;
 
     @Before
     public void setUp() {
@@ -46,10 +48,13 @@ public class VpnModelCacheInvalidationTest {
         application = (AdAwayApplication) context.getApplicationContext();
         originalMethod = PreferenceHelper.getAdBlockMethod(application);
         PreferenceHelper.setAbBlockMethod(application, VPN);
-        AppDatabase database = AppDatabase.getInstance(application);
+        database = AppDatabase.getInstance(application);
         hostEntryDao = database.hostEntryDao();
         hostListItemDao = database.hostsListItemDao();
         hostsSourceDao = database.hostsSourceDao();
+        long uniqueSuffix = System.nanoTime();
+        suffixHost = "cache-invalidation-" + uniqueSuffix + ".invalid";
+        childHost = "ads." + suffixHost;
         cleanup();
         insertSource();
     }
@@ -63,31 +68,33 @@ public class VpnModelCacheInvalidationTest {
     @Test
     public void invalidateRulesCacheRefreshesLiveVpnTruthAfterDirectSync() {
         VpnModel vpnModel = (VpnModel) application.getAdBlockModel();
-        insertHostListItem(SUFFIX_HOST, BLOCKED, SUFFIX, TEST_SOURCE_ID);
-        hostEntryDao.sync();
-
-        HostEntry blocked = vpnModel.getEntry(CHILD_HOST);
-        assertEquals(BLOCKED, blocked.getType());
-
-        insertHostListItem(CHILD_HOST, ALLOWED, EXACT, USER_SOURCE_ID);
+        insertHostListItem(suffixHost, BLOCKED, SUFFIX, TEST_SOURCE_ID);
         hostEntryDao.sync();
         application.invalidateVpnRulesCache();
 
-        assertEquals(ALLOWED, vpnModel.getEntry(CHILD_HOST).getType());
+        HostEntry blocked = vpnModel.getEntry(childHost);
+        assertEquals(BLOCKED, blocked.getType());
+
+        insertHostListItem(childHost, ALLOWED, EXACT, USER_SOURCE_ID);
+        hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
+
+        assertEquals(ALLOWED, vpnModel.getEntry(childHost).getType());
     }
 
     @Test
     public void sourceModelSyncHostEntriesInvalidatesLiveVpnTruth() {
         VpnModel vpnModel = (VpnModel) application.getAdBlockModel();
-        insertHostListItem(SUFFIX_HOST, BLOCKED, SUFFIX, TEST_SOURCE_ID);
+        insertHostListItem(suffixHost, BLOCKED, SUFFIX, TEST_SOURCE_ID);
         hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
 
-        assertEquals(BLOCKED, vpnModel.getEntry(CHILD_HOST).getType());
+        assertEquals(BLOCKED, vpnModel.getEntry(childHost).getType());
 
-        insertHostListItem(CHILD_HOST, ALLOWED, EXACT, USER_SOURCE_ID);
+        insertHostListItem(childHost, ALLOWED, EXACT, USER_SOURCE_ID);
         application.getSourceModel().syncHostEntries();
 
-        assertEquals(ALLOWED, vpnModel.getEntry(CHILD_HOST).getType());
+        assertEquals(ALLOWED, vpnModel.getEntry(childHost).getType());
     }
 
     private void insertSource() {
@@ -113,7 +120,11 @@ public class VpnModelCacheInvalidationTest {
 
     private void cleanup() {
         hostListItemDao.clearSourceHosts(TEST_SOURCE_ID);
-        hostListItemDao.deleteUserFromHost(CHILD_HOST);
+        hostListItemDao.deleteUserFromHost(suffixHost);
+        hostListItemDao.deleteUserFromHost(childHost);
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "DELETE FROM hosts_lists WHERE source_id = ? AND host LIKE ?",
+                new Object[]{USER_SOURCE_ID, TEST_HOST_PATTERN});
         hostsSourceDao.getById(TEST_SOURCE_ID).ifPresent(hostsSourceDao::delete);
         hostEntryDao.sync();
         application.invalidateVpnRulesCache();

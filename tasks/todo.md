@@ -5740,3 +5740,22 @@
   -InstrumentationTimeoutSeconds 420`.
 - The UX matrix runner exited 0 for `baseline`, `font-1.3`, and `font-1.3-rtl`, each with
   `OK (1 test)`, and pulled 21 screenshots total.
+- The next pushed Android CI run on `73a8853b` confirmed the idle hang was gone: the connected
+  suite finished instead of timing out. It then exposed two full-suite/order-dependent failures:
+  `VpnModelCacheInvalidationTest.sourceModelSyncHostEntriesInvalidatesLiveVpnTruth` read stale
+  or polluted baseline VPN truth as `ALLOWED`, and `UxDeviceMatrixTest` found the Sources
+  `sourceStatus` row ellipsized as `Updated few minutes 2 skipped`.
+- Hardened the VPN cache test by giving each test a unique `.invalid` host, explicitly
+  invalidating the VPN cache after setup-only direct syncs, and sweeping any orphaned
+  cache-invalidation user rows from prior interrupted runs. This keeps the test aimed at the
+  SourceModel invalidation behavior instead of inherited singleton app database state.
+- Let Sources status text wrap by removing the `sourceStatus` ellipsize/max-line cap from
+  `filter_source_item.xml`; the row can grow instead of hiding provenance or skipped-rule state.
+- Post-fix verification passed:
+  `.\gradlew.bat --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`,
+  focused connected `VpnModelCacheInvalidationTest,UxDeviceMatrixTest`,
+  full connected `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  --dependency-verification=strict --stacktrace` with `110` tests, `0` failures, `3` skipped,
+  and `.\scripts\run-ux-matrix.ps1 -OutputDir
+  app\build\reports\ux-matrix-ci-failure-fix -InstrumentationTimeoutSeconds 420`.
