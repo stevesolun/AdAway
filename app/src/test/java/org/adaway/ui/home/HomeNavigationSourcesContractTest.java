@@ -172,10 +172,15 @@ public class HomeNavigationSourcesContractTest {
 
         String[] fallbackIconFiles = {
                 "app/src/main/res/mipmap-mdpi/icon.png",
+                "app/src/main/res/mipmap-mdpi/icon_foreground.png",
                 "app/src/main/res/mipmap-hdpi/icon.png",
+                "app/src/main/res/mipmap-hdpi/icon_foreground.png",
                 "app/src/main/res/mipmap-xhdpi/icon.png",
+                "app/src/main/res/mipmap-xhdpi/icon_foreground.png",
                 "app/src/main/res/mipmap-xxhdpi/icon.png",
+                "app/src/main/res/mipmap-xxhdpi/icon_foreground.png",
                 "app/src/main/res/mipmap-xxxhdpi/icon.png",
+                "app/src/main/res/mipmap-xxxhdpi/icon_foreground.png",
                 "app/src/main/res/mipmap-mdpi/icon_round.png",
                 "app/src/main/res/mipmap-hdpi/icon_round.png",
                 "app/src/main/res/mipmap-xhdpi/icon_round.png",
@@ -197,6 +202,9 @@ public class HomeNavigationSourcesContractTest {
 
         assertTrue("Packaged logo inventory must describe the restored AdAway bird assets.",
                 thirdPartyLicenses.contains("AdAway bird"));
+        assertTrue("Packaged logo inventory must include density fallback launcher icons.",
+                thirdPartyLicenses.contains("Launcher density fallback icons") &&
+                        thirdPartyLicenses.contains("app/src/main/res/mipmap-*/icon*.png"));
         assertFalse("Packaged logo inventory must not describe a different shield logo.",
                 thirdPartyLicenses.contains("geometric DNS shield"));
     }

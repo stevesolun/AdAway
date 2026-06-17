@@ -5113,9 +5113,9 @@
   remain open.
 
 ## Plan - 2026-06-15 Goal Continuation 92 Ponytail Review Fixes
-- [ ] Add a red guard that the third-party/license inventory matches the restored AdAway bird
+- [x] Add a red guard that the third-party/license inventory matches the restored AdAway bird
   branding and does not describe a different geometric shield asset.
-- [ ] Correct packaged logo/icon provenance text while keeping the bird assets in the app.
+- [x] Correct packaged logo/icon provenance text while keeping the bird assets in the app.
 - [x] Move `REQUEST_INSTALL_PACKAGES` out of the base manifest and gate it to the direct APK
   update distribution path only.
 - [ ] Harden `scripts/run-ux-matrix.ps1` so instrumentation timeouts cleanly stop app/test
@@ -5125,6 +5125,17 @@
 - [ ] Remove duplicated UX-matrix idle waits where the Domain Checker scroll assertion runs.
 - [ ] Run focused unit/static checks, script parser checks, license-boundary checks, and a
   Ponytail re-review of the resulting diff.
+
+## Review - 2026-06-17 Bird Branding License Provenance
+- Strengthened the existing bird branding guard so `HomeNavigationSourcesContractTest` now also
+  requires the restored density `icon_foreground.png` launcher fallbacks to exist and be non-empty.
+- Updated `THIRD_PARTY_LICENSES.md` to explicitly inventory packaged density fallback launcher
+  PNGs as AdAway bird assets. The existing guard still rejects stale geometric DNS shield wording.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest --dependency-verification=strict
+  --stacktrace`, `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree`, and
+  `git diff --check` with only existing CRLF conversion warnings.
 
 ## Plan - 2026-06-15 Goal Continuation 93 Devil Advocate Stabilization
 - [x] Freeze broad feature/refactor work while crash and build state are proved.
