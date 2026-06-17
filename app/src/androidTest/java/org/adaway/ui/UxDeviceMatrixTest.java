@@ -182,6 +182,10 @@ public class UxDeviceMatrixTest {
                         + " size=" + view.getWidth() + "x" + view.getHeight());
             }
         }
+        if (view instanceof TextView && view.isShown() && view.getWidth() > 0
+                && view.getHeight() > 0) {
+            auditTextFits(screenName, (TextView) view, failures);
+        }
 
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -219,6 +223,35 @@ public class UxDeviceMatrixTest {
             }
         }
         return false;
+    }
+
+    private void auditTextFits(String screenName, TextView textView, List<String> failures) {
+        if (TextUtils.isEmpty(textView.getText()) || textView.getLayout() == null) {
+            return;
+        }
+        int lineCount = textView.getLayout().getLineCount();
+        for (int line = 0; line < lineCount; line++) {
+            if (textView.getLayout().getEllipsisCount(line) > 0) {
+                failures.add(screenName + ": ellipsized text " + describe(textView)
+                        + " text=" + summarize(textView.getText()));
+                return;
+            }
+        }
+
+        int compoundPaddingHeight = textView.getCompoundPaddingTop()
+                + textView.getCompoundPaddingBottom();
+        int availableTextHeight = textView.getHeight() - compoundPaddingHeight;
+        if (availableTextHeight > 0 && textView.getLayout().getHeight() > availableTextHeight) {
+            failures.add(screenName + ": clipped text " + describe(textView)
+                    + " layoutHeight=" + textView.getLayout().getHeight()
+                    + " availableHeight=" + availableTextHeight
+                    + " text=" + summarize(textView.getText()));
+        }
+    }
+
+    private String summarize(CharSequence text) {
+        String value = text.toString().replace('\n', ' ').trim();
+        return value.length() <= 80 ? value : value.substring(0, 77) + "...";
     }
 
     private String describe(View view) {

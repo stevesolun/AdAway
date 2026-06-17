@@ -5674,3 +5674,28 @@
 - License and hygiene checks passed:
   `.\scripts\check-license-boundary.ps1 -SourceMode WorkingTree` and `git diff --check`
   (only existing CRLF conversion warnings).
+
+## Plan - 2026-06-17 Remaining Work Map And UX Text-Fit Matrix
+- [x] Reconfirm current PR/worktree state and map remaining live rocks.
+- [x] Select the next implementable slice from release/signing, real-device smoke,
+  screenshot/accessibility, and MIT clearance.
+- [x] Harden the UX matrix to catch visible ellipsized or vertically clipped text under the
+  existing baseline, large-font, and RTL variants.
+- [x] Run focused compile/unit verification and the device UX matrix.
+- [ ] Commit, push, and inspect CI for this slice.
+
+## Review - 2026-06-17 Remaining Work Map And UX Text-Fit Matrix
+- Current map: full release/signing proof still needs signing secrets; physical release smoke
+  still needs a real device; MIT remains blocked by GPL-derived code/assets and legal clearance;
+  screenshot/accessibility was the next locally actionable slice.
+- Added a `TextView` fit audit to `UxDeviceMatrixTest` so the matrix now fails on visible
+  ellipsized text or text layout height that exceeds the available view height.
+- Focused compile/unit verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.scripts.UxMatrixScriptTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- UX matrix verification passed:
+  `.\scripts\run-ux-matrix.ps1 -OutputDir
+  app\build\reports\ux-matrix-continuation-current -InstrumentationTimeoutSeconds 420`.
+- The UX matrix produced 21 screenshots: seven screens each for `baseline`, `font-1.3`, and
+  `font-1.3-rtl`.
