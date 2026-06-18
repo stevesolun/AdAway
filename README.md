@@ -248,11 +248,8 @@ cd AdAway
 # Debug build (for development + testing)
 ./gradlew assembleDebug
 
-# Release build
-./gradlew :app:assembleRelease --dependency-verification=strict
-
-# Or use the package task directly for signed release APK:
-./gradlew :app:packageRelease --dependency-verification=strict
+# Direct-download release build
+./gradlew :app:assembleDirectRelease --dependency-verification=strict
 
 # Run unit tests
 ./gradlew testDebugUnitTest
@@ -263,7 +260,7 @@ cd AdAway
 
 **Output APKs:**
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`
-- Release: `app/build/outputs/apk/release/app-release.apk`
+- Direct release: `app/build/outputs/apk/directRelease/app-directRelease.apk`
 
 ### Production Signing
 
@@ -279,21 +276,26 @@ updateManifestPublicKeyBase64=base64_encoded_spki_public_key
 
 ### CI/CD — Automatic Releases
 
-Push a version tag to trigger the release pipeline:
+Push a signed version tag to trigger the release pipeline:
 
 ```bash
-git tag v<version>
+git tag -s v<version> -m "AdAway <version>"
+git verify-tag v<version>
 git push origin v<version>
 ```
 
 GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
-1. Build `assembleRelease`
-2. Rename the APK to `AdAway_<version>.apk`
-3. Verify the APK package name, tag-matching version, signer SHA-256, and file SHA-256
-4. Generate the signed update manifest
-5. Generate the CycloneDX SBOM and SHA-256 checksum files
-6. Attest the APK, manifest, and SBOM artifacts
-7. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
+1. Verify the signed release tag with `RELEASE_TAG_PUBLIC_KEY_BASE64`
+2. Build `assembleDirectRelease`
+3. Rename the APK to `AdAway_<version>.apk`
+4. Verify the APK package name, tag-matching version, signer SHA-256, and file SHA-256
+5. Generate the signed update manifest
+6. Generate the CycloneDX SBOM and SHA-256 checksum files
+7. Attest the APK, manifest, SBOM, and their `.sha256` checksum sidecars
+8. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
+
+Before announcing a release, run the `RELEASING.md` artifact verifier and
+release smoke. Full smoke requires an attached physical device.
 
 **Repository Secrets** (for production-signed APKs):
 
@@ -306,10 +308,11 @@ GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 | `UPDATE_MANIFEST_PUBLIC_KEY_BASE64` | Base64 SPKI public key embedded for signed update-manifest verification |
 | `UPDATE_MANIFEST_PRIVATE_KEY_BASE64` | Base64 PEM private key used to sign update manifests |
 | `ANDROID_RELEASE_CERT_SHA256` | Expected release APK signing certificate SHA-256 digest |
+| `RELEASE_TAG_PUBLIC_KEY_BASE64` | Base64 public key imported before `git verify-tag` |
 
 Regular CI and CodeQL build debug artifacts. Production release builds are
-expected to fail closed without the signing properties and update-manifest trust
-material above.
+expected to fail closed without the signing properties, signed-tag key, and
+update-manifest trust material above.
 
 ### Key Dependencies
 

@@ -399,6 +399,13 @@ public class SecurityHardeningTest {
         String verifier = readUtf8(repoDir().resolve("scripts/VerifyReleaseArtifacts.java"));
         Pattern pinnedSbomAttest = Pattern.compile(
                 "actions/attest@[0-9a-fA-F]{40}");
+        int provenanceAttestationStart = workflow.indexOf("      - name: Attest release artifacts");
+        int sbomAttestationStart = workflow.indexOf("      - name: Attest release SBOM");
+        assertTrue("Release workflow must keep provenance attestation before SBOM attestation.",
+                provenanceAttestationStart >= 0 &&
+                        sbomAttestationStart > provenanceAttestationStart);
+        String provenanceAttestationBlock =
+                workflow.substring(provenanceAttestationStart, sbomAttestationStart);
 
         assertTrue("Release workflow must generate an SBOM.",
                 workflow.contains(":app:generateSbom"));
@@ -429,6 +436,13 @@ public class SecurityHardeningTest {
                 workflow.contains("${{ steps.sbom.outputs.sha256_path }}"));
         assertTrue("Release workflow must checksum the APK by release-asset basename.",
                 workflow.contains("sha256sum \"$(basename \"$APK\")\""));
+        assertTrue("Release workflow must provenance-attest all uploaded release assets.",
+                provenanceAttestationBlock.contains("${{ steps.apk.outputs.path }}") &&
+                        provenanceAttestationBlock.contains("${{ steps.apk.outputs.sha256_path }}") &&
+                        provenanceAttestationBlock.contains("${{ steps.update_manifest.outputs.path }}") &&
+                        provenanceAttestationBlock.contains("${{ steps.update_manifest.outputs.sha256_path }}") &&
+                        provenanceAttestationBlock.contains("${{ steps.sbom.outputs.path }}") &&
+                        provenanceAttestationBlock.contains("${{ steps.sbom.outputs.sha256_path }}"));
         assertTrue("Release workflow must generate a signed update manifest.",
                 workflow.contains("Generate signed update manifest") &&
                         workflow.contains("scripts/generate-update-manifest.sh"));
@@ -473,8 +487,14 @@ public class SecurityHardeningTest {
                 verifier.contains("verifyManifestSignature") &&
                         verifier.contains("Manifest apkSha256 does not match the release APK"));
         assertTrue("Release artifact verifier must optionally verify GitHub attestations.",
-                verifier.contains("gh\", \"attestation\", \"verify") &&
+                verifier.contains("\"attestation\", \"verify") &&
+                        verifier.contains("GH_CLI_PATH") &&
                         verifier.contains("--verify-attestations"));
+        assertTrue("Release artifact verifier must include checksum sidecars in attestation " +
+                        "verification.",
+                verifier.contains("verifyAttestation(options.apkSha256") &&
+                        verifier.contains("verifyAttestation(options.manifestSha256") &&
+                        verifier.contains("verifyAttestation(options.sbomSha256"));
         assertTrue("Release workflow must generate manifest APK URLs on the allowed GitHub host.",
                 workflow.contains("APK_URL=\"https://github.com/${GITHUB_REPOSITORY}/releases/download/"));
         assertTrue("Release workflow must emit manifests for the runtime AdAway store.",
@@ -660,6 +680,43 @@ public class SecurityHardeningTest {
             assertTrue("Passing verifier must report success.",
                     verified.stdout.contains("Release artifact verification passed"));
 
+            Path fakeGhLog = fixture.resolve("fake-gh.log");
+            Path fakeGh = writeFakeGitHubCli(fixture, fakeGhLog);
+            java.util.Map<String, String> environment = new java.util.HashMap<>();
+            environment.put("GH_CLI_PATH", fakeGh.toString());
+            environment.put("FAKE_GH_LOG", fakeGhLog.toString());
+            ProcessResult attested = runProcess(repo,
+                    environment,
+                    javaCommand(),
+                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
+                    "--apk", apk.toString(),
+                    "--apk-sha256", apkChecksum.toString(),
+                    "--manifest", manifest.toString(),
+                    "--manifest-sha256", manifestChecksum.toString(),
+                    "--sbom", sbom.toString(),
+                    "--sbom-sha256", sbomChecksum.toString(),
+                    "--public-key-base64", publicKeyBase64,
+                    "--expected-version", "13.5.0",
+                    "--expected-channel", "stable",
+                    "--expected-store", "adaway",
+                    "--expected-apk-url", apkUrl,
+                    "--expected-cert-sha256", certSha256,
+                    "--verify-attestations");
+            assertEquals("Verifier must accept matching artifacts when attestations pass.",
+                    0, attested.exitCode);
+            String fakeGhCalls = readUtf8(fakeGhLog);
+            assertEquals("Verifier must run one attestation check per uploaded release asset.",
+                    6, countMatches(fakeGhCalls, "attestation verify"));
+            assertTrue("Verifier must attest the APK and its checksum sidecar.",
+                    fakeGhCalls.contains(apk.getFileName().toString()) &&
+                            fakeGhCalls.contains(apkChecksum.getFileName().toString()));
+            assertTrue("Verifier must attest the manifest and its checksum sidecar.",
+                    fakeGhCalls.contains(manifest.getFileName().toString()) &&
+                            fakeGhCalls.contains(manifestChecksum.getFileName().toString()));
+            assertTrue("Verifier must attest the SBOM and its checksum sidecar.",
+                    fakeGhCalls.contains(sbom.getFileName().toString()) &&
+                            fakeGhCalls.contains(sbomChecksum.getFileName().toString()));
+
             writeUtf8(apk, "tampered apk bytes\n");
             ProcessResult rejected = runProcess(repo,
                     javaCommand(),
@@ -691,6 +748,7 @@ public class SecurityHardeningTest {
                 repoDir().resolve(".github/workflows/cleanup-releases.yml"));
         String workflow = readUtf8(repoDir().resolve(".github/workflows/fork-release-apk.yml"));
         String releasing = readUtf8(repoDir().resolve("RELEASING.md"));
+        String readme = readUtf8(repoDir().resolve("README.md"));
 
         assertFalse("Manual release cleanup must not expose tag deletion as an input.",
                 cleanupWorkflow.contains("delete_tags:") &&
@@ -730,6 +788,8 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must verify fork release attestations against this repository.",
                 releasing.contains("--repo stevesolun/AdAway") &&
                         releasing.contains("--verify-attestations"));
+        assertTrue("Release docs must explain attestation verification covers checksum sidecars.",
+                releasing.contains("each `.sha256` checksum sidecar"));
         assertTrue("Release docs must verify signed manifest semantics after publishing.",
                 releasing.contains("--public-key-base64") &&
                         releasing.contains("--expected-apk-url") &&
@@ -745,9 +805,34 @@ public class SecurityHardeningTest {
                 releasing.contains("Tagged releases are retained for durable provenance"));
         assertTrue("Release docs must scope APK self-update to AdAway-signed direct APKs.",
                 releasing.contains("APK self-update is only for the AdAway-signed direct APK"));
+        assertTrue("Release docs must scope fork tags to fork GitHub direct APK publishing.",
+                releasing.contains("https://github.com/stevesolun/AdAway/releases") &&
+                        releasing.contains("Pushing a fork release tag publishes the GitHub " +
+                                "direct APK only"));
+        assertTrue("Release docs must keep F-Droid/store releases separate from direct APK tags.",
+                releasing.contains("F-Droid updates") &&
+                        releasing.contains("own store/build pipeline"));
+        assertFalse("Release docs must not point fork release publishing at upstream GitHub.",
+                releasing.contains("https://github.com/AdAway/AdAway/releases"));
+        assertFalse("Release docs must not claim fork tags publish F-Droid.",
+                releasing.contains("Pushing a tag will publish the application to F-Droid store"));
         assertTrue("Release docs must show the direct APK updater build type.",
                 releasing.contains(":app:assembleDirectRelease") &&
                         releasing.contains("directRelease"));
+        assertTrue("README must describe the direct-release build and signed tag gate.",
+                readme.contains(":app:assembleDirectRelease") &&
+                        readme.contains("git tag -s v<version>") &&
+                        readme.contains("git verify-tag v<version>") &&
+                        readme.contains("RELEASE_TAG_PUBLIC_KEY_BASE64"));
+        assertTrue("README must describe checksum-sidecar attestations.",
+                readme.contains("their `.sha256` checksum sidecars"));
+        assertTrue("README must point release operators to verifier and physical-device smoke.",
+                readme.contains("RELEASING.md") &&
+                        readme.contains("artifact verifier") &&
+                        readme.contains("Full smoke requires an attached physical device"));
+        assertFalse("README must not tell maintainers to ship the generic release variant.",
+                readme.contains(":app:assembleRelease") ||
+                        readme.contains(":app:packageRelease"));
         assertTrue("Fork direct APK release workflow must build the updater distribution variant.",
                 workflow.contains(":app:assembleDirectRelease"));
         assertFalse("Direct APK install permission must not be controlled by a Gradle property.",
@@ -1618,6 +1703,18 @@ public class SecurityHardeningTest {
             writeUtf8(tool, "#!/usr/bin/env sh\nprintf '%s\\n' \"" + escaped + "\"\n");
             assertTrue("Fake build tool must be executable.", tool.toFile().setExecutable(true));
         }
+    }
+
+    private static Path writeFakeGitHubCli(Path fixture, Path log) throws IOException {
+        boolean windows = System.getProperty("os.name").toLowerCase(Locale.US).contains("win");
+        Path tool = fixture.resolve(windows ? "gh.cmd" : "gh");
+        if (windows) {
+            writeUtf8(tool, "@echo off\r\necho %*>> \"%FAKE_GH_LOG%\"\r\nexit /b 0\r\n");
+        } else {
+            writeUtf8(tool, "#!/usr/bin/env sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_GH_LOG\"\n");
+            assertTrue("Fake GitHub CLI must be executable.", tool.toFile().setExecutable(true));
+        }
+        return tool;
     }
 
     private static String findPowerShell() {

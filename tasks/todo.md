@@ -6187,3 +6187,45 @@
   broader manual UX review, MIT legal/provenance clearance, plus sidecar leftovers around
   add-source scheduling clarity, inset cleanup, README release docs, and checksum-sidecar
   attestation coverage.
+
+## Plan - 2026-06-18 Release Attestation Sidecars
+- [x] Confirm the latest branch and CI baseline are clean and green.
+- [x] Ask sidecar reviewers to inspect the release verifier/workflow contract and release docs.
+- [x] Make `--verify-attestations` verify APK, manifest, SBOM, and all three `.sha256`
+  checksum sidecars.
+- [x] Tighten verifier/workflow tests so the provenance block must include all six uploaded
+  release assets.
+- [x] Update README and `RELEASING.md` for the signed `directRelease` flow, signed-tag key,
+  post-release verifier, physical-device smoke, and fork-vs-store release boundary.
+- [x] Run focused security tests, debug assemble/lint, verifier wrapper help, license-boundary,
+  and hygiene gates.
+
+## Review - 2026-06-18 Release Attestation Sidecars
+- CodeQL run `27732492691` and Android CI run `27732492678` passed on `c08ebaaf`
+  before this slice started.
+- `scripts/VerifyReleaseArtifacts.java` now verifies GitHub attestations for all six published
+  assets when `--verify-attestations` is set: APK, APK checksum, signed manifest, manifest
+  checksum, SBOM, and SBOM checksum.
+- Added `GH_CLI_PATH` support so the verifier keeps using `gh` by default while tests can inject
+  a deterministic fake GitHub CLI.
+- Extended `SecurityHardeningTest.atk34_releaseArtifactVerifierChecksManifestAndChecksums` with a
+  fake `gh` executable and asserted six attestation calls including all checksum sidecars.
+- Tightened `atk34_releaseWorkflowGeneratesUploadsAndAttestsSbom` to inspect the actual
+  `Attest release artifacts` provenance block instead of accepting checksum tokens elsewhere in
+  the workflow.
+- Updated README release guidance from generic `assembleRelease`/unsigned tags to signed
+  `assembleDirectRelease`, `git verify-tag`, `RELEASE_TAG_PUBLIC_KEY_BASE64`, checksum-sidecar
+  attestations, and verifier/physical-device smoke expectations.
+- Updated `RELEASING.md` to state fork tags publish the GitHub direct APK only; F-Droid/store
+  releases remain separate store/build-pipeline work using the normal release variant.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:assembleDebug :app:lintDebug
+  --dependency-verification=strict --stacktrace`;
+  `.\scripts\verify-release-artifacts.ps1 --help`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: live release proof with real repository signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
+  add-source scheduling clarity, and inset cleanup.

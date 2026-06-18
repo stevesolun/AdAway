@@ -57,8 +57,11 @@ public final class VerifyReleaseArtifacts {
 
         if (options.verifyAttestations) {
             verifyAttestation(options.apk, options.repository);
+            verifyAttestation(options.apkSha256, options.repository);
             verifyAttestation(options.manifest, options.repository);
+            verifyAttestation(options.manifestSha256, options.repository);
             verifyAttestation(options.sbom, options.repository);
+            verifyAttestation(options.sbomSha256, options.repository);
         }
 
         System.out.println("Release artifact verification passed.");
@@ -202,7 +205,8 @@ public final class VerifyReleaseArtifacts {
 
     private static void verifyAttestation(Path artifact, String repository)
             throws IOException, InterruptedException {
-        Process process = new ProcessBuilder("gh", "attestation", "verify",
+        String ghCommand = System.getenv().getOrDefault("GH_CLI_PATH", "gh");
+        Process process = new ProcessBuilder(ghCommand, "attestation", "verify",
                 artifact.toString(), "--repo", repository)
                 .redirectErrorStream(true)
                 .start();

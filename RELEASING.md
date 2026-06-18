@@ -40,8 +40,9 @@ Tagged GitHub releases build the `directRelease` variant with
 For example, tag `v13.5.0` produces `AdAway_13.5.0.apk`.
 
 The workflow also generates `app/build/reports/sbom/adaway.cdx.json`,
-SHA-256 checksum files for the APK and SBOM, signer-certificate verification,
-and provenance/SBOM attestations.
+SHA-256 checksum files for the APK, signed manifest, and SBOM,
+signer-certificate verification, provenance attestations for all six uploaded
+assets, and the SBOM predicate attestation.
 
 Required repository secrets:
 
@@ -101,14 +102,17 @@ The beta releases are only announced in the XDA development thread.
 
 ### Stable releases
 
-The stable releases are distributed through [GitHub releases](https://github.com/AdAway/AdAway/releases) and [F-Droid store](https://f-droid.org/packages/org.adaway/) and are posted of the first post of XDA development thread.
-Once ready, create and push a tag on GitHub repository using `vX.Y.Z` format
-(or `vX.Y.Zb` for pre-releases). Tags ending in `b` are published as GitHub
-pre-releases and use the `beta` update-manifest channel; all other release tags
-use the `stable` channel. To publish the application in GitHub, push the signed
-release tag. The workflow imports `RELEASE_TAG_PUBLIC_KEY_BASE64`, runs
-`git verify-tag`, creates the GitHub release with fixed GPL boundary wording,
-disables generated release notes, and uploads:
+Fork release tags publish the direct APK through
+[GitHub releases](https://github.com/stevesolun/AdAway/releases). Store
+releases such as F-Droid are separate store/build-pipeline work and should use
+the normal `release` variant, not the direct APK updater variant.
+Once ready, create and push a signed tag on this GitHub repository using
+`vX.Y.Z` format (or `vX.Y.Zb` for pre-releases). Tags ending in `b` are
+published as GitHub pre-releases and use the `beta` update-manifest channel;
+all other release tags use the `stable` channel. The workflow imports
+`RELEASE_TAG_PUBLIC_KEY_BASE64`, runs `git verify-tag`, creates the GitHub
+release with fixed GPL boundary wording, disables generated release notes, and
+uploads:
 
 * `AdAway_<version>.apk`
 * `AdAway_<version>.apk.sha256`
@@ -178,7 +182,9 @@ bash ./scripts/check-license-boundary.sh -SourceMode GitTracked -StrictSourceArc
 ```
 
 After the GitHub release is published, download the six uploaded assets to a
-clean checkout and verify them as a single artifact set:
+clean checkout and verify them as a single artifact set. With
+`--verify-attestations`, the verifier checks GitHub attestations for the APK,
+signed manifest, SBOM, and each `.sha256` checksum sidecar:
 
 ```powershell
 $Version = "<version>"
@@ -236,5 +242,6 @@ the in-app APK installer path. Build store releases with the normal `release`
 variant so the installer permission is absent from the merged manifest; build
 only the AdAway-signed direct APK channel with `directRelease`.
 
-Pushing a tag will publish the application to F-Droid store.
-It might takes some days to update but if it does not, build logs are available at the following address: `https://monitor.f-droid.org/builds/log/org.adaway/<versioncode>`.
+Pushing a fork release tag publishes the GitHub direct APK only. F-Droid updates
+through its own store/build pipeline; when that pipeline runs, logs are
+available at `https://monitor.f-droid.org/builds/log/org.adaway/<versioncode>`.
