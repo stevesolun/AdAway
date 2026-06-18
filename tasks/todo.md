@@ -6121,3 +6121,32 @@
 - Remaining release sidecar findings: post-release attestation verification currently covers APK,
   manifest, and SBOM but not their checksum sidecars; README release summary still lags the
   `directRelease` workflow and signed-tag secret table.
+
+## Plan - 2026-06-18 Domain Checker CI State Isolation
+- [x] Pull the failed connected Android CI log for `2e4eba16`.
+- [x] Identify the exact full-suite failure and reproduce the focused test locally.
+- [x] Patch the test fixture so direct runtime-truth rows are isolated from prior connected-test
+  state.
+- [x] Run the exact focused connected test.
+- [x] Run the full connected Android test suite locally before pushing follow-up commits.
+
+## Review - 2026-06-18 Domain Checker CI State Isolation
+- Android CI run `27731153541` passed the development build but failed connected Android tests in
+  `DomainCheckerRuntimeTruthTest.domainCheckerUsesRootExactTruthAndVpnSuffixTruth`.
+- CI failure evidence: `Root hosts-file mode must report suffix rules for their materialized base
+  host` at `DomainCheckerRuntimeTruthTest.java:80`.
+- The focused connected test passed locally before the patch, which pointed at full-suite state
+  leakage rather than the AI network cleanup itself.
+- Hardened the test fixture by using a less collision-prone `.invalid` host, deleting leftover
+  base/child host rows across sources during cleanup, refreshing the fixture source's active-rule
+  stats after direct row insertion, invalidating materialized runtime caches during cleanup, and
+  asserting that root-mode base suffix truth is materialized before exercising the UI-facing
+  Domain Checker path.
+- Focused connected verification passed:
+  `.\gradlew.bat --no-daemon :app:connectedDebugAndroidTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerUsesRootExactTruthAndVpnSuffixTruth"
+  --dependency-verification=strict --stacktrace`.
+- Full connected verification passed:
+  `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  --dependency-verification=strict --stacktrace`; Gradle reported 110 tests on
+  `adaway-api34-16g(AVD) - 14`, 0 failures, 3 skipped.

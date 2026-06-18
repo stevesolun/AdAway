@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 @RunWith(AndroidJUnit4.class)
 public class DomainCheckerRuntimeTruthTest {
     private static final int TEST_SOURCE_ID = 929292;
-    private static final String SUFFIX_HOST = "domainchecker-runtime.example";
-    private static final String CHILD_HOST = "ads.domainchecker-runtime.example";
+    private static final String SUFFIX_HOST = "domainchecker-runtime-ci.invalid";
+    private static final String CHILD_HOST = "ads.domainchecker-runtime-ci.invalid";
 
     private AdAwayApplication application;
     private AppDatabase database;
@@ -61,7 +61,10 @@ public class DomainCheckerRuntimeTruthTest {
         cleanup();
         insertSource();
         insertSuffixBlock();
+        hostsSourceDao.updateActiveRuleStats(TEST_SOURCE_ID);
         hostEntryDao.sync();
+        assertEquals("Test fixture must materialize the root-mode base suffix before checking UI.",
+                BLOCKED, hostEntryDao.getRootTypeForHost(SUFFIX_HOST));
         application.invalidateVpnRulesCache();
     }
 
@@ -164,7 +167,11 @@ public class DomainCheckerRuntimeTruthTest {
     }
 
     private void cleanup() {
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "DELETE FROM hosts_lists WHERE host IN (?, ?)",
+                new Object[]{SUFFIX_HOST, CHILD_HOST});
         hostListItemDao.clearSourceHosts(TEST_SOURCE_ID);
         hostsSourceDao.getById(TEST_SOURCE_ID).ifPresent(hostsSourceDao::delete);
+        hostEntryDao.invalidateMaterializedRuntimeCaches();
     }
 }
