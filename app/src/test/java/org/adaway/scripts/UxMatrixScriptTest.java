@@ -115,6 +115,28 @@ public class UxMatrixScriptTest {
                         script.contains("Invoke-UxTest -Variant \"font-1.6-rtl\""));
     }
 
+    @Test
+    public void runnerDismissesExternalDialogsBeforeInstrumentation() throws IOException {
+        String script = readUtf8(repoDir().resolve("scripts/run-ux-matrix.ps1"));
+
+        int helperIndex = script.indexOf("function Dismiss-ExternalSystemDialogs");
+        int invokeIndex = script.indexOf("function Invoke-UxTest");
+        int beforeRunIndex = script.indexOf("Dismiss-ExternalSystemDialogs", invokeIndex);
+        int instrumentationIndex = script.indexOf("\"shell\", \"am\", \"instrument\"", invokeIndex);
+        int deviceStateIndex = script.indexOf("function Set-DeviceState");
+        int afterStateIndex = script.indexOf("Dismiss-ExternalSystemDialogs", deviceStateIndex);
+
+        assertTrue("Runner must keep a helper for emulator launcher/system ANR dialogs.",
+                helperIndex >= 0 &&
+                        script.contains("android.intent.action.CLOSE_SYSTEM_DIALOGS") &&
+                        script.contains("com.google.android.apps.nexuslauncher") &&
+                        script.contains("com.android.launcher3"));
+        assertTrue("Runner must dismiss external dialogs before instrumentation starts.",
+                beforeRunIndex > invokeIndex && beforeRunIndex < instrumentationIndex);
+        assertTrue("Runner must also dismiss external dialogs after locale/font-scale changes.",
+                afterStateIndex > deviceStateIndex);
+    }
+
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
         Path platformTools = fixture.resolve("android-sdk").resolve("platform-tools");
         Files.createDirectories(platformTools);

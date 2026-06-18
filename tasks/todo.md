@@ -6270,3 +6270,53 @@
 - Remaining full-goal gaps: live release proof with real repository signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
   and inset cleanup.
+
+## Plan - 2026-06-18 First-Class Sources UX Matrix
+- [x] Confirm current branch, CI baseline, and remaining local UX gaps.
+- [x] Update the UX matrix so it screenshots the embedded bottom-nav Sources tab, not only the
+  legacy standalone sources activity.
+- [x] Add Custom Rules coverage, FAB/list clearance, and RTL-safe Custom Rules anchoring.
+- [x] Fix the global schedule first-launch semantics so passive UI tests and real users do not
+  inherit an immediate full-source update.
+- [x] Add static contract guards for first-class Sources, Custom Rules, WorkManager isolation,
+  and schedule startup behavior.
+- [x] Run focused unit and androidTest compile gates, then the UX matrix when a device is
+  available.
+- [x] Record verification evidence and remaining external release/MIT blockers.
+
+## Review - 2026-06-18 First-Class Sources UX Matrix
+- CodeQL run `27733860440` and Android CI run `27733860414` passed on `af5c410f`
+  before this slice started.
+- `UxDeviceMatrixTest` now captures `Sources` through the Home bottom-nav shell and captures
+  reachable `Custom Rules` through `ListsActivity`; the legacy standalone Sources activity is no
+  longer the primary Sources screenshot.
+- Custom Rules now has bottom/end list padding, list clipping disabled, an accessibility label,
+  and RTL-safe start/end constraints plus bottom/end FAB anchoring.
+- The UX matrix now resets WorkManager around passive screenshots and the runner dismisses
+  emulator launcher/system dialogs before instrumentation and after locale/font-scale changes.
+- Root cause for the previous final-variant timeout was a real first-launch background update:
+  global schedule defaults left `lastRun = 0`, and `FilterSetUpdateWorker` treated that as due
+  now. Defaults and user schedule changes now seed `lastRun`; the worker repairs old zero
+  `lastRun` globals without updating all sources immediately.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest --tests org.adaway.scripts.UxMatrixScriptTest
+  :app:compileDebugAndroidTestJavaWithJavac :app:compileDebugJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:connectedDebugAndroidTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetStoreMigrationTest"
+  --dependency-verification=strict --stacktrace`; and
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1
+  -OutputDir app\build\reports\ux-matrix-first-class-sources`, which passed all five variants
+  and pulled 8 screenshots per variant.
+- Additional gates passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintDebug
+  --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Spot-checked generated `font-1.6-rtl` Sources and Custom Rules screenshots after the green
+  matrix. Sources is usable through bottom navigation, and Custom Rules keeps the empty state,
+  search field, FAB, and bottom navigation clear at large font.
+- Remaining full-goal gaps: live release proof with real repository signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
+  and larger scale/performance proof.

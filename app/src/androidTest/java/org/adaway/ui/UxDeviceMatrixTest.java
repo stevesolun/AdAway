@@ -20,12 +20,13 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.work.WorkManager;
 
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.ui.home.HomeActivity;
-import org.adaway.ui.hosts.HostsSourcesActivity;
+import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.onboarding.OnboardingActivity;
 import org.adaway.ui.update.UpdateActivity;
 import org.adaway.util.Constants;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -60,6 +62,7 @@ public class UxDeviceMatrixTest {
     @Before
     public void setUp() {
         this.context = ApplicationProvider.getApplicationContext();
+        resetBackgroundWork("set up UX matrix");
         this.context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .clear()
@@ -73,6 +76,7 @@ public class UxDeviceMatrixTest {
     @After
     public void tearDown() {
         if (this.context != null) {
+            resetBackgroundWork("tear down UX matrix");
             this.context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
                     .edit()
                     .clear()
@@ -85,13 +89,14 @@ public class UxDeviceMatrixTest {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             captureAfterIdle(scenario, "home");
             navigateAndCapture(scenario, R.id.nav_discover, "discover");
+            navigateAndCapture(scenario, R.id.nav_sources, "sources");
             navigateAndCapture(scenario, R.id.nav_more, "more");
             captureDomainChecker(scenario);
         }
 
         captureActivity(new Intent(this.context, OnboardingActivity.class)
                 .putExtra(OnboardingActivity.EXTRA_SKIP_AUTO_DETECT, true), "onboarding");
-        captureActivity(HostsSourcesActivity.class, "sources");
+        captureActivity(ListsActivity.class, "custom_rules");
         captureActivity(UpdateActivity.class, "update");
 
         System.out.println("UxDeviceMatrix screenshots=" + this.screenshotDir.getAbsolutePath());
@@ -139,6 +144,7 @@ public class UxDeviceMatrixTest {
     private <T extends Activity> void captureAfterIdle(ActivityScenario<T> scenario, String name,
                                                        Consumer<T> afterIdleAssertion)
             throws IOException {
+        resetBackgroundWork("capture " + name);
         drainMainThread();
         SystemClock.sleep(IDLE_WAIT_MS);
         drainMainThread();
@@ -162,10 +168,21 @@ public class UxDeviceMatrixTest {
         }
         assertTrue("UX accessibility failures for " + name + ":\n"
                 + TextUtils.join("\n", failures), failures.isEmpty());
+        resetBackgroundWork("finish " + name);
     }
 
     private void drainMainThread() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> { });
+    }
+
+    private void resetBackgroundWork(String phase) {
+        try {
+            WorkManager workManager = WorkManager.getInstance(this.context);
+            workManager.cancelAllWork().getResult().get(5, TimeUnit.SECONDS);
+            workManager.pruneWork().getResult().get(5, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new AssertionError("Failed to reset WorkManager during " + phase, exception);
+        }
     }
 
     private void auditView(String screenName, View view, List<String> failures) {

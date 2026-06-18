@@ -282,6 +282,75 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void uxMatrixCapturesFirstClassSourcesTab() throws Exception {
+        String uxMatrix = readRepoFile(
+                "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+
+        assertTrue("UX matrix must screenshot Sources through the bottom-nav shell users see.",
+                uxMatrix.contains("navigateAndCapture(scenario, R.id.nav_sources, \"sources\")"));
+        assertFalse("UX matrix must not use the legacy standalone Sources activity as the " +
+                        "primary Sources screenshot.",
+                uxMatrix.contains("HostsSourcesActivity.class, \"sources\"") ||
+                        uxMatrix.contains("import org.adaway.ui.hosts.HostsSourcesActivity;"));
+    }
+
+    @Test
+    public void uxMatrixCoversCustomRulesAndKeepsFabClearance() throws Exception {
+        String uxMatrix = readRepoFile(
+                "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+        String listsLayout = readRepoFile("app/src/main/res/layout/lists_fragment.xml");
+        String hostsListsLayout = readRepoFile(
+                "app/src/main/res/layout/hosts_lists_fragment.xml");
+
+        assertTrue("UX matrix must screenshot the reachable Custom Rules surface.",
+                uxMatrix.contains("captureActivity(ListsActivity.class, \"custom_rules\")"));
+        assertTrue("Custom Rules list must leave scroll clearance for the bottom FAB.",
+                hostsListsLayout.contains("android:clipToPadding=\"false\"") &&
+                        hostsListsLayout.contains(
+                                "android:contentDescription=\"@string/lists_title\"") &&
+                        hostsListsLayout.contains(
+                                "android:paddingBottom=\"@dimen/fab_list_bottom_clearance\"") &&
+                        hostsListsLayout.contains(
+                                "android:paddingEnd=\"@dimen/fab_list_side_clearance\""));
+        assertTrue("Custom Rules shell must use RTL-safe constraints and FAB anchoring.",
+                listsLayout.contains("app:layout_anchorGravity=\"bottom|end\"") &&
+                        listsLayout.contains("app:layout_constraintStart_toStartOf=\"parent\"") &&
+                        listsLayout.contains("app:layout_constraintEnd_toEndOf=\"parent\""));
+        assertFalse("Custom Rules shell must not keep legacy left/right constraints.",
+                listsLayout.contains("layout_constraintLeft") ||
+                        listsLayout.contains("layout_constraintRight") ||
+                        listsLayout.contains("bottom|right|end"));
+    }
+
+    @Test
+    public void uxMatrixDoesNotInheritBackgroundWorkers() throws Exception {
+        String uxMatrix = readRepoFile(
+                "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+
+        assertTrue("UX matrix must reset WorkManager before passive screenshots.",
+                uxMatrix.contains("resetBackgroundWork(\"set up UX matrix\")") &&
+                        uxMatrix.contains("resetBackgroundWork(\"capture \" + name)") &&
+                        uxMatrix.contains("cancelAllWork()") &&
+                        uxMatrix.contains("pruneWork()"));
+    }
+
+    @Test
+    public void globalScheduleDoesNotUpdateAllSourcesOnFreshLaunch() throws Exception {
+        String store = readRepoFile("app/src/main/java/org/adaway/ui/hosts/FilterSetStore.java");
+        String worker = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/FilterSetUpdateWorker.java");
+
+        assertTrue("Global schedule defaults must seed last-run instead of leaving it zero.",
+                store.contains("putLong(KEY_GLOBAL_LAST_RUN, now)"));
+        assertTrue("Enabling the global schedule must start at the next slot, not now.",
+                store.contains("editor.putLong(KEY_GLOBAL_LAST_RUN, System.currentTimeMillis())"));
+        assertTrue("The worker must repair old zero-last-run globals without full source update.",
+                worker.contains("if (last <= 0L)") &&
+                        worker.contains("FilterSetStore.setGlobalLastRun(context, now)") &&
+                        worker.contains("} else if (FilterSetStore.isDueByWallClock"));
+    }
+
+    @Test
     public void domainCheckerDoesNotAutoscrollPastItsTitle() throws Exception {
         String domainCheckerLayout = readRepoFile(
                 "app/src/main/res/layout/fragment_domain_checker.xml");

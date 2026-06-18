@@ -81,12 +81,14 @@ public final class FilterSetStore {
     public static void ensureGlobalDefaults(@NonNull Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         if (!prefs.contains(KEY_GLOBAL_ENABLED)) {
+            long now = System.currentTimeMillis();
             prefs.edit()
                     .putBoolean(KEY_GLOBAL_ENABLED, true)
                     .putInt(KEY_GLOBAL_SCHEDULE, SCHEDULE_DAILY)
                     .putInt(KEY_GLOBAL_WEEKDAY, 1)
                     .putInt(KEY_GLOBAL_HOUR, 3)
                     .putInt(KEY_GLOBAL_MINUTE, 0)
+                    .putLong(KEY_GLOBAL_LAST_RUN, now)
                     .apply();
         }
     }
@@ -133,14 +135,18 @@ public final class FilterSetStore {
 
     public static void setGlobalSchedule(@NonNull Context context, int schedule, int weekdayIso, int hour24, int minute) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
-        prefs.edit()
+        SharedPreferences.Editor editor = prefs.edit()
                 .putBoolean(KEY_GLOBAL_ENABLED, schedule != SCHEDULE_OFF)
                 .putInt(KEY_GLOBAL_SCHEDULE, schedule)
                 .putInt(KEY_GLOBAL_WEEKDAY, clamp(weekdayIso, 1, 7))
                 .putInt(KEY_GLOBAL_HOUR, clamp(hour24, 0, 23))
-                .putInt(KEY_GLOBAL_MINUTE, clamp(minute, 0, 59))
-                .remove(KEY_GLOBAL_LAST_RUN)
-                .apply();
+                .putInt(KEY_GLOBAL_MINUTE, clamp(minute, 0, 59));
+        if (schedule == SCHEDULE_OFF) {
+            editor.remove(KEY_GLOBAL_LAST_RUN);
+        } else {
+            editor.putLong(KEY_GLOBAL_LAST_RUN, System.currentTimeMillis());
+        }
+        editor.apply();
     }
 
     @NonNull

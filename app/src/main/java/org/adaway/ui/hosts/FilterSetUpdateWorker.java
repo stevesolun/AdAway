@@ -103,8 +103,10 @@ public class FilterSetUpdateWorker extends Worker {
             int hour = FilterSetStore.getGlobalHour(context);
             int minute = FilterSetStore.getGlobalMinute(context);
             int weekdayIso = FilterSetStore.getGlobalWeekdayIso(context);
-            boolean due = last <= 0L || FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour, minute);
-            if (due) {
+            if (last <= 0L) {
+                FilterSetStore.setGlobalLastRun(context, now);
+            } else if (FilterSetStore.isDueByWallClock(now, last, schedule, weekdayIso, hour,
+                    minute)) {
                 globalScheduleDue = true;
             }
         }

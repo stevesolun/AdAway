@@ -12,8 +12,8 @@
         android:layout_marginEnd="0dp"
         android:background="?android:attr/windowBackground"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:menu="@menu/lists_navigation" />
 
 
@@ -22,8 +22,8 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toTopOf="@id/navigation"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <androidx.viewpager2.widget.ViewPager2
@@ -41,7 +41,7 @@
             android:layout_margin="16dp"
             android:contentDescription="@string/lists_add"
             app:layout_anchor="@id/lists_view_pager"
-            app:layout_anchorGravity="bottom|right|end"
+            app:layout_anchorGravity="bottom|end"
             app:srcCompat="@drawable/ic_add_black_24px" />
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
@@ -50,8 +50,8 @@
         android:layout_height="4dp"
         android:background="@drawable/shadow"
         app:layout_constraintBottom_toTopOf="@id/navigation"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent">
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
     </View>
 </androidx.constraintlayout.widget.ConstraintLayout>

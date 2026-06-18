@@ -72,10 +72,19 @@ function Stop-TestPackages {
     & $adb shell am force-stop org.adaway | Out-Null
 }
 
+function Dismiss-ExternalSystemDialogs {
+    # Locale/font-scale changes can leave launcher ANR/system dialogs focused on emulators.
+    & $adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS | Out-Null
+    & $adb shell input keyevent 4 | Out-Null
+    & $adb shell am force-stop com.google.android.apps.nexuslauncher | Out-Null
+    & $adb shell am force-stop com.android.launcher3 | Out-Null
+}
+
 function Invoke-UxTest {
     param([string]$Variant)
 
     Stop-TestPackages
+    Dismiss-ExternalSystemDialogs
     Invoke-Adb shell pm clear $appPackage
     $stdoutFile = New-TemporaryFile
     $stderrFile = New-TemporaryFile
@@ -142,6 +151,7 @@ function Set-DeviceState {
     }
 
     Invoke-Adb shell am force-stop org.adaway
+    Dismiss-ExternalSystemDialogs
 }
 
 function Invoke-UxMatrix {

@@ -135,6 +135,43 @@ public class FilterSetStoreMigrationTest {
     }
 
     @Test
+    public void globalScheduleDefaultsStartAtNextScheduledSlot() {
+        long before = System.currentTimeMillis();
+
+        FilterSetStore.ensureGlobalDefaults(context);
+
+        long after = System.currentTimeMillis();
+        long lastRun = FilterSetStore.getGlobalLastRun(context);
+        assertTrue("Global schedule default must seed last run to avoid immediate startup work.",
+                lastRun >= before && lastRun <= after);
+        assertFalse("Fresh global defaults must not be due immediately.",
+                FilterSetStore.isDueByWallClock(after, lastRun,
+                        FilterSetStore.getGlobalSchedule(context),
+                        FilterSetStore.getGlobalWeekdayIso(context),
+                        FilterSetStore.getGlobalHour(context),
+                        FilterSetStore.getGlobalMinute(context)));
+    }
+
+    @Test
+    public void changingGlobalScheduleStartsAtNextScheduledSlot() {
+        FilterSetStore.setGlobalSchedule(context, FilterSetStore.SCHEDULE_OFF, 1, 3, 0);
+        long before = System.currentTimeMillis();
+
+        FilterSetStore.setGlobalSchedule(context, FilterSetStore.SCHEDULE_DAILY, 1, 6, 30);
+
+        long after = System.currentTimeMillis();
+        long lastRun = FilterSetStore.getGlobalLastRun(context);
+        assertTrue("Global schedule changes must not trigger an immediate full update.",
+                lastRun >= before && lastRun <= after);
+        assertFalse("A newly enabled global schedule must wait for its schedule slot.",
+                FilterSetStore.isDueByWallClock(after, lastRun,
+                        FilterSetStore.getGlobalSchedule(context),
+                        FilterSetStore.getGlobalWeekdayIso(context),
+                        FilterSetStore.getGlobalHour(context),
+                        FilterSetStore.getGlobalMinute(context)));
+    }
+
+    @Test
     public void legacyCurrentSelectionDoesNotRenameCustomProfile() {
         Set<String> urls = setOf("https://filters.example/current.txt");
         assertTrue(prefs.edit()
