@@ -1,4 +1,4 @@
-# v13.4.5 - Agentic Loop + Domain Checker Actions
+# v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log
 
@@ -21,14 +21,11 @@
 - **Actions**: Allow (if blocked), Block (if not blocked), Remove from allowlist (if allowed)
 
 ## Implementation Checklist
-- [ ] executeWithLoop() in FilterListSuggester
-- [ ] AiSuggestBottomSheet uses executeWithLoop()
-- [ ] DomainCheckerFragment action buttons
-- [ ] String resources
-- [ ] Unit tests
-- [ ] Build + tests pass
-- [ ] Security audit
-- [ ] v13.4.5 release
+- [x] Superseded by the 2026-06-15 AI feature cut. The default product no longer ships
+  `FilterListSuggester`, `AiSuggestBottomSheet`, AI settings, or AI user-rule mutation surfaces.
+- [x] Domain Checker actions were handled as a separate non-AI runtime-truth path.
+- [x] Follow-up guards now keep AI production/UI sources, default docs, and AI-only network trust
+  overrides out of the shipped app.
 
 ---
 
@@ -6059,3 +6056,42 @@
   and a tagged workflow run; real-device release APK smoke is still pending; broader manual UX
   review beyond the key automated matrix remains open; and MIT relicensing still needs
   legal/provenance clearance.
+
+## Plan - 2026-06-18 AI Surface Final Cleanup
+- [x] Confirm latest release-verifier commit is green in CodeQL and Android CI.
+- [x] Inspect remaining AI mentions in production code, default docs, tests, and stale task
+  headers.
+- [x] Remove stale AI-only network-security trust overrides from the packaged app.
+- [x] Tighten AI-removal contract tests so AI provider network config and Discover AI chips cannot
+  silently return.
+- [x] Replace the stale top-level AI implementation checklist with a superseded decision note.
+- [x] Run focused unit tests, debug packaging, license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 AI Surface Final Cleanup
+- CodeQL run `27730425680` and Android CI run `27730425672` passed on `4053e5a3`.
+- Removed the default app's AI-only `network_security_config.xml` and the manifest
+  `android:networkSecurityConfig` hook. The default product no longer carries explicit trust
+  overrides for old AI provider endpoints such as OpenAI, Anthropic, or Gemini.
+- Updated `AdAwayApplication` comments so VPN runtime-cache invalidation references Domain
+  Checker actions only.
+- Strengthened `AiSurfaceContractTest` to fail if a dormant AI feature gate, AI network-security
+  config, AI packages/layouts/settings, or default README AI copy returns.
+- Fixed stale Discover quick-action test wording: the test now asserts no `chipDiscoverAskAi`
+  is present instead of accidentally passing because the removed chip sorted before preset chips
+  as index `-1`.
+- Marked the old v13.4.5 AI implementation checklist as superseded by the AI feature cut and
+  retained the Domain Checker action path as separate non-AI work.
+- Verification passed:
+  `.\gradlew.bat --no-daemon --rerun-tasks :app:testDebugUnitTest --tests
+  org.adaway.ui.home.AiSurfaceContractTest --tests
+  org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:assembleDebug --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Expert sidecars identified two next unblocked slices: make `run-release-smoke.ps1` choose
+  Android build tools by parsed version and behavior-test `-VerifyOnly` with a fake SDK; then make
+  More > Backup & Restore deep-link directly to the backup/restore preference fragment instead of
+  opening generic settings.
+- Remaining full-goal gaps: live release proof with real secrets, physical-device release smoke,
+  broader UX/manual screenshot review, and MIT legal/provenance clearance remain open.

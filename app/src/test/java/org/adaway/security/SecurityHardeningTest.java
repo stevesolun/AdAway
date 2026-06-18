@@ -155,12 +155,15 @@ public class SecurityHardeningTest {
     }
 
     @Test
-    public void atk30_networkSecurityConfigDoesNotTrustUserCasForLocalhost() throws IOException {
-        String config = readUtf8(appDir().resolve("src/main/res/xml/network_security_config.xml"));
+    public void atk30_noDormantNetworkSecurityTrustOverrides() throws IOException {
+        Path app = appDir();
+        String manifest = readUtf8(app.resolve("src/main/AndroidManifest.xml"));
+        Path configPath = app.resolve("src/main/res/xml/network_security_config.xml");
 
-        assertFalse("Network config must not trust user CAs.", config.contains("certificates src=\"user\""));
-        assertFalse("Network config must not define a localhost user-CA domain.",
-                config.contains(">localhost</domain>"));
+        assertFalse("The default app must not keep stale AI-only network trust overrides.",
+                manifest.contains("networkSecurityConfig"));
+        assertFalse("Removed AI network-security config must not remain in packaged resources.",
+                Files.exists(configPath));
     }
 
     @Test

@@ -19,10 +19,13 @@ public class AiSurfaceContractTest {
         String home = read("app/src/main/java/org/adaway/ui/home/HomeFragment.java");
         String discover = read("app/src/main/java/org/adaway/ui/discover/DiscoverFragment.java");
         String prefs = read("app/src/main/res/xml/preferences_main.xml");
+        String manifest = read("app/src/main/AndroidManifest.xml");
         String readme = read("README.md");
 
         assertFalse("Gradle must not expose a dormant AI feature gate.",
                 gradle.contains("AI_FEATURE_ENABLED") || gradle.contains("adawayEnableAi"));
+        assertFalse("Manifest must not keep an AI-only network security config.",
+                manifest.contains("networkSecurityConfig"));
         assertFalse("Home must not keep AI binding or UI hooks.",
                 home.contains("BuildConfig.AI_FEATURE_ENABLED") ||
                         home.contains("AiSuggestBottomSheet") ||
@@ -42,6 +45,8 @@ public class AiSurfaceContractTest {
         assertFalse("AI layouts and strings must be removed.",
                 Files.exists(repoDir().resolve("app/src/main/res/layout/bottom_sheet_ai_suggest.xml")) ||
                         Files.exists(repoDir().resolve("app/src/main/res/xml/preferences_ai.xml")) ||
+                        Files.exists(repoDir().resolve(
+                                "app/src/main/res/xml/network_security_config.xml")) ||
                         Files.exists(repoDir().resolve(
                                 "app/src/main/res/values/strings_prefs_ai.xml")));
         assertFalse("README must not advertise AI as a default feature.",

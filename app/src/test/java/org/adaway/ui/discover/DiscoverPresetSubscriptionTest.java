@@ -84,13 +84,12 @@ public class DiscoverPresetSubscriptionTest {
         int safe = layout.indexOf("chipDiscoverSafe");
         int balanced = layout.indexOf("chipDiscoverBalanced");
         int aggressive = layout.indexOf("chipDiscoverAggressive");
-        int askAi = layout.indexOf("chipDiscoverAskAi");
         int browser = layout.indexOf("discoverBrowserContainer");
 
         assertTrue("Discover must show profile status before quick actions.",
                 profile >= 0 && profile < safe);
-        assertTrue("AI help must be the first persistent Discover action.",
-                askAi < safe);
+        assertFalse("Discover quick actions must not keep a removed AI chip.",
+                layout.contains("chipDiscoverAskAi"));
         assertTrue("Preset chips must stay in the persistent Discover header.",
                 safe < balanced && balanced < aggressive);
         assertTrue("Quick actions must appear before the loading/list browser body.",

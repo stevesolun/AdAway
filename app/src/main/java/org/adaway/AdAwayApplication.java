@@ -92,7 +92,7 @@ public class AdAwayApplication extends Application {
      * Invalidate cached VPN rule lookups after direct runtime-table syncs.
      *
      * <p>Normal apply flows already clear the cache in {@link VpnModel#apply()}, but domain
-     * checker and AI actions can update user rules without restarting the VPN.</p>
+     * checker actions can update user rules without restarting the VPN.</p>
      */
     public void invalidateVpnRulesCache() {
         if (this.adBlockModel instanceof VpnModel) {
