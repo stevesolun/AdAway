@@ -1,6 +1,5 @@
 package org.adaway.ui.home;
 
-import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -17,10 +16,9 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import org.adaway.R;
-import org.adaway.helper.PreferenceHelper;
+import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.hosts.HostsSourcesFragment;
 import org.adaway.ui.hosts.HostsSourcesTabFragment;
-import org.adaway.util.Constants;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,20 +31,13 @@ public class HomeNavigationSourcesInstrumentedTest {
     @Before
     public void setUp() {
         this.context = ApplicationProvider.getApplicationContext();
-        this.context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .clear()
-                .commit();
-        PreferenceHelper.setAbBlockMethod(this.context, ROOT);
+        InstrumentedTestState.resetForPassiveRootUi(this.context, "set up sources navigation");
     }
 
     @After
     public void tearDown() {
         if (this.context != null) {
-            this.context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit()
-                    .clear()
-                    .commit();
+            InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down sources navigation");
         }
     }
 

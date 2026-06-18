@@ -53,7 +53,7 @@ class AdwareLiveData extends LiveData<List<AdwareInstall>> {
      */
     AdwareLiveData(Context context) {
         this.context = context;
-        AppExecutors.getInstance().diskIO().execute(this::loadData);
+        AppExecutors.getInstance().packageScanIO().execute(this::loadData);
     }
 
     @WorkerThread

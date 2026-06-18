@@ -40,6 +40,7 @@ public class AppExecutors {
     private final Executor diskIO;
     private final Executor mainThread;
     private final Executor networkIO;
+    private final Executor packageScanIO;
 
     // Source update pools - hardware-adaptive, reused across updates
     private final ExecutorService checkIO;
@@ -67,10 +68,12 @@ public class AppExecutors {
     }
 
     private AppExecutors(Executor diskIO, Executor networkIO, Executor mainThread,
-                         ExecutorService checkIO, ExecutorService downloadIO, ExecutorService parseCompute) {
+                         Executor packageScanIO, ExecutorService checkIO,
+                         ExecutorService downloadIO, ExecutorService parseCompute) {
         this.diskIO = diskIO;
         this.networkIO = networkIO;
         this.mainThread = mainThread;
+        this.packageScanIO = packageScanIO;
         this.checkIO = checkIO;
         this.downloadIO = downloadIO;
         this.parseCompute = parseCompute;
@@ -100,11 +103,18 @@ public class AppExecutors {
                                 t.setPriority(Thread.NORM_PRIORITY); // CPU bound - normal priority
                                 return t;
                             });
+                    ExecutorService packageScanPool = Executors.newSingleThreadExecutor(
+                            r -> {
+                                Thread t = new Thread(r, "PackageScanWorker");
+                                t.setPriority(Thread.NORM_PRIORITY - 1);
+                                return t;
+                            });
 
                     sInstance = new AppExecutors(
                             Executors.newSingleThreadExecutor(),
                             Executors.newFixedThreadPool(3),
                             new MainThreadExecutor(),
+                            packageScanPool,
                             checkPool,
                             downloadPool,
                             parsePool
@@ -125,6 +135,10 @@ public class AppExecutors {
 
     public Executor mainThread() {
         return mainThread;
+    }
+
+    public Executor packageScanIO() {
+        return packageScanIO;
     }
 
     /**

@@ -6320,3 +6320,55 @@
 - Remaining full-goal gaps: live release proof with real repository signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
   and larger scale/performance proof.
+
+## Plan - 2026-06-18 Connected UX CI Recovery
+- [x] Diagnose the pushed Android CI failure on `d88bde6b` from downloaded connected-test
+  artifacts instead of guessing from the timeout.
+- [x] Simplify the embedded Sources row layout so large-font/RTL screenshots keep source labels,
+  status, host-count, and update action readable.
+- [x] Fix the Home nav shell so tab content is constrained above the bottom navigation and the
+  Sources toolbar title is visible in the embedded tab.
+- [x] Isolate passive UI instrumentation tests from app/hosts/global schedule background update
+  workers.
+- [x] Move adware package scanning off the single DB executor so Domain Checker runtime-truth
+  checks are not starved by device-wide package scans.
+- [x] Re-run focused unit/compile, UX matrix, full connected Android tests, broad unit/lint,
+  license-boundary, and diff hygiene gates.
+
+## Review - 2026-06-18 Connected UX CI Recovery
+- Android CI run `27736512922` failed in the connected Android tests job, not in build or CodeQL.
+  The step timed out after reaching `UxDeviceMatrixTest` with 89/109 tests complete, 3 skipped,
+  and 0 assertion failures. Local artifact inspection showed the test launched passive UI screens
+  while background update work could still perform live source downloads.
+- Source rows now use a flatter 8dp card treatment, a stable text column, and a below-row update
+  action. The `font-1.6-rtl` matrix screenshot now shows readable Sources rows without ellipsized
+  primary labels.
+- `activity_home_nav.xml` now uses a constrained home nav shell, keeping tab content above the
+  bottom navigation instead of relying on inset dodging. The embedded Sources toolbar uses the app
+  title attributes, making the `Sources` title visible in screenshots.
+- Added `InstrumentedTestState` for passive UI tests. `UxDeviceMatrixTest` and
+  `HomeNavigationSourcesInstrumentedTest` now explicitly disable app update checks, host update
+  checks, automatic host updates, and global filter-set schedules before launch, then cancel and
+  prune WorkManager.
+- Full connected tests then exposed a second real flake: `DomainCheckerRuntimeTruthTest` timed out
+  while `AdwareLiveData` scanned installed packages on the single `diskIO` executor. `AppExecutors`
+  now exposes `packageScanIO()`, and `AdwareLiveData` uses it so package scans cannot block
+  user-facing DB lookups.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1
+  -OutputDir app\build\reports\ux-matrix-passive-ui-isolated`, which passed all five variants
+  and pulled 8 screenshots per variant;
+  `.\gradlew.bat "-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest"
+  --no-daemon :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:connectedDebugAndroidTest --dependency-verification=strict
+  --stacktrace`, which finished 112 tests with 3 skipped and 0 failed;
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintDebug
+  --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: live release proof with real repository signing/update secrets,
+  physical-device release APK smoke, broader manual UX review beyond the screenshot matrix,
+  MIT legal/provenance clearance, and larger 100k/1M/5M scale-performance proof.

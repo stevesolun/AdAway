@@ -32,6 +32,22 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void homeNavContentStaysAboveBottomNavigation() throws Exception {
+        String homeNav = readRepoFile("app/src/main/res/layout/activity_home_nav.xml");
+
+        assertTrue("Home nav shell must constrain tab content above bottom navigation.",
+                homeNav.contains("androidx.constraintlayout.widget.ConstraintLayout") &&
+                        homeNav.contains("android:id=\"@+id/nav_fragment_container\"") &&
+                        homeNav.contains(
+                                "app:layout_constraintBottom_toTopOf=\"@id/bottom_navigation\"") &&
+                        homeNav.contains(
+                                "app:layout_constraintBottom_toBottomOf=\"parent\""));
+        assertFalse("Home nav shell must not let content draw under bottom navigation.",
+                homeNav.contains("app:layout_dodgeInsetEdges=\"bottom\"") ||
+                        homeNav.contains("app:layout_insetEdge=\"bottom\""));
+    }
+
+    @Test
     public void sourcesTabOwnsToolbarAndDelegatesMenuActions() throws Exception {
         String wrapper = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/HostsSourcesTabFragment.java");
@@ -47,7 +63,9 @@ public class HomeNavigationSourcesContractTest {
                 wrapper.contains("R.menu.hosts_sources_menu") &&
                         wrapper.contains("setOnMenuItemClickListener") &&
                         wrapperLayout.contains("com.google.android.material.appbar.MaterialToolbar") &&
-                        wrapperLayout.contains("@+id/hosts_sources_toolbar"));
+                        wrapperLayout.contains("@+id/hosts_sources_toolbar") &&
+                        wrapperLayout.contains("app:title=\"@string/nav_sources\"") &&
+                        wrapperLayout.contains("app:titleTextColor=\"@color/ui_text_primary\""));
         assertTrue("Toolbar actions must delegate to the child fragment menu handler.",
                 wrapper.contains("handleMenuItem(item)"));
         assertTrue("HostsSourcesFragment must expose a shared menu handler.",
@@ -326,12 +344,22 @@ public class HomeNavigationSourcesContractTest {
     public void uxMatrixDoesNotInheritBackgroundWorkers() throws Exception {
         String uxMatrix = readRepoFile(
                 "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+        String testState = readRepoFile(
+                "app/src/androidTest/java/org/adaway/testing/InstrumentedTestState.java");
 
-        assertTrue("UX matrix must reset WorkManager before passive screenshots.",
-                uxMatrix.contains("resetBackgroundWork(\"set up UX matrix\")") &&
-                        uxMatrix.contains("resetBackgroundWork(\"capture \" + name)") &&
-                        uxMatrix.contains("cancelAllWork()") &&
-                        uxMatrix.contains("pruneWork()"));
+        assertTrue("UX matrix must reset app state before passive screenshots.",
+                uxMatrix.contains("InstrumentedTestState.resetForPassiveRootUi") &&
+                        uxMatrix.contains("InstrumentedTestState.resetWorkManager"));
+        assertTrue("Passive UI tests must disable update preferences before launch.",
+                testState.contains("pref_update_check_app_daily_key") &&
+                        testState.contains("pref_update_check_hosts_daily_key") &&
+                        testState.contains("pref_automatic_update_daily_key") &&
+                        testState.contains("FilterSetStore.setGlobalSchedule") &&
+                        testState.contains("SourceUpdateService.disable") &&
+                        testState.contains("ApkUpdateService.disable") &&
+                        testState.contains("FilterSetUpdateService.disable") &&
+                        testState.contains("cancelAllWork()") &&
+                        testState.contains("pruneWork()"));
     }
 
     @Test
@@ -348,6 +376,34 @@ public class HomeNavigationSourcesContractTest {
                 worker.contains("if (last <= 0L)") &&
                         worker.contains("FilterSetStore.setGlobalLastRun(context, now)") &&
                         worker.contains("} else if (FilterSetStore.isDueByWallClock"));
+    }
+
+    @Test
+    public void sourcesRowsStaySimpleAndLargeFontSafe() throws Exception {
+        String sourceItem = readRepoFile("app/src/main/res/layout/filter_source_item.xml");
+        String categoryHeader = readRepoFile("app/src/main/res/layout/filter_category_header.xml");
+        String sourcesLayout = readRepoFile("app/src/main/res/layout/hosts_sources_fragment.xml");
+
+        assertTrue("Source rows should read as simple list items, not heavy nested cards.",
+                sourceItem.contains("android:id=\"@+id/sourceTextColumn\"") &&
+                        sourceItem.contains("app:cardCornerRadius=\"8dp\"") &&
+                        sourceItem.contains("app:cardElevation=\"0dp\"") &&
+                        sourceItem.contains("app:strokeWidth=\"0dp\""));
+        assertTrue("Large-font source text must get a stable text column before row actions.",
+                sourceItem.contains("app:layout_constraintStart_toEndOf=\"@id/sourceSwitch\"") &&
+                        sourceItem.contains("app:layout_constraintEnd_toEndOf=\"parent\"") &&
+                        sourceItem.contains("app:layout_constraintTop_toBottomOf=\"@id/sourceTextColumn\"") &&
+                        sourceItem.contains("android:maxLines=\"2\"") &&
+                        sourceItem.contains("android:id=\"@+id/hostCountBadge\""));
+        assertFalse("Source text must not be squeezed against an optional host-count badge.",
+                sourceItem.contains("app:layout_constraintEnd_toStartOf=\"@id/hostCountBadge\""));
+        assertTrue("Category headers should use the same restrained 8dp card radius.",
+                categoryHeader.contains("app:cardCornerRadius=\"8dp\""));
+        assertTrue("Sources FAB and preview item must match the categorized list users see.",
+                sourcesLayout.contains("app:layout_anchorGravity=\"bottom|end\"") &&
+                        sourcesLayout.contains("tools:listitem=\"@layout/filter_source_item\""));
+        assertFalse("Sources layout must not keep legacy right gravity for the FAB.",
+                sourcesLayout.contains("bottom|right|end"));
     }
 
     @Test

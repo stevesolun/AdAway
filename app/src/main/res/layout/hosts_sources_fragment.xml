@@ -17,7 +17,7 @@
         android:paddingEnd="@dimen/fab_list_side_clearance"
         android:scrollbars="vertical"
         tools:layoutManager="androidx.appcompat.widget.LinearLayoutManager"
-        tools:listitem="@layout/checkbox_list_entry" />
+        tools:listitem="@layout/filter_source_item" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/hosts_sources_add"
@@ -27,7 +27,7 @@
         android:layout_margin="16dp"
         android:contentDescription="@string/hosts_add_dialog_title"
         app:layout_anchor="@id/hosts_sources_list"
-        app:layout_anchorGravity="bottom|right|end"
+        app:layout_anchorGravity="bottom|end"
         app:srcCompat="@drawable/ic_add_black_24px" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

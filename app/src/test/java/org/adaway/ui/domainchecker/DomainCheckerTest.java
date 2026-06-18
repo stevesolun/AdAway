@@ -2,6 +2,10 @@ package org.adaway.ui.domainchecker;
 
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -138,5 +142,29 @@ public class DomainCheckerTest {
     @Test
     public void domainCheckResultClass_exists() throws ClassNotFoundException {
         Class.forName("org.adaway.ui.domainchecker.DomainCheckResult");
+    }
+
+    @Test
+    public void adwarePackageScanDoesNotBlockDomainCheckerDiskQueries() throws Exception {
+        String appExecutors = readRepoFile("app/src/main/java/org/adaway/util/AppExecutors.java");
+        String adwareLiveData = readRepoFile(
+                "app/src/main/java/org/adaway/ui/adware/AdwareLiveData.java");
+
+        assertTrue("AppExecutors must expose a separate package scan executor.",
+                appExecutors.contains("packageScanIO()"));
+        assertTrue("Adware package scans must not run on the single DB disk executor.",
+                adwareLiveData.contains("packageScanIO().execute(this::loadData)"));
+        assertFalse("Adware package scans must not starve domain checker DB lookups.",
+                adwareLiveData.contains("diskIO().execute(this::loadData)"));
+    }
+
+    private static String readRepoFile(String relativePath) throws Exception {
+        return new String(Files.readAllBytes(resolveRepoFile(relativePath)), StandardCharsets.UTF_8);
+    }
+
+    private static Path resolveRepoFile(String relativePath) {
+        Path cwd = Paths.get("").toAbsolutePath();
+        Path repo = Files.isDirectory(cwd.resolve("app")) ? cwd : cwd.getParent();
+        return repo.resolve(relativePath);
     }
 }
