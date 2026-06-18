@@ -258,6 +258,8 @@ public class DiscoverPresetSubscriptionTest {
             throws Exception {
         String hosts = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
+        String sourceEdit = readRepoFile(
+                "app/src/main/java/org/adaway/ui/source/SourceEditActivity.java");
         String schedules = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/SchedulesActivity.java");
         String strings = readRepoFile("app/src/main/res/values/strings.xml");
@@ -268,9 +270,12 @@ public class DiscoverPresetSubscriptionTest {
                 hosts.contains("\"Scheduled: \""));
         assertTrue("Schedule pickers must use localized weekday labels.",
                 hosts.contains("getWeekdayLabels()") &&
+                        sourceEdit.contains("getWeekdayLabels()") &&
                         schedules.contains("getWeekdayLabels()"));
         assertFalse("Hosts schedule picker must not hard-code Monday.",
                 hosts.contains("\"Monday\""));
+        assertFalse("Source schedule picker must not hard-code Monday.",
+                sourceEdit.contains("\"Monday\""));
         assertFalse("Schedules screen must not hard-code Monday.",
                 schedules.contains("\"Monday\""));
         assertTrue("Scheduled set counts must use plurals.",
@@ -286,6 +291,54 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("String resources must define scheduled set and source plurals.",
                 strings.contains("schedule_filter_sets_count") &&
                         strings.contains("schedule_sources_count"));
+    }
+
+    @Test
+    public void addSourceFlowKeepsSchedulingOutOfCreationSurface()
+            throws Exception {
+        String hosts = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
+        String sheet = readRepoFile("app/src/main/res/layout/hosts_add_options_sheet.xml");
+        String sourceEdit = readRepoFile(
+                "app/src/main/java/org/adaway/ui/source/SourceEditActivity.java");
+        String sourceEditLayout = readRepoFile(
+                "app/src/main/res/layout/source_edit_activity.xml");
+        String sourceEditMenu = readRepoFile("app/src/main/res/menu/source_edit_menu.xml");
+        String sourcesMenu = readRepoFile("app/src/main/res/menu/hosts_sources_menu.xml");
+
+        int addSheetStart = hosts.indexOf("private void showAddSourceOptions()");
+        int addSheetEnd = hosts.indexOf("@Override\n    public void setEnabled", addSheetStart);
+        String addSheetCode = hosts.substring(addSheetStart, addSheetEnd);
+
+        assertTrue("Add source sheet must keep source-creation choices.",
+                sheet.contains("@+id/browseCatalogOption") &&
+                        sheet.contains("@+id/addCustomOption"));
+        assertFalse("Add source sheet must not mix schedule management into creation.",
+                sheet.contains("manageSchedulesOption") ||
+                        sheet.contains("@string/menu_manage_schedules") ||
+                        addSheetCode.contains("SchedulesActivity.class"));
+        assertTrue("Scheduling must remain reachable from the Sources toolbar.",
+                sourcesMenu.contains("action_hosts_manage_schedules") &&
+                        hosts.contains("startActivity(new Intent(requireContext(), " +
+                                "SchedulesActivity.class))"));
+        assertTrue("Source edit scheduling must be available only after a source exists.",
+                sourceEditMenu.contains("auto_update_action") &&
+                        sourceEdit.contains("menu.findItem(R.id.auto_update_action)" +
+                                ".setVisible(this.editing)") &&
+                        sourceEdit.contains("if (!this.editing)"));
+        assertTrue("Source edit layout must keep advanced format controls for existing sources.",
+                sourceEditLayout.contains("@+id/format_button_group") &&
+                        sourceEditLayout.contains("@+id/redirected_hosts_checkbox"));
+        assertTrue("Add-source mode must collapse advanced format and redirected-host controls.",
+                sourceEdit.contains("hideAddSourceAdvancedControls();") &&
+                        sourceEdit.contains("this.binding.formatTextView.setVisibility(View.GONE)") &&
+                        sourceEdit.contains("this.binding.formatButtonGroup.setVisibility(View.GONE)") &&
+                        sourceEdit.contains("this.binding.redirectedHostsCheckbox.setVisibility(View.GONE)") &&
+                        sourceEdit.contains("this.binding.redirectedHostsWarningTextView" +
+                                ".setVisibility(View.GONE)"));
+        assertFalse("Add-source simplification must not remove the URL/File source type choice.",
+                sourceEdit.contains("this.binding.typeTextView.setVisibility(View.GONE)") ||
+                        sourceEdit.contains("this.binding.typeButtonGroup.setVisibility(View.GONE)"));
     }
 
     @Test

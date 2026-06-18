@@ -6229,3 +6229,44 @@
 - Remaining full-goal gaps: live release proof with real repository signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
   add-source scheduling clarity, and inset cleanup.
+
+## Plan - 2026-06-18 Add Source Simplicity
+- [x] Confirm latest branch and CI baseline are clean and green.
+- [x] Inspect Add Source sheet, source editor, schedules entrypoints, and existing UX contract tests.
+- [x] Ask a sidecar reviewer to challenge the Add Source simplification scope.
+- [x] Remove schedule management from the Add Source sheet while keeping scheduling reachable from
+  the Sources toolbar and Manage schedules screen.
+- [x] Hide advanced format and redirected-host controls while creating a new source, while
+  preserving URL/File choice and keeping full controls for existing-source edit.
+- [x] Add contract tests for the simplified creation surface, editing-only scheduling action, and
+  localized source schedule weekday picker.
+- [x] Run focused unit/compile, assemble/lint, license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 Add Source Simplicity
+- CodeQL run `27733178015` and Android CI run `27733178030` passed on `1cf01867`
+  before this slice started.
+- `hosts_add_options_sheet.xml` now contains only creation choices: Browse catalog and Add custom
+  source. The previous `Manage schedules` row is removed from the add sheet.
+- `HostsSourcesFragment.showAddSourceOptions()` no longer routes from the add sheet to
+  `SchedulesActivity`; schedule management remains available through the Sources toolbar action.
+- `SourceEditActivity` hides `auto_update_action` unless editing an existing source and guards the
+  handler for non-editing mode.
+- Add-source mode now collapses advanced `List format`, Block/Allow, redirected-host checkbox, and
+  redirected-host warning controls. The URL/File type choice remains visible so file-source
+  creation still works; existing-source edit keeps the advanced controls.
+- `SourceEditActivity` now uses locale-aware weekday labels for source-level weekly schedules,
+  matching the existing schedule UI approach.
+- Extended `DiscoverPresetSubscriptionTest` with
+  `addSourceFlowKeepsSchedulingOutOfCreationSurface` and strengthened
+  `scheduleUiUsesLocalizedStringsAndPlurals` to cover the source editor.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.discover.DiscoverPresetSubscriptionTest :app:compileDebugJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:assembleDebug :app:lintDebug
+  --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: live release proof with real repository signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
+  and inset cleanup.

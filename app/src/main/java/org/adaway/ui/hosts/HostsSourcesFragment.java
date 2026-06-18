@@ -621,9 +621,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     /**
-     * Shows a bottom sheet with options to add filter lists.
-     * - Browse catalog: Open curated filter list catalog
-     * - Add custom: Add a custom URL source
+     * Shows a bottom sheet with source-creation choices.
+     * Scheduling stays in the Sources toolbar and Manage schedules screen.
      */
     private void showAddSourceOptions() {
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
@@ -650,13 +649,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
             startSourceEdition(null);
         });
 
-        // Manage schedules option
-        View schedulesOption = sheetView.findViewById(R.id.manageSchedulesOption);
-        schedulesOption.setOnClickListener(v -> {
-            dialog.dismiss();
-            startActivity(new Intent(requireContext(), SchedulesActivity.class));
-        });
-        
         dialog.setContentView(sheetView);
         dialog.show();
     }

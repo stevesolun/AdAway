@@ -26,6 +26,9 @@ import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 
+import java.time.DayOfWeek;
+import java.time.format.TextStyle;
+import java.util.Locale;
 import java.util.Optional;
 
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
@@ -178,7 +181,15 @@ public class SourceEditActivity extends AppCompatActivity {
             this.binding.redirectedHostsCheckbox.setChecked(!initialAllow && initialRedirect);
             bindLocation();
             bindFormats();
+            hideAddSourceAdvancedControls();
         }
+    }
+
+    private void hideAddSourceAdvancedControls() {
+        this.binding.formatTextView.setVisibility(View.GONE);
+        this.binding.formatButtonGroup.setVisibility(View.GONE);
+        this.binding.redirectedHostsCheckbox.setVisibility(View.GONE);
+        this.binding.redirectedHostsWarningTextView.setVisibility(View.GONE);
     }
 
     private void applyInitialValues(HostsSource source) {
@@ -245,6 +256,7 @@ public class SourceEditActivity extends AppCompatActivity {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.source_edit_menu, menu);
         menu.findItem(R.id.delete_action).setVisible(this.editing);
+        menu.findItem(R.id.auto_update_action).setVisible(this.editing);
         return true;
     }
 
@@ -268,6 +280,9 @@ public class SourceEditActivity extends AppCompatActivity {
             });
             return true;
         } else if (item.getItemId() == R.id.auto_update_action) {
+            if (!this.editing) {
+                return false;
+            }
             HostsSource source = validate();
             if (source == null) {
                 return false;
@@ -377,14 +392,21 @@ public class SourceEditActivity extends AppCompatActivity {
     }
 
     private void pickDayOfWeek(@NonNull DayPicked picked) {
-        String[] days = new String[]{
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-        };
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(days, (d, which) -> picked.onPicked(which + 1))
+                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    @NonNull
+    private String[] getWeekdayLabels() {
+        String[] labels = new String[DayOfWeek.values().length];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = DayOfWeek.of(i + 1)
+                    .getDisplayName(TextStyle.FULL, Locale.getDefault());
+        }
+        return labels;
     }
 
     private HostsSource validate() {
