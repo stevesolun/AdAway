@@ -6018,3 +6018,44 @@
 - Remaining full-goal gaps: production release proof with real secrets, physical-device release
   smoke, broader manual UX review beyond the automated key-screen matrix, and MIT relicensing
   clearance.
+
+## Plan - 2026-06-18 Scripted Post-Release Artifact Verification
+- [x] Confirm the previous dynamic-type UX slice is green in CodeQL and Android CI.
+- [x] Inspect the release workflow, local release docs, manifest generator, smoke script, and
+  release security tests.
+- [x] Add a canonical JDK-based verifier for downloaded release assets.
+- [x] Add PowerShell and Bash wrappers so Windows and GitHub/Linux workflows can use the same
+  verifier.
+- [x] Replace the manual post-release checksum/attestation checklist with one scripted command in
+  `RELEASING.md`.
+- [x] Add security regression tests proving the verifier accepts a matching signed manifest and
+  rejects a tampered APK.
+- [x] Run focused security, wrapper help, license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 Scripted Post-Release Artifact Verification
+- CodeQL run `27729910144` and Android CI run `27729910188` both passed on
+  `0e2fa87e` before this slice started.
+- Added `scripts/VerifyReleaseArtifacts.java` as the canonical post-release verifier. It checks
+  APK, manifest, and SBOM SHA-256 files by release asset basename; verifies the signed update
+  manifest with the configured RSA public key; compares manifest `apkSha256`, version, channel,
+  store, APK URL, and signing-certificate digest; validates manifest expiry and allowed APK URL
+  boundaries; checks basic CycloneDX SBOM shape; and optionally runs `gh attestation verify` for
+  the APK, manifest, and SBOM.
+- Added `scripts/verify-release-artifacts.ps1` and `scripts/verify-release-artifacts.sh` as thin
+  wrappers around the same Java verifier.
+- Updated `RELEASING.md` so post-publication verification is one repeatable artifact-set command
+  on PowerShell or Bash instead of separate checksum and attestation snippets.
+- Extended `SecurityHardeningTest` with release-verifier static guards and
+  `atk34_releaseArtifactVerifierChecksManifestAndChecksums`, which generates a throwaway RSA
+  keypair, signs a fixture manifest, verifies the full fixture artifact set, then tampers with the
+  APK and proves the verifier fails on checksum drift.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`;
+  `.\scripts\verify-release-artifacts.ps1 --help`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: live release proof still needs real repository signing/update secrets
+  and a tagged workflow run; real-device release APK smoke is still pending; broader manual UX
+  review beyond the key automated matrix remains open; and MIT relicensing still needs
+  legal/provenance clearance.

@@ -177,15 +177,49 @@ also be run directly:
 bash ./scripts/check-license-boundary.sh -SourceMode GitTracked -StrictSourceArchive
 ```
 
-After the GitHub release is published, verify release assets from a clean checkout:
+After the GitHub release is published, download the six uploaded assets to a
+clean checkout and verify them as a single artifact set:
+
+```powershell
+$Version = "<version>"
+$Apk = "AdAway_$Version.apk"
+.\scripts\verify-release-artifacts.ps1 `
+  --apk $Apk `
+  --apk-sha256 "$Apk.sha256" `
+  --manifest manifest.json `
+  --manifest-sha256 manifest.json.sha256 `
+  --sbom adaway.cdx.json `
+  --sbom-sha256 adaway.cdx.json.sha256 `
+  --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  --expected-version $Version `
+  --expected-channel stable `
+  --expected-store adaway `
+  --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$Version/$Apk" `
+  --expected-cert-sha256 "<release-certificate-sha256>" `
+  --repo stevesolun/AdAway `
+  --verify-attestations
+```
+
+On Unix-like shells:
 
 ```bash
-sha256sum -c "AdAway_<version>.apk.sha256"
-sha256sum -c "manifest.json.sha256"
-sha256sum -c "adaway.cdx.json.sha256"
-gh attestation verify "AdAway_<version>.apk" --repo stevesolun/AdAway
-gh attestation verify "manifest.json" --repo stevesolun/AdAway
-gh attestation verify "adaway.cdx.json" --repo stevesolun/AdAway
+VERSION="<version>"
+APK="AdAway_${VERSION}.apk"
+bash ./scripts/verify-release-artifacts.sh \
+  --apk "$APK" \
+  --apk-sha256 "$APK.sha256" \
+  --manifest manifest.json \
+  --manifest-sha256 manifest.json.sha256 \
+  --sbom adaway.cdx.json \
+  --sbom-sha256 adaway.cdx.json.sha256 \
+  --public-key-base64 "$UPDATE_MANIFEST_PUBLIC_KEY_BASE64" \
+  --expected-version "$VERSION" \
+  --expected-channel stable \
+  --expected-store adaway \
+  --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$VERSION/$APK" \
+  --expected-cert-sha256 "<release-certificate-sha256>" \
+  --repo stevesolun/AdAway \
+  --verify-attestations
 ```
 
 The signed update manifest may only point to `app.adaway.org` or to this fork's

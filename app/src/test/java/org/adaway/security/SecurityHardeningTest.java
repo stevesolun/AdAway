@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.Signature;
 import java.util.Base64;
 import java.util.Comparator;
@@ -390,6 +391,9 @@ public class SecurityHardeningTest {
         String manifestScript = readUtf8(repoDir().resolve("scripts/generate-update-manifest.sh"));
         String manifestPowerShell = readUtf8(repoDir().resolve("scripts/generate-update-manifest.ps1"));
         String manifestGenerator = readUtf8(repoDir().resolve("scripts/GenerateUpdateManifest.java"));
+        String verifierPowerShell = readUtf8(repoDir().resolve("scripts/verify-release-artifacts.ps1"));
+        String verifierShell = readUtf8(repoDir().resolve("scripts/verify-release-artifacts.sh"));
+        String verifier = readUtf8(repoDir().resolve("scripts/VerifyReleaseArtifacts.java"));
         Pattern pinnedSbomAttest = Pattern.compile(
                 "actions/attest@[0-9a-fA-F]{40}");
 
@@ -456,6 +460,18 @@ public class SecurityHardeningTest {
         assertTrue("Update manifest generator must default to the runtime AdAway store name.",
                 manifestGenerator.contains("--store VALUE") &&
                         manifestGenerator.contains("values.getOrDefault(\"store\", \"adaway\")"));
+        assertTrue("Release artifact PowerShell verifier must delegate to the canonical Java verifier.",
+                verifierPowerShell.contains("VerifyReleaseArtifacts.java") &&
+                        verifierPowerShell.contains("Get-Command \"java\""));
+        assertTrue("Release artifact shell verifier must delegate to the canonical Java verifier.",
+                verifierShell.contains("VerifyReleaseArtifacts.java") &&
+                        verifierShell.contains("exec java"));
+        assertTrue("Release artifact verifier must validate the signed update manifest.",
+                verifier.contains("verifyManifestSignature") &&
+                        verifier.contains("Manifest apkSha256 does not match the release APK"));
+        assertTrue("Release artifact verifier must optionally verify GitHub attestations.",
+                verifier.contains("gh\", \"attestation\", \"verify") &&
+                        verifier.contains("--verify-attestations"));
         assertTrue("Release workflow must generate manifest APK URLs on the allowed GitHub host.",
                 workflow.contains("APK_URL=\"https://github.com/${GITHUB_REPOSITORY}/releases/download/"));
         assertTrue("Release workflow must emit manifests for the runtime AdAway store.",
@@ -574,6 +590,99 @@ public class SecurityHardeningTest {
     }
 
     @Test
+    public void atk34_releaseArtifactVerifierChecksManifestAndChecksums() throws Exception {
+        Path repo = repoDir();
+        Path fixture = Files.createTempDirectory("adaway-release-artifacts");
+        try {
+            Path apk = fixture.resolve("AdAway_13.5.0.apk");
+            writeUtf8(apk, "test apk bytes\n");
+            Path apkChecksum = Path.of(apk.toString() + ".sha256");
+            Path sbom = fixture.resolve("adaway.cdx.json");
+            writeUtf8(sbom, "{\n" +
+                    "  \"bomFormat\": \"CycloneDX\",\n" +
+                    "  \"components\": [{\"name\": \"adaway-fixture\"}]\n" +
+                    "}\n");
+            Path sbomChecksum = Path.of(sbom.toString() + ".sha256");
+            Path manifest = fixture.resolve("manifest.json");
+            Path manifestChecksum = Path.of(manifest.toString() + ".sha256");
+
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            String privateKeyBase64 = Base64.getEncoder().encodeToString(
+                    pem("PRIVATE KEY", keyPair.getPrivate().getEncoded())
+                            .getBytes(StandardCharsets.US_ASCII));
+            String publicKeyBase64 = Base64.getEncoder().encodeToString(
+                    keyPair.getPublic().getEncoded());
+            String certSha256 =
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            String apkUrl = "https://github.com/stevesolun/AdAway/releases/download/" +
+                    "v13.5.0/AdAway_13.5.0.apk";
+
+            writeChecksum(apk, apkChecksum);
+            writeChecksum(sbom, sbomChecksum);
+            assertEquals("Update manifest generator must create fixture manifest.",
+                    0, runProcess(repo,
+                            javaCommand(),
+                            repo.resolve("scripts/GenerateUpdateManifest.java").toString(),
+                            "--apk", apk.toString(),
+                            "--version", "13.5.0",
+                            "--version-code", "130500",
+                            "--cert-sha256", certSha256,
+                            "--apk-url", apkUrl,
+                            "--private-key-base64", privateKeyBase64,
+                            "--public-key-base64", publicKeyBase64,
+                            "--out", manifest.toString(),
+                            "--channel", "stable",
+                            "--store", "adaway",
+                            "--valid-days", "1").exitCode);
+
+            ProcessResult verified = runProcess(repo,
+                    javaCommand(),
+                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
+                    "--apk", apk.toString(),
+                    "--apk-sha256", apkChecksum.toString(),
+                    "--manifest", manifest.toString(),
+                    "--manifest-sha256", manifestChecksum.toString(),
+                    "--sbom", sbom.toString(),
+                    "--sbom-sha256", sbomChecksum.toString(),
+                    "--public-key-base64", publicKeyBase64,
+                    "--expected-version", "13.5.0",
+                    "--expected-channel", "stable",
+                    "--expected-store", "adaway",
+                    "--expected-apk-url", apkUrl,
+                    "--expected-cert-sha256", certSha256);
+            assertEquals("Release artifact verifier must accept matching artifacts.",
+                    0, verified.exitCode);
+            assertTrue("Passing verifier must report success.",
+                    verified.stdout.contains("Release artifact verification passed"));
+
+            writeUtf8(apk, "tampered apk bytes\n");
+            ProcessResult rejected = runProcess(repo,
+                    javaCommand(),
+                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
+                    "--apk", apk.toString(),
+                    "--apk-sha256", apkChecksum.toString(),
+                    "--manifest", manifest.toString(),
+                    "--manifest-sha256", manifestChecksum.toString(),
+                    "--sbom", sbom.toString(),
+                    "--sbom-sha256", sbomChecksum.toString(),
+                    "--public-key-base64", publicKeyBase64,
+                    "--expected-version", "13.5.0",
+                    "--expected-channel", "stable",
+                    "--expected-store", "adaway",
+                    "--expected-apk-url", apkUrl,
+                    "--expected-cert-sha256", certSha256);
+            assertTrue("Tampered APK must fail release artifact verification.",
+                    rejected.exitCode != 0);
+            assertTrue("Failure must identify checksum drift.",
+                    rejected.stderr.contains("Checksum mismatch for"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void atk34_releaseCleanupAndDocsPreserveSourceProvenance() throws IOException {
         String cleanupWorkflow = readUtf8(
                 repoDir().resolve(".github/workflows/cleanup-releases.yml"));
@@ -608,17 +717,20 @@ public class SecurityHardeningTest {
                 releasing.contains("--store adaway"));
         assertFalse("Release docs must not use GitHub as the runtime manifest store.",
                 releasing.contains("--store github"));
-        assertTrue("Release docs must include checksum verification for release assets.",
-                releasing.contains("sha256sum -c \"manifest.json.sha256\""));
-        assertTrue("Release docs must include GitHub attestation verification for manifest.json.",
-                releasing.contains("gh attestation verify \"manifest.json\""));
+        assertTrue("Release docs must run scripted post-release artifact verification.",
+                releasing.contains("scripts\\verify-release-artifacts.ps1") &&
+                        releasing.contains("scripts/verify-release-artifacts.sh"));
+        assertTrue("Release docs must include checksum paths for release artifacts.",
+                releasing.contains("--apk-sha256 \"$Apk.sha256\"") &&
+                        releasing.contains("--manifest-sha256 manifest.json.sha256") &&
+                        releasing.contains("--sbom-sha256 adaway.cdx.json.sha256"));
         assertTrue("Release docs must verify fork release attestations against this repository.",
-                releasing.contains("gh attestation verify \"AdAway_<version>.apk\" " +
-                        "--repo stevesolun/AdAway") &&
-                        releasing.contains("gh attestation verify \"manifest.json\" " +
-                                "--repo stevesolun/AdAway") &&
-                        releasing.contains("gh attestation verify \"adaway.cdx.json\" " +
-                                "--repo stevesolun/AdAway"));
+                releasing.contains("--repo stevesolun/AdAway") &&
+                        releasing.contains("--verify-attestations"));
+        assertTrue("Release docs must verify signed manifest semantics after publishing.",
+                releasing.contains("--public-key-base64") &&
+                        releasing.contains("--expected-apk-url") &&
+                        releasing.contains("--expected-cert-sha256"));
         assertFalse("Release docs must not verify fork release attestations against upstream.",
                 releasing.contains("gh attestation verify \"AdAway_<version>.apk\" " +
                         "--repo AdAway/AdAway") ||
@@ -1418,6 +1530,20 @@ public class SecurityHardeningTest {
             zip.write(body.getBytes(StandardCharsets.UTF_8));
             zip.closeEntry();
         }
+    }
+
+    private static void writeChecksum(Path target, Path checksum) throws Exception {
+        writeUtf8(checksum, sha256Hex(Files.readAllBytes(target)) + "  " +
+                target.getFileName() + "\n");
+    }
+
+    private static String sha256Hex(byte[] bytes) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+        StringBuilder hex = new StringBuilder(digest.length * 2);
+        for (byte value : digest) {
+            hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+        }
+        return hex.toString();
     }
 
     private static void writeFakeAapt(Path fixture, String resourceName) throws IOException {
