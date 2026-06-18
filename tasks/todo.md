@@ -6095,3 +6095,29 @@
   opening generic settings.
 - Remaining full-goal gaps: live release proof with real secrets, physical-device release smoke,
   broader UX/manual screenshot review, and MIT legal/provenance clearance remain open.
+
+## Plan - 2026-06-18 Release Smoke Build-Tools Selection
+- [x] Consume release-readiness reviewer findings after the post-release verifier slice.
+- [x] Fix `run-release-smoke.ps1` build-tool discovery so stale `9.0.0` directories cannot outrank
+  current `36.0.0` build tools.
+- [x] Add executable JVM coverage that runs `run-release-smoke.ps1 -VerifyOnly` against a fake
+  Android SDK with competing build-tools versions.
+- [x] Run focused security verification for the release-smoke script behavior.
+- [x] Run license-boundary and hygiene gates before commit.
+
+## Review - 2026-06-18 Release Smoke Build-Tools Selection
+- Release-readiness sidecar found that `run-release-smoke.ps1` sorted Android build-tools
+  directories lexicographically, so a stale `9.0.0` directory could be selected before `36.0.0`.
+- Changed `Find-BuildTool` to sort by a parsed `System.Version` from the directory name, with the
+  raw name only as a tie breaker.
+- Added `SecurityHardeningTest.atk34_releaseSmokeVerifyOnlyUsesHighestParsedBuildToolsVersion`.
+  The test creates a fake SDK with `build-tools/9.0.0/aapt` returning a wrong package and
+  `build-tools/36.0.0/aapt` returning `org.adaway`, then runs the PowerShell smoke script in
+  `-VerifyOnly` mode. It proves the script chooses the higher parsed build-tools version and exits
+  before any `adb`/device work.
+- Verification passed:
+  `.\gradlew.bat --no-daemon --rerun-tasks :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`.
+- Remaining release sidecar findings: post-release attestation verification currently covers APK,
+  manifest, and SBOM but not their checksum sidecars; README release summary still lags the
+  `directRelease` workflow and signed-tag secret table.

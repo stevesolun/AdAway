@@ -51,7 +51,8 @@ function Find-BuildTool([string] $toolName) {
             continue
         }
         $directories = Get-ChildItem -LiteralPath $buildTools -Directory |
-            Sort-Object Name -Descending
+            Sort-Object @{ Expression = { Convert-BuildToolsVersion $_.Name }; Descending = $true },
+                @{ Expression = { $_.Name }; Descending = $true }
         foreach ($directory in $directories) {
             foreach ($suffix in @(".exe", ".bat", ".cmd", "")) {
                 $candidate = Join-Path $directory.FullName ($toolName + $suffix)
@@ -68,6 +69,18 @@ function Find-BuildTool([string] $toolName) {
     }
 
     Fail "$toolName was not found. Install Android build-tools and set ANDROID_HOME."
+}
+
+function Convert-BuildToolsVersion([string] $name) {
+    $match = [Regex]::Match($name, "^(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?")
+    if (-not $match.Success) {
+        return [Version]::new(0, 0, 0)
+    }
+
+    $major = [int] $match.Groups["major"].Value
+    $minor = if ($match.Groups["minor"].Success) { [int] $match.Groups["minor"].Value } else { 0 }
+    $patch = if ($match.Groups["patch"].Success) { [int] $match.Groups["patch"].Value } else { 0 }
+    return [Version]::new($major, $minor, $patch)
 }
 
 function Normalize-Sha256([string] $value) {

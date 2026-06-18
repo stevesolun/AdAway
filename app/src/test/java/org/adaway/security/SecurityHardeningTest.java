@@ -805,6 +805,44 @@ public class SecurityHardeningTest {
     }
 
     @Test
+    public void atk34_releaseSmokeVerifyOnlyUsesHighestParsedBuildToolsVersion()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-smoke script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-release-smoke");
+        try {
+            Path apk = fixture.resolve("release.apk");
+            writeUtf8(apk, "fake release apk\n");
+            Path sdk = fixture.resolve("android-sdk");
+            writeFakeBuildTool(sdk, "9.0.0", "aapt",
+                    "package: name='wrong.package' versionCode='1' versionName='0.0.0'");
+            writeFakeBuildTool(sdk, "36.0.0", "aapt",
+                    "package: name='org.adaway' versionCode='130500' versionName='13.5.0'");
+
+            java.util.Map<String, String> environment = new java.util.HashMap<>();
+            environment.put("ANDROID_HOME", sdk.toString());
+            environment.put("ANDROID_SDK_ROOT", null);
+
+            ProcessResult result = runProcess(fixture, environment,
+                    powershell,
+                    "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
+                    "-ApkPath", apk.toString(),
+                    "-VerifyOnly");
+
+            assertEquals("Release smoke must select build-tools 36.0.0 over stale 9.0.0.",
+                    0, result.exitCode);
+            assertTrue("VerifyOnly smoke must stop before adb/device checks.",
+                    result.stdout.contains("Physical-device install/launch smoke was not run"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void atk34_uxMatrixRunnerTimesOutAndCleansUpInstrumentation()
             throws IOException {
         Path repo = repoDir();
@@ -1567,6 +1605,21 @@ public class SecurityHardeningTest {
         }
     }
 
+    private static void writeFakeBuildTool(Path sdk, String version, String toolName, String output)
+            throws IOException {
+        Path buildTools = sdk.resolve("build-tools").resolve(version);
+        Files.createDirectories(buildTools);
+        boolean windows = System.getProperty("os.name").toLowerCase(Locale.US).contains("win");
+        Path tool = buildTools.resolve(windows ? toolName + ".cmd" : toolName);
+        if (windows) {
+            writeUtf8(tool, "@echo off\r\necho " + output + "\r\n");
+        } else {
+            String escaped = output.replace("\\", "\\\\").replace("\"", "\\\"");
+            writeUtf8(tool, "#!/usr/bin/env sh\nprintf '%s\\n' \"" + escaped + "\"\n");
+            assertTrue("Fake build tool must be executable.", tool.toFile().setExecutable(true));
+        }
+    }
+
     private static String findPowerShell() {
         for (String candidate : new String[]{"pwsh", "powershell", "powershell.exe"}) {
             try {
@@ -1648,9 +1701,22 @@ public class SecurityHardeningTest {
 
     private static ProcessResult runProcess(Path workingDirectory, String... command)
             throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(command)
-                .directory(workingDirectory.toFile())
-                .start();
+        return runProcess(workingDirectory, java.util.Collections.emptyMap(), command);
+    }
+
+    private static ProcessResult runProcess(Path workingDirectory,
+            java.util.Map<String, String> environment, String... command)
+            throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder(command)
+                .directory(workingDirectory.toFile());
+        for (java.util.Map.Entry<String, String> entry : environment.entrySet()) {
+            if (entry.getValue() == null) {
+                builder.environment().remove(entry.getKey());
+            } else {
+                builder.environment().put(entry.getKey(), entry.getValue());
+            }
+        }
+        Process process = builder.start();
         if (!process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
             process.destroyForcibly();
             fail("Timed out running command: " + String.join(" ", command));
