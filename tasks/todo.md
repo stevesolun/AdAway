@@ -6150,3 +6150,40 @@
   `.\gradlew.bat --no-daemon --no-build-cache :app:connectedDebugAndroidTest
   --dependency-verification=strict --stacktrace`; Gradle reported 110 tests on
   `adaway-api34-16g(AVD) - 14`, 0 failures, 3 skipped.
+
+## Plan - 2026-06-18 More Backup Deep Link
+- [x] Confirm latest branch and CI baseline are clean and green.
+- [x] Inspect More and preferences navigation.
+- [x] Add a Backup & Restore initial-fragment intent for `PrefsActivity`.
+- [x] Route More > Backup & Restore through that deep link while keeping Preferences on main
+  settings.
+- [x] Add a JVM contract test for the navigation contract.
+- [x] Run focused unit/compile, assemble/lint, license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 More Backup Deep Link
+- CodeQL run `27731809590` and Android CI run `27731809584` passed on `4c947eda`
+  before this slice started.
+- `More > Backup & Restore` no longer opens generic settings. It now starts
+  `PrefsActivity.createBackupRestoreIntent(...)`.
+- `PrefsActivity` now accepts `EXTRA_INITIAL_FRAGMENT=backup_restore` and creates
+  `PrefsBackupRestoreFragment` as the initial fragment for that entrypoint, while preserving
+  `PrefsMainFragment` for normal preferences and keeping the nested Backup & Restore preference
+  in `preferences_main.xml`.
+- Added `HomeNavigationSourcesContractTest.moreBackupRestoreDeepLinksToBackupPreferences` so the
+  More row, normal Preferences row, deep-link constants, initial-fragment selection, and nested
+  settings entry are guarded together.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest :app:compileDebugJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest --rerun-tasks
+  --dependency-verification=strict --stacktrace`;
+  `.\gradlew.bat --no-daemon :app:assembleDebug :app:lintDebug
+  --dependency-verification=strict --stacktrace`;
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree`; and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: live release proof with real secrets, physical-device release smoke,
+  broader manual UX review, MIT legal/provenance clearance, plus sidecar leftovers around
+  add-source scheduling clarity, inset cleanup, README release docs, and checksum-sidecar
+  attestation coverage.

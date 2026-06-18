@@ -73,6 +73,32 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void moreBackupRestoreDeepLinksToBackupPreferences() throws Exception {
+        String moreFragment = readRepoFile(
+                "app/src/main/java/org/adaway/ui/more/MoreFragment.java");
+        String prefsActivity = readRepoFile(
+                "app/src/main/java/org/adaway/ui/prefs/PrefsActivity.java");
+        String mainPreferences = readRepoFile("app/src/main/res/xml/preferences_main.xml");
+
+        assertTrue("More Backup & Restore row must use the dedicated deep-link intent.",
+                moreFragment.contains("moreRowBackup.setOnClickListener") &&
+                        moreFragment.contains("PrefsActivity.createBackupRestoreIntent"));
+        assertTrue("Normal Preferences row must still open the main preferences screen.",
+                moreFragment.contains("moreRowPreferences.setOnClickListener") &&
+                        moreFragment.contains("new Intent(requireContext(), PrefsActivity.class)"));
+        assertTrue("PrefsActivity must expose a stable Backup & Restore deep-link extra.",
+                prefsActivity.contains("EXTRA_INITIAL_FRAGMENT") &&
+                        prefsActivity.contains("INITIAL_FRAGMENT_BACKUP_RESTORE") &&
+                        prefsActivity.contains("createBackupRestoreIntent"));
+        assertTrue("PrefsActivity must create the backup fragment directly for the deep link.",
+                prefsActivity.contains("createInitialFragment()") &&
+                        prefsActivity.contains("return new PrefsBackupRestoreFragment()") &&
+                        prefsActivity.contains("return new PrefsMainFragment()"));
+        assertTrue("Main preferences must still expose Backup & Restore for settings users.",
+                mainPreferences.contains("PrefsBackupRestoreFragment"));
+    }
+
+    @Test
     public void terminalUpdateProgressRestoresCountersAndDisablesControls() throws Exception {
         String homeFragment = readRepoFile(
                 "app/src/main/java/org/adaway/ui/home/HomeFragment.java");

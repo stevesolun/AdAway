@@ -1,5 +1,7 @@
 package org.adaway.ui.prefs;
 
+import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -20,7 +22,15 @@ import org.adaway.helper.ThemeHelper;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class PrefsActivity extends AppCompatActivity implements PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
+    static final String EXTRA_INITIAL_FRAGMENT = "org.adaway.extra.INITIAL_PREFS_FRAGMENT";
+    static final String INITIAL_FRAGMENT_BACKUP_RESTORE = "backup_restore";
     static final String PREFERENCE_NOT_FOUND = "preference not found";
+
+    @NonNull
+    public static Intent createBackupRestoreIntent(@NonNull Context context) {
+        return new Intent(context, PrefsActivity.class)
+                .putExtra(EXTRA_INITIAL_FRAGMENT, INITIAL_FRAGMENT_BACKUP_RESTORE);
+    }
 
     static void setAppBarTitle(PreferenceFragmentCompat fragment, @StringRes int title) {
         FragmentActivity activity = fragment.getActivity();
@@ -40,7 +50,7 @@ public class PrefsActivity extends AppCompatActivity implements PreferenceFragme
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
-                    .replace(android.R.id.content, new PrefsMainFragment())
+                    .replace(android.R.id.content, createInitialFragment())
                     .commit();
         }
         /*
@@ -60,6 +70,15 @@ public class PrefsActivity extends AppCompatActivity implements PreferenceFragme
             super.onSupportNavigateUp();
         }
         return true;
+    }
+
+    @NonNull
+    private Fragment createInitialFragment() {
+        String initialFragment = getIntent().getStringExtra(EXTRA_INITIAL_FRAGMENT);
+        if (INITIAL_FRAGMENT_BACKUP_RESTORE.equals(initialFragment)) {
+            return new PrefsBackupRestoreFragment();
+        }
+        return new PrefsMainFragment();
     }
 
     @Override

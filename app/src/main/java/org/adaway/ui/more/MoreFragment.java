@@ -92,9 +92,9 @@ public class MoreFragment extends Fragment {
         this.binding.moreRowPreferences.setOnClickListener(v ->
                 startActivity(new Intent(requireContext(), PrefsActivity.class)));
 
-        // Backup & Restore — currently inside PrefsActivity
+        // Backup & Restore
         this.binding.moreRowBackup.setOnClickListener(v ->
-                startActivity(new Intent(requireContext(), PrefsActivity.class)));
+                startActivity(PrefsActivity.createBackupRestoreIntent(requireContext())));
 
         // About
         this.binding.moreRowAbout.setOnClickListener(v ->
