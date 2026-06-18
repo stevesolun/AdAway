@@ -126,14 +126,20 @@
 
             <TextView
                 android:id="@+id/blockedHostTextView"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:gravity="center"
                 android:text="@string/blocked_hosts_label"
                 android:textColor="@color/ui_text_secondary"
                 android:textAllCaps="false"
                 android:letterSpacing="0.02"
-                android:textSize="12sp" />
+                android:maxLines="1"
+                android:textSize="12sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="12sp"
+                app:autoSizeStepGranularity="1sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -217,14 +223,20 @@
 
             <TextView
                 android:id="@+id/allowedHostTextView"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:gravity="center"
                 android:text="@string/allowed_hosts_label"
                 android:textColor="@color/ui_text_secondary"
                 android:textAllCaps="false"
                 android:letterSpacing="0.02"
-                android:textSize="12sp" />
+                android:maxLines="1"
+                android:textSize="12sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="12sp"
+                app:autoSizeStepGranularity="1sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -309,14 +321,20 @@
 
             <TextView
                 android:id="@+id/redirectHostTextView"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:gravity="center"
                 android:text="@string/redirect_hosts_label"
                 android:textColor="@color/ui_text_secondary"
                 android:textAllCaps="false"
                 android:letterSpacing="0.02"
-                android:textSize="12sp" />
+                android:maxLines="1"
+                android:textSize="12sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="12sp"
+                app:autoSizeStepGranularity="1sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
 

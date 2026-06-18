@@ -96,6 +96,25 @@ public class UxMatrixScriptTest {
                 pullIndex > failureIndex);
     }
 
+    @Test
+    public void runnerIncludesLargeFontAndRtlStressVariants() throws IOException {
+        String script = readUtf8(repoDir().resolve("scripts/run-ux-matrix.ps1"));
+
+        assertTrue("UX matrix must keep baseline coverage.",
+                script.contains("Invoke-UxTest -Variant \"baseline\""));
+        assertTrue("UX matrix must keep the 1.3 large-font variant.",
+                script.contains("Set-DeviceState -FontScale \"1.3\" -Locales \"\"") &&
+                        script.contains("Invoke-UxTest -Variant \"font-1.3\""));
+        assertTrue("UX matrix must include a stronger 1.6 font-scale stress variant.",
+                script.contains("Set-DeviceState -FontScale \"1.6\" -Locales \"\"") &&
+                        script.contains("Invoke-UxTest -Variant \"font-1.6\""));
+        assertTrue("UX matrix must include RTL at both large font scales.",
+                script.contains("Set-DeviceState -FontScale \"1.3\" -Locales \"ar-XB\"") &&
+                        script.contains("Invoke-UxTest -Variant \"font-1.3-rtl\"") &&
+                        script.contains("Set-DeviceState -FontScale \"1.6\" -Locales \"ar-XB\"") &&
+                        script.contains("Invoke-UxTest -Variant \"font-1.6-rtl\""));
+    }
+
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
         Path platformTools = fixture.resolve("android-sdk").resolve("platform-tools");
         Files.createDirectories(platformTools);

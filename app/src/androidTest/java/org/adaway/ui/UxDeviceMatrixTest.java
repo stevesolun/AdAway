@@ -234,9 +234,21 @@ public class UxDeviceMatrixTest {
             return;
         }
         int lineCount = textView.getLayout().getLineCount();
+        int availableTextWidth = textView.getWidth()
+                - textView.getCompoundPaddingLeft()
+                - textView.getCompoundPaddingRight();
         for (int line = 0; line < lineCount; line++) {
             if (textView.getLayout().getEllipsisCount(line) > 0) {
                 failures.add(screenName + ": ellipsized text " + describe(textView)
+                        + " text=" + summarize(textView.getText()));
+                return;
+            }
+            int lineWidth = (int) Math.ceil(textView.getLayout().getLineRight(line)
+                    - textView.getLayout().getLineLeft(line));
+            if (availableTextWidth > 0 && lineWidth > availableTextWidth) {
+                failures.add(screenName + ": horizontally clipped text " + describe(textView)
+                        + " lineWidth=" + lineWidth
+                        + " availableWidth=" + availableTextWidth
                         + " text=" + summarize(textView.getText()));
                 return;
             }

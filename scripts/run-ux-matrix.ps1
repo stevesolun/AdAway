@@ -156,8 +156,14 @@ function Invoke-UxMatrix {
         Set-DeviceState -FontScale "1.3" -Locales ""
         Invoke-UxTest -Variant "font-1.3"
 
+        Set-DeviceState -FontScale "1.6" -Locales ""
+        Invoke-UxTest -Variant "font-1.6"
+
         Set-DeviceState -FontScale "1.3" -Locales "ar-XB"
         Invoke-UxTest -Variant "font-1.3-rtl"
+
+        Set-DeviceState -FontScale "1.6" -Locales "ar-XB"
+        Invoke-UxTest -Variant "font-1.6-rtl"
     } finally {
         Set-DeviceState -FontScale "" -Locales ""
     }

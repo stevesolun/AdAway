@@ -5977,3 +5977,44 @@
 - Remaining full-goal gaps: production release proof still needs real signing/update-manifest
   secrets, physical-device release smoke, broader UX/accessibility proof, and MIT relicensing
   clearance.
+
+## Plan - 2026-06-18 Expanded Dynamic-Type UX Matrix
+- [x] Inspect the current UX matrix runner, accessibility audit, and existing UI ledger.
+- [x] Probe stronger dynamic-type coverage before making it part of the default runner.
+- [x] Add default `font-1.6` and `font-1.6-rtl` UX matrix variants.
+- [x] Fix the concrete Home stat-card label issue found in the 1.6 RTL screenshot.
+- [x] Strengthen the connected UX audit so visible horizontal text overflow fails the matrix.
+- [x] Verify focused unit/static guards, Android-test compile, expanded device matrix,
+  license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 Expanded Dynamic-Type UX Matrix
+- The existing runner covered baseline, `font-1.3`, and `font-1.3-rtl`. One-off probes with
+  `font_scale=1.6` and `font_scale=1.6` plus `ar-XB` passed, so the stronger variants were added
+  to `scripts/run-ux-matrix.ps1` as default coverage.
+- Visual spot-check of the first 1.6 RTL Home screenshot exposed a polish issue that the old audit
+  could not catch: the `Redirected` stat-card label wrapped as `Redirect` / `ed`.
+- Updated the three Home stat-card labels to use the full card width, center gravity, one line, and
+  autosizing from `10sp` to `12sp`, so the labels stay readable at 1.6 font scale without
+  splitting short words.
+- Strengthened `UxDeviceMatrixTest.auditTextFits(...)` to fail on visible horizontal text overflow
+  using `getLineRight(...)`, `getLineLeft(...)`, and available text width, in addition to the
+  existing ellipsis and vertical clipping checks.
+- Added static guards in `UxMatrixScriptTest` for the five default variants and in
+  `HomeNavigationSourcesContractTest` for Home stat-label autosizing plus the horizontal-overflow
+  audit.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.scripts.UxMatrixScriptTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `.\scripts\run-ux-matrix.ps1 -OutputDir
+  app\build\reports\ux-matrix-font16-expanded-final -InstrumentationTimeoutSeconds 420`.
+- The expanded UX matrix produced 35 screenshots: seven each for `baseline`, `font-1.3`,
+  `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`. The final `font-1.6-rtl` Home screenshot keeps
+  `Redirected` on one line.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: production release proof with real secrets, physical-device release
+  smoke, broader manual UX review beyond the automated key-screen matrix, and MIT relicensing
+  clearance.

@@ -289,6 +289,47 @@ public class HomeNavigationSourcesContractTest {
                 captureDomainChecker.contains("getScrollY() == 0"));
     }
 
+    @Test
+    public void homeStatLabelsUseSingleLineAutosizingForLargeFonts() throws Exception {
+        String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
+
+        assertTrue("Blocked stat label must use the full card width and autosize.",
+                statLabelUsesAutosize(homeLayout, "blockedHostTextView"));
+        assertTrue("Allowed stat label must use the full card width and autosize.",
+                statLabelUsesAutosize(homeLayout, "allowedHostTextView"));
+        assertTrue("Redirect stat label must use the full card width and autosize.",
+                statLabelUsesAutosize(homeLayout, "redirectHostTextView"));
+    }
+
+    @Test
+    public void uxMatrixAuditsHorizontalTextOverflow() throws Exception {
+        String uxMatrix = readRepoFile(
+                "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+
+        assertTrue("UX matrix must fail on visible horizontal text overflow.",
+                uxMatrix.contains("horizontally clipped text") &&
+                        uxMatrix.contains("getLineRight") &&
+                        uxMatrix.contains("availableTextWidth"));
+    }
+
+    private static boolean statLabelUsesAutosize(String layout, String id) {
+        int start = layout.indexOf("android:id=\"@+id/" + id + "\"");
+        if (start < 0) {
+            return false;
+        }
+        int end = layout.indexOf("/>", start);
+        if (end < 0) {
+            return false;
+        }
+        String block = layout.substring(start, end);
+        return block.contains("android:layout_width=\"match_parent\"") &&
+                block.contains("android:gravity=\"center\"") &&
+                block.contains("android:maxLines=\"1\"") &&
+                block.contains("app:autoSizeTextType=\"uniform\"") &&
+                block.contains("app:autoSizeMinTextSize=\"10sp\"") &&
+                block.contains("app:autoSizeMaxTextSize=\"12sp\"");
+    }
+
     private static String readRepoFile(String relativePath) throws Exception {
         return new String(Files.readAllBytes(resolveRepoFile(relativePath)), StandardCharsets.UTF_8);
     }
