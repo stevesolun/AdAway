@@ -572,6 +572,21 @@ public class SecurityHardeningTest {
                 smokeScript.contains("aapt") && smokeScript.contains("dump badging"));
         assertTrue("Release smoke must reject debuggable APKs.",
                 smokeScript.contains("application-debuggable"));
+        assertTrue("Release smoke must support artifact identity verification without device I/O.",
+                smokeScript.contains("[switch] $VerifyOnly") &&
+                        smokeScript.contains("APK identity verification passed") &&
+                        smokeScript.contains("Physical-device install/launch smoke was not run"));
+        assertTrue("Release smoke must preserve colon-separated signer certificate digests.",
+                smokeScript.contains("certificate SHA-256 digest:\\s*") &&
+                        smokeScript.contains("Signer #1 certificate SHA-256 digest was not found") &&
+                        !smokeScript.contains("-replace \"^.*:\\s*\""));
+        assertTrue("Release smoke must compare normalized signer digests, not parser tokens.",
+                smokeScript.contains("(Normalize-Sha256 $actualCert) -ne " +
+                        "(Normalize-Sha256 $ExpectedCertSha256)"));
+        int verifyOnlyIndex = smokeScript.indexOf("if ($VerifyOnly)");
+        int adbDiscoveryIndex = smokeScript.indexOf("$adb = Find-CommandOrSdkTool");
+        assertTrue("Artifact-only verification must not require adb discovery.",
+                verifyOnlyIndex >= 0 && adbDiscoveryIndex > verifyOnlyIndex);
         assertTrue("Release smoke must reject emulators.",
                 smokeScript.contains("emulator-") &&
                         smokeScript.contains("ro.kernel.qemu") &&
@@ -585,6 +600,9 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must include the real-device smoke command.",
                 releasing.contains(".\\scripts\\run-release-smoke.ps1") &&
                         releasing.contains("-ApkPath $Apk"));
+        assertTrue("Release docs must document identity-only release APK verification.",
+                releasing.contains("-VerifyOnly") &&
+                        releasing.contains("without requiring a connected device"));
     }
 
     @Test

@@ -152,12 +152,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boun
   -StrictArtifacts
 .\scripts\run-release-smoke.ps1 `
   -ApkPath $Apk `
+  -ExpectedCertSha256 "<release-certificate-sha256>" `
+  -VerifyOnly
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk `
   -ExpectedCertSha256 "<release-certificate-sha256>"
 ```
 
-`run-release-smoke.ps1` refuses debuggable APKs and emulators. It installs the
-release APK on an attached physical device, launches `org.adaway`, and fails if
-the process is not running after launch.
+`run-release-smoke.ps1 -VerifyOnly` checks release APK badging and optional
+signer identity without requiring a connected device. The full
+`run-release-smoke.ps1` command still refuses debuggable APKs and emulators,
+installs the release APK on an attached physical device, launches `org.adaway`,
+and fails if the process is not running after launch.
 
 On Unix-like shells with PowerShell available, the boundary checker wrapper can
 also be run directly:

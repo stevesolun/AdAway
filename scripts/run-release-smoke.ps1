@@ -9,7 +9,9 @@ param(
 
     [string] $ExpectedCertSha256 = "",
 
-    [int] $LaunchWaitSeconds = 5
+    [int] $LaunchWaitSeconds = 5,
+
+    [switch] $VerifyOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,7 +79,6 @@ if ((Get-Item -LiteralPath $apk.Path).Length -le 0) {
     Fail "APK is empty: $($apk.Path)"
 }
 
-$adb = Find-CommandOrSdkTool "adb" "platform-tools\adb"
 $aapt = Find-BuildTool "aapt"
 
 $badging = & $aapt dump badging $apk.Path
@@ -98,12 +99,24 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)) {
     if ($LASTEXITCODE -ne 0) {
         Fail "apksigner verification failed for $($apk.Path)."
     }
-    $actualCert = (($certOutput | Select-String "Signer #1 certificate SHA-256 digest" |
-            Select-Object -First 1).Line -replace "^.*:\s*", "")
-    if (Normalize-Sha256 $actualCert -ne Normalize-Sha256 $ExpectedCertSha256) {
+    $actualCertLine = ($certOutput | Select-String "Signer #1 certificate SHA-256 digest" |
+            Select-Object -First 1).Line
+    if ([string]::IsNullOrWhiteSpace($actualCertLine)) {
+        Fail "Signer #1 certificate SHA-256 digest was not found."
+    }
+    $actualCert = ($actualCertLine -replace "^.*certificate SHA-256 digest:\s*", "")
+    if ((Normalize-Sha256 $actualCert) -ne (Normalize-Sha256 $ExpectedCertSha256)) {
         Fail "Release APK signer fingerprint does not match ExpectedCertSha256."
     }
 }
+
+if ($VerifyOnly) {
+    Write-Host "Release APK identity verification passed for ${PackageName}: $($apk.Path)"
+    Write-Host "Physical-device install/launch smoke was not run."
+    exit 0
+}
+
+$adb = Find-CommandOrSdkTool "adb" "platform-tools\adb"
 
 $deviceLines = @(& $adb devices | Select-String "`tdevice$" | ForEach-Object {
     ($_.Line -split "`t")[0]

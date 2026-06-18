@@ -5889,3 +5889,50 @@
 - License and hygiene checks passed:
   `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
   -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+
+## Plan - 2026-06-18 Release Smoke Identity Gate
+- [x] Confirm current release/SBOM gates fail closed without signing and update-manifest trust
+  material.
+- [x] Split locally provable APK identity verification from the physical-device install/launch
+  smoke without weakening the real-device gate.
+- [x] Fix concrete release-smoke certificate verification bugs found while exercising a signed APK.
+- [x] Document the new identity-only command and keep the full smoke command documented.
+- [x] Verify success and fail-closed behavior with a disposable signed direct-release APK.
+- [x] Run focused security tests, release/SBOM checks, license-boundary, and hygiene gates.
+
+## Review - 2026-06-18 Release Smoke Identity Gate
+- Unsigned `.\gradlew.bat --no-daemon :app:generateSbom --dependency-verification=strict
+  --stacktrace` still fails closed at configuration time with
+  `Release and release-SBOM builds require signingStoreLocation, signingStorePassword,
+  signingKeyAlias, and signingKeyPassword`.
+- This Windows environment cannot currently run the Bash manifest script locally: `bash --version`
+  invokes WSL and reports no installed distributions, and `openssl version` is not on PATH.
+- Added `-VerifyOnly` to `scripts/run-release-smoke.ps1`. It now checks APK badging and optional
+  signer identity, then exits before `adb` discovery, so artifact identity can be verified on CI
+  or local machines without a connected device.
+- Preserved the full physical-device smoke path: running the script without `-VerifyOnly` against
+  the disposable signed APK reached device validation and failed on the attached emulator with
+  `Release smoke must run on a real physical device, not an emulator`.
+- Fixed two certificate-check bugs in the smoke script: colon-separated SHA-256 digests are now
+  parsed after the literal `certificate SHA-256 digest:` label, and normalized digest comparisons
+  are parenthesized so PowerShell compares the two function results instead of parser tokens.
+- `RELEASING.md` now documents both commands: `-VerifyOnly` for release APK identity/signature
+  verification and the existing full `run-release-smoke.ps1` command for install/launch on a real
+  device.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`;
+  disposable signed `.\gradlew.bat --no-daemon :app:assembleDirectRelease
+  --dependency-verification=strict --stacktrace`; disposable signed
+  `.\gradlew.bat --no-daemon :app:generateSbom --dependency-verification=strict --stacktrace`;
+  `.\scripts\run-release-smoke.ps1 -ApkPath
+  app\build\outputs\apk\directRelease\app-directRelease.apk -ExpectedCertSha256
+  987c85a1c68a5cc68120ea5b4350610bc386035b1a4c21840a8349f6685f7166 -VerifyOnly`.
+- Fail-closed script checks passed: `-VerifyOnly` rejects `app-debug.apk` as debuggable, and the
+  disposable signed APK fails when `-ExpectedCertSha256` is all zeros.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: production release proof still needs real signing/update-manifest
+  secrets, a working Bash/OpenSSL environment for local manifest signing or CI-only manifest proof,
+  a physical-device release smoke, broader UX/accessibility proof, and MIT relicensing clearance.
