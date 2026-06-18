@@ -5936,3 +5936,44 @@
 - Remaining full-goal gaps: production release proof still needs real signing/update-manifest
   secrets, a working Bash/OpenSSL environment for local manifest signing or CI-only manifest proof,
   a physical-device release smoke, broader UX/accessibility proof, and MIT relicensing clearance.
+
+## Plan - 2026-06-18 Cross-Platform Update Manifest Generator
+- [x] Inspect the Bash manifest generator, release workflow, release docs, and security guards.
+- [x] Replace shell-specific signing logic with one JDK-based generator used by both shell wrappers.
+- [x] Preserve the GitHub Linux release workflow entrypoint while adding a Windows PowerShell
+  entrypoint for local release proof.
+- [x] Add behavior proof that generates a real RSA keypair, signs `manifest.json`, and verifies
+  the signature over the embedded payload.
+- [x] Prove the PowerShell wrapper succeeds locally and fails closed on unsafe APK URLs.
+- [x] Run focused security tests, license-boundary, and hygiene checks.
+
+## Review - 2026-06-18 Cross-Platform Update Manifest Generator
+- Added `scripts/GenerateUpdateManifest.java` as the canonical update-manifest generator. It
+  validates the same release URL boundary, hashes the APK, builds the exact embedded payload,
+  signs with `SHA256withRSA`, optionally verifies with the SPKI public key, writes
+  `manifest.json`, and emits `manifest.json.sha256`.
+- Replaced `scripts/generate-update-manifest.sh` with a thin Linux wrapper around the Java
+  generator, so `.github/workflows/fork-release-apk.yml` can keep invoking the same Bash
+  entrypoint on GitHub-hosted Linux runners.
+- Added `scripts/generate-update-manifest.ps1` as the Windows/local wrapper. Local manifest
+  generation now depends on JDK 21, which the project already requires, instead of WSL, Bash, or
+  OpenSSL.
+- Updated `RELEASING.md` so the local PowerShell release checklist uses
+  `.\scripts\generate-update-manifest.ps1`; it also documents that both wrappers delegate to the
+  same JDK-based generator.
+- Added `SecurityHardeningTest.atk34_updateManifestGeneratorSignsAndVerifiesLocally`, which
+  generates a temporary RSA keypair, runs `java scripts/GenerateUpdateManifest.java`, parses the
+  generated envelope, verifies the signature over the exact embedded payload, checks core payload
+  fields, and confirms the checksum is written by manifest basename.
+- Verification passed:
+  `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`;
+  `.\scripts\generate-update-manifest.ps1` with a temporary RSA keypair and dummy APK generated
+  `manifest.json` and `manifest.json.sha256`; the same wrapper rejected an `http://` APK URL with
+  `apk-url must use HTTPS`.
+- License and hygiene checks passed:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1
+  -SourceMode WorkingTree` and `git diff --check` with only existing CRLF conversion warnings.
+- Remaining full-goal gaps: production release proof still needs real signing/update-manifest
+  secrets, physical-device release smoke, broader UX/accessibility proof, and MIT relicensing
+  clearance.

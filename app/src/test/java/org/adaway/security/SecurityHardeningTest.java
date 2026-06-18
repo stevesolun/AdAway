@@ -1,6 +1,7 @@
 package org.adaway.security;
 
 import org.adaway.util.RegexUtils;
+import org.json.JSONObject;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -8,6 +9,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -383,6 +388,8 @@ public class SecurityHardeningTest {
     public void atk34_releaseWorkflowGeneratesUploadsAndAttestsSbom() throws IOException {
         String workflow = readUtf8(repoDir().resolve(".github/workflows/fork-release-apk.yml"));
         String manifestScript = readUtf8(repoDir().resolve("scripts/generate-update-manifest.sh"));
+        String manifestPowerShell = readUtf8(repoDir().resolve("scripts/generate-update-manifest.ps1"));
+        String manifestGenerator = readUtf8(repoDir().resolve("scripts/GenerateUpdateManifest.java"));
         Pattern pinnedSbomAttest = Pattern.compile(
                 "actions/attest@[0-9a-fA-F]{40}");
 
@@ -420,6 +427,12 @@ public class SecurityHardeningTest {
                         workflow.contains("scripts/generate-update-manifest.sh"));
         assertTrue("Release workflow must require a private manifest signing key.",
                 workflow.contains("UPDATE_MANIFEST_PRIVATE_KEY_BASE64 is required"));
+        assertTrue("Bash manifest wrapper must delegate to the canonical Java generator.",
+                manifestScript.contains("GenerateUpdateManifest.java") &&
+                        manifestScript.contains("exec java"));
+        assertTrue("PowerShell manifest wrapper must delegate to the canonical Java generator.",
+                manifestPowerShell.contains("GenerateUpdateManifest.java") &&
+                        manifestPowerShell.contains("Get-Command \"java\""));
         assertTrue("Release workflow must upload manifest.json as a release asset.",
                 workflow.contains("${{ steps.update_manifest.outputs.path }}"));
         assertTrue("Release workflow must upload manifest.json.sha256 as a release asset.",
@@ -428,18 +441,21 @@ public class SecurityHardeningTest {
                 workflow.indexOf("${{ steps.update_manifest.outputs.path }}")
                         < workflow.indexOf("Create GitHub Release + upload APK"));
         assertTrue("Update manifest generator must sign the exact JSON payload with RSA SHA-256.",
-                manifestScript.contains("openssl dgst -sha256 -sign"));
+                manifestGenerator.contains("Signature.getInstance(\"SHA256withRSA\")") &&
+                        manifestGenerator.contains("signer.update(payload.getBytes"));
         assertTrue("Update manifest generator must verify against the embedded public-key format.",
-                manifestScript.contains("openssl dgst -sha256 -verify") &&
-                        manifestScript.contains("-keyform DER"));
+                manifestGenerator.contains("X509EncodedKeySpec") &&
+                        manifestGenerator.contains("verifier.verify(signatureBytes)"));
         assertTrue("Update manifest generator must emit a checksum file by basename.",
-                manifestScript.contains("sha256sum \"$(basename \"$OUT\")\""));
+                manifestGenerator.contains("options.out.getFileName()") &&
+                        manifestGenerator.contains("\".sha256\""));
         assertTrue("Update manifest generator must enforce the APK URL host allowlist.",
-                manifestScript.contains("allowed_hosts = {\"app.adaway.org\", \"github.com\"}") &&
-                        manifestScript.contains("apk-url host is not in the release allowlist"));
+                manifestGenerator.contains("\"app.adaway.org\"") &&
+                        manifestGenerator.contains("\"github.com\"") &&
+                        manifestGenerator.contains("apk-url host is not in the release allowlist"));
         assertTrue("Update manifest generator must default to the runtime AdAway store name.",
-                manifestScript.contains("--store VALUE               Default: adaway") &&
-                        manifestScript.contains("STORE=\"adaway\""));
+                manifestGenerator.contains("--store VALUE") &&
+                        manifestGenerator.contains("values.getOrDefault(\"store\", \"adaway\")"));
         assertTrue("Release workflow must generate manifest APK URLs on the allowed GitHub host.",
                 workflow.contains("APK_URL=\"https://github.com/${GITHUB_REPOSITORY}/releases/download/"));
         assertTrue("Release workflow must emit manifests for the runtime AdAway store.",
@@ -492,6 +508,72 @@ public class SecurityHardeningTest {
     }
 
     @Test
+    public void atk34_updateManifestGeneratorSignsAndVerifiesLocally() throws Exception {
+        Path repo = repoDir();
+        Path fixture = Files.createTempDirectory("adaway-update-manifest");
+        try {
+            Path apk = fixture.resolve("AdAway_13.5.0.apk");
+            writeUtf8(apk, "test apk bytes\n");
+            Path manifest = fixture.resolve("manifest.json");
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            String privateKeyBase64 = Base64.getEncoder().encodeToString(
+                    pem("PRIVATE KEY", keyPair.getPrivate().getEncoded())
+                            .getBytes(StandardCharsets.US_ASCII));
+            String publicKeyBase64 = Base64.getEncoder().encodeToString(
+                    keyPair.getPublic().getEncoded());
+            String certSha256 =
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+            ProcessResult result = runProcess(repo,
+                    javaCommand(),
+                    repo.resolve("scripts/GenerateUpdateManifest.java").toString(),
+                    "--apk", apk.toString(),
+                    "--version", "13.5.0",
+                    "--version-code", "130500",
+                    "--cert-sha256", certSha256,
+                    "--apk-url", "https://github.com/stevesolun/AdAway/releases/download/" +
+                            "v13.5.0/AdAway_13.5.0.apk",
+                    "--private-key-base64", privateKeyBase64,
+                    "--public-key-base64", publicKeyBase64,
+                    "--out", manifest.toString(),
+                    "--channel", "stable",
+                    "--store", "adaway",
+                    "--valid-days", "1");
+
+            assertEquals("Update manifest generator must exit successfully.",
+                    0, result.exitCode);
+            assertTrue("Generator must write the signed manifest.", Files.isRegularFile(manifest));
+            assertTrue("Generator must write a checksum beside the manifest.",
+                    Files.isRegularFile(Path.of(manifest.toString() + ".sha256")));
+
+            JSONObject envelope = new JSONObject(readUtf8(manifest));
+            String payloadJson = envelope.getString("payload");
+            byte[] signatureBytes = Base64.getDecoder().decode(envelope.getString("signature"));
+            Signature verifier = Signature.getInstance("SHA256withRSA");
+            verifier.initVerify(keyPair.getPublic());
+            verifier.update(payloadJson.getBytes(StandardCharsets.UTF_8));
+            assertTrue("Manifest signature must verify over the exact embedded payload.",
+                    verifier.verify(signatureBytes));
+
+            JSONObject payload = new JSONObject(payloadJson);
+            assertEquals("13.5.0", payload.getString("version"));
+            assertEquals(130500, payload.getInt("versionCode"));
+            assertEquals("adaway", payload.getString("store"));
+            assertEquals("stable", payload.getString("channel"));
+            assertEquals(certSha256, payload.getString("signingCertificateSha256"));
+            assertTrue("Manifest must include an expiration timestamp.",
+                    payload.getString("expiresAt").endsWith("Z"));
+            assertTrue("Checksum must be emitted by manifest basename.",
+                    readUtf8(Path.of(manifest.toString() + ".sha256"))
+                            .contains("  manifest.json"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void atk34_releaseCleanupAndDocsPreserveSourceProvenance() throws IOException {
         String cleanupWorkflow = readUtf8(
                 repoDir().resolve(".github/workflows/cleanup-releases.yml"));
@@ -519,7 +601,9 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must document the manifest signing private-key secret.",
                 releasing.contains("UPDATE_MANIFEST_PRIVATE_KEY_BASE64"));
         assertTrue("Release docs must include local signed update-manifest generation.",
-                releasing.contains("scripts/generate-update-manifest.sh"));
+                releasing.contains("scripts\\generate-update-manifest.ps1") &&
+                        releasing.contains("generate-update-manifest.sh") &&
+                        releasing.contains("same JDK-based manifest generator"));
         assertTrue("Release docs must use the runtime AdAway store name in manifests.",
                 releasing.contains("--store adaway"));
         assertFalse("Release docs must not use GitHub as the runtime manifest store.",
@@ -1371,6 +1455,19 @@ public class SecurityHardeningTest {
             }
         }
         return null;
+    }
+
+    private static String javaCommand() {
+        String executable = System.getProperty("os.name").toLowerCase(Locale.US).contains("win") ?
+                "java.exe" : "java";
+        Path java = Paths.get(System.getProperty("java.home"), "bin", executable);
+        return Files.isRegularFile(java) ? java.toString() : executable;
+    }
+
+    private static String pem(String label, byte[] der) {
+        String body = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII))
+                .encodeToString(der);
+        return "-----BEGIN " + label + "-----\n" + body + "\n-----END " + label + "-----\n";
     }
 
     private static ProcessResult runLicenseBoundaryScript(String powershell, Path workingDirectory)

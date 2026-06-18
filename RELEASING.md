@@ -134,7 +134,7 @@ Get-FileHash $Apk -Algorithm SHA256 |
 Get-FileHash $Sbom -Algorithm SHA256 |
   ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $Sbom -Leaf)" } |
   Set-Content "$Sbom.sha256"
-bash ./scripts/generate-update-manifest.sh `
+.\scripts\generate-update-manifest.ps1 `
   --apk $Apk `
   --version $Version `
   --version-code "<versionCode>" `
@@ -158,6 +158,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boun
   -ApkPath $Apk `
   -ExpectedCertSha256 "<release-certificate-sha256>"
 ```
+
+`generate-update-manifest.ps1` and `generate-update-manifest.sh` both delegate
+to the same JDK-based manifest generator, so local Windows verification does not
+require WSL, Bash, or OpenSSL. The release workflow still invokes the Bash
+wrapper on GitHub-hosted Linux runners.
 
 `run-release-smoke.ps1 -VerifyOnly` checks release APK badging and optional
 signer identity without requiring a connected device. The full
