@@ -3,7 +3,6 @@ package org.adaway.db.entity;
 import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
-import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
 import java.util.Locale;
@@ -11,19 +10,7 @@ import java.util.Locale;
 /**
  * Materialized row for root hosts-file export.
  */
-@Entity(
-        tableName = "root_host_entries",
-        indices = {
-                @Index(
-                        value = {"host"},
-                        name = "index_root_host_entries_host"
-                ),
-                @Index(
-                        value = {"reverse_host", "host"},
-                        name = "index_root_host_entries_reverse_host"
-                )
-        }
-)
+@Entity(tableName = "root_host_entries")
 public class RootHostEntry {
     @PrimaryKey
     private long id;

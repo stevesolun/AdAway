@@ -331,19 +331,17 @@ public class SourceModel {
 
         AppExecutors.getInstance().diskIO().execute(() -> {
             long startedMs = SystemClock.elapsedRealtime();
+            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
             try {
-                this.hostEntryDao.refreshStatsFromActiveGeneration();
-                this.database.runInTransaction(() -> {
-                    SupportSQLiteDatabase db =
-                            this.database.getOpenHelper().getWritableDatabase();
-                    this.hostEntryDao.rebuildFromActiveGeneration(db);
-                });
+                applyBalancedImportPragmas(db);
+                rebuildRuntimeCaches(db);
                 Timber.i("Runtime cache refresh completed in %dms",
                         SystemClock.elapsedRealtime() - startedMs);
             } catch (RuntimeException exception) {
                 Timber.w(exception, "Runtime cache refresh failed; active hosts_lists truth " +
                         "remains authoritative.");
             } finally {
+                restoreImportPragmas(db);
                 this.runtimeCacheRefreshInProgress.set(false);
             }
         });
@@ -1572,11 +1570,25 @@ public class SourceModel {
      */
     public void syncHostEntries() {
         setState(R.string.status_sync_database);
-        this.database.runInTransaction(() -> {
-            SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
-            this.hostEntryDao.rebuildFromActiveGeneration(db);
-        });
+        SupportSQLiteDatabase db = this.database.getOpenHelper().getWritableDatabase();
+        applyBalancedImportPragmas(db);
+        try {
+            rebuildRuntimeCaches(db);
+        } finally {
+            restoreImportPragmas(db);
+        }
         invalidateVpnRulesCache();
+    }
+
+    private void rebuildRuntimeCaches(@NonNull SupportSQLiteDatabase db) {
+        this.hostEntryDao.refreshStatsFromActiveGeneration();
+        if (this.hostEntryDao.getActiveRuntimeRuleCountNow()
+                > HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS) {
+            this.hostEntryDao.rebuildFromActiveGeneration(db);
+            return;
+        }
+        this.database.runInTransaction(() ->
+                this.hostEntryDao.rebuildFromActiveGeneration(db));
     }
 
     private void invalidateVpnRulesCache() {

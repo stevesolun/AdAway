@@ -59,9 +59,15 @@ final class Migrations {
     private static final String ROOT_HOST_ENTRIES_STAGE_GENERATION_SOURCE_INDEX_SQL =
             "CREATE INDEX IF NOT EXISTS `index_root_host_entries_stage_generation_source` " +
                     "ON `root_host_entries_stage` (`generation`, `source_id`)";
-    private static final String ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_INDEX_SQL =
+    private static final String ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_LEGACY_INDEX_SQL =
             "CREATE INDEX IF NOT EXISTS `index_root_host_entries_stage_reverse_host` " +
                     "ON `root_host_entries_stage` (`reverse_host`, `host`)";
+    private static final String ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS `index_root_host_entries_stage_reverse_host` " +
+                    "ON `root_host_entries_stage` (`reverse_host`)";
+    private static final String ROOT_EXPORT_SKIP_STAGE_IDS_SQL =
+            "CREATE TABLE IF NOT EXISTS `root_export_skip_stage_ids` " +
+                    "(`id` INTEGER NOT NULL, PRIMARY KEY(`id`))";
     static final String CREATE_HOSTS_STATS_SQL =
             "CREATE TABLE IF NOT EXISTS `hosts_stats` " +
                     "(`id` INTEGER NOT NULL, `blocked_count` INTEGER NOT NULL, " +
@@ -581,11 +587,52 @@ final class Migrations {
         }
     };
 
+    /**
+     * Migration script from v28 to v29.
+     * Drops the unused root export staging reverse-host index to reduce large import write
+     * amplification.
+     */
+    static final Migration MIGRATION_28_29 = new Migration(28, 29) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_stage_reverse_host`");
+        }
+    };
+
+    /**
+     * Migration script from v29 to v30.
+     * Drops persistent indexes from root_host_entries and creates a narrow reverse-host index on
+     * root_host_entries_stage. The final table is a large append/read-through hosts-file cache
+     * streamed by row id; suffix allow lookups use the import-time stage instead.
+     */
+    static final Migration MIGRATION_29_30 = new Migration(29, 30) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            dropRootHostEntryIndexes(database);
+            database.execSQL(ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_INDEX_SQL);
+        }
+    };
+
+    /**
+     * Migration script from v30 to v31.
+     * Tracks when a complete root export can be streamed directly from the import-time stage
+     * table instead of copying millions of rows into root_host_entries.
+     */
+    static final Migration MIGRATION_30_31 = new Migration(30, 31) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `hosts_stats` ADD COLUMN " +
+                    "`root_export_stage_materialized` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("UPDATE `hosts_stats` SET `root_export_stage_materialized` = 0");
+            database.execSQL(ROOT_EXPORT_SKIP_STAGE_IDS_SQL);
+        }
+    };
+
     static void createRootHostEntriesStage(@NonNull SupportSQLiteDatabase database) {
         database.execSQL(ROOT_HOST_ENTRIES_STAGE_SQL);
         database.execSQL(ROOT_HOST_ENTRIES_STAGE_SOURCE_GENERATION_INDEX_SQL);
         database.execSQL(ROOT_HOST_ENTRIES_STAGE_GENERATION_SOURCE_INDEX_SQL);
-        database.execSQL(ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_INDEX_SQL);
+        database.execSQL(ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_LEGACY_INDEX_SQL);
     }
 
     static void optimizeHostEntriesStorage(@NonNull SupportSQLiteDatabase database) {
@@ -627,12 +674,10 @@ final class Migrations {
     static void optimizeRootHostEntriesStorage(@NonNull SupportSQLiteDatabase database) {
         boolean hasId = hasColumn(database, "root_host_entries", "id");
         if (hasId) {
-            database.execSQL(ROOT_HOST_ENTRIES_HOST_INDEX_SQL);
-            database.execSQL(ROOT_HOST_ENTRIES_REVERSE_HOST_INDEX_SQL);
+            dropRootHostEntryIndexes(database);
             return;
         }
-        database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_reverse_host`");
-        database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_host`");
+        dropRootHostEntryIndexes(database);
         database.execSQL(ROOT_HOST_ENTRIES_APPEND_SQL);
         database.execSQL("INSERT INTO `root_host_entries_new` " +
                 "(`host`, `reverse_host`, `kind`, `type`, `redirection`) " +
@@ -640,8 +685,12 @@ final class Migrations {
                 "FROM `root_host_entries`");
         database.execSQL("DROP TABLE `root_host_entries`");
         database.execSQL("ALTER TABLE `root_host_entries_new` RENAME TO `root_host_entries`");
-        database.execSQL(ROOT_HOST_ENTRIES_HOST_INDEX_SQL);
-        database.execSQL(ROOT_HOST_ENTRIES_REVERSE_HOST_INDEX_SQL);
+        dropRootHostEntryIndexes(database);
+    }
+
+    private static void dropRootHostEntryIndexes(@NonNull SupportSQLiteDatabase database) {
+        database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_host`");
+        database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_reverse_host`");
     }
 
     private static void backfillHostsListsReverseHosts(@NonNull SupportSQLiteDatabase database) {

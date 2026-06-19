@@ -17,6 +17,9 @@ import static org.adaway.db.Migrations.MIGRATION_24_25;
 import static org.adaway.db.Migrations.MIGRATION_25_26;
 import static org.adaway.db.Migrations.MIGRATION_26_27;
 import static org.adaway.db.Migrations.MIGRATION_27_28;
+import static org.adaway.db.Migrations.MIGRATION_28_29;
+import static org.adaway.db.Migrations.MIGRATION_29_30;
+import static org.adaway.db.Migrations.MIGRATION_30_31;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -521,6 +524,54 @@ public class MigrationTest {
                 "SELECT filter_list_tag_ids FROM hosts_sources WHERE id = 2"));
         assertEquals(null, queryNullableString(db,
                 "SELECT filter_list_language_ids FROM hosts_sources WHERE id = 2"));
+    }
+
+    @Test
+    public void migration28To29_dropsUnusedRootExportStageReverseIndex() throws Exception {
+        SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 28);
+        assertTrue(hasIndex(db, "index_root_host_entries_stage_reverse_host"));
+        db.close();
+
+        db = this.helper.runMigrationsAndValidate(TEST_DB, 29, true, MIGRATION_28_29);
+
+        assertTrue(hasIndex(db, "index_root_host_entries_stage_source_generation"));
+        assertTrue(hasIndex(db, "index_root_host_entries_stage_generation_source"));
+        assertFalse(hasIndex(db, "index_root_host_entries_stage_reverse_host"));
+    }
+
+    @Test
+    public void migration29To30_dropsPersistentRootExportIndexes() throws Exception {
+        SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 29);
+        assertTrue(hasIndex(db, "index_root_host_entries_host"));
+        assertTrue(hasIndex(db, "index_root_host_entries_reverse_host"));
+        db.close();
+
+        db = this.helper.runMigrationsAndValidate(TEST_DB, 30, true, MIGRATION_29_30);
+
+        assertFalse(hasIndex(db, "index_root_host_entries_host"));
+        assertFalse(hasIndex(db, "index_root_host_entries_reverse_host"));
+        assertTrue(hasIndex(db, "index_root_host_entries_stage_reverse_host"));
+        assertEquals("reverse_host",
+                indexColumns(db, "index_root_host_entries_stage_reverse_host"));
+    }
+
+    @Test
+    public void migration30To31_addsStageBackedRootExportState() throws Exception {
+        SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 30);
+        db.execSQL("INSERT OR REPLACE INTO hosts_stats " +
+                "(id, blocked_count, blocked_exact_count, allowed_count, redirected_count, " +
+                "active_rule_count, root_export_materialized) " +
+                "VALUES (0, 1, 1, 0, 0, 1, 1)");
+        db.close();
+
+        db = this.helper.runMigrationsAndValidate(TEST_DB, 31, true, MIGRATION_30_31);
+
+        assertTrue(hasColumn(db, "hosts_stats", "root_export_stage_materialized"));
+        assertEquals(0, queryInt(db,
+                "SELECT root_export_stage_materialized FROM hosts_stats WHERE id = 0"));
+        assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM sqlite_master " +
+                "WHERE type = 'table' AND name = 'root_export_skip_stage_ids'"));
+        assertTrue(hasColumn(db, "root_export_skip_stage_ids", "id"));
     }
 
     private static int queryInt(SupportSQLiteDatabase db, String sql) {

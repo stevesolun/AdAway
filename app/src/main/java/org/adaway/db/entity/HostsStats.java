@@ -29,4 +29,7 @@ public class HostsStats {
 
     @ColumnInfo(name = "root_export_materialized", defaultValue = "0")
     public boolean rootExportMaterialized = false;
+
+    @ColumnInfo(name = "root_export_stage_materialized", defaultValue = "0")
+    public boolean rootExportStageMaterialized = false;
 }

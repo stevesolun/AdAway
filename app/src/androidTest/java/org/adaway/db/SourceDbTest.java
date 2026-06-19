@@ -786,6 +786,29 @@ public class SourceDbTest extends DbTest {
     }
 
     @Test
+    public void testCompleteRootExportStageDedupesBlockedDuplicatesWithoutRedirects() {
+        setActiveGeneration(2);
+        SupportSQLiteDatabase writableDb = this.db.getOpenHelper().getWritableDatabase();
+        insertRootStageHost(writableDb, "duplicate-stage.example", BLOCKED, null,
+                EXTERNAL_SOURCE_ID, 2);
+        insertRootStageHost(writableDb, "duplicate-stage.example", BLOCKED, null,
+                EXTERNAL_SOURCE_ID, 2);
+        this.hostsSourceDao.updateRuleStats(EXTERNAL_SOURCE_ID,
+                (int) HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS + 1,
+                (int) HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS + 1,
+                2, 2, 0, 0);
+
+        this.db.runInTransaction(() ->
+                this.hostEntryDao.rebuildFromActiveGeneration(writableDb));
+
+        assertEquals(0, queryInt("SELECT COUNT(*) FROM host_entries"));
+        assertEquals(1, queryInt("SELECT COUNT(*) FROM root_host_entries"));
+        Set<String> rootRows = rootRowsFromList();
+        assertTrue(rootRows.contains("duplicate-stage.example|0|0|null"));
+        assertEquals(rootRows, rootRowsFromCursor());
+    }
+
+    @Test
     public void testBlockedHostsFromDisabledSource() throws InterruptedException {
         // Insert blocked hosts
         insertBlockedHost("advertising.apple.com", USER_SOURCE_ID);

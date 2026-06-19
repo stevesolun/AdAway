@@ -44,6 +44,8 @@ public interface HostEntryDao {
     String ROOT_EXPORT_REVERSE_INDEX_SQL = "CREATE INDEX IF NOT EXISTS `" +
             ROOT_EXPORT_REVERSE_INDEX_NAME +
             "` ON `root_host_entries` (`reverse_host`, `host`)";
+    String ROOT_EXPORT_REVERSE_LOOKUP_INDEX_SQL = "CREATE INDEX IF NOT EXISTS `" +
+            ROOT_EXPORT_REVERSE_INDEX_NAME + "` ON `root_host_entries` (`reverse_host`)";
     String ROOT_EXPORT_HOST_INDEX_NAME = "index_root_host_entries_host";
     String ROOT_EXPORT_HOST_INDEX_SQL = "CREATE INDEX IF NOT EXISTS `" +
             ROOT_EXPORT_HOST_INDEX_NAME + "` ON `root_host_entries` (`host`)";
@@ -57,11 +59,23 @@ public interface HostEntryDao {
             "index_root_host_entries_stage_source_generation";
     String ROOT_EXPORT_STAGE_GENERATION_SOURCE_INDEX_NAME =
             "index_root_host_entries_stage_generation_source";
+    String ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME =
+            "index_root_host_entries_stage_reverse_host";
     String RUNTIME_REBUILD_CACHE_SIZE_SQL = "PRAGMA cache_size=-65536";
     String RUNTIME_REBUILD_TEMP_STORE_SQL = "PRAGMA temp_store=MEMORY";
     long MATERIALIZED_RUNTIME_CACHE_MAX_ROWS = 500_000L;
     int SUFFIX_ALLOW_DELETE_BATCH_SIZE = 50_000;
     String TEMP_SUFFIX_ALLOW_DELETE_HOSTS = "suffix_allow_delete_hosts";
+    String TEMP_ROOT_EXPORT_SKIP_STAGE_IDS = "root_export_skip_stage_ids";
+    String ROOT_STAGE_ACTIVE_SOURCE_WHERE = "(`entry`.`source_id` = 1 OR " +
+            "(`entry`.`generation` = :activeGeneration AND `entry`.`source_id` != 1 " +
+            "AND EXISTS (SELECT 1 FROM `hosts_sources` AS `source` " +
+            "WHERE `source`.`id` = `entry`.`source_id` AND `source`.`enabled` = 1)))";
+    String ROOT_STAGE_MATERIALIZED_SOURCE_WHERE = "(`entry`.`source_id` = 1 OR " +
+            "(`entry`.`generation` = :activeGeneration AND `entry`.`source_id` != 1))";
+    String ROOT_STAGE_SKIP_WHERE = "NOT EXISTS (SELECT 1 FROM `" +
+            TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` AS `skipped` " +
+            "WHERE `skipped`.`id` = `entry`.`id`)";
     String ACTIVE_RULES_CTE = "WITH `active_rules` AS (" +
             "SELECT LOWER(`host`) AS `host`, `reverse_host`, `kind`, `type`, " +
             "`redirection`, `source_id`, " +
@@ -152,9 +166,14 @@ public interface HostEntryDao {
     @Query("DELETE FROM `root_host_entries`")
     void clearRootExport();
 
-    @Query("UPDATE `hosts_stats` SET `root_export_materialized` = :materialized " +
+    @Query("UPDATE `hosts_stats` SET `root_export_materialized` = :materialized, " +
+            "`root_export_stage_materialized` = 0 " +
             "WHERE `id` = 0")
     void setRootExportMaterialized(boolean materialized);
+
+    @Query("UPDATE `hosts_stats` SET `root_export_materialized` = :materialized, " +
+            "`root_export_stage_materialized` = :materialized WHERE `id` = 0")
+    void setRootExportStageMaterialized(boolean materialized);
 
     default void invalidateMaterializedRuntimeCaches() {
         clear();
@@ -265,11 +284,25 @@ public interface HostEntryDao {
             "AND `generation` = :activeGeneration AND `source_id` != 1 LIMIT 1)")
     boolean hasSourceAllowedRules(int activeGeneration);
 
-    @Query("SELECT EXISTS(SELECT 1 FROM `hosts_lists` WHERE `type` = 1 AND `enabled` = 1 " +
-            "AND `kind` = 0 AND (`source_id` == 1 OR (`generation` = :activeGeneration " +
-            "AND `source_id` != 1)) AND (instr(`host`, '*') > 0 OR instr(`host`, '?') > 0 " +
+    default boolean hasActiveWildcardExactAllowedRules(int activeGeneration) {
+        return hasUserWildcardExactAllowedRules()
+                || hasSourceWildcardExactAllowedRules(activeGeneration);
+    }
+
+    @Query("SELECT EXISTS(SELECT 1 FROM `hosts_lists` " +
+            "INDEXED BY `index_hosts_lists_active_allow_source_kind_host` " +
+            "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 0 AND `source_id` = 1 " +
+            "AND (instr(`host`, '*') > 0 OR instr(`host`, '?') > 0 " +
             "OR instr(`host`, '%') > 0) LIMIT 1)")
-    boolean hasActiveWildcardExactAllowedRules(int activeGeneration);
+    boolean hasUserWildcardExactAllowedRules();
+
+    @Query("SELECT EXISTS(SELECT 1 FROM `hosts_lists` " +
+            "INDEXED BY `index_hosts_lists_active_allow_generation_source_kind_host` " +
+            "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 0 " +
+            "AND `generation` = :activeGeneration AND `source_id` != 1 " +
+            "AND (instr(`host`, '*') > 0 OR instr(`host`, '?') > 0 " +
+            "OR instr(`host`, '%') > 0) LIMIT 1)")
+    boolean hasSourceWildcardExactAllowedRules(int activeGeneration);
 
     @Query("INSERT OR IGNORE INTO `host_entries` " +
             "(`host`, `reverse_host`, `kind`, `type`, `redirection`) " +
@@ -471,9 +504,6 @@ public interface HostEntryDao {
         } else {
                 materializeRootSuffixRowsWithoutAllowRules();
         }
-        if (db != null) {
-            createRootExportIndexes(db);
-        }
         setRootExportMaterialized(true);
     }
 
@@ -498,7 +528,6 @@ public interface HostEntryDao {
         insertRootExportBlockedRows(db, false, EXACT.getValue(), SUFFIX.getValue(),
                 activeGeneration);
         long blockedMs = SystemClock.elapsedRealtime();
-        createRootExportIndexes(db);
         long indexCreateMs = SystemClock.elapsedRealtime();
         if (hasAllowRules) {
             deleteRootExportRowsAllowedByLiteralExactRules(db, activeGeneration);
@@ -514,7 +543,7 @@ public interface HostEntryDao {
             insertRootExportRedirectedRows(db, true, activeGeneration);
         }
         long redirectedMs = SystemClock.elapsedRealtime();
-        dedupeRootExportRowsByPrecedence(db);
+        dedupeRootExportRows(db, hasRedirectRules);
         long dedupeMs = SystemClock.elapsedRealtime();
         setRootExportMaterialized(true);
         long finishedMs = SystemClock.elapsedRealtime();
@@ -538,24 +567,49 @@ public interface HostEntryDao {
 
     default void materializeRootExportFromStagedCandidates(@NonNull SupportSQLiteDatabase db,
             boolean hasAllowRules, boolean hasWildcardExactAllowRules, boolean hasRedirectRules,
-            int activeGeneration) {
+            int activeGeneration, long stagedCandidateRows) {
         long startedMs = SystemClock.elapsedRealtime();
         setRootExportMaterialized(false);
         dropRootExportIndexes(db);
         long indexDropMs = SystemClock.elapsedRealtime();
         clearRootExport();
         long clearMs = SystemClock.elapsedRealtime();
+        boolean useStageBackedRootExport = shouldUseStageBackedRootExport(
+                stagedCandidateRows, hasWildcardExactAllowRules, hasRedirectRules);
+        if (hasAllowRules) {
+            prepareRootExportSkippedStageRows(db, activeGeneration);
+        } else if (useStageBackedRootExport) {
+            createRootExportSkippedStageRowsTable(db);
+        }
+        if (useStageBackedRootExport) {
+            long stageBackedMs = SystemClock.elapsedRealtime();
+            setRootExportStageMaterialized(true);
+            long finishedMs = SystemClock.elapsedRealtime();
+            Timber.i("HostEntryDao.root-export-stage perf: indexDropMs=%d clearMs=%d " +
+                            "blockedMs=%d indexCreateMs=0 allowMs=0 redirectShadowMs=0 " +
+                            "redirectedMs=0 dedupeMs=0 finishMs=%d totalMs=%d " +
+                            "allowRules=%s wildcardExactAllowRules=%s stageBacked=true",
+                    indexDropMs - startedMs,
+                    clearMs - indexDropMs,
+                    stageBackedMs - clearMs,
+                    finishedMs - stageBackedMs,
+                    finishedMs - startedMs,
+                    hasAllowRules,
+                    hasWildcardExactAllowRules);
+            return;
+        }
         insertRootExportStagedBlockedRows(db, true, activeGeneration);
         insertRootExportStagedBlockedRows(db, false, activeGeneration);
+        if (hasAllowRules) {
+            deleteRootExportSkippedStageRows(db);
+        }
         long blockedMs = SystemClock.elapsedRealtime();
-        createRootExportIndexes(db);
         long indexCreateMs = SystemClock.elapsedRealtime();
         if (hasAllowRules) {
-            deleteRootExportRowsAllowedByLiteralExactRules(db, activeGeneration);
             if (hasWildcardExactAllowRules) {
                 deleteRootExportRowsAllowedByWildcardExactRules(db, activeGeneration);
             }
-            deleteRootExportRowsAllowedBySuffixRules(db, activeGeneration);
+            clearRootExportSkippedStageRows(db);
         }
         long allowMs = SystemClock.elapsedRealtime();
         long redirectShadowMs = allowMs;
@@ -564,7 +618,7 @@ public interface HostEntryDao {
             insertRootExportStagedRedirectedRows(db, true, activeGeneration);
         }
         long redirectedMs = SystemClock.elapsedRealtime();
-        dedupeRootExportRowsByPrecedence(db);
+        dedupeRootExportRows(db, hasRedirectRules);
         long dedupeMs = SystemClock.elapsedRealtime();
         setRootExportMaterialized(true);
         long finishedMs = SystemClock.elapsedRealtime();
@@ -586,6 +640,13 @@ public interface HostEntryDao {
                 hasWildcardExactAllowRules);
     }
 
+    private boolean shouldUseStageBackedRootExport(long stagedCandidateRows,
+            boolean hasWildcardExactAllowRules, boolean hasRedirectRules) {
+        return stagedCandidateRows > MATERIALIZED_RUNTIME_CACHE_MAX_ROWS
+                && !hasWildcardExactAllowRules
+                && !hasRedirectRules;
+    }
+
     /**
      * Rebuild host_entries based on the current active hosts_lists truth.
      *
@@ -602,26 +663,34 @@ public interface HostEntryDao {
         int activeGeneration = getActiveGeneration();
         long stagedCandidateRows = db == null ? 0L
                 : getCompleteRootExportStageRows(db, activeGeneration);
+        long stageCheckMs = SystemClock.elapsedRealtime();
         refreshUserSourceStats();
+        long userStatsMs = SystemClock.elapsedRealtime();
         refreshStatsFromSourceMetadata();
+        long aggregateStatsMs = SystemClock.elapsedRealtime();
         long activeRuleRows = getActiveRuntimeRuleCountNow();
+        long activeRuleCountMs = SystemClock.elapsedRealtime();
         activeRuleRows = Math.max(activeRuleRows, stagedCandidateRows);
         if (activeRuleRows == 0 && hasActiveRuntimeRows()) {
             refreshStatsFromActiveRows();
             activeRuleRows = getActiveRuntimeRuleCountNow();
         }
+        long fallbackStatsMs = SystemClock.elapsedRealtime();
         if (activeRuleRows > MATERIALIZED_RUNTIME_CACHE_MAX_ROWS) {
             boolean hasAllowRules = hasUserAllowedRules() ||
                     hasSourceAllowedRules(activeGeneration);
+            long allowProbeMs = SystemClock.elapsedRealtime();
             boolean hasWildcardExactAllowRules = hasAllowRules
                     && hasActiveWildcardExactAllowedRules(activeGeneration);
+            long wildcardAllowProbeMs = SystemClock.elapsedRealtime();
             boolean hasRedirectRules = getRedirectedEntryCountNow() > 0;
+            long redirectProbeMs = SystemClock.elapsedRealtime();
             clear();
             long clearMs = SystemClock.elapsedRealtime();
             if (stagedCandidateRows > 0) {
                 materializeRootExportFromStagedCandidates(
                         db, hasAllowRules, hasWildcardExactAllowRules, hasRedirectRules,
-                        activeGeneration);
+                        activeGeneration, stagedCandidateRows);
             } else {
                 materializeRootExportFromActiveRules(
                         db, hasAllowRules, hasWildcardExactAllowRules, hasRedirectRules,
@@ -629,11 +698,21 @@ public interface HostEntryDao {
             }
             long rootExportMs = SystemClock.elapsedRealtime();
             Timber.i("HostEntryDao.sync skipped materialized runtime cache and rebuilt root " +
-                            "export: activeRuleRows=%d maxRows=%d clearMs=%d " +
-                            "rootExportMs=%d totalMs=%d",
+                            "export: activeRuleRows=%d maxRows=%d stageCheckMs=%d " +
+                            "userStatsMs=%d aggregateStatsMs=%d activeRuleCountMs=%d " +
+                            "fallbackStatsMs=%d allowProbeMs=%d wildcardAllowProbeMs=%d " +
+                            "redirectProbeMs=%d clearMs=%d rootExportMs=%d totalMs=%d",
                     activeRuleRows,
                     MATERIALIZED_RUNTIME_CACHE_MAX_ROWS,
-                    clearMs - startedMs,
+                    stageCheckMs - startedMs,
+                    userStatsMs - stageCheckMs,
+                    aggregateStatsMs - userStatsMs,
+                    activeRuleCountMs - aggregateStatsMs,
+                    fallbackStatsMs - activeRuleCountMs,
+                    allowProbeMs - fallbackStatsMs,
+                    wildcardAllowProbeMs - allowProbeMs,
+                    redirectProbeMs - wildcardAllowProbeMs,
+                    clearMs - redirectProbeMs,
                     rootExportMs - clearMs,
                     rootExportMs - startedMs);
             return;
@@ -840,19 +919,6 @@ public interface HostEntryDao {
         return insertStatement.executeUpdateDelete();
     }
 
-    private void createRootExportReverseIndex(SupportSQLiteDatabase db) {
-        db.execSQL(ROOT_EXPORT_REVERSE_INDEX_SQL);
-    }
-
-    private void createRootExportHostIndex(SupportSQLiteDatabase db) {
-        db.execSQL(ROOT_EXPORT_HOST_INDEX_SQL);
-    }
-
-    private void createRootExportIndexes(SupportSQLiteDatabase db) {
-        createRootExportHostIndex(db);
-        createRootExportReverseIndex(db);
-    }
-
     private void dropRootExportReverseIndex(SupportSQLiteDatabase db) {
         db.execSQL("DROP INDEX IF EXISTS `" + ROOT_EXPORT_REVERSE_INDEX_NAME + "`");
     }
@@ -921,6 +987,12 @@ public interface HostEntryDao {
                     stagedRows, expectedStageRows);
             return 0L;
         }
+        long enabledExternalSources = queryLong(db,
+                "SELECT COUNT(*) FROM `hosts_sources` AS source " +
+                        "WHERE source.`enabled` = 1 AND source.`id` != 1");
+        if (enabledExternalSources <= 1) {
+            return stagedRows;
+        }
         long mismatchSources = queryLong(db,
                 "SELECT COUNT(*) FROM `hosts_sources` AS source " +
                         "WHERE source.`enabled` = 1 AND source.`id` != 1 " +
@@ -951,12 +1023,107 @@ public interface HostEntryDao {
                         "WHERE source.`id` = entry.`source_id` AND source.`enabled` = 1)";
         String scan = userRules
                 ? "INDEXED BY `" + ROOT_EXPORT_STAGE_SOURCE_GENERATION_INDEX_NAME + "`"
-                : "INDEXED BY `" + ROOT_EXPORT_STAGE_GENERATION_SOURCE_INDEX_NAME + "`";
+                : "NOT INDEXED";
         db.execSQL("INSERT INTO `root_host_entries` " +
-                "(`host`, `reverse_host`, `kind`, `type`, `redirection`) " +
-                "SELECT entry.`host`, entry.`reverse_host`, 0, 0, NULL " +
+                "(`id`, `host`, `reverse_host`, `kind`, `type`, `redirection`) " +
+                "SELECT entry.`id`, entry.`host`, '', 0, 0, NULL " +
                 "FROM `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " + scan + " " +
                 "WHERE entry.`type` = 0 AND " + sourceWhere);
+    }
+
+    private void prepareRootExportSkippedStageRows(
+            SupportSQLiteDatabase db, int activeGeneration) {
+        long startedMs = SystemClock.elapsedRealtime();
+        createRootExportSkippedStageRowsTable(db);
+        db.execSQL("WITH `active_exact_allow`(`reverse_host`) AS (" +
+                "SELECT `reverse_host` FROM `hosts_lists` " +
+                "INDEXED BY `index_hosts_lists_active_allow_source_kind_reverse_host` " +
+                "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 0 " +
+                "AND `source_id` = 1 " +
+                "AND instr(`host`, '*') = 0 AND instr(`host`, '?') = 0 " +
+                "AND instr(`host`, '%') = 0 " +
+                "UNION ALL SELECT `reverse_host` FROM `hosts_lists` " +
+                "INDEXED BY `index_hosts_lists_active_allow_generation_kind_reverse_host` " +
+                "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 0 " +
+                "AND `generation` = " + activeGeneration + " AND `source_id` != 1 " +
+                "AND instr(`host`, '*') = 0 AND instr(`host`, '?') = 0 " +
+                "AND instr(`host`, '%') = 0) " +
+                "INSERT OR IGNORE INTO `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` " +
+                "SELECT entry.`id` FROM `active_exact_allow` AS allowed " +
+                "JOIN `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
+                "INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "ON entry.`reverse_host` = allowed.`reverse_host` " +
+                "WHERE entry.`type` = 0 AND " + activeStageSourceWhere(activeGeneration));
+        long exactMs = SystemClock.elapsedRealtime();
+        db.execSQL("WITH `active_suffix_allow`(`reverse_host`) AS (" +
+                "SELECT `reverse_host` FROM `hosts_lists` " +
+                "INDEXED BY `index_hosts_lists_active_allow_source_kind_reverse_host` " +
+                "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 1 " +
+                "AND `source_id` = 1 " +
+                "UNION ALL SELECT `reverse_host` FROM `hosts_lists` " +
+                "INDEXED BY `index_hosts_lists_active_allow_generation_kind_reverse_host` " +
+                "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 1 " +
+                "AND `generation` = " + activeGeneration + " AND `source_id` != 1) " +
+                "INSERT OR IGNORE INTO `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` " +
+                "SELECT entry.`id` FROM `active_suffix_allow` AS allowed " +
+                "JOIN `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
+                "INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "ON entry.`reverse_host` = allowed.`reverse_host` " +
+                "WHERE entry.`type` = 0 AND " + activeStageSourceWhere(activeGeneration) +
+                " UNION ALL SELECT entry.`id` " +
+                "FROM `active_suffix_allow` AS allowed " +
+                "JOIN `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
+                "INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "ON entry.`reverse_host` >= allowed.`reverse_host` || '.' " +
+                "AND entry.`reverse_host` < allowed.`reverse_host` || '/' " +
+                "WHERE entry.`type` = 0 AND " + activeStageSourceWhere(activeGeneration));
+        long suffixMs = SystemClock.elapsedRealtime();
+        long skippedRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+        Timber.i("HostEntryDao.root-export-stage allow-skip exactMs=%d suffixMs=%d " +
+                        "skippedRows=%d totalMs=%d",
+                exactMs - startedMs,
+                suffixMs - exactMs,
+                skippedRows,
+                suffixMs - startedMs);
+    }
+
+    private void createRootExportSkippedStageRowsTable(SupportSQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS +
+                "` (`id` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("DELETE FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+    }
+
+    private String activeStageSourceWhere(int activeGeneration) {
+        return "(entry.`source_id` = 1 OR (entry.`generation` = " + activeGeneration +
+                " AND entry.`source_id` != 1 AND EXISTS (" +
+                "SELECT 1 FROM `hosts_sources` AS source WHERE source.`id` = entry.`source_id` " +
+                "AND source.`enabled` = 1)))";
+    }
+
+    private void clearRootExportSkippedStageRows(SupportSQLiteDatabase db) {
+        db.execSQL("DELETE FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+    }
+
+    private void deleteRootExportSkippedStageRows(SupportSQLiteDatabase db) {
+        if (!tableExists(db, TEMP_ROOT_EXPORT_SKIP_STAGE_IDS)) {
+            return;
+        }
+        long startedMs = SystemClock.elapsedRealtime();
+        SupportSQLiteStatement deleteStatement = db.compileStatement(
+                "DELETE FROM `root_host_entries` WHERE `id` IN (" +
+                        "SELECT `id` FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`)");
+        int deletedRows = deleteStatement.executeUpdateDelete();
+        long finishedMs = SystemClock.elapsedRealtime();
+        Timber.i("HostEntryDao.root-export-stage skip-delete rows=%d totalMs=%d",
+                deletedRows,
+                finishedMs - startedMs);
+    }
+
+    private boolean tableExists(SupportSQLiteDatabase db, String tableName) {
+        return queryLong(db,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' " +
+                        "AND name = '" + tableName + "'") > 0;
     }
 
     private void deleteRootExportRowsAllowedByLiteralExactRules(
@@ -986,6 +1153,9 @@ public interface HostEntryDao {
 
     private void deleteRootExportRowsAllowedBySuffixRules(
             SupportSQLiteDatabase db, int activeGeneration) {
+        long startedMs = SystemClock.elapsedRealtime();
+        db.execSQL(ROOT_EXPORT_REVERSE_LOOKUP_INDEX_SQL);
+        long indexMs = SystemClock.elapsedRealtime();
         db.execSQL("WITH `active_suffix_allow`(`reverse_host`) AS (" +
                 "SELECT `reverse_host` FROM `hosts_lists` " +
                 "INDEXED BY `index_hosts_lists_active_allow_source_kind_reverse_host` " +
@@ -995,29 +1165,84 @@ public interface HostEntryDao {
                 "INDEXED BY `index_hosts_lists_active_allow_generation_kind_reverse_host` " +
                 "WHERE `type` = 1 AND `enabled` = 1 AND `kind` = 1 " +
                 "AND `generation` = " + activeGeneration + " AND `source_id` != 1) " +
-                "DELETE FROM `root_host_entries` WHERE `host` IN (" +
-                "SELECT entry.`host` FROM `active_suffix_allow` AS allowed " +
+                "DELETE FROM `root_host_entries` WHERE `id` IN (" +
+                "SELECT entry.`id` FROM `active_suffix_allow` AS allowed " +
                 "JOIN `root_host_entries` AS entry " +
                 "INDEXED BY `" + ROOT_EXPORT_REVERSE_INDEX_NAME + "` " +
                 "ON entry.`reverse_host` = allowed.`reverse_host` " +
-                "UNION ALL SELECT entry.`host` " +
+                "UNION ALL SELECT entry.`id` " +
                 "FROM `active_suffix_allow` AS allowed " +
                 "JOIN `root_host_entries` AS entry " +
                 "INDEXED BY `" + ROOT_EXPORT_REVERSE_INDEX_NAME + "` " +
                 "ON entry.`reverse_host` >= allowed.`reverse_host` || '.' " +
                 "AND entry.`reverse_host` < allowed.`reverse_host` || '/')");
+        long deleteMs = SystemClock.elapsedRealtime();
+        dropRootExportReverseIndex(db);
+        long dropMs = SystemClock.elapsedRealtime();
+        Timber.i("HostEntryDao.root-export suffix-allow-delete reverseIndexMs=%d " +
+                        "deleteMs=%d dropIndexMs=%d totalMs=%d",
+                indexMs - startedMs,
+                deleteMs - indexMs,
+                dropMs - deleteMs,
+                dropMs - startedMs);
+    }
+
+    private void dedupeRootExportRows(SupportSQLiteDatabase db, boolean hasRedirectRules) {
+        if (hasRedirectRules) {
+            dedupeRootExportRowsByPrecedence(db);
+        } else if (shouldDedupeRootExportBlockedRows(db)
+                && hasDuplicateRootExportBlockedRows(db)) {
+            dedupeRootExportBlockedRowsByFirstId(db);
+        }
+    }
+
+    private boolean shouldDedupeRootExportBlockedRows(SupportSQLiteDatabase db) {
+        long rootRows = queryLong(db, "SELECT COUNT(*) FROM `root_host_entries`");
+        if (rootRows > MATERIALIZED_RUNTIME_CACHE_MAX_ROWS) {
+            Timber.i("HostEntryDao.root-export skipped duplicate cleanup: rootRows=%d " +
+                    "maxRows=%d redirects=false", rootRows, MATERIALIZED_RUNTIME_CACHE_MAX_ROWS);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean hasDuplicateRootExportBlockedRows(SupportSQLiteDatabase db) {
+        return queryLong(db,
+                "SELECT EXISTS(SELECT 1 FROM (" +
+                        "SELECT `host` FROM `root_host_entries` " +
+                        "GROUP BY `host` HAVING COUNT(*) > 1 LIMIT 1))") > 0;
+    }
+
+    private void dedupeRootExportBlockedRowsByFirstId(SupportSQLiteDatabase db) {
+        db.execSQL("CREATE TEMP TABLE IF NOT EXISTS `root_export_keep_ids` " +
+                "(`id` INTEGER PRIMARY KEY) WITHOUT ROWID");
+        db.execSQL("DELETE FROM `root_export_keep_ids`");
+        db.execSQL("INSERT INTO `root_export_keep_ids` " +
+                "SELECT MIN(`id`) FROM `root_host_entries` GROUP BY `host`");
+        db.execSQL("DELETE FROM `root_host_entries` WHERE NOT EXISTS (" +
+                "SELECT 1 FROM `root_export_keep_ids` AS keep " +
+                "WHERE keep.`id` = `root_host_entries`.`id`)");
+        db.execSQL("DROP TABLE `root_export_keep_ids`");
     }
 
     private void dedupeRootExportRowsByPrecedence(SupportSQLiteDatabase db) {
-        db.execSQL("DELETE FROM `root_host_entries` WHERE EXISTS (" +
-                "SELECT 1 FROM `root_host_entries` AS better " +
-                "INDEXED BY `" + ROOT_EXPORT_HOST_INDEX_NAME + "` " +
-                "WHERE better.`host` = `root_host_entries`.`host` " +
-                "AND ((CASE WHEN better.`type` = 2 THEN 0 ELSE 1 END) < " +
-                "(CASE WHEN `root_host_entries`.`type` = 2 THEN 0 ELSE 1 END) " +
-                "OR ((CASE WHEN better.`type` = 2 THEN 0 ELSE 1 END) = " +
-                "(CASE WHEN `root_host_entries`.`type` = 2 THEN 0 ELSE 1 END) " +
-                "AND better.`id` < `root_host_entries`.`id`)))");
+        db.execSQL("CREATE TEMP TABLE IF NOT EXISTS `root_export_keep_ids` " +
+                "(`id` INTEGER PRIMARY KEY) WITHOUT ROWID");
+        db.execSQL("DELETE FROM `root_export_keep_ids`");
+        db.execSQL("WITH `ranked` AS (" +
+                "SELECT `id`, `host`, CASE WHEN `type` = 2 THEN 0 ELSE 1 END AS `precedence` " +
+                "FROM `root_host_entries`), " +
+                "`best_precedence` AS (" +
+                "SELECT `host`, MIN(`precedence`) AS `precedence` " +
+                "FROM `ranked` GROUP BY `host`) " +
+                "INSERT INTO `root_export_keep_ids` " +
+                "SELECT MIN(ranked.`id`) FROM `ranked` " +
+                "JOIN `best_precedence` AS best ON best.`host` = ranked.`host` " +
+                "AND best.`precedence` = ranked.`precedence` GROUP BY ranked.`host`");
+        db.execSQL("DELETE FROM `root_host_entries` WHERE NOT EXISTS (" +
+                "SELECT 1 FROM `root_export_keep_ids` AS keep " +
+                "WHERE keep.`id` = `root_host_entries`.`id`)");
+        db.execSQL("DROP TABLE `root_export_keep_ids`");
     }
 
     private void insertRootExportRedirectedRows(
@@ -1049,8 +1274,8 @@ public interface HostEntryDao {
                         "` AS user_entry WHERE user_entry.`host` = entry.`host` " +
                         "AND user_entry.`type` = 2 AND user_entry.`source_id` = 1)";
         db.execSQL("INSERT INTO `root_host_entries` " +
-                "(`host`, `reverse_host`, `kind`, `type`, `redirection`) " +
-                "SELECT entry.`host`, entry.`reverse_host`, 0, 2, entry.`redirection` " +
+                "(`id`, `host`, `reverse_host`, `kind`, `type`, `redirection`) " +
+                "SELECT entry.`id`, entry.`host`, '', 0, 2, entry.`redirection` " +
                 "FROM `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
                 "WHERE entry.`type` = 2 AND " + sourceWhere + " " +
                 "ORDER BY entry.`host`, CASE WHEN entry.`source_id` = 1 THEN 0 ELSE 1 END, " +
@@ -1083,8 +1308,20 @@ public interface HostEntryDao {
             "ORDER BY `host`, `kind`")
     List<HostEntry> getAllForRootHostsFileMaterialized();
 
+    @Query("SELECT `entry`.`host`, '' AS `reverse_host`, 0 AS `kind`, `entry`.`type`, " +
+            "`entry`.`redirection` FROM `root_host_entries_stage` AS `entry` NOT INDEXED " +
+            "WHERE `entry`.`type` IN (0, 2) AND " + ROOT_STAGE_MATERIALIZED_SOURCE_WHERE +
+            " AND " + ROOT_STAGE_SKIP_WHERE + " ORDER BY `entry`.`host`")
+    List<HostEntry> getAllForRootHostsFileStageMaterialized(int activeGeneration);
+
     @Query("SELECT `host`, `type`, `redirection` FROM `root_host_entries`")
     Cursor getRootHostsFileCursorMaterialized();
+
+    @Query("SELECT `entry`.`host`, `entry`.`type`, `entry`.`redirection` " +
+            "FROM `root_host_entries_stage` AS `entry` NOT INDEXED " +
+            "WHERE `entry`.`type` IN (0, 2) AND " + ROOT_STAGE_MATERIALIZED_SOURCE_WHERE +
+            " AND " + ROOT_STAGE_SKIP_WHERE + " ORDER BY `entry`.`id`")
+    Cursor getRootHostsFileCursorStageMaterialized(int activeGeneration);
 
     @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
             "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
@@ -1096,6 +1333,18 @@ public interface HostEntryDao {
 
     @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
             "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
+            "SELECT `entry`.`id`, CASE WHEN `entry`.`type` = 2 THEN " +
+            "COALESCE(`entry`.`redirection`, '') ELSE :redirectionIpv4 END || ' ' || " +
+            "`entry`.`host` AS `line` FROM `root_host_entries_stage` AS `entry` NOT INDEXED " +
+            "WHERE `entry`.`id` > :afterId AND `entry`.`type` IN (0, 2) AND " +
+            ROOT_STAGE_MATERIALIZED_SOURCE_WHERE + " AND " + ROOT_STAGE_SKIP_WHERE +
+            " ORDER BY `entry`.`id` LIMIT :limit)")
+    Cursor getRootHostsFileChunkCursorStageMaterialized(
+            String redirectionIpv4, String lineSeparator, long afterId, int limit,
+            int activeGeneration);
+
+    @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
+            "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
             "SELECT `id`, CASE WHEN `type` = 2 THEN COALESCE(`redirection`, '') || ' ' || " +
             "`host` ELSE :redirectionIpv4 || ' ' || `host` || :lineSeparator || " +
             ":redirectionIpv6 || ' ' || `host` END AS `line` " +
@@ -1103,6 +1352,21 @@ public interface HostEntryDao {
     Cursor getRootHostsFileChunkCursorMaterializedIpv6(
             String redirectionIpv4, String redirectionIpv6, String lineSeparator, long afterId,
             int limit);
+
+    @Query("SELECT GROUP_CONCAT(`line`, :lineSeparator) AS `lines`, " +
+            "MAX(`id`) AS `last_id`, COUNT(*) AS `row_count` FROM (" +
+            "SELECT `entry`.`id`, CASE WHEN `entry`.`type` = 2 THEN " +
+            "COALESCE(`entry`.`redirection`, '') || ' ' || `entry`.`host` ELSE " +
+            ":redirectionIpv4 || ' ' || `entry`.`host` || :lineSeparator || " +
+            ":redirectionIpv6 || ' ' || `entry`.`host` END AS `line` " +
+            "FROM `root_host_entries_stage` AS `entry` NOT INDEXED " +
+            "WHERE `entry`.`id` > :afterId AND `entry`.`type` IN (0, 2) AND " +
+            ROOT_STAGE_MATERIALIZED_SOURCE_WHERE +
+            " AND " + ROOT_STAGE_SKIP_WHERE +
+            " ORDER BY `entry`.`id` LIMIT :limit)")
+    Cursor getRootHostsFileChunkCursorStageMaterializedIpv6(
+            String redirectionIpv4, String redirectionIpv6, String lineSeparator, long afterId,
+            int limit, int activeGeneration);
 
     @Query(ROOT_EXPORT_ACTIVE_QUERY)
     List<HostEntry> getAllForRootHostsFileActive();
@@ -1170,8 +1434,29 @@ public interface HostEntryDao {
     @Query("SELECT `root_export_materialized` FROM `hosts_stats` WHERE `id` = 0")
     boolean hasMaterializedRootExportRows();
 
+    @Query("SELECT `root_export_stage_materialized` FROM `hosts_stats` WHERE `id` = 0")
+    boolean hasStageMaterializedRootExportRows();
+
+    @Query("SELECT COUNT(*) FROM `root_host_entries`")
+    long getRootExportEntryCountNow();
+
+    @Query("SELECT COUNT(*) FROM `root_host_entries_stage` AS `entry` " +
+            "WHERE `entry`.`type` IN (0, 2) AND " + ROOT_STAGE_MATERIALIZED_SOURCE_WHERE +
+            " AND " + ROOT_STAGE_SKIP_WHERE)
+    long getRootExportStageBackedEntryCountNow(int activeGeneration);
+
+    default long getMaterializedRootExportEntryCountNow() {
+        if (hasStageMaterializedRootExportRows()) {
+            return getRootExportStageBackedEntryCountNow(getActiveGeneration());
+        }
+        return getRootExportEntryCountNow();
+    }
+
     default List<HostEntry> getAllForRootHostsFile() {
         if (hasMaterializedRootExportRows()) {
+            if (hasStageMaterializedRootExportRows()) {
+                return getAllForRootHostsFileStageMaterialized(getActiveGeneration());
+            }
             return getAllForRootHostsFileMaterialized();
         }
 
@@ -1193,9 +1478,12 @@ public interface HostEntryDao {
     }
 
     default Cursor getRootHostsFileCursor() {
-        return hasMaterializedRootExportRows()
-                ? getRootHostsFileCursorMaterialized()
-                : getRootHostsFileCursorActiveFiltered();
+        if (hasMaterializedRootExportRows()) {
+            return hasStageMaterializedRootExportRows()
+                    ? getRootHostsFileCursorStageMaterialized(getActiveGeneration())
+                    : getRootHostsFileCursorMaterialized();
+        }
+        return getRootHostsFileCursorActiveFiltered();
     }
 
     default Cursor getActiveRootHostsFileCursor() {

@@ -249,13 +249,12 @@ public class RootModel extends AdBlockModel {
     private void writeMaterializedHostChunks(HostsFileWriter writer, String redirectionIpv4,
             String redirectionIpv6, boolean enableIpv6) throws IOException {
         long afterId = 0;
+        boolean stageBacked = this.hostEntryDao.hasStageMaterializedRootExportRows();
+        int activeGeneration = stageBacked ? this.hostEntryDao.getActiveGeneration() : 0;
         while (true) {
-            try (Cursor cursor = enableIpv6
-                    ? this.hostEntryDao.getRootHostsFileChunkCursorMaterializedIpv6(
-                            redirectionIpv4, redirectionIpv6, LINE_SEPARATOR, afterId,
-                            HOSTS_FILE_CHUNK_ROWS)
-                    : this.hostEntryDao.getRootHostsFileChunkCursorMaterialized(
-                            redirectionIpv4, LINE_SEPARATOR, afterId, HOSTS_FILE_CHUNK_ROWS)) {
+            try (Cursor cursor = openMaterializedHostChunkCursor(
+                    redirectionIpv4, redirectionIpv6, enableIpv6, afterId, stageBacked,
+                    activeGeneration)) {
                 if (!cursor.moveToFirst()) {
                     return;
                 }
@@ -274,6 +273,25 @@ public class RootModel extends AdBlockModel {
                 }
             }
         }
+    }
+
+    private Cursor openMaterializedHostChunkCursor(String redirectionIpv4, String redirectionIpv6,
+            boolean enableIpv6, long afterId, boolean stageBacked, int activeGeneration) {
+        if (stageBacked) {
+            return enableIpv6
+                    ? this.hostEntryDao.getRootHostsFileChunkCursorStageMaterializedIpv6(
+                            redirectionIpv4, redirectionIpv6, LINE_SEPARATOR, afterId,
+                            HOSTS_FILE_CHUNK_ROWS, activeGeneration)
+                    : this.hostEntryDao.getRootHostsFileChunkCursorStageMaterialized(
+                            redirectionIpv4, LINE_SEPARATOR, afterId, HOSTS_FILE_CHUNK_ROWS,
+                            activeGeneration);
+        }
+        return enableIpv6
+                ? this.hostEntryDao.getRootHostsFileChunkCursorMaterializedIpv6(
+                        redirectionIpv4, redirectionIpv6, LINE_SEPARATOR, afterId,
+                        HOSTS_FILE_CHUNK_ROWS)
+                : this.hostEntryDao.getRootHostsFileChunkCursorMaterialized(
+                        redirectionIpv4, LINE_SEPARATOR, afterId, HOSTS_FILE_CHUNK_ROWS);
     }
 
     private void writeActiveHosts(HostsFileWriter writer, String redirectionIpv4,

@@ -6372,3 +6372,45 @@
 - Remaining full-goal gaps: live release proof with real repository signing/update secrets,
   physical-device release APK smoke, broader manual UX review beyond the screenshot matrix,
   MIT legal/provenance clearance, and larger 100k/1M/5M scale-performance proof.
+
+## Plan - 2026-06-19 Stage-Backed 5M Root Export
+- [x] Reproduce the remaining 5M allow-heavy root-export failure and keep the long run alive.
+- [x] Replace the final-table copy bottleneck for safe large staged exports with a stage-backed
+  root export plus persisted skip ids.
+- [x] Keep the old materialized-table path for redirects, wildcard exact allow rules, and smaller
+  staged exports that still need duplicate cleanup semantics.
+- [x] Add v31 schema/migration coverage for stage-backed root export state.
+- [x] Prove compile, focused connected correctness/migration tests, 1M gate, and 5M gate.
+
+## Review - 2026-06-19 Stage-Backed 5M Root Export
+- The prior 5M gate was red after the first staged-copy optimization:
+  `syncMs=479902`, `rootWriteMs=53309`; root export still spent `439290ms`, mostly copying and
+  deleting final `root_host_entries` rows.
+- Added a schema-backed `root_export_stage_materialized` state and
+  `root_export_skip_stage_ids` table. For complete large stages with no redirects and no wildcard
+  exact allow rules, sync now builds the skip-id table and streams root output from
+  `root_host_entries_stage` instead of duplicating millions of rows into `root_host_entries`.
+- Kept the existing final-table materialization path for redirect/wildcard/small-stage cases.
+  Focused connected tests for staged redirects, small duplicate cleanup, and migrations stayed
+  green.
+- Fixed the first stage-backed root writer attempt after 1M showed a bad query plan:
+  `syncMs=17258` passed, but root write was `389441ms`. Forcing stage chunks to scan by row id
+  brought the rerun to `syncMs=15185` and `rootWriteMs=4003`.
+- Final 5M proof passed:
+  `HostEntryDao.sync ... rootExportMs=118852 totalMs=150000`;
+  `HostEntryAllowHeavyRebuildBenchmark ... rootRows=4900000 syncMs=150085
+  rootWriteMs=185667 rootWriteBytes=265075324`.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected tests for
+  `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage`,
+  `SourceDbTest#testCompleteRootExportStageDedupesBlockedDuplicatesWithoutRedirects`,
+  `MigrationTest#migration29To30_dropsPersistentRootExportIndexes`, and
+  `MigrationTest#migration30To31_addsStageBackedRootExportState`;
+  1M allow-heavy gate with `syncMs=15185`, `rootWriteMs=4003`;
+  and 5M allow-heavy gate with `syncMs=150085`, `rootWriteMs=185667`.
+- `git diff --check` passed with only existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: this proves the 5M root export/update gate for the staged no-redirect
+  path. Broader release proof, physical-device smoke, UX/manual review, MIT legal/provenance
+  clearance, and any redirect-heavy 5M stress case are still separate phases.

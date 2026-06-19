@@ -1125,7 +1125,7 @@ public class SourceLoaderPerformanceTest {
     private long materializedRootRowCount() {
         assertTrue("Root export should be materialized before timing root file generation",
                 this.hostEntryDao.hasMaterializedRootExportRows());
-        return scalarLong("SELECT COUNT(*) FROM root_host_entries");
+        return this.hostEntryDao.getMaterializedRootExportEntryCountNow();
     }
 
     private static void assertRootWriteBytes(RootWriteResult rootWrite, long rootRows) {
@@ -1134,8 +1134,21 @@ public class SourceLoaderPerformanceTest {
     }
 
     private void rebuildRuntimeEntries() {
-        this.db.runInTransaction(() -> this.hostEntryDao.rebuildFromActiveGeneration(
-                this.db.getOpenHelper().getWritableDatabase()));
+        SupportSQLiteDatabase writableDb = this.db.getOpenHelper().getWritableDatabase();
+        applyBalancedRuntimeRebuildPragmas(writableDb);
+        try {
+            this.hostEntryDao.rebuildFromActiveGeneration(writableDb);
+        } finally {
+            restoreRuntimeRebuildPragmas(writableDb);
+        }
+    }
+
+    private static void applyBalancedRuntimeRebuildPragmas(SupportSQLiteDatabase db) {
+        db.execSQL("PRAGMA synchronous=NORMAL");
+    }
+
+    private static void restoreRuntimeRebuildPragmas(SupportSQLiteDatabase db) {
+        db.execSQL("PRAGMA synchronous=FULL");
     }
 
     private static long expectedMaterializedRuntimeRows(long activeRows) {

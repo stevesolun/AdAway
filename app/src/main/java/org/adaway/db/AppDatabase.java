@@ -23,6 +23,7 @@ import org.adaway.db.entity.HostsStats;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.ListType;
 import org.adaway.db.entity.RootHostEntry;
+import org.adaway.db.entity.RootHostSkipEntry;
 import org.adaway.db.entity.RootHostStageEntry;
 import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.WaTgSafetyAllowlist;
@@ -55,6 +56,9 @@ import static org.adaway.db.Migrations.MIGRATION_24_25;
 import static org.adaway.db.Migrations.MIGRATION_25_26;
 import static org.adaway.db.Migrations.MIGRATION_26_27;
 import static org.adaway.db.Migrations.MIGRATION_27_28;
+import static org.adaway.db.Migrations.MIGRATION_28_29;
+import static org.adaway.db.Migrations.MIGRATION_29_30;
+import static org.adaway.db.Migrations.MIGRATION_30_31;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 
@@ -69,11 +73,12 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
                 HostListItem.class,
                 HostEntry.class,
                 RootHostEntry.class,
+                RootHostSkipEntry.class,
                 RootHostStageEntry.class,
                 HostsMeta.class,
                 HostsStats.class
         },
-        version = 28
+        version = 31
 )
 @TypeConverters({ListTypeConverter.class, RuleKindConverter.class, ZonedDateTimeConverter.class})
 public abstract class AppDatabase extends RoomDatabase {
@@ -139,7 +144,10 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_24_25,
                             MIGRATION_25_26,
                             MIGRATION_26_27,
-                            MIGRATION_27_28
+                            MIGRATION_27_28,
+                            MIGRATION_28_29,
+                            MIGRATION_29_30,
+                            MIGRATION_30_31
                     ).build();
                 }
             }
