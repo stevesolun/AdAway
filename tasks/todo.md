@@ -6726,3 +6726,35 @@
 - Remaining VPN follow-up: `DnsQueryQueue` only purges timed-out queries when adding a new query,
   so a deeper VPN runtime slice should audit stale upstream query cleanup and watchdog probe
   protection with connected or injectable behavior coverage before changing that path.
+
+## Plan - 2026-06-19 DNS Query Queue Timeout Cleanup
+- [x] Add a red JVM contract for dropping stale pending DNS queries before polling.
+- [x] Add a red JVM contract for dropping stale pending DNS queries during idle response handling.
+- [x] Add a small package-visible pending-query seam and injectable clock so queue timeout behavior
+  is testable without Android socket descriptors.
+- [x] Purge stale DNS queries before `getQueryFds()` and `handleResponses()`.
+- [x] Re-run focused VPN/DNS tests, full debug unit tests, Android-test compile, license-boundary,
+  and diff hygiene.
+- [x] Commit the focused DNS queue timeout cleanup slice.
+
+## Review - 2026-06-19 DNS Query Queue Timeout Cleanup
+- `DnsQueryQueue` was documented as time and space bound, but timed-out queries were only purged
+  when adding another upstream query. During idle VPN operation the worker repeatedly calls
+  `getQueryFds()` and `handleResponses()`, so stale sockets could remain in the poll set until new
+  DNS traffic arrived.
+- Added `PendingDnsQuery` as a package-private abstraction and injected queue time into
+  `DnsQueryQueue`. Production still creates real `DnsQuery` objects from `DatagramSocket`; the seam
+  only lets unit tests exercise timeout behavior without Android `ParcelFileDescriptor` stubs.
+- `getQueryFds()` now clears timed-out queries before exposing descriptors to `Os.poll()`, and
+  `handleResponses()` does the same before scanning for answered queries.
+- Verification passed:
+  red focused `DnsQueryQueueTest` compile failure before the pending-query seam existed;
+  green focused `DnsQueryQueueTest`;
+  green focused `DnsQueryQueueTest` plus `VpnWorkerIdleTimeoutTest`;
+  full `:app:testDebugUnitTest`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining VPN follow-up: watchdog probe sockets still use a raw `DatagramSocket` in
+  `VpnWatchdog`; a future connected/injectable test should confirm those probes are protected from
+  VPN capture before changing that path.

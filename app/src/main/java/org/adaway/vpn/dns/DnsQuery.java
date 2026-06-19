@@ -17,7 +17,7 @@ import timber.log.Timber;
  *
  * @author Bruce BUJON
  */
-class DnsQuery implements AutoCloseable {
+class DnsQuery extends PendingDnsQuery {
     /**
      * The socket used to query DNS server.
      */
@@ -41,10 +41,10 @@ class DnsQuery implements AutoCloseable {
      * @param socket   The socket used to query DNS server.
      * @param callback The callback to call with the query response data.
      */
-    DnsQuery(DatagramSocket socket, Consumer<byte[]> callback) {
+    DnsQuery(DatagramSocket socket, Consumer<byte[]> callback, long time) {
         this.socket = socket;
         this.callback = callback;
-        this.time = System.currentTimeMillis() / 1000;
+        this.time = time;
         this.pollfd = new StructPollfd();
         this.pollfd.fd = ParcelFileDescriptor.fromDatagramSocket(this.socket).getFileDescriptor();
         this.pollfd.events = (short) POLLIN;
@@ -56,6 +56,7 @@ class DnsQuery implements AutoCloseable {
      * @param timestamp The UNIX timestamp (in seconds) to compare query time with.
      * @return <code>true</code> if the query is older than the given timestamp, <code>false</code> otherwise.
      */
+    @Override
     boolean isOlderThan(long timestamp) {
         return this.time < timestamp;
     }
@@ -64,6 +65,7 @@ class DnsQuery implements AutoCloseable {
      * Get the pollfd related to the query to poll the OS with.
      * @return The pollfd related to the query to poll the OS with.
      */
+    @Override
     StructPollfd getPollfd() {
         return this.pollfd;
     }
@@ -73,6 +75,7 @@ class DnsQuery implements AutoCloseable {
      *
      * @return {@code true} if there is data to read from {@link #socket}, {@code false} otherwise.
      */
+    @Override
     boolean isAnswered() {
         return (this.pollfd.revents & POLLIN) != 0;
     }
@@ -80,6 +83,7 @@ class DnsQuery implements AutoCloseable {
     /**
      * Read DNS query response and notify callback.
      */
+    @Override
     void handleResponse() {
         try {
             byte[] responseData = new byte[1024];

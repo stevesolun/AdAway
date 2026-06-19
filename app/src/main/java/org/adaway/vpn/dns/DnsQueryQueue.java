@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 import timber.log.Timber;
 
@@ -28,13 +29,19 @@ public class DnsQueryQueue {
     /**
      * The packet queue (older packets first, in the queue head).
      */
-    private final Queue<DnsQuery> queries;
+    private final Queue<PendingDnsQuery> queries;
+    private final LongSupplier currentTimeSeconds;
 
     /**
      * Constructor.
      */
     public DnsQueryQueue() {
-        this.queries = new LinkedList<>();
+        this(new LinkedList<>(), () -> System.currentTimeMillis() / 1000);
+    }
+
+    DnsQueryQueue(Queue<PendingDnsQuery> queries, LongSupplier currentTimeSeconds) {
+        this.queries = queries;
+        this.currentTimeSeconds = currentTimeSeconds;
     }
 
     /**
@@ -49,22 +56,23 @@ public class DnsQueryQueue {
         // Apply space constraint by removing older packet if queue is full
         ensureFreeSpace();
         // Add query to the queue
-        DnsQuery query = new DnsQuery(socket, callback);
+        PendingDnsQuery query = new DnsQuery(socket, callback, this.currentTimeSeconds.getAsLong());
         this.queries.add(query);
     }
 
     private void ensureFreeSpace() {
         if (this.queries.size() > DNS_MAXIMUM_WAITING) {
-            DnsQuery oldestQuery = this.queries.remove();
+            PendingDnsQuery oldestQuery = this.queries.remove();
             Timber.d("Dropping query due to space constraints: %s.", oldestQuery);
             oldestQuery.close();
         }
     }
 
     private void clearTimedOutQueries() {
-        long now = System.currentTimeMillis() / 1000;
-        while (!this.queries.isEmpty() && this.queries.element().isOlderThan(now - DNS_TIMEOUT_SEC)) {
-            DnsQuery timedOutQuery = this.queries.remove();
+        long oldestAllowedTime = this.currentTimeSeconds.getAsLong() - DNS_TIMEOUT_SEC;
+        while (!this.queries.isEmpty()
+                && this.queries.element().isOlderThan(oldestAllowedTime)) {
+            PendingDnsQuery timedOutQuery = this.queries.remove();
             Timber.d("Query %s timed out.", timedOutQuery);
             timedOutQuery.close();
         }
@@ -85,8 +93,9 @@ public class DnsQueryQueue {
      * @return The query pollfds.
      */
     public StructPollfd[] getQueryFds() {
+        clearTimedOutQueries();
         return this.queries.stream()
-                .map(DnsQuery::getPollfd)
+                .map(PendingDnsQuery::getPollfd)
                 .toArray(StructPollfd[]::new);
     }
 
@@ -94,9 +103,10 @@ public class DnsQueryQueue {
      * Handle any responded query.
      */
     public void handleResponses() {
-        Iterator<DnsQuery> iterator = this.queries.iterator();
+        clearTimedOutQueries();
+        Iterator<PendingDnsQuery> iterator = this.queries.iterator();
         while (iterator.hasNext()) {
-            DnsQuery query = iterator.next();
+            PendingDnsQuery query = iterator.next();
             if (query.isAnswered()) {
                 iterator.remove();
                 query.handleResponse();
