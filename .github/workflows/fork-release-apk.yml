@@ -172,7 +172,7 @@ jobs:
 
       - name: Check license boundary
         shell: pwsh
-        run: ./scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive
+        run: ./scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive -ReportPath release-boundary/source-license-boundary-report.md
 
       - name: Build signed release APK
         run: ./gradlew :app:assembleDirectRelease --dependency-verification=strict --no-daemon --stacktrace
@@ -305,7 +305,16 @@ jobs:
             -StrictSourceArchive `
             -ApkPath "${{ steps.apk.outputs.path }}" `
             -SbomPath "${{ steps.sbom.outputs.path }}" `
-            -StrictArtifacts
+            -StrictArtifacts `
+            -ReportPath release-boundary/artifact-license-boundary-report.md
+
+      - name: Upload release license boundary reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-license-boundary-reports
+          path: release-boundary/*.md
+          if-no-files-found: warn
 
       - name: Verify release artifact bundle
         shell: bash

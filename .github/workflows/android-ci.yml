@@ -111,7 +111,15 @@ jobs:
 
       - name: Check license boundary
         shell: pwsh
-        run: ./scripts/check-license-boundary.ps1
+        run: ./scripts/check-license-boundary.ps1 -ReportPath app/build/reports/license-boundary/license-boundary-report.md
+
+      - name: Upload license boundary report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: license-boundary-report
+          path: app/build/reports/license-boundary/license-boundary-report.md
+          if-no-files-found: warn
 
       - name: Run unit tests
         run: ./gradlew test --dependency-verification=strict --stacktrace

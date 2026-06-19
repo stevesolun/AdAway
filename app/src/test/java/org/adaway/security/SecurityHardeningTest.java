@@ -1568,12 +1568,33 @@ public class SecurityHardeningTest {
     public void atk35_androidCiPreventsPrematureMitBranding() throws IOException {
         Path repo = repoDir();
         String workflow = readUtf8(repo.resolve(".github/workflows/android-ci.yml"));
+        String releaseWorkflow = readUtf8(repo.resolve(".github/workflows/fork-release-apk.yml"));
         String boundaryScript = readUtf8(repo.resolve("scripts/check-license-boundary.ps1"));
+        String releasing = readUtf8(repo.resolve("RELEASING.md"));
+        String readme = readUtf8(repo.resolve("README.md"));
 
         assertTrue("Android CI must run the license-boundary check.",
                 workflow.contains("scripts/check-license-boundary.ps1"));
+        assertTrue("Android CI must persist a license-boundary report artifact.",
+                workflow.contains("-ReportPath app/build/reports/license-boundary/" +
+                        "license-boundary-report.md") &&
+                        workflow.contains("Upload license boundary report") &&
+                        workflow.contains("license-boundary-report") &&
+                        workflow.contains("actions/upload-artifact@" +
+                                "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));
+        assertTrue("Tagged release workflow must persist source and artifact license reports.",
+                releaseWorkflow.contains("-ReportPath release-boundary/" +
+                        "source-license-boundary-report.md") &&
+                        releaseWorkflow.contains("-ReportPath release-boundary/" +
+                                "artifact-license-boundary-report.md") &&
+                        releaseWorkflow.contains("release-license-boundary-reports") &&
+                        releaseWorkflow.contains("release-boundary/*.md"));
         assertTrue("License boundary check must fail on MIT release claims.",
                 boundaryScript.contains("MIT-branded release wording is blocked"));
+        assertTrue("License boundary check must support durable report output.",
+                boundaryScript.contains("$ReportPath") &&
+                        boundaryScript.contains("Write-LicenseBoundaryReport") &&
+                        boundaryScript.contains("License Boundary Report"));
         assertTrue("License boundary check must catch natural-language MIT claims.",
                 boundaryScript.contains("(?:licensed|released|distributed|available)"));
         assertTrue("License boundary check must catch hyphenated MIT claims.",
@@ -1616,6 +1637,42 @@ public class SecurityHardeningTest {
                 boundaryScript.contains("Forbidden packaged third-party mark resources detected"));
         assertTrue("License boundary check must block GitHub mark resource name variants.",
                 boundaryScript.contains("org\\.adaway:drawable/ic_github(?:_|$)"));
+        assertTrue("Release docs must document license-boundary report artifacts.",
+                releasing.contains("license-boundary-report") &&
+                        releasing.contains("release-license-boundary-reports") &&
+                        readme.contains("license-boundary-report"));
+    }
+
+    @Test
+    public void atk35_licenseBoundaryScriptWritesPassingReport() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the license-boundary script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-license-boundary-pass-report");
+        try {
+            writeBoundaryFixtureBase(fixture);
+            Path report = fixture.resolve("license-boundary-report.md");
+
+            ProcessResult result = runLicenseBoundaryScript(powershell, fixture,
+                    "-ReportPath", report.toString());
+
+            assertEquals("Passing license boundary fixture must exit successfully.",
+                    0, result.exitCode);
+            assertTrue("Passing license boundary run must write the requested report.",
+                    Files.isRegularFile(report));
+            String reportText = readUtf8(report);
+            assertTrue("Passing report must summarize the license-boundary proof.",
+                    reportText.contains("# License Boundary Report") &&
+                            reportText.contains("- Status: passed") &&
+                            reportText.contains("- Source mode: WorkingTree") &&
+                            reportText.contains("- Strict source archive: false") &&
+                            reportText.contains("- Strict artifacts: false") &&
+                            reportText.contains("- MIT release status: blocked") &&
+                            reportText.contains("- Issues: 0"));
+        } finally {
+            deleteRecursively(fixture);
+        }
     }
 
     @Test
@@ -1642,11 +1699,22 @@ public class SecurityHardeningTest {
                     "Distributed under MIT for store listings.\n");
             writeUtf8(fixture.resolve("Resources/icon.svg"),
                     "<!-- available under MIT -->\n");
+            Path report = fixture.resolve("license-boundary-report.md");
 
-            ProcessResult result = runLicenseBoundaryScript(powershell, fixture);
+            ProcessResult result = runLicenseBoundaryScript(powershell, fixture,
+                    "-ReportPath", report.toString());
 
             assertTrue("MIT/GPL fixture must fail the boundary script.",
                     result.exitCode != 0);
+            assertTrue("Failing license boundary run must write the requested report.",
+                    Files.isRegularFile(report));
+            String reportText = readUtf8(report);
+            assertTrue("Failing report must preserve issue details.",
+                    reportText.contains("# License Boundary Report") &&
+                            reportText.contains("- Status: failed") &&
+                            reportText.contains("- Issues: ") &&
+                            reportText.contains("MIT-branded release wording is blocked") &&
+                            reportText.contains("docs/release.md"));
             assertTrue("Failure must explain that MIT branding is blocked.",
                     result.stderr.contains("MIT-branded release wording is blocked"));
             assertTrue("Failure must report matching MIT claims before exiting.",

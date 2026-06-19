@@ -319,7 +319,9 @@ coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
 `android-device`; it downloads the tagged APK and runs the full release smoke
 against a physical device. Successful physical smoke runs upload a
 `physical-release-smoke-report` artifact with APK identity checks and the
-observed launch result.
+observed launch result. Regular CI also uploads a `license-boundary-report`;
+tagged direct-APK releases upload `release-license-boundary-reports` covering
+source and packaged artifact GPL/MIT boundary checks.
 
 **Repository Secrets** (for production-signed APKs):
 

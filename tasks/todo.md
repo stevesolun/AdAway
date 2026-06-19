@@ -6912,3 +6912,34 @@
 - Remaining full-goal gaps: the report artifact makes post-publish release verification auditable,
   but the workflow still must be run against a real tagged release with production secrets; physical
   release APK smoke, human UX sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-19 License Boundary Report Artifacts
+- [x] Add failing contracts for `check-license-boundary.ps1 -ReportPath` pass/fail report output.
+- [x] Make the license-boundary script write a non-secret report for successful and failed checks.
+- [x] Upload license-boundary reports from Android CI and tagged release workflows.
+- [x] Document the report artifacts in `README.md` and `RELEASING.md`.
+- [x] Re-run focused license-boundary tests and the standard local gates, then commit and push.
+
+## Review - 2026-06-19 License Boundary Report Artifacts
+- The license-boundary guard already blocked premature MIT release wording and artifact boundary
+  drift, but successful or failed proof was only stdout/stderr. That made the remaining MIT/legal
+  gate harder to audit after CI or release workflow runs.
+- Added optional `-ReportPath` support to `scripts/check-license-boundary.ps1`. Passing reports
+  record source mode, strict flags, APK/SBOM artifact names, inspected counts, blocked MIT release
+  status, and zero issues. Failing reports are written before nonzero exit and include normalized
+  issue details.
+- Android CI now passes `-ReportPath app/build/reports/license-boundary/license-boundary-report.md`
+  and uploads `license-boundary-report`. Tagged direct-APK releases now write source and artifact
+  boundary reports under `release-boundary/` and upload `release-license-boundary-reports`.
+- README and `RELEASING.md` now document the report artifacts.
+- Verification passed:
+  focused ATK-35 tests first failed for missing report support, missing workflow uploads, missing
+  docs, and path-normalized failure details, then passed after the implementation;
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath app/build/reports/license-boundary/local-license-boundary-report.md`;
+  inspected the generated local report with status `passed` and `Issues: 0`; and `git diff --check`
+  with only existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: these reports make the GPL/MIT boundary auditable, but actual MIT
+  relicensing still needs rights/provenance clearance outside this repo patch; physical-device
+  release smoke, real tagged release verification with production secrets, and human UX sign-off
+  remain external gates.

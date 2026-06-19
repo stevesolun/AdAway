@@ -4,6 +4,7 @@ param(
 
     [string] $ApkPath = "",
     [string] $SbomPath = "",
+    [string] $ReportPath = "",
     [switch] $StrictArtifacts,
     [switch] $StrictSourceArchive
 )
@@ -71,6 +72,65 @@ function Report-And-Fail([string[]] $lines) {
         [Console]::Error.WriteLine($line)
     }
     exit 1
+}
+
+function Format-Bool([bool] $value) {
+    return $value.ToString().ToLowerInvariant()
+}
+
+function Format-ArtifactName([string] $path) {
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return "not-provided"
+    }
+    return [System.IO.Path]::GetFileName($path)
+}
+
+function Write-LicenseBoundaryReport(
+    [string] $status,
+    [System.Collections.Generic.List[string]] $issues,
+    [string[]] $sourceEntries,
+    [string[]] $sourceArchiveEntries,
+    [string[]] $apkEntries,
+    [object[]] $components,
+    [string[]] $resourceNames
+) {
+    if ([string]::IsNullOrWhiteSpace($ReportPath)) {
+        return
+    }
+
+    $resolvedReport = [System.IO.Path]::GetFullPath($ReportPath)
+    $reportDirectory = Split-Path -Parent $resolvedReport
+    if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
+        New-Item -ItemType Directory -Force $reportDirectory | Out-Null
+    }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("# License Boundary Report")
+    $lines.Add("")
+    $lines.Add("- Status: $status")
+    $lines.Add("- Source mode: $SourceMode")
+    $lines.Add("- Strict source archive: $(Format-Bool ([bool] $StrictSourceArchive))")
+    $lines.Add("- Strict artifacts: $(Format-Bool ([bool] $StrictArtifacts))")
+    $lines.Add("- APK: $(Format-ArtifactName $ApkPath)")
+    $lines.Add("- SBOM: $(Format-ArtifactName $SbomPath)")
+    $lines.Add("- Source entries inspected: $($sourceEntries.Count)")
+    $lines.Add("- Source archive entries inspected: $($sourceArchiveEntries.Count)")
+    $lines.Add("- APK entries inspected: $($apkEntries.Count)")
+    $lines.Add("- APK resources inspected: $($resourceNames.Count)")
+    $lines.Add("- SBOM components inspected: $($components.Count)")
+    $lines.Add("- MIT release status: blocked until GPL-derived material is cleared")
+    $lines.Add("- Issues: $($issues.Count)")
+    if ($issues.Count -gt 0) {
+        $lines.Add("")
+        $lines.Add("## Issues")
+        foreach ($issue in $issues | Select-Object -First 200) {
+            $normalizedIssue = "$issue".Replace("\", "/")
+            $lines.Add("- $normalizedIssue")
+        }
+    }
+
+    Set-Content -LiteralPath $resolvedReport -Value $lines -Encoding UTF8
+    Write-Host "License boundary report=$resolvedReport"
 }
 
 function Add-Issue(
@@ -471,7 +531,11 @@ if ($StrictArtifacts -and [string]::IsNullOrWhiteSpace($SbomPath)) {
 }
 
 if ($issues.Count -gt 0) {
+    Write-LicenseBoundaryReport "failed" $issues $sourceEntries $sourceArchiveEntries `
+        $apkEntries $components $resourceNames
     Report-And-Fail $issues.ToArray()
 }
 
+Write-LicenseBoundaryReport "passed" $issues $sourceEntries $sourceArchiveEntries `
+    $apkEntries $components $resourceNames
 Write-Host "License boundary check passed: no premature MIT release claim or artifact boundary drift detected."

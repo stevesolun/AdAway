@@ -155,7 +155,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boun
   -SourceMode GitTracked -StrictSourceArchive `
   -ApkPath $Apk `
   -SbomPath $Sbom `
-  -StrictArtifacts
+  -StrictArtifacts `
+  -ReportPath artifact-license-boundary-report.md
 .\scripts\run-release-smoke.ps1 `
   -ApkPath $Apk `
   -ExpectedCertSha256 "<release-certificate-sha256>" `
@@ -192,6 +193,11 @@ also be run directly:
 ```bash
 bash ./scripts/check-license-boundary.sh -SourceMode GitTracked -StrictSourceArchive
 ```
+
+The regular Android CI workflow uploads the source boundary report as
+`license-boundary-report`. Tagged direct-APK releases upload
+`release-license-boundary-reports`, including source and APK/SBOM artifact
+boundary reports.
 
 After the GitHub release is published, download the six uploaded assets to a
 clean checkout and verify them as a single artifact set. With
