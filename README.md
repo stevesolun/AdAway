@@ -292,7 +292,8 @@ GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 5. Generate the signed update manifest
 6. Generate the CycloneDX SBOM and SHA-256 checksum files
 7. Attest the APK, manifest, SBOM, and their `.sha256` checksum sidecars
-8. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
+8. Verify those GitHub attestations with the canonical artifact verifier
+9. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
 
 Before announcing a release, run the `RELEASING.md` artifact verifier and
 release smoke. Full smoke requires an attached physical device.

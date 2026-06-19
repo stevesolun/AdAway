@@ -42,7 +42,9 @@ For example, tag `v13.5.0` produces `AdAway_13.5.0.apk`.
 The workflow also generates `app/build/reports/sbom/adaway.cdx.json`,
 SHA-256 checksum files for the APK, signed manifest, and SBOM,
 signer-certificate verification, provenance attestations for all six uploaded
-assets, and the SBOM predicate attestation.
+assets, and the SBOM predicate attestation. After the attestations are created,
+the workflow re-runs the canonical artifact verifier with
+`--verify-attestations` before creating the GitHub Release.
 
 Required repository secrets:
 

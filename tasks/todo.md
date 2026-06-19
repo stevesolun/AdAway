@@ -6506,3 +6506,37 @@
 - Remaining full-goal gaps: live release proof with real signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
   and any post-publish attestation verification that requires a real GitHub release.
+
+## Plan - 2026-06-19 Release Attestation Verification
+- [x] Add a red security test requiring the tagged release workflow to verify GitHub attestations
+  after both attestation actions and before GitHub Release upload.
+- [x] Add a red verifier regression for transient `gh attestation verify` lookup misses.
+- [x] Wire a post-attestation workflow verifier step with explicit repository scope and
+  `--verify-attestations`.
+- [x] Add bounded attestation lookup retry to the canonical Java verifier.
+- [x] Re-run focused security tests, compile, license boundary, and diff hygiene.
+- [x] Commit the focused release-provenance slice.
+
+## Review - 2026-06-19 Release Attestation Verification
+- The prior workflow ran the canonical artifact verifier only before attestations existed. A
+  release could therefore create attestations and upload a GitHub Release without proving that
+  GitHub could verify the published provenance records for the APK, manifest, SBOM, and checksum
+  sidecars.
+- Added a post-attestation workflow step, `Verify release artifact attestations`, between the two
+  attestation actions and GitHub Release upload. It reuses `scripts/verify-release-artifacts.sh`
+  with the same APK/manifest/SBOM/checksum/version/channel/store/certificate checks plus explicit
+  `--repo "${GITHUB_REPOSITORY}"` and `--verify-attestations`.
+- Hardened `VerifyReleaseArtifacts.java` with a bounded retry for `gh attestation verify` so the
+  release workflow tolerates transient attestation lookup propagation without weakening final
+  failure behavior.
+- Verification passed:
+  red/green focused tests
+  `SecurityHardeningTest#atk34_releaseWorkflowGeneratesUploadsAndAttestsSbom` and
+  `SecurityHardeningTest#atk34_releaseArtifactVerifierChecksManifestAndChecksums`;
+  full `SecurityHardeningTest`;
+  `:app:compileDebugJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: live tagged release proof with real repository signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance, and
+  post-publish verification against a real created GitHub Release.

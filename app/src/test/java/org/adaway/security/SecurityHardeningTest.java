@@ -401,9 +401,15 @@ public class SecurityHardeningTest {
                 "actions/attest@[0-9a-fA-F]{40}");
         int provenanceAttestationStart = workflow.indexOf("      - name: Attest release artifacts");
         int sbomAttestationStart = workflow.indexOf("      - name: Attest release SBOM");
+        int postAttestationVerificationStart =
+                workflow.indexOf("      - name: Verify release artifact attestations");
+        int releaseUploadStart = workflow.indexOf("      - name: Create GitHub Release + upload APK");
         assertTrue("Release workflow must keep provenance attestation before SBOM attestation.",
                 provenanceAttestationStart >= 0 &&
                         sbomAttestationStart > provenanceAttestationStart);
+        assertTrue("Release workflow must verify GitHub attestations before release upload.",
+                postAttestationVerificationStart > sbomAttestationStart &&
+                        releaseUploadStart > postAttestationVerificationStart);
         String provenanceAttestationBlock =
                 workflow.substring(provenanceAttestationStart, sbomAttestationStart);
 
@@ -510,6 +516,16 @@ public class SecurityHardeningTest {
                         workflow.contains("--expected-store adaway") &&
                         workflow.contains("--expected-apk-url \"$APK_URL\"") &&
                         workflow.contains("--expected-cert-sha256 \"${{ steps.apk_identity.outputs.cert_sha256 }}\""));
+        String postAttestationVerificationBlock =
+                workflow.substring(postAttestationVerificationStart, releaseUploadStart);
+        assertTrue("Release workflow must run the canonical verifier after attestations are " +
+                        "created.",
+                postAttestationVerificationBlock.contains("scripts/verify-release-artifacts.sh") &&
+                        postAttestationVerificationBlock.contains("--verify-attestations") &&
+                        postAttestationVerificationBlock.contains("--repo \"${GITHUB_REPOSITORY}\"") &&
+                        postAttestationVerificationBlock.contains("--apk \"${{ steps.apk.outputs.path }}\"") &&
+                        postAttestationVerificationBlock.contains("--manifest \"${{ steps.update_manifest.outputs.path }}\"") &&
+                        postAttestationVerificationBlock.contains("--sbom \"${{ steps.sbom.outputs.path }}\""));
         assertTrue("Release workflow must generate manifest APK URLs on the allowed GitHub host.",
                 workflow.contains("APK_URL=\"https://github.com/${GITHUB_REPOSITORY}/releases/download/"));
         assertTrue("Release workflow must emit manifests for the runtime AdAway store.",
@@ -731,6 +747,35 @@ public class SecurityHardeningTest {
             assertTrue("Verifier must attest the SBOM and its checksum sidecar.",
                     fakeGhCalls.contains(sbom.getFileName().toString()) &&
                             fakeGhCalls.contains(sbomChecksum.getFileName().toString()));
+
+            Path flakyGhLog = fixture.resolve("flaky-gh.log");
+            Path flakyGhState = fixture.resolve("flaky-gh-state");
+            Path flakyGh = writeFlakyGitHubCli(fixture, flakyGhLog, flakyGhState);
+            java.util.Map<String, String> flakyEnvironment = new java.util.HashMap<>();
+            flakyEnvironment.put("GH_CLI_PATH", flakyGh.toString());
+            flakyEnvironment.put("FAKE_GH_LOG", flakyGhLog.toString());
+            flakyEnvironment.put("FAKE_GH_STATE", flakyGhState.toString());
+            ProcessResult retried = runProcess(repo,
+                    flakyEnvironment,
+                    javaCommand(),
+                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
+                    "--apk", apk.toString(),
+                    "--apk-sha256", apkChecksum.toString(),
+                    "--manifest", manifest.toString(),
+                    "--manifest-sha256", manifestChecksum.toString(),
+                    "--sbom", sbom.toString(),
+                    "--sbom-sha256", sbomChecksum.toString(),
+                    "--public-key-base64", publicKeyBase64,
+                    "--expected-version", "13.5.0",
+                    "--expected-channel", "stable",
+                    "--expected-store", "adaway",
+                    "--expected-apk-url", apkUrl,
+                    "--expected-cert-sha256", certSha256,
+                    "--verify-attestations");
+            assertEquals("Verifier must retry transient GitHub attestation lookup misses.",
+                    0, retried.exitCode);
+            assertTrue("Retry proof must include the initial failed attestation lookup.",
+                    readUtf8(flakyGhLog).contains("transient-miss"));
 
             writeUtf8(apk, "tampered apk bytes\n");
             ProcessResult rejected = runProcess(repo,
@@ -1728,6 +1773,33 @@ public class SecurityHardeningTest {
         } else {
             writeUtf8(tool, "#!/usr/bin/env sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_GH_LOG\"\n");
             assertTrue("Fake GitHub CLI must be executable.", tool.toFile().setExecutable(true));
+        }
+        return tool;
+    }
+
+    private static Path writeFlakyGitHubCli(Path fixture, Path log, Path state)
+            throws IOException {
+        boolean windows = System.getProperty("os.name").toLowerCase(Locale.US).contains("win");
+        Path tool = fixture.resolve(windows ? "gh-flaky.cmd" : "gh-flaky");
+        if (windows) {
+            writeUtf8(tool, "@echo off\r\n" +
+                    "if not exist \"%FAKE_GH_STATE%\" (\r\n" +
+                    "  echo seen> \"%FAKE_GH_STATE%\"\r\n" +
+                    "  echo transient-miss %*>> \"%FAKE_GH_LOG%\"\r\n" +
+                    "  exit /b 1\r\n" +
+                    ")\r\n" +
+                    "echo %*>> \"%FAKE_GH_LOG%\"\r\n" +
+                    "exit /b 0\r\n");
+        } else {
+            writeUtf8(tool, "#!/usr/bin/env sh\n" +
+                    "if [ ! -e \"$FAKE_GH_STATE\" ]; then\n" +
+                    "  printf '%s\\n' seen > \"$FAKE_GH_STATE\"\n" +
+                    "  printf 'transient-miss %s\\n' \"$*\" >> \"$FAKE_GH_LOG\"\n" +
+                    "  exit 1\n" +
+                    "fi\n" +
+                    "printf '%s\\n' \"$*\" >> \"$FAKE_GH_LOG\"\n");
+            assertTrue("Fake flaky GitHub CLI must be executable.",
+                    tool.toFile().setExecutable(true));
         }
         return tool;
     }

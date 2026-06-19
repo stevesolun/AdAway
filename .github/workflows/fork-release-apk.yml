@@ -347,6 +347,31 @@ jobs:
           subject-path: ${{ steps.apk.outputs.path }}
           sbom-path: ${{ steps.sbom.outputs.path }}
 
+      - name: Verify release artifact attestations
+        shell: bash
+        env:
+          UPDATE_MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK="${{ steps.apk.outputs.path }}"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$(basename "$APK")"
+          bash ./scripts/verify-release-artifacts.sh \
+            --apk "${{ steps.apk.outputs.path }}" \
+            --apk-sha256 "${{ steps.apk.outputs.sha256_path }}" \
+            --manifest "${{ steps.update_manifest.outputs.path }}" \
+            --manifest-sha256 "${{ steps.update_manifest.outputs.sha256_path }}" \
+            --sbom "${{ steps.sbom.outputs.path }}" \
+            --sbom-sha256 "${{ steps.sbom.outputs.sha256_path }}" \
+            --public-key-base64 "$UPDATE_MANIFEST_PUBLIC_KEY_BASE64" \
+            --expected-version "$VERSION" \
+            --expected-channel "${{ steps.release_tag.outputs.channel }}" \
+            --expected-store adaway \
+            --expected-apk-url "$APK_URL" \
+            --expected-cert-sha256 "${{ steps.apk_identity.outputs.cert_sha256 }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-attestations
+
       - name: Create GitHub Release + upload APK
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:

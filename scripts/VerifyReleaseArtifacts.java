@@ -28,6 +28,8 @@ public final class VerifyReleaseArtifacts {
             "^([0-9a-fA-F]{64})\\s+\\*?(.+?)\\s*$");
     private static final Pattern PEM_BLOCK = Pattern.compile(
             "-----BEGIN ([A-Z ]+)-----(.*?)-----END \\1-----", Pattern.DOTALL);
+    private static final int ATTESTATION_VERIFY_ATTEMPTS = 4;
+    private static final long ATTESTATION_RETRY_DELAY_MILLIS = 3000L;
 
     private VerifyReleaseArtifacts() {
     }
@@ -206,16 +208,24 @@ public final class VerifyReleaseArtifacts {
     private static void verifyAttestation(Path artifact, String repository)
             throws IOException, InterruptedException {
         String ghCommand = System.getenv().getOrDefault("GH_CLI_PATH", "gh");
-        Process process = new ProcessBuilder(ghCommand, "attestation", "verify",
-                artifact.toString(), "--repo", repository)
-                .redirectErrorStream(true)
-                .start();
-        int exitCode = process.waitFor();
-        String output = new String(process.getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8);
-        if (exitCode != 0) {
-            fail("GitHub attestation verification failed for " + artifact + ".\n" + output);
+        String lastOutput = "";
+        for (int attempt = 1; attempt <= ATTESTATION_VERIFY_ATTEMPTS; attempt++) {
+            Process process = new ProcessBuilder(ghCommand, "attestation", "verify",
+                    artifact.toString(), "--repo", repository)
+                    .redirectErrorStream(true)
+                    .start();
+            int exitCode = process.waitFor();
+            lastOutput = new String(process.getInputStream().readAllBytes(),
+                    StandardCharsets.UTF_8);
+            if (exitCode == 0) {
+                return;
+            }
+            if (attempt < ATTESTATION_VERIFY_ATTEMPTS) {
+                Thread.sleep(ATTESTATION_RETRY_DELAY_MILLIS);
+            }
         }
+        fail("GitHub attestation verification failed for " + artifact + " after " +
+                ATTESTATION_VERIFY_ATTEMPTS + " attempts.\n" + lastOutput);
     }
 
     private static String readJsonString(String json, String field) {
