@@ -6540,3 +6540,38 @@
 - Remaining full-goal gaps: live tagged release proof with real repository signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance, and
   post-publish verification against a real created GitHub Release.
+
+## Plan - 2026-06-19 Manual Post-Publish Release Verification
+- [x] Add a red security test requiring a manual GitHub Actions workflow for post-publish artifact
+  and attestation verification.
+- [x] Add `.github/workflows/verify-release-artifacts.yml` to download a tagged release's APK,
+  manifest, SBOM, and checksum sidecars, then run the canonical verifier with
+  `--verify-attestations`.
+- [x] Document the workflow in README/RELEASING so release operators have a CI-backed
+  post-publish proof path.
+- [x] Re-run focused security tests, workflow pinning coverage, compile, license boundary, and diff
+  hygiene.
+- [x] Commit the focused post-publish verification slice.
+
+## Review - 2026-06-19 Manual Post-Publish Release Verification
+- The previous release path had local/manual verifier instructions and in-workflow pre-upload
+  checks, but no CI entry point to verify a created GitHub Release by downloading the published
+  assets back from GitHub.
+- Added manual workflow `.github/workflows/verify-release-artifacts.yml`. It accepts a release tag
+  and expected release APK signing certificate SHA-256 digest, downloads the APK, signed update
+  manifest, SBOM, and three checksum sidecars from the GitHub Release, derives stable/beta channel
+  from the tag, and runs `scripts/verify-release-artifacts.sh` with `--verify-attestations` against
+  `${GITHUB_REPOSITORY}`.
+- The new workflow uses read-only `contents`/`attestations` permissions and pinned checkout/JDK
+  setup actions, preserving the repo's immutable-action workflow rule.
+- Verification passed:
+  red/green focused test
+  `SecurityHardeningTest#atk34_releaseCleanupAndDocsPreserveSourceProvenance`;
+  full `SecurityHardeningTest`;
+  `:app:compileDebugJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings. `actionlint` is not installed in this environment.
+- Remaining full-goal gaps: the manual workflow still needs to be run against an actual tagged
+  GitHub Release with real signing/update secrets, physical-device release APK smoke is still
+  external, broader manual UX review remains open, and MIT legal/provenance clearance remains
+  unavailable until GPL-derived material is cleared or permissioned.

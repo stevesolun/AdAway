@@ -806,10 +806,44 @@ public class SecurityHardeningTest {
     public void atk34_releaseCleanupAndDocsPreserveSourceProvenance() throws IOException {
         String cleanupWorkflow = readUtf8(
                 repoDir().resolve(".github/workflows/cleanup-releases.yml"));
+        Path verifierWorkflowPath =
+                repoDir().resolve(".github/workflows/verify-release-artifacts.yml");
+        assertTrue("Manual post-publish release verifier workflow must exist.",
+                Files.isRegularFile(verifierWorkflowPath));
+        String verifierWorkflow = readUtf8(verifierWorkflowPath);
         String workflow = readUtf8(repoDir().resolve(".github/workflows/fork-release-apk.yml"));
         String releasing = readUtf8(repoDir().resolve("RELEASING.md"));
         String readme = readUtf8(repoDir().resolve("README.md"));
 
+        assertTrue("Manual post-publish verifier must be manually dispatched.",
+                verifierWorkflow.contains("workflow_dispatch:"));
+        assertTrue("Manual post-publish verifier must take the release tag and signer digest.",
+                verifierWorkflow.contains("tag:") &&
+                        verifierWorkflow.contains("expected_cert_sha256:"));
+        assertTrue("Manual post-publish verifier must use read-only release and attestation " +
+                        "permissions.",
+                verifierWorkflow.contains("contents: read") &&
+                        verifierWorkflow.contains("attestations: read"));
+        assertTrue("Manual post-publish verifier must compute the runtime release channel from " +
+                        "the tag.",
+                verifierWorkflow.contains("VERSION=\"${TAG#v}\"") &&
+                        verifierWorkflow.contains("CHANNEL=beta") &&
+                        verifierWorkflow.contains("CHANNEL=stable"));
+        assertTrue("Manual post-publish verifier must download all published release assets.",
+                verifierWorkflow.contains("gh release download \"$TAG\"") &&
+                        verifierWorkflow.contains("AdAway_${VERSION}.apk") &&
+                        verifierWorkflow.contains("manifest.json") &&
+                        verifierWorkflow.contains("adaway.cdx.json"));
+        assertTrue("Manual post-publish verifier must run the canonical verifier with " +
+                        "attestation checks.",
+                verifierWorkflow.contains("scripts/verify-release-artifacts.sh") &&
+                        verifierWorkflow.contains("--verify-attestations") &&
+                        verifierWorkflow.contains("--repo \"${GITHUB_REPOSITORY}\"") &&
+                        verifierWorkflow.contains("--expected-apk-url \"$APK_URL\"") &&
+                        verifierWorkflow.contains("--expected-cert-sha256 \"$EXPECTED_CERT_SHA256\""));
+        assertTrue("Manual post-publish verifier must use the repository token for GitHub " +
+                        "release and attestation APIs.",
+                verifierWorkflow.contains("GH_TOKEN: ${{ github.token }}"));
         assertFalse("Manual release cleanup must not expose tag deletion as an input.",
                 cleanupWorkflow.contains("delete_tags:") &&
                         cleanupWorkflow.contains("${{ inputs.delete_tags }}"));
@@ -848,6 +882,11 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must verify fork release attestations against this repository.",
                 releasing.contains("--repo stevesolun/AdAway") &&
                         releasing.contains("--verify-attestations"));
+        assertTrue("Release docs must document the manual post-publish verifier workflow.",
+                releasing.contains("Verify release artifacts") &&
+                        releasing.contains("verify-release-artifacts.yml"));
+        assertTrue("README must mention the manual post-publish release verifier workflow.",
+                readme.contains("verify-release-artifacts.yml"));
         assertTrue("Release docs must explain attestation verification covers checksum sidecars.",
                 releasing.contains("each `.sha256` checksum sidecar"));
         assertTrue("Release docs must verify signed manifest semantics after publishing.",

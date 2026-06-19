@@ -296,7 +296,9 @@ GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 9. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
 
 Before announcing a release, run the `RELEASING.md` artifact verifier and
-release smoke. Full smoke requires an attached physical device.
+release smoke. Full smoke requires an attached physical device. After the
+release is created, run the manual `verify-release-artifacts.yml` workflow as
+the CI-backed post-publish artifact and attestation check.
 
 **Repository Secrets** (for production-signed APKs):
 

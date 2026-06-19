@@ -188,6 +188,12 @@ clean checkout and verify them as a single artifact set. With
 `--verify-attestations`, the verifier checks GitHub attestations for the APK,
 signed manifest, SBOM, and each `.sha256` checksum sidecar:
 
+The same post-publish check can be run in GitHub Actions from the manual
+**Verify release artifacts** workflow (`.github/workflows/verify-release-artifacts.yml`).
+Provide the release tag and expected APK signing certificate SHA-256 digest;
+the workflow downloads the six release assets, verifies manifest/signature and
+checksum semantics, and verifies GitHub attestations against this repository.
+
 ```powershell
 $Version = "<version>"
 $Apk = "AdAway_$Version.apk"
