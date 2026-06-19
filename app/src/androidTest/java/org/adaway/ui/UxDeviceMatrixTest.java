@@ -74,7 +74,7 @@ public class UxDeviceMatrixTest {
     @Test
     public void keyScreens_haveScreenshotsLabelsAndTouchTargets() throws IOException {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
-            captureAfterIdle(scenario, "home");
+            captureAfterIdle(scenario, "home", this::assertHomeBirdLogoVisible);
             navigateAndCapture(scenario, R.id.nav_discover, "discover");
             navigateAndCapture(scenario, R.id.nav_sources, "sources");
             navigateAndCapture(scenario, R.id.nav_more, "more");
@@ -87,6 +87,16 @@ public class UxDeviceMatrixTest {
         captureActivity(UpdateActivity.class, "update");
 
         System.out.println("UxDeviceMatrix screenshots=" + this.screenshotDir.getAbsolutePath());
+    }
+
+    private void assertHomeBirdLogoVisible(HomeActivity activity) {
+        View logo = activity.findViewById(R.id.logoImageView);
+        assertTrue("Home bird logo must be visible", logo != null && logo.isShown());
+        float density = activity.getResources().getDisplayMetrics().density;
+        int minPx = Math.round(40 * density);
+        assertTrue("Home bird logo must render at a visible size: "
+                        + (logo == null ? "missing" : logo.getWidth() + "x" + logo.getHeight()),
+                logo != null && logo.getWidth() >= minPx && logo.getHeight() >= minPx);
     }
 
     private void navigateAndCapture(ActivityScenario<HomeActivity> scenario, int navId, String name)

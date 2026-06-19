@@ -300,6 +300,17 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void uxMatrixAssertsHomeBirdLogoIsVisible() throws Exception {
+        String uxMatrix = readRepoFile(
+                "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
+
+        assertTrue("UX matrix must assert Home renders the AdAway bird logo before screenshot.",
+                uxMatrix.contains("assertHomeBirdLogoVisible") &&
+                        uxMatrix.contains("R.id.logoImageView") &&
+                        uxMatrix.contains("Home bird logo must be visible"));
+    }
+
+    @Test
     public void uxMatrixCapturesFirstClassSourcesTab() throws Exception {
         String uxMatrix = readRepoFile(
                 "app/src/androidTest/java/org/adaway/ui/UxDeviceMatrixTest.java");
@@ -360,6 +371,11 @@ public class HomeNavigationSourcesContractTest {
                         testState.contains("FilterSetUpdateService.disable") &&
                         testState.contains("cancelAllWork()") &&
                         testState.contains("pruneWork()"));
+        assertTrue("Passive UI WorkManager reset must tolerate slow emulator cleanup.",
+                testState.contains("WORK_MANAGER_RESET_TIMEOUT_SECONDS") &&
+                        testState.contains("WORK_MANAGER_RESET_TIMEOUT_SECONDS = 30") &&
+                        testState.contains(
+                                "WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS"));
     }
 
     @Test

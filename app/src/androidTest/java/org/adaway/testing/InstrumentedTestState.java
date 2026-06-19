@@ -18,6 +18,8 @@ import org.adaway.util.Constants;
 import java.util.concurrent.TimeUnit;
 
 public final class InstrumentedTestState {
+    private static final int WORK_MANAGER_RESET_TIMEOUT_SECONDS = 30;
+
     private InstrumentedTestState() {
     }
 
@@ -43,8 +45,10 @@ public final class InstrumentedTestState {
     public static void resetWorkManager(@NonNull Context context, @NonNull String phase) {
         try {
             WorkManager workManager = WorkManager.getInstance(context);
-            workManager.cancelAllWork().getResult().get(5, TimeUnit.SECONDS);
-            workManager.pruneWork().getResult().get(5, TimeUnit.SECONDS);
+            workManager.cancelAllWork().getResult()
+                    .get(WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            workManager.pruneWork().getResult()
+                    .get(WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception exception) {
             throw new AssertionError("Failed to reset WorkManager during " + phase, exception);
         }

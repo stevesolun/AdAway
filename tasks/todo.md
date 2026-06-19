@@ -6575,3 +6575,44 @@
   GitHub Release with real signing/update secrets, physical-device release APK smoke is still
   external, broader manual UX review remains open, and MIT legal/provenance clearance remains
   unavailable until GPL-derived material is cleared or permissioned.
+
+## Plan - 2026-06-19 Runtime Bird Logo UX Guard
+- [x] Re-audit current logo resources and existing static branding guards after the earlier logo
+  confusion.
+- [x] Add a red contract requiring the UX matrix to assert that the Home AdAway bird logo is
+  visible before screenshot capture.
+- [x] Add the runtime Home logo assertion to `UxDeviceMatrixTest`.
+- [x] Fix the UX matrix WorkManager reset timeout exposed by the full device run.
+- [x] Re-run focused unit/compile, full UX matrix, license boundary, and diff hygiene.
+- [x] Commit the focused UX/logo proof slice.
+
+## Review - 2026-06-19 Runtime Bird Logo UX Guard
+- Current packaged branding is the AdAway bird: `logo.xml`, `icon_foreground_red.xml`,
+  adaptive launcher icons, and density PNG fallbacks all point to or render the bird. The existing
+  `HomeNavigationSourcesContractTest` already statically guards the bird vector paths, launcher
+  foregrounds, PNG fallbacks, Home header use, and license inventory.
+- Added missing runtime UX coverage: `UxDeviceMatrixTest` now asserts `logoImageView` is visible
+  and renders at a meaningful size before capturing the Home screenshot. This means the screenshot
+  matrix fails if the bird resource is present but hidden, collapsed, or not rendered in the actual
+  Home shell.
+- The first full UX matrix rerun exposed a verifier flake: baseline passed, then `font-1.3`
+  failed in setup because `InstrumentedTestState.resetWorkManager()` used 5-second
+  `cancelAllWork()`/`pruneWork()` waits. The reset helper now uses a named 30-second timeout, and
+  the contract test guards that budget so repeated emulator variants do not fail on cleanup jitter.
+- Verification passed:
+  red/green unit contracts
+  `HomeNavigationSourcesContractTest#uxMatrixAssertsHomeBirdLogoIsVisible` and
+  `HomeNavigationSourcesContractTest#uxMatrixDoesNotInheritBackgroundWorkers`;
+  `HomeNavigationSourcesContractTest`;
+  `:app:compileDebugJavaWithJavac`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  full UX matrix via
+  `scripts/run-ux-matrix.ps1 -OutputDir app/build/reports/ux-matrix-bird-logo-guard
+  -InstrumentationTimeoutSeconds 360`, which passed baseline, font-1.3, font-1.6,
+  font-1.3-rtl, and font-1.6-rtl and pulled 40 screenshots;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: physical-device release APK smoke and a real signed/tagged GitHub
+  release run remain external; MIT legal/provenance clearance remains blocked on rights and
+  GPL-derived material; broader manual UX review is improved by the matrix proof but not a formal
+  design sign-off.
