@@ -6474,3 +6474,35 @@
 - Remaining full-goal gaps: live release proof with real signing/update secrets,
   physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
   and any release SBOM/provenance gates not yet run in this branch.
+
+## Plan - 2026-06-19 Release Artifact Bundle Verification
+- [x] Audit the current tagged release workflow, SBOM generation, signed manifest generator,
+  artifact verifier, license-boundary guard, and release smoke script.
+- [x] Add a red unit test requiring the release workflow to run the canonical artifact verifier
+  before attestation and upload.
+- [x] Wire `scripts/verify-release-artifacts.sh` into the tagged release workflow with APK,
+  checksum sidecars, signed update manifest, SBOM, expected version, channel, store, APK URL,
+  and signer certificate digest.
+- [x] Re-run focused security tests plus local compile, license boundary, and diff hygiene.
+
+## Review - 2026-06-19 Release Artifact Bundle Verification
+- Existing release automation already failed closed on missing signing trust material, generated a
+  CycloneDX SBOM, checksummed APK/SBOM/manifest artifacts, signed update manifests, checked
+  license boundaries, and created GitHub provenance/SBOM attestations.
+- The missing local release-proof link was end-to-end bundle verification before publishing:
+  the workflow generated separate artifacts but did not run the repository's
+  `VerifyReleaseArtifacts.java` contract over the final bundle before attestation/upload.
+- Added `Verify release artifact bundle` to `.github/workflows/fork-release-apk.yml` after the
+  strict artifact license-boundary check and before attestation. It verifies APK/SBOM/manifest
+  checksum sidecars, manifest signature, expected version/channel/store, expected APK URL, and
+  expected signing certificate digest.
+- Verification passed:
+  red/green targeted test
+  `SecurityHardeningTest#atk34_releaseWorkflowGeneratesUploadsAndAttestsSbom`;
+  full `SecurityHardeningTest`;
+  `:app:compileDebugJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check`
+  with only existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: live release proof with real signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
+  and any post-publish attestation verification that requires a real GitHub release.

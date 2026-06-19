@@ -495,6 +495,21 @@ public class SecurityHardeningTest {
                 verifier.contains("verifyAttestation(options.apkSha256") &&
                         verifier.contains("verifyAttestation(options.manifestSha256") &&
                         verifier.contains("verifyAttestation(options.sbomSha256"));
+        assertTrue("Release workflow must run the canonical release artifact verifier before " +
+                        "attestation and upload.",
+                workflow.contains("Verify release artifact bundle") &&
+                        workflow.contains("scripts/verify-release-artifacts.sh") &&
+                        workflow.contains("--apk \"${{ steps.apk.outputs.path }}\"") &&
+                        workflow.contains("--apk-sha256 \"${{ steps.apk.outputs.sha256_path }}\"") &&
+                        workflow.contains("--manifest \"${{ steps.update_manifest.outputs.path }}\"") &&
+                        workflow.contains("--manifest-sha256 \"${{ steps.update_manifest.outputs.sha256_path }}\"") &&
+                        workflow.contains("--sbom \"${{ steps.sbom.outputs.path }}\"") &&
+                        workflow.contains("--sbom-sha256 \"${{ steps.sbom.outputs.sha256_path }}\"") &&
+                        workflow.contains("--expected-version \"$VERSION\"") &&
+                        workflow.contains("--expected-channel \"${{ steps.release_tag.outputs.channel }}\"") &&
+                        workflow.contains("--expected-store adaway") &&
+                        workflow.contains("--expected-apk-url \"$APK_URL\"") &&
+                        workflow.contains("--expected-cert-sha256 \"${{ steps.apk_identity.outputs.cert_sha256 }}\""));
         assertTrue("Release workflow must generate manifest APK URLs on the allowed GitHub host.",
                 workflow.contains("APK_URL=\"https://github.com/${GITHUB_REPOSITORY}/releases/download/"));
         assertTrue("Release workflow must emit manifests for the runtime AdAway store.",
