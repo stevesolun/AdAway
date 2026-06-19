@@ -6816,3 +6816,34 @@
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
   `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
   existing Windows LF-to-CRLF warnings.
+
+## Plan - 2026-06-19 UX Matrix Sign-Off Packet
+- [x] Turn the remaining broad manual UX review gap into a concrete review artifact.
+- [x] Make `scripts/run-ux-matrix.ps1` validate the expected screenshot matrix after every run.
+- [x] Emit a per-variant manual review checklist that points to every generated screenshot.
+- [x] Add focused JVM coverage for manifest success and missing-screenshot failure behavior.
+- [x] Run the real connected UX matrix and standard local gates.
+
+## Review - 2026-06-19 UX Matrix Sign-Off Packet
+- The automated UX matrix already covered baseline, large-font, and RTL variants, but the output
+  was just screenshot folders. That left broader manual UX sign-off as an unstructured external
+  step with no durable checklist or missing-screenshot proof.
+- `scripts/run-ux-matrix.ps1` now has a single shared variant/screen matrix, loops through that
+  matrix, and writes `ux-matrix-review.md` after successful instrumentation. The packet records
+  baseline, 1.3, 1.6, 1.3 RTL, and 1.6 RTL variants; lists the eight expected screens for each;
+  and includes manual review checks for text fit, touch targets, the AdAway bird, FAB/bottom-nav
+  clearance, and RTL anchoring.
+- The packet generation fails closed when an expected screenshot is missing, so the manual review
+  cannot accidentally sign off an incomplete matrix.
+- README now tells release reviewers to inspect the generated UX review packet.
+- Verification passed:
+  focused `:app:testDebugUnitTest --tests org.adaway.scripts.UxMatrixScriptTest --dependency-verification=strict --stacktrace`;
+  direct `Write-UxMatrixReviewManifest` run against an existing real UX report;
+  connected `scripts/run-ux-matrix.ps1 -OutputDir app/build/reports/ux-matrix-signoff-packet`
+  with five variants, each reporting `OK (1 test)`, and 40 screenshots plus a review packet;
+  full `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: this narrows manual UX review to a concrete packet, but human design
+  sign-off is still not complete; physical-device release APK smoke, real tagged release
+  verification with production secrets, and MIT legal/provenance clearance remain external gates.

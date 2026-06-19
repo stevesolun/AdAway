@@ -262,6 +262,21 @@ cd AdAway
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`
 - Direct release: `app/build/outputs/apk/directRelease/app-directRelease.apk`
 
+### UX Matrix Review Packet
+
+For pre-release UI review, run the connected UX matrix on an emulator:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1 `
+  -OutputDir app\build\reports\ux-matrix
+```
+
+The runner covers baseline, 1.3/1.6 font scales, and RTL pseudo-locale variants.
+It pulls screenshots for the key app shells and writes
+`app/build/reports/ux-matrix/ux-matrix-review.md`, a checklist packet for manual
+review of clipping, overlap, touch targets, RTL anchoring, FAB clearance, and the
+AdAway bird brand signal.
+
 ### Production Signing
 
 Add to `~/.gradle/gradle.properties`:

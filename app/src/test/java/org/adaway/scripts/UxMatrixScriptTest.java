@@ -15,6 +15,23 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 public class UxMatrixScriptTest {
+    private static final String[] UX_VARIANTS = {
+            "baseline",
+            "font-1.3",
+            "font-1.6",
+            "font-1.3-rtl",
+            "font-1.6-rtl"
+    };
+    private static final String[] UX_SCREENS = {
+            "home",
+            "discover",
+            "sources",
+            "more",
+            "domain_checker",
+            "onboarding",
+            "custom_rules",
+            "update"
+    };
 
     @Test
     public void instrumentationParserAcceptsOkTranscriptWhenAdbExitCodeIsNonZero()
@@ -100,19 +117,22 @@ public class UxMatrixScriptTest {
     public void runnerIncludesLargeFontAndRtlStressVariants() throws IOException {
         String script = readUtf8(repoDir().resolve("scripts/run-ux-matrix.ps1"));
 
+        assertTrue("UX matrix must be driven by the shared variant spec.",
+                script.contains("$UxMatrixVariantSpecs") &&
+                        script.contains("foreach ($variant in $UxMatrixVariantSpecs)") &&
+                        script.contains("Invoke-UxTest -Variant $variant.Name"));
         assertTrue("UX matrix must keep baseline coverage.",
-                script.contains("Invoke-UxTest -Variant \"baseline\""));
+                script.contains("Name = \"baseline\""));
         assertTrue("UX matrix must keep the 1.3 large-font variant.",
-                script.contains("Set-DeviceState -FontScale \"1.3\" -Locales \"\"") &&
-                        script.contains("Invoke-UxTest -Variant \"font-1.3\""));
+                script.contains("Name = \"font-1.3\"") &&
+                        script.contains("FontScale = \"1.3\""));
         assertTrue("UX matrix must include a stronger 1.6 font-scale stress variant.",
-                script.contains("Set-DeviceState -FontScale \"1.6\" -Locales \"\"") &&
-                        script.contains("Invoke-UxTest -Variant \"font-1.6\""));
+                script.contains("Name = \"font-1.6\"") &&
+                        script.contains("FontScale = \"1.6\""));
         assertTrue("UX matrix must include RTL at both large font scales.",
-                script.contains("Set-DeviceState -FontScale \"1.3\" -Locales \"ar-XB\"") &&
-                        script.contains("Invoke-UxTest -Variant \"font-1.3-rtl\"") &&
-                        script.contains("Set-DeviceState -FontScale \"1.6\" -Locales \"ar-XB\"") &&
-                        script.contains("Invoke-UxTest -Variant \"font-1.6-rtl\""));
+                script.contains("Name = \"font-1.3-rtl\"") &&
+                        script.contains("Name = \"font-1.6-rtl\"") &&
+                        script.contains("Locales = \"ar-XB\""));
     }
 
     @Test
@@ -137,12 +157,90 @@ public class UxMatrixScriptTest {
                 afterStateIndex > deviceStateIndex);
     }
 
+    @Test
+    public void runnerWritesReviewManifestForManualSignOff() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX matrix manifest writer.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-matrix-manifest");
+        try {
+            Path androidHome = createFakeAndroidHome(fixture);
+            Path javaHome = fixture.resolve("java");
+            Path output = fixture.resolve("ux-output");
+            Files.createDirectories(javaHome);
+            createCompleteUxMatrixScreens(output);
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    ". " + quote(repoDir().resolve("scripts/run-ux-matrix.ps1")) +
+                    " -AndroidHome " + quote(androidHome) +
+                    " -JavaHome " + quote(javaHome) + ";" +
+                    "Write-UxMatrixReviewManifest -Directory " + quote(output) + ";");
+
+            assertEquals("UX matrix manifest writer must exit successfully.\n" +
+                    result.stderr, 0, result.exitCode);
+            String manifest = readUtf8(output.resolve("ux-matrix-review.md"));
+            assertTrue("Manifest must include the manual review checklist.",
+                    manifest.contains("Manual sign-off checklist"));
+            assertTrue("Manifest must include the strongest RTL/font-scale variant.",
+                    manifest.contains("## font-1.6-rtl"));
+            assertTrue("Manifest must link expected screenshots by relative path.",
+                    manifest.contains("home - font-1.6-rtl/ux-matrix/home.png"));
+            assertTrue("Manifest must preserve the bird-logo review item.",
+                    manifest.contains("The AdAway bird remains the first-screen brand signal"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void runnerReviewManifestFailsWhenExpectedScreenshotIsMissing() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX matrix manifest writer.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-matrix-missing");
+        try {
+            Path androidHome = createFakeAndroidHome(fixture);
+            Path javaHome = fixture.resolve("java");
+            Path output = fixture.resolve("ux-output");
+            Files.createDirectories(javaHome);
+            createCompleteUxMatrixScreens(output);
+            Files.delete(output.resolve("font-1.6-rtl").resolve("ux-matrix")
+                    .resolve("home.png"));
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    ". " + quote(repoDir().resolve("scripts/run-ux-matrix.ps1")) +
+                    " -AndroidHome " + quote(androidHome) +
+                    " -JavaHome " + quote(javaHome) + ";" +
+                    "Write-UxMatrixReviewManifest -Directory " + quote(output) + ";");
+
+            assertTrue("UX matrix manifest must fail when a screenshot is missing.",
+                    result.exitCode != 0);
+            assertTrue("Failure must name the missing variant and screen.\n" +
+                            result.stdout + result.stderr,
+                    (result.stdout + result.stderr).contains("font-1.6-rtl/home.png"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
         Path platformTools = fixture.resolve("android-sdk").resolve("platform-tools");
         Files.createDirectories(platformTools);
         Path adb = platformTools.resolve("adb.exe");
         Files.write(adb, new byte[0]);
         return fixture.resolve("android-sdk");
+    }
+
+    private static void createCompleteUxMatrixScreens(Path output) throws IOException {
+        for (String variant : UX_VARIANTS) {
+            Path directory = output.resolve(variant).resolve("ux-matrix");
+            Files.createDirectories(directory);
+            for (String screen : UX_SCREENS) {
+                Files.write(directory.resolve(screen + ".png"), new byte[]{1});
+            }
+        }
     }
 
     private static ProcessResult runPowerShell(String powershell, String command)
