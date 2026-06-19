@@ -562,6 +562,8 @@ final class Migrations {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
             optimizeRootHostEntriesStorage(database);
+            database.execSQL(ROOT_HOST_ENTRIES_HOST_INDEX_SQL);
+            database.execSQL(ROOT_HOST_ENTRIES_REVERSE_HOST_INDEX_SQL);
         }
     };
 

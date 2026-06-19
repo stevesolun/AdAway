@@ -6788,3 +6788,31 @@
 - Remaining full-goal gaps: physical-device release smoke, real tagged release verification with
   production secrets, broader manual UX sign-off, and MIT legal/provenance clearance remain
   external to this local patch.
+
+## Plan - 2026-06-19 CI Migration 25-26 Index Repair
+- [x] Push the accumulated local quality slices to PR #6 and inspect replacement CI.
+- [x] Pull the failing connected Android test evidence.
+- [x] Fix only the schema mismatch reported by CI.
+- [x] Re-run focused and broad migration coverage plus unit/build and hygiene gates.
+- [x] Commit and push the focused CI repair.
+
+## Review - 2026-06-19 CI Migration 25-26 Index Repair
+- Pushed 13 local commits to PR #6. The replacement PR head passed `Development build`,
+  `Analyze (java)`, `Analyze (cpp)`, and aggregate `CodeQL`, then failed `Connected Android tests`.
+- CI failure evidence from Android CI run `27809812609`, job `82297686929`:
+  `MigrationTest#migration25To26_rebuildsRootExportForAppendWrites` failed because Room expected
+  `root_host_entries` indexes `index_root_host_entries_host` and
+  `index_root_host_entries_reverse_host`, but the migrated version-26 schema reported no indexes.
+- Root cause: `MIGRATION_25_26` reused `optimizeRootHostEntriesStorage(database)`. That helper now
+  matches the current version-32 storage shape and drops persistent root export indexes, but schema
+  version 26 still requires those indexes until `MIGRATION_29_30` intentionally removes them.
+- Fix: `MIGRATION_25_26` now recreates `ROOT_HOST_ENTRIES_HOST_INDEX_SQL` and
+  `ROOT_HOST_ENTRIES_REVERSE_HOST_INDEX_SQL` after optimizing the table, preserving the historical
+  version-26 schema while keeping later index-drop migrations intact.
+- Verification passed:
+  focused connected
+  `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.db.MigrationTest#migration25To26_rebuildsRootExportForAppendWrites --dependency-verification=strict --stacktrace`;
+  broad connected `MigrationTest` report with 21 tests, 0 failures, and 0 errors;
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
