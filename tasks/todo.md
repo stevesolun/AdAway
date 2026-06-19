@@ -6644,3 +6644,30 @@
   `:app:compileDebugJavaWithJavac`;
   `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
   existing Windows LF-to-CRLF warnings. `actionlint` is not installed in this environment.
+
+## Plan - 2026-06-19 Home Shared Operation State
+- [x] Add a red Home contract requiring update progress to consume shared
+  `FilterOperationState` instead of rendering from legacy `MultiPhaseProgress`.
+- [x] Expose `FilterOperationState` from `HomeViewModel`.
+- [x] Render the Home update progress container from `FilterOperationState` and keep terminal
+  counter refresh/controls/accessibility behavior intact.
+- [x] Re-run focused Home contracts, unit/compile gates, license boundary, and diff hygiene.
+- [x] Commit the focused Home progress state slice.
+
+## Review - 2026-06-19 Home Shared Operation State
+- Current code still exposed `SourceModel.Progress` and `SourceModel.MultiPhaseProgress` through
+  `HomeViewModel`, and `HomeFragment` observed both. That contradicted the plan's single
+  `FilterOperationState` mental model for Home/Discover/Sources/workers.
+- `HomeViewModel` now exposes `LiveData<FilterOperationState>` from `SourceModel`.
+- `HomeFragment` now binds pause/resume, stop, summary progress text, the bird progress marker,
+  scheduler task label, terminal accessibility announcement, and counter attach/detach behavior
+  from `FilterOperationState`. Stopped and complete terminal states both reattach counters and
+  refresh the visible counts.
+- Verification passed:
+  red/green focused test
+  `HomeNavigationSourcesContractTest#homeUpdateProgressUsesSharedFilterOperationState`;
+  full `HomeNavigationSourcesContractTest`;
+  full `:app:testDebugUnitTest`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.

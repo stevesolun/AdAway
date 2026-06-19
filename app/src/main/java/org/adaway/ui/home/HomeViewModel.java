@@ -19,6 +19,7 @@ import org.adaway.model.adblocking.AdBlockModel;
 import java.util.List;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.FilterOperationState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.update.Manifest;
 import org.adaway.model.update.UpdateModel;
@@ -46,8 +47,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> pending;
     private final MediatorLiveData<String> state;
     private final MutableLiveData<HostError> error;
-    private final LiveData<SourceModel.Progress> sourceProgress;
-    private final LiveData<SourceModel.MultiPhaseProgress> multiPhaseProgress;
+    private final LiveData<FilterOperationState> filterOperationState;
     // Cache initial blocked count to prevent UI race conditions where it resets to 0
     private long cachedInitialBlockedCount = -1;
 
@@ -68,8 +68,7 @@ public class HomeViewModel extends AndroidViewModel {
         this.state.addSource(this.sourceModel.getState(), this.state::setValue);
         this.state.addSource(this.adBlockModel.getState(), this.state::setValue);
         this.error = new MutableLiveData<>();
-        this.sourceProgress = this.sourceModel.getProgress();
-        this.multiPhaseProgress = this.sourceModel.getMultiPhaseProgress();
+        this.filterOperationState = this.sourceModel.getFilterOperationState();
     }
 
     private static boolean isTrue(LiveData<Boolean> liveData) {
@@ -133,12 +132,8 @@ public class HomeViewModel extends AndroidViewModel {
         return this.error;
     }
 
-    public LiveData<SourceModel.Progress> getSourceProgress() {
-        return this.sourceProgress;
-    }
-
-    public LiveData<SourceModel.MultiPhaseProgress> getMultiPhaseProgress() {
-        return this.multiPhaseProgress;
+    public LiveData<FilterOperationState> getFilterOperationState() {
+        return this.filterOperationState;
     }
 
     public long getCachedInitialBlockedCount() {

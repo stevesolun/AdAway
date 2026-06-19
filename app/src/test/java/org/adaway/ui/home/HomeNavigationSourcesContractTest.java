@@ -121,9 +121,11 @@ public class HomeNavigationSourcesContractTest {
         String homeFragment = readRepoFile(
                 "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
 
-        assertTrue("Stopped update progress must reset import counter guards before reattaching " +
+        assertTrue("Terminal update progress must reset import counter guards before reattaching " +
                         "host counters.",
-                homeFragment.contains("if (progress.isStopped) {") &&
+                homeFragment.contains("boolean isStopped = progress.phase == " +
+                        "FilterOperationState.Phase.STOPPED") &&
+                        homeFragment.contains("if (isStopped || isComplete) {") &&
                         homeFragment.contains("resetImportCounterGuards();") &&
                         homeFragment.contains("attachHostCounterObservers();") &&
                         homeFragment.contains("refreshHostCountersOnce();"));
@@ -132,10 +134,12 @@ public class HomeNavigationSourcesContractTest {
                 homeFragment.contains("private void resetImportCounterGuards()") &&
                         homeFragment.contains("this.homeViewModel.setCachedInitialBlockedCount(-1)"));
         assertTrue("Terminal complete/stopped text must be announced for accessibility.",
-                homeFragment.contains("progress.isComplete || progress.isStopped") &&
+                homeFragment.contains("boolean isComplete = progress.phase == " +
+                        "FilterOperationState.Phase.COMPLETE") &&
+                        homeFragment.contains("if (isComplete || isStopped)") &&
                         homeFragment.contains("announceForAccessibility(progressText)"));
         assertTrue("Pause and stop controls must be disabled after complete terminal progress.",
-                homeFragment.contains("&& !progress.isComplete") &&
+                homeFragment.contains("&& !isComplete") &&
                 homeFragment.contains("pauseResumeButton.setEnabled(controlsEnabled)") &&
                         homeFragment.contains("stopButton.setEnabled(controlsEnabled)"));
     }
@@ -159,6 +163,29 @@ public class HomeNavigationSourcesContractTest {
                         homeFragment.contains("parsePhaseLabel.setVisibility(View.GONE)") &&
                         homeFragment.contains("parseProgressBar.setVisibility(View.GONE)") &&
                         homeFragment.contains("parsePhasePercent.setVisibility(View.GONE)"));
+    }
+
+    @Test
+    public void homeUpdateProgressUsesSharedFilterOperationState() throws Exception {
+        String homeViewModel = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeViewModel.java");
+        String homeFragment = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
+
+        assertTrue("HomeViewModel must expose the shared filter operation state.",
+                homeViewModel.contains("LiveData<FilterOperationState> filterOperationState") &&
+                        homeViewModel.contains("this.sourceModel.getFilterOperationState()") &&
+                        homeViewModel.contains("getFilterOperationState()"));
+        assertTrue("HomeFragment must bind the shared filter operation state for update UI.",
+                homeFragment.contains("bindFilterOperationState()") &&
+                        homeFragment.contains("getFilterOperationState().observe") &&
+                        homeFragment.contains("FilterOperationState.Phase.FINALIZE") &&
+                        homeFragment.contains("FilterOperationState.Phase.COMPLETE"));
+        assertFalse("HomeFragment must not render progress directly from legacy " +
+                        "MultiPhaseProgress.",
+                homeFragment.contains("getMultiPhaseProgress().observe") ||
+                        homeFragment.contains("SourceModel.MultiPhaseProgress") ||
+                        homeFragment.contains("bindMultiPhaseProgress()"));
     }
 
     @Test

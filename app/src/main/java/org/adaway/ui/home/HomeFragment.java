@@ -43,7 +43,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.error.HostError;
-import org.adaway.model.source.SourceModel.MultiPhaseProgress;
+import org.adaway.model.source.FilterOperationState;
 import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.ui.hosts.FilterSetUpdateWorker;
@@ -66,7 +66,6 @@ public class HomeFragment extends Fragment {
     private HomeViewModel homeViewModel;
     private Snackbar filterListsProgressSnackbar;
     private Snackbar scheduledUpdateSnackbar;
-    private boolean sourceModelProgressActive = false;
     private boolean scheduledProgressActive = false;
 
     // UI-side monotonic guards
@@ -121,8 +120,7 @@ public class HomeFragment extends Fragment {
         bindClickListeners();
         bindFilterListsSubscribeAllProgress();
         bindScheduledUpdateProgress();
-        bindSourceModelProgress();
-        bindMultiPhaseProgress();
+        bindFilterOperationState();
 
         bindDiscoverCta();
         bindLeakStatus();
@@ -183,7 +181,7 @@ public class HomeFragment extends Fragment {
                         }
                         filterListsLastDone = -1;
                         filterListsLastTotal = -1;
-                        if (!sourceModelProgressActive && !scheduledProgressActive) {
+                        if (!scheduledProgressActive) {
                             removeView(this.binding.content.filterListsSubscribeProgressTextView);
                             removeView(this.binding.content.filterListsSubscribeProgressBar);
                         }
@@ -280,65 +278,11 @@ public class HomeFragment extends Fragment {
                 });
     }
 
-    private void bindSourceModelProgress() {
-        this.homeViewModel.getSourceProgress().observe(getViewLifecycleOwner(), progress -> {
-            if (this.binding == null) return;
-            MultiPhaseProgress multiPhase = this.homeViewModel.getMultiPhaseProgress().getValue();
-            if (multiPhase != null && multiPhase.isActive()) {
-                removeView(this.binding.content.filterListsSubscribeProgressTextView);
-                removeView(this.binding.content.filterListsSubscribeProgressBar);
-                return;
-            }
-
-            if (progress == null || !progress.isActive()) {
-                sourceModelProgressActive = false;
-                if (filterListsProgressSnackbar == null && !scheduledProgressActive) {
-                    removeView(this.binding.content.filterListsSubscribeProgressTextView);
-                    removeView(this.binding.content.filterListsSubscribeProgressBar);
-                }
-                return;
-            }
-            sourceModelProgressActive = true;
-
-            if (multiPhase != null && multiPhase.isActive()) {
-                removeView(this.binding.content.filterListsSubscribeProgressTextView);
-                removeView(this.binding.content.filterListsSubscribeProgressBar);
-                return;
-            }
-
-            int done = progress.done;
-            int total = progress.total;
-            double pct = progress.basisPoints / 100.0;
-            int percentForBar = (int) Math.floor(pct);
-            if (percentForBar <= 0 && progress.isActive()) percentForBar = 1;
-            if (pct > 99.9) pct = 100.0;
-            String msg = "Updating sources: " + done + "/" + total + " ("
-                    + String.format(java.util.Locale.ROOT, "%.1f", pct) + "%)";
-            if (progress.currentLabel != null && !progress.currentLabel.isEmpty()) {
-                msg += " \u2022 " + progress.currentLabel;
-            }
-            if (progress.currentSourcePercent > 0 && progress.currentSourcePercent < 100) {
-                msg += " \u2022 " + progress.currentSourcePercent + "% of this list";
-            }
-
-            if (filterListsProgressSnackbar == null) {
-                this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
-                showView(this.binding.content.filterListsSubscribeProgressTextView);
-                this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
-                if (total > 0) {
-                    this.binding.content.filterListsSubscribeProgressBar.setMax(100);
-                    this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percentForBar, true);
-                }
-                showView(this.binding.content.filterListsSubscribeProgressBar);
-            }
-        });
-    }
-
-    private void bindMultiPhaseProgress() {
+    private void bindFilterOperationState() {
         this.binding.content.pauseResumeButton.setOnClickListener(v -> {
-            MultiPhaseProgress progress = this.homeViewModel.getMultiPhaseProgress().getValue();
-            if (progress == null) return;
-            if (progress.isPaused) {
+            FilterOperationState progress = this.homeViewModel.getFilterOperationState().getValue();
+            if (progress == null || progress.kind != FilterOperationState.Kind.SOURCE_UPDATE) return;
+            if (progress.paused) {
                 this.homeViewModel.resumeUpdate();
                 this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_pause_24dp);
                 this.binding.content.pauseResumeButton.setContentDescription(getString(R.string.pause_update));
@@ -351,9 +295,11 @@ public class HomeFragment extends Fragment {
 
         this.binding.content.stopButton.setOnClickListener(v -> this.homeViewModel.stopUpdate());
 
-        this.homeViewModel.getMultiPhaseProgress().observe(getViewLifecycleOwner(), progress -> {
+        this.homeViewModel.getFilterOperationState().observe(getViewLifecycleOwner(), progress -> {
             if (this.binding == null) return;
-            if (progress == null || !progress.isActive()) {
+            if (progress == null
+                    || progress.kind == FilterOperationState.Kind.IDLE
+                    || progress.phase == FilterOperationState.Phase.IDLE) {
                 removeView(this.binding.content.multiPhaseProgressContainer);
                 resetImportCounterGuards();
                 lastTerminalProgressAnnouncement = null;
@@ -361,8 +307,13 @@ public class HomeFragment extends Fragment {
                 return;
             }
 
+            boolean isStopped = progress.phase == FilterOperationState.Phase.STOPPED
+                    || progress.stopped;
+            boolean isFinalizing = progress.phase == FilterOperationState.Phase.FINALIZE;
+            boolean isComplete = progress.phase == FilterOperationState.Phase.COMPLETE;
+
             showView(this.binding.content.multiPhaseProgressContainer);
-            if (progress.isStopped) {
+            if (isStopped || isComplete) {
                 resetImportCounterGuards();
                 attachHostCounterObservers();
                 refreshHostCountersOnce();
@@ -420,21 +371,21 @@ public class HomeFragment extends Fragment {
                 }
             }
 
-            double overallPercentDouble = progress.getOverallPercentDouble();
+            double overallPercentDouble = progress.overallPercent;
             int overallPercent = (int) overallPercentDouble;
             this.binding.content.overallProgressBar.setMax(100);
             this.binding.content.overallProgressBar.setProgress(overallPercent);
             String progressText;
-            if (progress.isStopped) {
+            if (isStopped) {
                 progressText = getString(R.string.update_progress_stopped);
-            } else if (progress.isFinalizing) {
+            } else if (isFinalizing) {
                 if (progress.parsedHostCount > 0) {
                     progressText = getString(R.string.update_progress_finalizing_with_rules,
                             progress.parsedHostCount);
                 } else {
                     progressText = getString(R.string.update_progress_finalizing);
                 }
-            } else if (progress.isComplete) {
+            } else if (isComplete) {
                 progressText = getString(R.string.update_progress_complete);
             } else if (progress.parsedHostCount > 0) {
                 progressText = getString(R.string.update_progress_with_rules,
@@ -443,7 +394,7 @@ public class HomeFragment extends Fragment {
                 progressText = getString(R.string.update_progress_percent, overallPercentDouble);
             }
             this.binding.content.overallProgressText.setText(progressText);
-            if (progress.isComplete || progress.isStopped) {
+            if (isComplete || isStopped) {
                 if (!progressText.equals(lastTerminalProgressAnnouncement)) {
                     this.binding.content.overallProgressText
                             .announceForAccessibility(progressText);
@@ -480,7 +431,7 @@ public class HomeFragment extends Fragment {
             this.binding.content.parsePhasePercent.setVisibility(View.GONE);
             this.binding.content.parsePhaseLabel.setVisibility(View.GONE);
 
-            int totalToCheck = progress.totalToCheck;
+            int totalToCheck = progress.totalSources;
             int checked = progress.checkedCount;
             int downloadBarProgress = totalToCheck > 0 ? (int) ((long) checked * 100 / totalToCheck) : 0;
             this.binding.content.downloadProgressBar.setMax(100);
@@ -488,7 +439,9 @@ public class HomeFragment extends Fragment {
             this.binding.content.downloadPhasePercent
                     .setText(String.format(java.util.Locale.ROOT, "%d/%d", checked, totalToCheck));
 
-            double parsePercent = progress.getParsePercentDouble();
+            double parsePercent = totalToCheck > 0
+                    ? progress.parsedCount * 100.0 / totalToCheck
+                    : 0.0;
             this.binding.content.parseProgressBar.setMax(100);
             this.binding.content.parseProgressBar.setProgress((int) parsePercent);
             if (parsePercent > 99.9) parsePercent = 100.0;
@@ -505,7 +458,7 @@ public class HomeFragment extends Fragment {
                 this.binding.content.schedulerTaskContainer.setVisibility(View.GONE);
             }
 
-            if (progress.isPaused) {
+            if (progress.paused) {
                 this.binding.content.pauseResumeButton.setImageResource(R.drawable.ic_play_24dp);
                 this.binding.content.pauseResumeButton
                         .setContentDescription(getString(R.string.resume_update));
@@ -514,9 +467,9 @@ public class HomeFragment extends Fragment {
                 this.binding.content.pauseResumeButton
                         .setContentDescription(getString(R.string.pause_update));
             }
-            boolean controlsEnabled = !progress.isFinalizing
-                    && !progress.isStopped
-                    && !progress.isComplete;
+            boolean controlsEnabled = !isFinalizing
+                    && !isStopped
+                    && !isComplete;
             this.binding.content.pauseResumeButton.setEnabled(controlsEnabled);
             this.binding.content.stopButton.setEnabled(controlsEnabled);
         });
