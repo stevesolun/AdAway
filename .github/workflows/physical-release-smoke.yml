@@ -67,10 +67,19 @@ jobs:
         run: |
           $smokeArgs = @(
             "-ApkPath", "${{ steps.apk.outputs.apk_path }}",
-            "-ExpectedCertSha256", "$env:EXPECTED_CERT_SHA256"
+            "-ExpectedCertSha256", "$env:EXPECTED_CERT_SHA256",
+            "-ReportPath", "release-smoke/release-smoke-report.md"
           )
           if (-not [string]::IsNullOrWhiteSpace($env:DEVICE_SERIAL)) {
             $smokeArgs += @("-DeviceSerial", "$env:DEVICE_SERIAL")
           }
 
           ./scripts/run-release-smoke.ps1 @smokeArgs
+
+      - name: Upload release smoke report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: physical-release-smoke-report
+          if-no-files-found: ignore
+          path: release-smoke/release-smoke-report.md

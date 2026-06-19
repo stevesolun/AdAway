@@ -961,6 +961,10 @@ public class SecurityHardeningTest {
                 smokeScript.contains("[switch] $VerifyOnly") &&
                         smokeScript.contains("APK identity verification passed") &&
                         smokeScript.contains("Physical-device install/launch smoke was not run"));
+        assertTrue("Release smoke must support a durable report artifact.",
+                smokeScript.contains("$ReportPath") &&
+                        smokeScript.contains("Write-ReleaseSmokeReport") &&
+                        smokeScript.contains("Release Smoke Report"));
         assertTrue("Release smoke must preserve colon-separated signer certificate digests.",
                 smokeScript.contains("certificate SHA-256 digest:\\s*") &&
                         smokeScript.contains("Signer #1 certificate SHA-256 digest was not found") &&
@@ -1015,13 +1019,22 @@ public class SecurityHardeningTest {
                         smokeWorkflow.contains("AdAway_${VERSION}.apk"));
         assertTrue("Physical release smoke workflow must run the full smoke script.",
                 smokeWorkflow.contains("./scripts/run-release-smoke.ps1") &&
-                        smokeWorkflow.contains("-ExpectedCertSha256"));
+                        smokeWorkflow.contains("-ExpectedCertSha256") &&
+                        smokeWorkflow.contains("-ReportPath"));
+        assertTrue("Physical release smoke workflow must upload the smoke report artifact.",
+                smokeWorkflow.contains("Upload release smoke report") &&
+                        smokeWorkflow.contains("physical-release-smoke-report") &&
+                        smokeWorkflow.contains("release-smoke/release-smoke-report.md") &&
+                        smokeWorkflow.contains("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));
         assertFalse("Physical release smoke workflow must not skip device I/O.",
                 smokeWorkflow.contains("-VerifyOnly"));
         assertTrue("Release docs must document the physical release smoke workflow.",
                 releasing.contains("physical-release-smoke.yml") &&
                         releasing.contains("self-hosted") &&
                         releasing.contains("android-device"));
+        assertTrue("Release docs must document the physical smoke report artifact.",
+                releasing.contains("physical-release-smoke-report") &&
+                        readme.contains("physical-release-smoke-report"));
         assertTrue("README must mention the physical release smoke workflow.",
                 readme.contains("physical-release-smoke.yml"));
     }
@@ -1036,6 +1049,7 @@ public class SecurityHardeningTest {
         Path fixture = Files.createTempDirectory("adaway-release-smoke");
         try {
             Path apk = fixture.resolve("release.apk");
+            Path report = fixture.resolve("release-smoke-report.md");
             writeUtf8(apk, "fake release apk\n");
             Path sdk = fixture.resolve("android-sdk");
             writeFakeBuildTool(sdk, "9.0.0", "aapt",
@@ -1053,12 +1067,68 @@ public class SecurityHardeningTest {
                     "-ExecutionPolicy", "Bypass",
                     "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
                     "-ApkPath", apk.toString(),
+                    "-ReportPath", report.toString(),
                     "-VerifyOnly");
 
             assertEquals("Release smoke must select build-tools 36.0.0 over stale 9.0.0.",
                     0, result.exitCode);
             assertTrue("VerifyOnly smoke must stop before adb/device checks.",
                     result.stdout.contains("Physical-device install/launch smoke was not run"));
+            assertTrue("VerifyOnly smoke must write the requested report.",
+                    Files.isRegularFile(report));
+            String reportText = readUtf8(report);
+            assertTrue("Release smoke report must describe identity-only mode.",
+                    reportText.contains("# Release Smoke Report") &&
+                            reportText.contains("- Status: passed") &&
+                            reportText.contains("- Mode: identity-only") &&
+                            reportText.contains("- Physical device: not-run"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void atk34_releaseSmokeReportRecordsPhysicalLaunchWithoutSerialLeak()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-smoke script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-release-smoke-physical");
+        try {
+            Path apk = fixture.resolve("release.apk");
+            Path report = fixture.resolve("release-smoke-report.md");
+            writeUtf8(apk, "fake release apk\n");
+            Path sdk = fixture.resolve("android-sdk");
+            writeFakeBuildTool(sdk, "36.0.0", "aapt",
+                    "package: name='org.adaway' versionCode='130500' versionName='13.5.0'");
+            writeFakeAdb(sdk, "device-123", "4242");
+
+            java.util.Map<String, String> environment = new java.util.HashMap<>();
+            environment.put("ANDROID_HOME", sdk.toString());
+            environment.put("ANDROID_SDK_ROOT", null);
+
+            ProcessResult result = runProcess(fixture, environment,
+                    powershell,
+                    "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
+                    "-ApkPath", apk.toString(),
+                    "-ReportPath", report.toString(),
+                    "-DeviceSerial", "device-123");
+
+            assertEquals("Release smoke must pass against the fake physical adb.",
+                    0, result.exitCode);
+            String reportText = readUtf8(report);
+            assertTrue("Physical release smoke report must record launch evidence.",
+                    reportText.contains("- Mode: physical-device") &&
+                            reportText.contains("- Physical device: verified-real-device") &&
+                            reportText.contains("- Launch pid observed: 4242"));
+            assertTrue("Physical release smoke report must hash the device serial.",
+                    reportText.contains("- Device serial SHA-256: " +
+                            sha256Hex("device-123".getBytes(StandardCharsets.UTF_8))));
+            assertFalse("Physical release smoke report must not leak the raw device serial.",
+                    reportText.contains("device-123"));
         } finally {
             deleteRecursively(fixture);
         }
@@ -1839,6 +1909,39 @@ public class SecurityHardeningTest {
             String escaped = output.replace("\\", "\\\\").replace("\"", "\\\"");
             writeUtf8(tool, "#!/usr/bin/env sh\nprintf '%s\\n' \"" + escaped + "\"\n");
             assertTrue("Fake build tool must be executable.", tool.toFile().setExecutable(true));
+        }
+    }
+
+    private static void writeFakeAdb(Path sdk, String serial, String pid) throws IOException {
+        Path platformTools = sdk.resolve("platform-tools");
+        Files.createDirectories(platformTools);
+        boolean windows = System.getProperty("os.name").toLowerCase(Locale.US).contains("win");
+        Path tool = platformTools.resolve(windows ? "adb.cmd" : "adb");
+        if (windows) {
+            writeUtf8(tool, "@echo off\r\n" +
+                    "if \"%1\"==\"devices\" (\r\n" +
+                    "  echo List of devices attached\r\n" +
+                    "  echo " + serial + "\tdevice\r\n" +
+                    "  exit /b 0\r\n" +
+                    ")\r\n" +
+                    "if \"%1\"==\"-s\" if \"%3\"==\"shell\" if \"%4\"==\"pidof\" echo " + pid + "\r\n" +
+                    "if \"%1\"==\"-s\" if \"%3\"==\"shell\" if \"%4\"==\"getprop\" echo 0\r\n" +
+                    "exit /b 0\r\n");
+        } else {
+            writeUtf8(tool, "#!/usr/bin/env sh\n" +
+                    "if [ \"$1\" = \"devices\" ]; then\n" +
+                    "  printf 'List of devices attached\\n'\n" +
+                    "  printf '" + serial + "\\tdevice\\n'\n" +
+                    "  exit 0\n" +
+                    "fi\n" +
+                    "if [ \"$1\" = \"-s\" ] && [ \"$3\" = \"shell\" ] && [ \"$4\" = \"pidof\" ]; then\n" +
+                    "  printf '" + pid + "\\n'\n" +
+                    "  exit 0\n" +
+                    "fi\n" +
+                    "if [ \"$1\" = \"-s\" ] && [ \"$3\" = \"shell\" ] && [ \"$4\" = \"getprop\" ]; then\n" +
+                    "  printf '0\\n'\n" +
+                    "fi\n");
+            assertTrue("Fake adb must be executable.", tool.toFile().setExecutable(true));
         }
     }
 

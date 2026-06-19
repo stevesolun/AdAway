@@ -11,6 +11,8 @@ param(
 
     [int] $LaunchWaitSeconds = 5,
 
+    [string] $ReportPath = "",
+
     [switch] $VerifyOnly
 )
 
@@ -87,6 +89,58 @@ function Normalize-Sha256([string] $value) {
     return ($value -replace "[:\s]", "").ToLowerInvariant()
 }
 
+function Get-Sha256Hex([string] $value) {
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($value)
+        return -join ($sha256.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") })
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
+function Write-ReleaseSmokeReport(
+    [string] $Status,
+    [string] $Mode,
+    [string] $PhysicalDevice,
+    [string] $DeviceSerialHash = "",
+    [string] $LaunchPid = ""
+) {
+    if ([string]::IsNullOrWhiteSpace($ReportPath)) {
+        return
+    }
+
+    $resolvedReport = [IO.Path]::GetFullPath($ReportPath)
+    $reportDirectory = Split-Path -Parent $resolvedReport
+    if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
+        New-Item -ItemType Directory -Force $reportDirectory | Out-Null
+    }
+
+    $apkName = Split-Path -Leaf $apk.Path
+    $signerCheck = -not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)
+    $lines = @(
+        "# Release Smoke Report",
+        "",
+        "Generated: $(Get-Date -Format o)",
+        "",
+        "- Status: $Status",
+        "- Mode: $Mode",
+        "- APK: $apkName",
+        "- Package: $PackageName",
+        "- Signer certificate check: $signerCheck",
+        "- Physical device: $PhysicalDevice"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($DeviceSerialHash)) {
+        $lines += "- Device serial SHA-256: $DeviceSerialHash"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($LaunchPid)) {
+        $lines += "- Launch pid observed: $LaunchPid"
+    }
+
+    Set-Content -LiteralPath $resolvedReport -Value $lines -Encoding UTF8
+    Write-Host "Release smoke report=$resolvedReport"
+}
+
 $apk = Resolve-Path -LiteralPath $ApkPath -ErrorAction Stop
 if ((Get-Item -LiteralPath $apk.Path).Length -le 0) {
     Fail "APK is empty: $($apk.Path)"
@@ -124,6 +178,10 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)) {
 }
 
 if ($VerifyOnly) {
+    Write-ReleaseSmokeReport `
+        -Status "passed" `
+        -Mode "identity-only" `
+        -PhysicalDevice "not-run"
     Write-Host "Release APK identity verification passed for ${PackageName}: $($apk.Path)"
     Write-Host "Physical-device install/launch smoke was not run."
     exit 0
@@ -168,9 +226,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Start-Sleep -Seconds $LaunchWaitSeconds
-$pid = (& $adb @adbTarget shell pidof $PackageName).Trim()
-if ([string]::IsNullOrWhiteSpace($pid)) {
+$launchPid = (& $adb @adbTarget shell pidof $PackageName).Trim()
+if ([string]::IsNullOrWhiteSpace($launchPid)) {
     Fail "$PackageName is not running after launch."
 }
 
-Write-Host "Release smoke passed for $PackageName on $serial (pid $pid)."
+Write-ReleaseSmokeReport `
+    -Status "passed" `
+    -Mode "physical-device" `
+    -PhysicalDevice "verified-real-device" `
+    -DeviceSerialHash (Get-Sha256Hex $serial) `
+    -LaunchPid $launchPid
+Write-Host "Release smoke passed for $PackageName on $serial (pid $launchPid)."

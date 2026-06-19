@@ -316,7 +316,9 @@ release is created, run the manual `verify-release-artifacts.yml` workflow as
 the CI-backed post-publish artifact and attestation check. For install/launch
 coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
 `android-device`; it downloads the tagged APK and runs the full release smoke
-against a physical device.
+against a physical device. Successful physical smoke runs upload a
+`physical-release-smoke-report` artifact with APK identity checks and the
+observed launch result.
 
 **Repository Secrets** (for production-signed APKs):
 

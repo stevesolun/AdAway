@@ -6847,3 +6847,37 @@
 - Remaining full-goal gaps: this narrows manual UX review to a concrete packet, but human design
   sign-off is still not complete; physical-device release APK smoke, real tagged release
   verification with production secrets, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-19 Physical Release Smoke Report
+- [x] Make the existing physical-device release smoke gate emit a durable report artifact.
+- [x] Preserve the existing `-VerifyOnly` identity-check mode and default command behavior.
+- [x] Upload the physical smoke report from the manual `physical-release-smoke.yml` workflow.
+- [x] Add focused tests for workflow wiring, identity-only report output, and physical-mode report
+  output without leaking the raw device serial.
+- [x] Re-run focused release-smoke tests and standard local gates.
+
+## Review - 2026-06-19 Physical Release Smoke Report
+- The physical-device release smoke workflow already downloaded `AdAway_<version>.apk` and ran the
+  full install/launch script on a self-hosted physical Android runner, but successful proof was only
+  stdout. That made the remaining physical smoke gate harder to audit after a release run.
+- `scripts/run-release-smoke.ps1` now accepts optional `-ReportPath`. Identity-only mode writes a
+  report with APK identity status and explicitly records that physical install/launch was not run.
+  Full physical mode writes a report with APK identity status, verified real-device status, a
+  SHA-256 hash of the device serial instead of the raw serial, and the observed launch pid.
+- `.github/workflows/physical-release-smoke.yml` passes `-ReportPath` and uploads
+  `physical-release-smoke-report` using the already-pinned upload-artifact action.
+- README and `RELEASING.md` now tell release operators to expect the smoke report artifact.
+- Verification passed:
+  manual fake-build-tools `run-release-smoke.ps1 -VerifyOnly -ReportPath ...` wrote the identity
+  report and exited 0;
+  manual fake-ADB physical smoke wrote the physical report, hashed `device-123`, recorded pid
+  `4242`, and exited 0;
+  focused `:app:testDebugUnitTest` with
+  `SecurityHardeningTest.atk34_releaseSmokeRequiresReleaseApkOnRealDevice`,
+  `SecurityHardeningTest.atk34_releaseSmokeVerifyOnlyUsesHighestParsedBuildToolsVersion`, and
+  `SecurityHardeningTest.atk34_releaseSmokeReportRecordsPhysicalLaunchWithoutSerialLeak`
+  under `--dependency-verification=strict --stacktrace`.
+- Remaining full-goal gaps: the report artifact makes physical smoke auditable, but the real
+  release APK still must be smoked on an actual physical device after a tagged production release;
+  real tagged release verification with production secrets, human UX sign-off, and MIT
+  legal/provenance clearance remain external gates.
