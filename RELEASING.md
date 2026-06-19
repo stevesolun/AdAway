@@ -202,7 +202,8 @@ The same post-publish check can be run in GitHub Actions from the manual
 **Verify release artifacts** workflow (`.github/workflows/verify-release-artifacts.yml`).
 Provide the release tag and expected APK signing certificate SHA-256 digest;
 the workflow downloads the six release assets, verifies manifest/signature and
-checksum semantics, and verifies GitHub attestations against this repository.
+checksum semantics, verifies GitHub attestations against this repository, and
+uploads a `release-artifact-verification-report` artifact.
 
 ```powershell
 $Version = "<version>"
@@ -221,6 +222,7 @@ $Apk = "AdAway_$Version.apk"
   --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$Version/$Apk" `
   --expected-cert-sha256 "<release-certificate-sha256>" `
   --repo stevesolun/AdAway `
+  --report verification-report.md `
   --verify-attestations
 ```
 
@@ -243,6 +245,7 @@ bash ./scripts/verify-release-artifacts.sh \
   --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$VERSION/$APK" \
   --expected-cert-sha256 "<release-certificate-sha256>" \
   --repo stevesolun/AdAway \
+  --report verification-report.md \
   --verify-attestations
 ```
 

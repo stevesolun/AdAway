@@ -88,4 +88,12 @@ jobs:
             --expected-apk-url "$APK_URL" \
             --expected-cert-sha256 "$EXPECTED_CERT_SHA256" \
             --repo "${GITHUB_REPOSITORY}" \
+            --report "$OUT_DIR/verification-report.md" \
             --verify-attestations
+
+      - name: Upload release artifact verification report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-artifact-verification-report
+          path: release-artifacts/verification-report.md
+          if-no-files-found: error

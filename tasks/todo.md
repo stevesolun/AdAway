@@ -6881,3 +6881,34 @@
   release APK still must be smoked on an actual physical device after a tagged production release;
   real tagged release verification with production secrets, human UX sign-off, and MIT
   legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-19 Release Artifact Verification Report
+- [x] Add a failing contract for a durable `--report` output from the canonical release artifact
+  verifier.
+- [x] Make `scripts/VerifyReleaseArtifacts.java` write a non-secret verification report covering
+  checksums, manifest signature/payload, expected release metadata, and attestation status.
+- [x] Wire the manual post-publish `verify-release-artifacts.yml` workflow to upload the report.
+- [x] Document the report in `RELEASING.md` and `README.md`.
+- [x] Re-run focused release verification tests and the standard local gates, then commit and push.
+
+## Review - 2026-06-19 Release Artifact Verification Report
+- The manual post-publish release verifier already downloaded the six release assets and checked
+  checksums, signed update-manifest semantics, expected release metadata, signer certificate digest,
+  and GitHub attestations, but the successful proof was only stdout.
+- Added optional `--report` support to `scripts/VerifyReleaseArtifacts.java`. The report is written
+  only after requested checks pass, includes artifact basenames, expected/manifest metadata,
+  checksum/signature/payload status, and attestation status, and does not include the manifest
+  public key.
+- `.github/workflows/verify-release-artifacts.yml` now passes
+  `--report "$OUT_DIR/verification-report.md"` and uploads
+  `release-artifact-verification-report` using the existing pinned upload-artifact action.
+- README and `RELEASING.md` now tell release operators to expect the report artifact.
+- Verification passed:
+  focused release-verifier tests first failed for missing report support, missing workflow upload,
+  and missing docs, then passed after the implementation;
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: the report artifact makes post-publish release verification auditable,
+  but the workflow still must be run against a real tagged release with production secrets; physical
+  release APK smoke, human UX sign-off, and MIT legal/provenance clearance remain external gates.

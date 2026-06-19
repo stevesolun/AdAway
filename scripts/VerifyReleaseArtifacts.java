@@ -55,17 +55,23 @@ public final class VerifyReleaseArtifacts {
         String payload = readJsonString(manifest, "payload");
         String signature = readJsonString(manifest, "signature");
         verifyManifestSignature(payload, signature, options.publicKeyBase64);
-        verifyManifestPayload(payload, apkSha256, options);
+        ManifestPayload manifestPayload = verifyManifestPayload(payload, apkSha256, options);
 
+        int attestedArtifacts = 0;
         if (options.verifyAttestations) {
-            verifyAttestation(options.apk, options.repository);
-            verifyAttestation(options.apkSha256, options.repository);
-            verifyAttestation(options.manifest, options.repository);
-            verifyAttestation(options.manifestSha256, options.repository);
-            verifyAttestation(options.sbom, options.repository);
-            verifyAttestation(options.sbomSha256, options.repository);
+            for (Path artifact : Arrays.asList(
+                    options.apk,
+                    options.apkSha256,
+                    options.manifest,
+                    options.manifestSha256,
+                    options.sbom,
+                    options.sbomSha256)) {
+                verifyAttestation(artifact, options.repository);
+                attestedArtifacts++;
+            }
         }
 
+        writeReport(options, apkSha256, manifestPayload, attestedArtifacts);
         System.out.println("Release artifact verification passed.");
     }
 
@@ -126,15 +132,16 @@ public final class VerifyReleaseArtifacts {
         }
     }
 
-    private static void verifyManifestPayload(
+    private static ManifestPayload verifyManifestPayload(
             String payload, String apkSha256, Options options) {
         String manifestApkSha256 = normalizeSha256(readJsonString(payload, "apkSha256"));
         if (!apkSha256.equals(manifestApkSha256)) {
             fail("Manifest apkSha256 does not match the release APK.");
         }
 
+        String actualVersion = "";
         if (!options.expectedVersion.isEmpty()) {
-            String actualVersion = readJsonString(payload, "version");
+            actualVersion = readJsonString(payload, "version");
             if (!options.expectedVersion.equals(actualVersion)) {
                 fail("Manifest version does not match expected version.");
             }
@@ -152,12 +159,15 @@ public final class VerifyReleaseArtifacts {
             fail("Manifest apkUrl does not match expected release URL.");
         }
 
+        String actualChannel = "";
         if (!options.expectedChannel.isEmpty()) {
-            requireEqualToken("channel", readJsonString(payload, "channel"),
-                    options.expectedChannel);
+            actualChannel = readJsonString(payload, "channel");
+            requireEqualToken("channel", actualChannel, options.expectedChannel);
         }
+        String actualStore = "";
         if (!options.expectedStore.isEmpty()) {
-            requireEqualToken("store", readJsonString(payload, "store"), options.expectedStore);
+            actualStore = readJsonString(payload, "store");
+            requireEqualToken("store", actualStore, options.expectedStore);
         }
 
         Instant expiresAt = Instant.parse(readJsonString(payload, "expiresAt"));
@@ -167,6 +177,73 @@ public final class VerifyReleaseArtifacts {
         if (expiresAt.isAfter(Instant.now().plusSeconds(14L * 24L * 60L * 60L))) {
             fail("Signed update manifest expiry is too far in the future.");
         }
+        return new ManifestPayload(actualVersion, actualChannel, actualStore, apkUrl,
+                certSha256, expiresAt.toString());
+    }
+
+    private static void writeReport(Options options, String apkSha256,
+            ManifestPayload manifestPayload, int attestedArtifacts) throws IOException {
+        if (options.report == null) {
+            return;
+        }
+
+        Path absoluteReport = options.report.toAbsolutePath();
+        Path parent = absoluteReport.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+
+        StringBuilder report = new StringBuilder();
+        report.append("# Release Artifact Verification Report\n\n");
+        report.append("- Status: passed\n");
+        report.append("- Generated at: ").append(Instant.now()).append('\n');
+        report.append("- Repository: ").append(options.repository).append('\n');
+        report.append("- APK: ").append(baseName(options.apk)).append('\n');
+        report.append("- Manifest: ").append(baseName(options.manifest)).append('\n');
+        report.append("- SBOM: ").append(baseName(options.sbom)).append('\n');
+        report.append("- APK SHA-256: ").append(apkSha256).append('\n');
+        report.append("- Expected version: ").append(orNotProvided(options.expectedVersion))
+                .append('\n');
+        report.append("- Manifest version: ").append(orNotProvided(manifestPayload.version))
+                .append('\n');
+        report.append("- Expected channel: ").append(orNotProvided(options.expectedChannel))
+                .append('\n');
+        report.append("- Manifest channel: ").append(orNotProvided(manifestPayload.channel))
+                .append('\n');
+        report.append("- Expected store: ").append(orNotProvided(options.expectedStore))
+                .append('\n');
+        report.append("- Manifest store: ").append(orNotProvided(manifestPayload.store))
+                .append('\n');
+        report.append("- Expected APK URL: ").append(orNotProvided(options.expectedApkUrl))
+                .append('\n');
+        report.append("- Manifest APK URL: ").append(manifestPayload.apkUrl).append('\n');
+        report.append("- Expected certificate SHA-256: ")
+                .append(options.expectedCertSha256.isEmpty() ? "not-provided" :
+                        normalizeSha256(options.expectedCertSha256))
+                .append('\n');
+        report.append("- Manifest certificate SHA-256: ")
+                .append(manifestPayload.certSha256)
+                .append('\n');
+        report.append("- Manifest expires at: ").append(manifestPayload.expiresAt).append('\n');
+        report.append("- Checksum verification: passed\n");
+        report.append("- Manifest signature: passed\n");
+        report.append("- Manifest payload: passed\n");
+        report.append("- Attestations: ")
+                .append(options.verifyAttestations ? "verified" : "not-requested")
+                .append('\n');
+        report.append("- Attested artifacts: ").append(attestedArtifacts).append('\n');
+
+        Files.writeString(absoluteReport, report.toString(), StandardCharsets.UTF_8);
+        System.out.println("Release artifact verification report=" + absoluteReport);
+    }
+
+    private static String baseName(Path path) {
+        Path fileName = path.getFileName();
+        return fileName == null ? path.toString() : fileName.toString();
+    }
+
+    private static String orNotProvided(String value) {
+        return value == null || value.trim().isEmpty() ? "not-provided" : value;
     }
 
     private static void requireEqualToken(String name, String actual, String expected) {
@@ -353,6 +430,25 @@ public final class VerifyReleaseArtifacts {
         throw new IllegalArgumentException(message);
     }
 
+    private static final class ManifestPayload {
+        final String version;
+        final String channel;
+        final String store;
+        final String apkUrl;
+        final String certSha256;
+        final String expiresAt;
+
+        ManifestPayload(String version, String channel, String store, String apkUrl,
+                String certSha256, String expiresAt) {
+            this.version = version;
+            this.channel = channel;
+            this.store = store;
+            this.apkUrl = apkUrl;
+            this.certSha256 = certSha256;
+            this.expiresAt = expiresAt;
+        }
+    }
+
     private static final class Options {
         final Path apk;
         final Path apkSha256;
@@ -367,6 +463,7 @@ public final class VerifyReleaseArtifacts {
         final String expectedApkUrl;
         final String expectedCertSha256;
         final String repository;
+        final Path report;
         final boolean verifyAttestations;
 
         private Options(Map<String, String> values) {
@@ -383,6 +480,8 @@ public final class VerifyReleaseArtifacts {
             expectedApkUrl = values.getOrDefault("expected-apk-url", "");
             expectedCertSha256 = values.getOrDefault("expected-cert-sha256", "");
             repository = values.getOrDefault("repo", "stevesolun/AdAway");
+            String reportPath = values.getOrDefault("report", "").trim();
+            report = reportPath.isEmpty() ? null : Path.of(reportPath);
             verifyAttestations = values.containsKey("verify-attestations");
         }
 
@@ -434,6 +533,7 @@ public final class VerifyReleaseArtifacts {
             System.err.println("  --expected-apk-url URL");
             System.err.println("  --expected-cert-sha256 HEX");
             System.err.println("  --repo OWNER/REPO             Default: stevesolun/AdAway");
+            System.err.println("  --report PATH                 Write a verification report");
             System.err.println("  --verify-attestations         Also run gh attestation verify");
         }
     }

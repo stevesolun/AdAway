@@ -498,9 +498,14 @@ public class SecurityHardeningTest {
                         verifier.contains("--verify-attestations"));
         assertTrue("Release artifact verifier must include checksum sidecars in attestation " +
                         "verification.",
-                verifier.contains("verifyAttestation(options.apkSha256") &&
-                        verifier.contains("verifyAttestation(options.manifestSha256") &&
-                        verifier.contains("verifyAttestation(options.sbomSha256"));
+                verifier.contains("for (Path artifact : Arrays.asList(") &&
+                        verifier.contains("options.apkSha256,") &&
+                        verifier.contains("options.manifestSha256,") &&
+                        verifier.contains("options.sbomSha256"));
+        assertTrue("Release artifact verifier must support a durable verification report.",
+                verifier.contains("--report") &&
+                        verifier.contains("writeReport") &&
+                        verifier.contains("Release Artifact Verification Report"));
         assertTrue("Release workflow must run the canonical release artifact verifier before " +
                         "attestation and upload.",
                 workflow.contains("Verify release artifact bundle") &&
@@ -713,6 +718,7 @@ public class SecurityHardeningTest {
 
             Path fakeGhLog = fixture.resolve("fake-gh.log");
             Path fakeGh = writeFakeGitHubCli(fixture, fakeGhLog);
+            Path report = fixture.resolve("verification-report.md");
             java.util.Map<String, String> environment = new java.util.HashMap<>();
             environment.put("GH_CLI_PATH", fakeGh.toString());
             environment.put("FAKE_GH_LOG", fakeGhLog.toString());
@@ -732,9 +738,27 @@ public class SecurityHardeningTest {
                     "--expected-store", "adaway",
                     "--expected-apk-url", apkUrl,
                     "--expected-cert-sha256", certSha256,
+                    "--report", report.toString(),
                     "--verify-attestations");
             assertEquals("Verifier must accept matching artifacts when attestations pass.",
                     0, attested.exitCode);
+            assertTrue("Verifier must write the requested verification report.",
+                    Files.isRegularFile(report));
+            String reportText = readUtf8(report);
+            assertTrue("Verification report must summarize release artifact proof.",
+                    reportText.contains("# Release Artifact Verification Report") &&
+                            reportText.contains("- Status: passed") &&
+                            reportText.contains("- APK: AdAway_13.5.0.apk") &&
+                            reportText.contains("- Expected version: 13.5.0") &&
+                            reportText.contains("- Expected channel: stable") &&
+                            reportText.contains("- Expected store: adaway") &&
+                            reportText.contains("- Checksum verification: passed") &&
+                            reportText.contains("- Manifest signature: passed") &&
+                            reportText.contains("- Manifest payload: passed") &&
+                            reportText.contains("- Attestations: verified") &&
+                            reportText.contains("- Attested artifacts: 6"));
+            assertFalse("Verification report must not leak the manifest public key.",
+                    reportText.contains(publicKeyBase64));
             String fakeGhCalls = readUtf8(fakeGhLog);
             assertEquals("Verifier must run one attestation check per uploaded release asset.",
                     6, countMatches(fakeGhCalls, "attestation verify"));
@@ -840,7 +864,13 @@ public class SecurityHardeningTest {
                         verifierWorkflow.contains("--verify-attestations") &&
                         verifierWorkflow.contains("--repo \"${GITHUB_REPOSITORY}\"") &&
                         verifierWorkflow.contains("--expected-apk-url \"$APK_URL\"") &&
-                        verifierWorkflow.contains("--expected-cert-sha256 \"$EXPECTED_CERT_SHA256\""));
+                        verifierWorkflow.contains("--expected-cert-sha256 \"$EXPECTED_CERT_SHA256\"") &&
+                        verifierWorkflow.contains("--report \"$OUT_DIR/verification-report.md\""));
+        assertTrue("Manual post-publish verifier must upload a durable verification report.",
+                verifierWorkflow.contains("Upload release artifact verification report") &&
+                        verifierWorkflow.contains("release-artifact-verification-report") &&
+                        verifierWorkflow.contains("release-artifacts/verification-report.md") &&
+                        verifierWorkflow.contains("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));
         assertTrue("Manual post-publish verifier must use the repository token for GitHub " +
                         "release and attestation APIs.",
                 verifierWorkflow.contains("GH_TOKEN: ${{ github.token }}"));
@@ -887,6 +917,9 @@ public class SecurityHardeningTest {
                         releasing.contains("verify-release-artifacts.yml"));
         assertTrue("README must mention the manual post-publish release verifier workflow.",
                 readme.contains("verify-release-artifacts.yml"));
+        assertTrue("Release docs must document the release artifact verification report.",
+                releasing.contains("release-artifact-verification-report") &&
+                        readme.contains("release-artifact-verification-report"));
         assertTrue("Release docs must explain attestation verification covers checksum sidecars.",
                 releasing.contains("each `.sha256` checksum sidecar"));
         assertTrue("Release docs must verify signed manifest semantics after publishing.",
