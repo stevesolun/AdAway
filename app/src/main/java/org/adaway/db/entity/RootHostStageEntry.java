@@ -23,7 +23,7 @@ import org.adaway.util.Hostnames;
                         name = "index_root_host_entries_stage_generation_source"
                 ),
                 @Index(
-                        value = {"reverse_host"},
+                        value = {"reverse_host", "type", "source_id", "generation"},
                         name = "index_root_host_entries_stage_reverse_host"
                 )
         }

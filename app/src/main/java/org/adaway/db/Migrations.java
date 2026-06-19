@@ -65,6 +65,10 @@ final class Migrations {
     private static final String ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_INDEX_SQL =
             "CREATE INDEX IF NOT EXISTS `index_root_host_entries_stage_reverse_host` " +
                     "ON `root_host_entries_stage` (`reverse_host`)";
+    private static final String ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_COVERING_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS `index_root_host_entries_stage_reverse_host` " +
+                    "ON `root_host_entries_stage` " +
+                    "(`reverse_host`, `type`, `source_id`, `generation`)";
     private static final String ROOT_EXPORT_SKIP_STAGE_IDS_SQL =
             "CREATE TABLE IF NOT EXISTS `root_export_skip_stage_ids` " +
                     "(`id` INTEGER NOT NULL, PRIMARY KEY(`id`))";
@@ -625,6 +629,19 @@ final class Migrations {
                     "`root_export_stage_materialized` INTEGER NOT NULL DEFAULT 0");
             database.execSQL("UPDATE `hosts_stats` SET `root_export_stage_materialized` = 0");
             database.execSQL(ROOT_EXPORT_SKIP_STAGE_IDS_SQL);
+        }
+    };
+
+    /**
+     * Migration script from v31 to v32.
+     * Makes the root export stage reverse-host index covering for large redirect conflict and
+     * allow-skip scans.
+     */
+    static final Migration MIGRATION_31_32 = new Migration(31, 32) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("DROP INDEX IF EXISTS `index_root_host_entries_stage_reverse_host`");
+            database.execSQL(ROOT_HOST_ENTRIES_STAGE_REVERSE_HOST_COVERING_INDEX_SQL);
         }
     };
 

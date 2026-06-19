@@ -90,6 +90,22 @@ public class SourceLoaderPerformanceTest {
     private static final int SOURCE_ID = 2;
     private static final int GENERATION = 2;
     private static final int ALLOW_HEAVY_SEED_CHUNK_SIZE = 100_000;
+    private static final String ROOT_STAGE_SOURCE_GENERATION_INDEX_NAME =
+            "index_root_host_entries_stage_source_generation";
+    private static final String ROOT_STAGE_SOURCE_GENERATION_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS `" + ROOT_STAGE_SOURCE_GENERATION_INDEX_NAME +
+                    "` ON `root_host_entries_stage` (`source_id`, `generation`)";
+    private static final String ROOT_STAGE_GENERATION_SOURCE_INDEX_NAME =
+            "index_root_host_entries_stage_generation_source";
+    private static final String ROOT_STAGE_GENERATION_SOURCE_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS `" + ROOT_STAGE_GENERATION_SOURCE_INDEX_NAME +
+                    "` ON `root_host_entries_stage` (`generation`, `source_id`)";
+    private static final String ROOT_STAGE_REVERSE_HOST_INDEX_NAME =
+            "index_root_host_entries_stage_reverse_host";
+    private static final String ROOT_STAGE_REVERSE_HOST_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS `" + ROOT_STAGE_REVERSE_HOST_INDEX_NAME +
+                    "` ON `root_host_entries_stage` " +
+                    "(`reverse_host`, `type`, `source_id`, `generation`)";
 
     private static final int EXACT_HOST_RULES = 5_000;
     private static final int ABP_SUFFIX_RULES = 2_000;
@@ -911,6 +927,9 @@ public class SourceLoaderPerformanceTest {
             writableDb.execSQL("DELETE FROM root_host_entries_stage WHERE source_id = " +
                     SOURCE_ID + " AND generation = " + GENERATION);
             long phaseStartMs = SystemClock.elapsedRealtime();
+            dropAllowHeavyRootStageIndexes(writableDb);
+            printAllowHeavySeedPhase("root-stage-drop-indexes", 0, phaseStartMs);
+            phaseStartMs = SystemClock.elapsedRealtime();
             insertAllowHeavyRootStageRows(writableDb, fixture.exactBlockedRows,
                     exactBlockedHostExpression(fixture),
                     exactBlockedReverseHostExpression(fixture), 0, SOURCE_ID, GENERATION);
@@ -928,8 +947,23 @@ public class SourceLoaderPerformanceTest {
                     GENERATION);
             printAllowHeavySeedPhase("root-stage-redirect",
                     fixture.redirectRows, phaseStartMs);
+            phaseStartMs = SystemClock.elapsedRealtime();
+            createAllowHeavyRootStageIndexes(writableDb);
+            printAllowHeavySeedPhase("root-stage-create-indexes", 0, phaseStartMs);
         });
         printAllowHeavySeedPhase("root-stage-total", fixture.stagedRootRows(), startedMs);
+    }
+
+    private static void dropAllowHeavyRootStageIndexes(SupportSQLiteDatabase db) {
+        db.execSQL("DROP INDEX IF EXISTS `" + ROOT_STAGE_SOURCE_GENERATION_INDEX_NAME + "`");
+        db.execSQL("DROP INDEX IF EXISTS `" + ROOT_STAGE_GENERATION_SOURCE_INDEX_NAME + "`");
+        db.execSQL("DROP INDEX IF EXISTS `" + ROOT_STAGE_REVERSE_HOST_INDEX_NAME + "`");
+    }
+
+    private static void createAllowHeavyRootStageIndexes(SupportSQLiteDatabase db) {
+        db.execSQL(ROOT_STAGE_SOURCE_GENERATION_INDEX_SQL);
+        db.execSQL(ROOT_STAGE_GENERATION_SOURCE_INDEX_SQL);
+        db.execSQL(ROOT_STAGE_REVERSE_HOST_INDEX_SQL);
     }
 
     private static void printAllowHeavySeedPhase(String phase, long rows, long phaseStartMs) {

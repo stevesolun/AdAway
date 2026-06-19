@@ -20,6 +20,7 @@ import static org.adaway.db.Migrations.MIGRATION_27_28;
 import static org.adaway.db.Migrations.MIGRATION_28_29;
 import static org.adaway.db.Migrations.MIGRATION_29_30;
 import static org.adaway.db.Migrations.MIGRATION_30_31;
+import static org.adaway.db.Migrations.MIGRATION_31_32;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -572,6 +573,20 @@ public class MigrationTest {
         assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM sqlite_master " +
                 "WHERE type = 'table' AND name = 'root_export_skip_stage_ids'"));
         assertTrue(hasColumn(db, "root_export_skip_stage_ids", "id"));
+    }
+
+    @Test
+    public void migration31To32_makesRootStageReverseIndexCovering() throws Exception {
+        SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 31);
+        assertEquals("reverse_host",
+                indexColumns(db, "index_root_host_entries_stage_reverse_host"));
+        db.close();
+
+        db = this.helper.runMigrationsAndValidate(TEST_DB, 32, true, MIGRATION_31_32);
+
+        assertTrue(hasIndex(db, "index_root_host_entries_stage_reverse_host"));
+        assertEquals("reverse_host,type,source_id,generation",
+                indexColumns(db, "index_root_host_entries_stage_reverse_host"));
     }
 
     private static int queryInt(SupportSQLiteDatabase db, String sql) {

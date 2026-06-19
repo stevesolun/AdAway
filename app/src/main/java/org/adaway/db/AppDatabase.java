@@ -59,6 +59,7 @@ import static org.adaway.db.Migrations.MIGRATION_27_28;
 import static org.adaway.db.Migrations.MIGRATION_28_29;
 import static org.adaway.db.Migrations.MIGRATION_29_30;
 import static org.adaway.db.Migrations.MIGRATION_30_31;
+import static org.adaway.db.Migrations.MIGRATION_31_32;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 
@@ -78,7 +79,7 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
                 HostsMeta.class,
                 HostsStats.class
         },
-        version = 31
+        version = 32
 )
 @TypeConverters({ListTypeConverter.class, RuleKindConverter.class, ZonedDateTimeConverter.class})
 public abstract class AppDatabase extends RoomDatabase {
@@ -147,7 +148,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_27_28,
                             MIGRATION_28_29,
                             MIGRATION_29_30,
-                            MIGRATION_30_31
+                            MIGRATION_30_31,
+                            MIGRATION_31_32
                     ).build();
                 }
             }

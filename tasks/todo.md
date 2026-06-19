@@ -6426,7 +6426,7 @@
   arguments so staged redirect sync/root-write can be measured directly.
 - [x] Re-run focused redirect/stage DB regressions, unit tests, compile, and a 1M redirect-heavy
   staged benchmark.
-- [ ] Close the 5M redirect-heavy gate after making the benchmark seeder fast enough to reach
+- [x] Close the 5M redirect-heavy gate after making the benchmark seeder fast enough to reach
   sync timing within the command budget.
 
 ## Review - 2026-06-19 Stage-Backed Redirect Export
@@ -6448,18 +6448,29 @@
   `redirectRows=1000000`, `seedRuntimeRows=false`, `seedRootStage=true`,
   `syncMs=16222`, `rootWriteMs=10843`, `rootRows=1000001`, and
   `rootWriteBytes=45889263`.
+- The first 5M redirect-heavy attempt after that still timed out because stage seeding alone hit
+  `HostEntryAllowHeavySeedPhase phase=root-stage-total rows=5000001 ms=989427`. The benchmark
+  harness now bulk-loads the stage table without maintaining stage indexes row-by-row, then
+  recreates the same indexes before sync/root-write timing starts.
+- A second 5M attempt showed the remaining product bottleneck: the reverse-host conflict scan was
+  not covering, so SQLite had to read stage table rows for `type`, `source_id`, and `generation`.
+  v32 replaces `index_root_host_entries_stage_reverse_host` with a covering
+  `(reverse_host, type, source_id, generation)` index.
+- Final 5M redirect-heavy proof passed:
+  `HostEntryDao.root-export-stage redirect-skip conflicts=0 conflictMs=9524 totalMs=9548`;
+  `HostEntryDao.sync ... rootExportMs=9731 totalMs=11322`;
+  `HostEntryAllowHeavyRebuildBenchmark ... redirectRows=5000000 rootRows=5000001
+  syncMs=11408 rootWriteMs=42908 rootWriteBytes=233889263`.
 - Verification passed:
   focused connected tests for
   `SourceDbTest#testLargeRuntimeSkipStillMaterializesRootExportRows`,
   `SourceDbTest#testLargeRuntimeSkipRedirectsUseSourcePriorityBeforeRedirectionValue`,
   `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage`, and
   `SourceDbTest#testCompleteRootExportStageDedupesBlockedDuplicatesWithoutRedirects`;
-  `:app:testDebugUnitTest`; and
-  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac`.
-- The 5M redirect-heavy attempt is not green. It timed out at the 20-minute command limit before
-  the sync gate completed because stage seeding alone reached
-  `HostEntryAllowHeavySeedPhase phase=root-stage-total rows=5000001 ms=989427`. This is now a
-  benchmark-seeder bottleneck to fix before claiming a 5M redirect proof.
-- Remaining full-goal gaps: 5M redirect-heavy proof, live release proof with real signing/update
-  secrets, physical-device release APK smoke, broader manual UX review, MIT legal/provenance
-  clearance, and any release SBOM/provenance gates not yet run in this branch.
+  `MigrationTest#migration31To32_makesRootStageReverseIndexCovering`;
+  `:app:testDebugUnitTest`;
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac`; and the 5M
+  redirect-heavy staged benchmark above.
+- Remaining full-goal gaps: live release proof with real signing/update secrets,
+  physical-device release APK smoke, broader manual UX review, MIT legal/provenance clearance,
+  and any release SBOM/provenance gates not yet run in this branch.
