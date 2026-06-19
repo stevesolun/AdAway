@@ -249,7 +249,8 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         StructPollfd deviceFd = new StructPollfd();
         deviceFd.fd = inputStream.getFD();
         deviceFd.events = (short) POLLIN;
-        if (!this.deviceWrites.isEmpty()) {
+        boolean deviceWaitingToWrite = !this.deviceWrites.isEmpty();
+        if (deviceWaitingToWrite) {
             deviceFd.events |= (short) POLLOUT;
         }
         // Create poll FD on each DNS query socket
@@ -262,10 +263,10 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         try {
             Timber.d("doOne: Polling %d file descriptors.", polls.length);
             int numberOfEvents = Os.poll(polls, this.vpnWatchDog.getPollTimeout());
-            // TODO BUG - There is a bug where the watchdog keeps doing timeout if there is no network activity
-            // TODO BUG - 0 Might be a valid value if no current DNS query and everything was already sent back to device
             if (numberOfEvents == 0) {
-                this.vpnWatchDog.handleTimeout();
+                if (!isIdlePollTimeout(deviceWaitingToWrite, queryFds.length)) {
+                    this.vpnWatchDog.handleTimeout();
+                }
                 return true;
             }
             deviceReadyToWrite = (deviceFd.revents & POLLOUT) != 0;
@@ -285,6 +286,10 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
             return readPacketFromDevice(inputStream, packet) != -1;
         }
         return true;
+    }
+
+    static boolean isIdlePollTimeout(boolean deviceWaitingToWrite, int pendingDnsQueries) {
+        return !deviceWaitingToWrite && pendingDnsQueries == 0;
     }
 
     private void writeToDevice(FileOutputStream fileOutputStream) throws IOException {

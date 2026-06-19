@@ -6696,3 +6696,33 @@
   `:app:compileDebugAndroidTestJavaWithJavac`;
   `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
   existing Windows LF-to-CRLF warnings.
+
+## Plan - 2026-06-19 VPN Idle Watchdog Stability
+- [x] Add a red unit contract for VPN poll-timeout classification.
+- [x] Treat an `Os.poll()` timeout with no pending DNS query and no queued device write as benign
+  idle time instead of feeding the watchdog reconnect path.
+- [x] Preserve watchdog handling when a timeout happens with pending DNS query work or pending
+  device writes.
+- [x] Re-run focused unit, full debug unit, Android-test compile, license-boundary, and diff
+  hygiene gates.
+- [x] Commit the focused VPN idle stability slice.
+
+## Review - 2026-06-19 VPN Idle Watchdog Stability
+- `VpnWorker.doOne(...)` already carried TODOs documenting the bug: a zero-event poll can be a
+  valid idle result when no DNS query is outstanding and everything has already been written back to
+  the device. The old code always called `vpnWatchDog.handleTimeout()`, which could turn an idle VPN
+  into a reconnect loop.
+- Added `VpnWorkerIdleTimeoutTest` to lock the intended split: idle timeouts are ignored, while
+  pending DNS queries and pending device writes still belong to the watchdog path.
+- `VpnWorker` now snapshots whether device writes were pending before polling and calls
+  `vpnWatchDog.handleTimeout()` only when `isIdlePollTimeout(...)` is false.
+- Verification passed:
+  red focused `VpnWorkerIdleTimeoutTest` compile failure before the helper existed;
+  green focused `VpnWorkerIdleTimeoutTest`;
+  full `:app:testDebugUnitTest`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining VPN follow-up: `DnsQueryQueue` only purges timed-out queries when adding a new query,
+  so a deeper VPN runtime slice should audit stale upstream query cleanup and watchdog probe
+  protection with connected or injectable behavior coverage before changing that path.
