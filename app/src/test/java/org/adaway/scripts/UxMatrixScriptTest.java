@@ -225,6 +225,97 @@ public class UxMatrixScriptTest {
         }
     }
 
+    @Test
+    public void uxSignOffVerifierFailsWhenChecklistIsIncomplete() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX sign-off verifier.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-signoff-incomplete");
+        try {
+            Path packet = fixture.resolve("ux-matrix-review.md");
+            Path report = fixture.resolve("ux-signoff-report.md");
+            Files.write(packet, (
+                    "# UX Matrix Review Packet\n\n" +
+                            "Manual sign-off checklist:\n" +
+                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
+                            "- [ ] Touch targets remain reachable and visually stable.\n" +
+                            "## baseline\n" +
+                            "- [x] home - baseline/ux-matrix/home.png\n"
+            ).getBytes(StandardCharsets.UTF_8));
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "& " + quote(repoDir().resolve("scripts/verify-ux-signoff.ps1")) +
+                    " -ReviewPacket " + quote(packet) +
+                    " -Reviewer 'QA Lead'" +
+                    " -ReportPath " + quote(report) + ";");
+
+            assertTrue("Incomplete UX sign-off packet must fail.",
+                    result.exitCode != 0);
+            assertTrue("Incomplete UX sign-off must write a failure report.",
+                    Files.isRegularFile(report));
+            String reportText = readUtf8(report);
+            assertTrue("Failure report must name the unchecked review item.",
+                    reportText.contains("# UX Sign-Off Report") &&
+                            reportText.contains("- Status: failed") &&
+                            reportText.contains("- Reviewer: QA Lead") &&
+                            reportText.contains("- Unchecked items: 1") &&
+                            reportText.contains("Touch targets remain reachable"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void uxSignOffVerifierWritesPassingReportForCompletedChecklist() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX sign-off verifier.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-signoff-pass");
+        try {
+            Path packet = fixture.resolve("ux-matrix-review.md");
+            Path report = fixture.resolve("ux-signoff-report.md");
+            Files.write(packet, (
+                    "# UX Matrix Review Packet\n\n" +
+                            "Manual sign-off checklist:\n" +
+                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
+                            "- [x] Touch targets remain reachable and visually stable.\n" +
+                            "## baseline\n" +
+                            "- [x] home - baseline/ux-matrix/home.png\n"
+            ).getBytes(StandardCharsets.UTF_8));
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "& " + quote(repoDir().resolve("scripts/verify-ux-signoff.ps1")) +
+                    " -ReviewPacket " + quote(packet) +
+                    " -Reviewer 'QA Lead'" +
+                    " -ReportPath " + quote(report) + ";");
+
+            assertEquals("Completed UX sign-off packet must pass.\n" + result.stderr,
+                    0, result.exitCode);
+            String reportText = readUtf8(report);
+            assertTrue("Passing report must summarize reviewer sign-off.",
+                    reportText.contains("# UX Sign-Off Report") &&
+                            reportText.contains("- Status: passed") &&
+                            reportText.contains("- Reviewer: QA Lead") &&
+                            reportText.contains("- Checked items: 3") &&
+                            reportText.contains("- Unchecked items: 0") &&
+                            reportText.contains("- Review packet: ux-matrix-review.md"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void readmeDocumentsUxSignOffVerifier() throws IOException {
+        String readme = readUtf8(repoDir().resolve("README.md"));
+
+        assertTrue("README must document the UX sign-off verifier command.",
+                readme.contains("verify-ux-signoff.ps1") &&
+                        readme.contains("-Reviewer") &&
+                        readme.contains("ux-signoff-report.md"));
+    }
+
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
         Path platformTools = fixture.resolve("android-sdk").resolve("platform-tools");
         Files.createDirectories(platformTools);

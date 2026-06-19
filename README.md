@@ -277,6 +277,16 @@ It pulls screenshots for the key app shells and writes
 review of clipping, overlap, touch targets, RTL anchoring, FAB clearance, and the
 AdAway bird brand signal.
 
+After the reviewer marks every checklist item in `ux-matrix-review.md` as
+complete, verify the sign-off packet and write a durable report:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-ux-signoff.ps1 `
+  -ReviewPacket app\build\reports\ux-matrix\ux-matrix-review.md `
+  -Reviewer "<name>" `
+  -ReportPath app\build\reports\ux-matrix\ux-signoff-report.md
+```
+
 ### Production Signing
 
 Add to `~/.gradle/gradle.properties`:

@@ -6943,3 +6943,32 @@
   relicensing still needs rights/provenance clearance outside this repo patch; physical-device
   release smoke, real tagged release verification with production secrets, and human UX sign-off
   remain external gates.
+
+## Plan - 2026-06-19 UX Sign-Off Verification Report
+- [x] Add failing contracts for a UX sign-off verifier that rejects unchecked review packets and
+  writes a failure report.
+- [x] Add a passing contract for completed review packets with reviewer identity and a durable
+  sign-off report.
+- [x] Implement `scripts/verify-ux-signoff.ps1` without changing the UX matrix runner semantics.
+- [x] Document the UX sign-off verifier in `README.md`.
+- [x] Re-run focused UX script tests and the standard local gates, then commit and push.
+
+## Review - 2026-06-19 UX Sign-Off Verification Report
+- The UX matrix already generated screenshots and `ux-matrix-review.md`, but human sign-off was
+  not machine-auditable. A reviewer could leave unchecked items without a deterministic gate or
+  durable sign-off report.
+- Added `scripts/verify-ux-signoff.ps1`. It requires a reviewer, scans all checklist items in the
+  review packet, fails while any item remains unchecked, writes `ux-signoff-report.md` on pass or
+  failure, and leaves the existing UX matrix runner unchanged.
+- README now documents the post-review verifier command with `-Reviewer` and
+  `ux-signoff-report.md`.
+- Verification passed:
+  focused UX script tests first failed because the verifier script was missing and the README did
+  not document it, then passed after implementation and docs;
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath app/build/reports/license-boundary/local-license-boundary-report.md`;
+  and `git diff --check` with only existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: this makes UX sign-off auditable, but the actual human review still
+  has to be performed against real generated screenshots; physical-device release smoke, real
+  tagged release verification with production secrets, and MIT rights/provenance clearance remain
+  external gates.
