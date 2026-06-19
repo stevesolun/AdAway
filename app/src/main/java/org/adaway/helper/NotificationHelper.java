@@ -87,7 +87,7 @@ public final class NotificationHelper {
                 context.getString(R.string.notification_vpn_channel_name),
                 NotificationManager.IMPORTANCE_LOW
         );
-        updateChannel.setDescription(context.getString(R.string.notification_vpn_channel_description));
+        vpnServiceChannel.setDescription(context.getString(R.string.notification_vpn_channel_description));
         // Register the channels with the system; you can't change the importance or other notification behaviors after this
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
         if (notificationManager != null) {
@@ -158,7 +158,7 @@ public final class NotificationHelper {
                 .setPriority(PRIORITY_LOW)
                 .setAutoCancel(true);
         // Notify the built notification
-        notificationManager.notify(UPDATE_HOSTS_NOTIFICATION_ID, builder.build());
+        notificationManager.notify(UPDATE_APP_NOTIFICATION_ID, builder.build());
     }
 
     /**

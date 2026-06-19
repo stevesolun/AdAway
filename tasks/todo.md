@@ -6671,3 +6671,28 @@
   `:app:compileDebugAndroidTestJavaWithJavac`;
   `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
   existing Windows LF-to-CRLF warnings.
+
+## Plan - 2026-06-19 Notification Routing Cleanup
+- [x] Add a red notification contract for separate hosts/app update notification IDs and correct
+  VPN channel metadata.
+- [x] Fix `NotificationHelper` so app-update notifications use `UPDATE_APP_NOTIFICATION_ID`.
+- [x] Fix `NotificationHelper` so the VPN channel receives the VPN description.
+- [x] Re-run focused notification contract, unit/compile gates, license boundary, and diff hygiene.
+- [x] Commit the focused notification cleanup slice.
+
+## Review - 2026-06-19 Notification Routing Cleanup
+- Notification surface inspection found two concrete usability defects: app-update notifications
+  reused the hosts-update notification ID, so one update notification could overwrite the other;
+  and VPN channel creation assigned the VPN description to the update channel instead of the VPN
+  channel.
+- Added `NotificationHelperContractTest` to guard distinct hosts/app notification IDs and the
+  correct VPN channel description target.
+- `NotificationHelper` now routes hosts updates to `UPDATE_HOSTS_NOTIFICATION_ID`, app updates to
+  `UPDATE_APP_NOTIFICATION_ID`, and assigns `notification_vpn_channel_description` to
+  `vpnServiceChannel`.
+- Verification passed:
+  red/green focused `NotificationHelperContractTest`;
+  full `:app:testDebugUnitTest`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
