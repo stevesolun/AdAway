@@ -40,6 +40,9 @@ import java.util.Set;
 public class SourceDbTest extends DbTest {
     private static final long HOST_ENTRY_SYNC_SCALE_BUDGET_MS = 5_000L;
     private static final long ROOT_EXPORT_CURSOR_SCALE_BUDGET_MS = 2_000L;
+    private static final int LARGE_STAGE_REDIRECT_FILLER_ROWS =
+            (int) HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS + 1;
+    private static final int LARGE_STAGE_SEED_CHUNK_SIZE = 100_000;
 
     @Test
     public void testSourceCount() {
@@ -683,27 +686,38 @@ public class SourceDbTest extends DbTest {
                 EXTERNAL_SOURCE_ID, 2);
         insertRootStageHost(writableDb, "stage-redirect-priority.example", REDIRECTED, "1.1.1.1",
                 3, 2);
+        insertRootStageFillerHosts(writableDb, LARGE_STAGE_REDIRECT_FILLER_ROWS,
+                EXTERNAL_SOURCE_ID, 2);
+        int externalBlockedRows = LARGE_STAGE_REDIRECT_FILLER_ROWS + 4;
+        int externalRedirectedRows = 3;
         this.hostsSourceDao.updateRuleStats(EXTERNAL_SOURCE_ID,
-                (int) HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS + 1,
-                (int) HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS + 1,
-                4, 4, 0, 3);
+                externalBlockedRows + externalRedirectedRows,
+                externalBlockedRows + externalRedirectedRows,
+                externalBlockedRows, externalBlockedRows, 0, externalRedirectedRows);
         this.hostsSourceDao.updateRuleStats(3, 1, 1, 0, 0, 0, 1);
 
         this.db.runInTransaction(() ->
                 this.hostEntryDao.rebuildFromActiveGeneration(writableDb));
 
+        long expectedRootRows = (long) LARGE_STAGE_REDIRECT_FILLER_ROWS + 4;
         assertEquals(0, queryInt("SELECT COUNT(*) FROM host_entries"));
-        assertEquals(4, queryInt("SELECT COUNT(*) FROM root_host_entries"));
+        assertEquals(0, queryInt("SELECT COUNT(*) FROM root_host_entries"));
         assertTrue(this.hostEntryDao.hasMaterializedRootExportRows());
-        Set<String> rootRows = rootRowsFromList();
-        assertTrue(rootRows.contains("stage-root.example|0|0|null"));
-        assertTrue(rootRows.contains("stage-redirect.example|0|2|1.1.1.1"));
-        assertTrue(rootRows.contains("stage-redirect-shadow.example|0|2|2.2.2.2"));
-        assertTrue(rootRows.contains("stage-redirect-priority.example|0|2|9.9.9.9"));
-        assertFalse(rootRows.contains("stage-redirect-priority.example|0|2|1.1.1.1"));
-        assertFalse(rootRows.contains("stage-allowed.example|0|0|null"));
-        assertFalse(rootRows.contains("blocked.stage-allowed-suffix.example|0|0|null"));
-        assertEquals(rootRows, rootRowsFromCursor());
+        assertTrue(this.hostEntryDao.hasStageMaterializedRootExportRows());
+        assertEquals(expectedRootRows, this.hostEntryDao.getMaterializedRootExportEntryCountNow());
+        assertRootCursorContainsAndOmits(expectedRootRows,
+                new HashSet<>(Arrays.asList(
+                        "stage-root.example|0|0|null",
+                        "stage-redirect.example|0|2|1.1.1.1",
+                        "stage-redirect-shadow.example|0|2|2.2.2.2",
+                        "stage-redirect-priority.example|0|2|9.9.9.9"
+                )),
+                new HashSet<>(Arrays.asList(
+                        "stage-redirect-priority.example|0|2|1.1.1.1",
+                        "stage-allowed.example|0|0|null",
+                        "blocked.stage-allowed-suffix.example|0|0|null",
+                        "stage-redirect-shadow.example|0|0|null"
+                )));
     }
 
     @Test
@@ -939,6 +953,63 @@ public class SourceDbTest extends DbTest {
                         sourceId,
                         generation
                 });
+    }
+
+    private void insertRootStageFillerHosts(SupportSQLiteDatabase db, int rowCount,
+            int sourceId, int generation) {
+        createLargeStageSeedDigits(db);
+        for (int offset = 0; offset < rowCount; offset += LARGE_STAGE_SEED_CHUNK_SIZE) {
+            int count = Math.min(LARGE_STAGE_SEED_CHUNK_SIZE, rowCount - offset);
+            String i = "(" + offset + " + numbers.`n`)";
+            db.execSQL("WITH `numbers`(`n`) AS (" +
+                    "SELECT ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` " +
+                    "FROM `large_stage_digits` AS ones " +
+                    "CROSS JOIN `large_stage_digits` AS tens " +
+                    "CROSS JOIN `large_stage_digits` AS hundreds " +
+                    "CROSS JOIN `large_stage_digits` AS thousands " +
+                    "CROSS JOIN `large_stage_digits` AS ten_thousands " +
+                    "WHERE ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` < " + count + ") " +
+                    "INSERT INTO `root_host_entries_stage` " +
+                    "(`host`, `reverse_host`, `type`, `redirection`, `source_id`, " +
+                    "`generation`) SELECT 'stage-filler' || " + i +
+                    " || '.large.example', 'example.large.stage-filler' || " + i +
+                    ", " + BLOCKED.getValue() + ", NULL, " + sourceId + ", " +
+                    generation + " FROM `numbers`");
+        }
+    }
+
+    private static void createLargeStageSeedDigits(SupportSQLiteDatabase db) {
+        db.execSQL("CREATE TEMP TABLE IF NOT EXISTS `large_stage_digits` " +
+                "(`n` INTEGER PRIMARY KEY) WITHOUT ROWID");
+        db.execSQL("DELETE FROM `large_stage_digits`");
+        db.execSQL("INSERT INTO `large_stage_digits` (`n`) VALUES " +
+                "(0), (1), (2), (3), (4), (5), (6), (7), (8), (9)");
+    }
+
+    private void assertRootCursorContainsAndOmits(long expectedCount, Set<String> expectedRows,
+            Set<String> rejectedRows) {
+        Set<String> missingRows = new HashSet<>(expectedRows);
+        Set<String> unexpectedRows = new HashSet<>();
+        long count = 0L;
+        try (Cursor cursor = this.hostEntryDao.getRootHostsFileCursor()) {
+            int host = cursor.getColumnIndexOrThrow("host");
+            int type = cursor.getColumnIndexOrThrow("type");
+            int redirection = cursor.getColumnIndexOrThrow("redirection");
+            while (cursor.moveToNext()) {
+                count++;
+                String row = cursor.getString(host) + "|" + EXACT.getValue() + "|"
+                        + cursor.getInt(type) + "|" + cursor.getString(redirection);
+                missingRows.remove(row);
+                if (rejectedRows.contains(row)) {
+                    unexpectedRows.add(row);
+                }
+            }
+        }
+        assertEquals(expectedCount, count);
+        assertTrue("Missing root rows: " + missingRows, missingRows.isEmpty());
+        assertTrue("Unexpected root rows: " + unexpectedRows, unexpectedRows.isEmpty());
     }
 
     private Set<String> rootRowsFromList() {

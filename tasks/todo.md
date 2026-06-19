@@ -6414,3 +6414,52 @@
 - Remaining full-goal gaps: this proves the 5M root export/update gate for the staged no-redirect
   path. Broader release proof, physical-device smoke, UX/manual review, MIT legal/provenance
   clearance, and any redirect-heavy 5M stress case are still separate phases.
+
+## Plan - 2026-06-19 Stage-Backed Redirect Export
+- [x] Add a red connected test that forces the large complete-stage branch with redirects and
+  proves redirects should not force final-table materialization.
+- [x] Make stage-backed root export handle redirects by persisting skip ids for redirect shadows
+  and non-winning redirect rows.
+- [x] Avoid O(n) scratch-table cleanup for unique redirect-heavy stages by detecting conflict
+  hosts through the existing `reverse_host` index before building winner tables.
+- [x] Extend the allow-heavy benchmark with redirect-row and metadata-only runtime seeding
+  arguments so staged redirect sync/root-write can be measured directly.
+- [x] Re-run focused redirect/stage DB regressions, unit tests, compile, and a 1M redirect-heavy
+  staged benchmark.
+- [ ] Close the 5M redirect-heavy gate after making the benchmark seeder fast enough to reach
+  sync timing within the command budget.
+
+## Review - 2026-06-19 Stage-Backed Redirect Export
+- Initial red test:
+  `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage` failed with
+  `expected:<0> but was:<500005>` because redirects still forced rows into
+  `root_host_entries`.
+- `HostEntryDao` now permits stage-backed export with redirects when the complete stage is over
+  the materialized-cache threshold and there are no wildcard exact allow rules. The stage cursor
+  remains authoritative; `root_host_entries` stays empty for that path.
+- Redirect correctness is handled through `root_export_skip_stage_ids`: blocked rows shadowed by
+  winning redirects are skipped, non-winning redirects are skipped, and winners continue to stream
+  from `root_host_entries_stage`.
+- A first 1M redirect-heavy run exposed a real SQL shape problem:
+  `syncMs=363355`, with `loserMs=152041` and `cleanupMs=155599`. The fix now first builds only
+  `root_export_redirect_stage_conflict_hosts` via the existing `reverse_host` index and only
+  creates candidate/winner scratch tables when conflicts exist.
+- Green 1M redirect-heavy proof:
+  `redirectRows=1000000`, `seedRuntimeRows=false`, `seedRootStage=true`,
+  `syncMs=16222`, `rootWriteMs=10843`, `rootRows=1000001`, and
+  `rootWriteBytes=45889263`.
+- Verification passed:
+  focused connected tests for
+  `SourceDbTest#testLargeRuntimeSkipStillMaterializesRootExportRows`,
+  `SourceDbTest#testLargeRuntimeSkipRedirectsUseSourcePriorityBeforeRedirectionValue`,
+  `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage`, and
+  `SourceDbTest#testCompleteRootExportStageDedupesBlockedDuplicatesWithoutRedirects`;
+  `:app:testDebugUnitTest`; and
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac`.
+- The 5M redirect-heavy attempt is not green. It timed out at the 20-minute command limit before
+  the sync gate completed because stage seeding alone reached
+  `HostEntryAllowHeavySeedPhase phase=root-stage-total rows=5000001 ms=989427`. This is now a
+  benchmark-seeder bottleneck to fix before claiming a 5M redirect proof.
+- Remaining full-goal gaps: 5M redirect-heavy proof, live release proof with real signing/update
+  secrets, physical-device release APK smoke, broader manual UX review, MIT legal/provenance
+  clearance, and any release SBOM/provenance gates not yet run in this branch.

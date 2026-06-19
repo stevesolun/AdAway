@@ -67,12 +67,16 @@ public class SourceLoaderPerformanceTest {
             "adawayAllowRebuildExactRules";
     private static final String ARG_ALLOW_REBUILD_SUFFIX_RULES =
             "adawayAllowRebuildSuffixRules";
+    private static final String ARG_ALLOW_REBUILD_REDIRECT_ROWS =
+            "adawayAllowRebuildRedirectRows";
     private static final String ARG_ALLOW_REBUILD_SYNC_BUDGET_MS =
             "adawayAllowRebuildSyncBudgetMs";
     private static final String ARG_ALLOW_REBUILD_ROOT_WRITE_BUDGET_MS =
             "adawayAllowRebuildRootWriteBudgetMs";
     private static final String ARG_ALLOW_REBUILD_SEED_ROOT_STAGE =
             "adawayAllowRebuildSeedRootStage";
+    private static final String ARG_ALLOW_REBUILD_SEED_RUNTIME_ROWS =
+            "adawayAllowRebuildSeedRuntimeRows";
     private static final String ARG_ALLOW_STATS_BLOCKED_ROWS =
             "adawayAllowStatsBlockedRows";
     private static final String ARG_ALLOW_STATS_EXACT_RULES =
@@ -429,18 +433,27 @@ public class SourceLoaderPerformanceTest {
                 Math.max(1, blockedRows / 100));
         int suffixAllowRules = getPositiveIntArgument(arguments, ARG_ALLOW_REBUILD_SUFFIX_RULES,
                 Math.max(1, blockedRows / 200));
+        int redirectRows = getPositiveIntArgument(arguments, ARG_ALLOW_REBUILD_REDIRECT_ROWS, 0);
         AllowHeavyFixture fixture = AllowHeavyFixture.create(
-                blockedRows, exactAllowRules, suffixAllowRules);
+                blockedRows, exactAllowRules, suffixAllowRules, redirectRows);
         boolean seedRootStage = getBooleanArgument(arguments, ARG_ALLOW_REBUILD_SEED_ROOT_STAGE,
                 false);
+        boolean seedRuntimeRows = getBooleanArgument(arguments,
+                ARG_ALLOW_REBUILD_SEED_RUNTIME_ROWS, true);
+        assumeTrue("Metadata-only runtime seed requires " + ARG_ALLOW_REBUILD_SEED_ROOT_STAGE +
+                "=true", seedRuntimeRows || seedRootStage);
         long seedStartMs = SystemClock.elapsedRealtime();
-        seedAllowHeavyRuntimeRows(fixture);
+        if (seedRuntimeRows) {
+            seedAllowHeavyRuntimeRows(fixture);
+        } else {
+            seedAllowHeavyRuntimeMetadata(fixture);
+        }
         long stageRows = 0L;
         if (seedRootStage) {
             seedAllowHeavyRootExportStageRows(fixture);
             stageRows = scalarLong("SELECT COUNT(*) FROM root_host_entries_stage " +
                     "WHERE source_id = ? AND generation = ?", SOURCE_ID, GENERATION);
-            assertEquals(fixture.blockedRows, stageRows);
+            assertEquals(fixture.stagedRootRows(), stageRows);
         }
         long seedMs = SystemClock.elapsedRealtime() - seedStartMs;
         long checkpointStartMs = SystemClock.elapsedRealtime();
@@ -450,6 +463,8 @@ public class SourceLoaderPerformanceTest {
                 + fixture.blockedRows
                 + " exactAllowRules=" + fixture.exactAllowRules
                 + " suffixAllowRules=" + fixture.suffixAllowRules
+                + " redirectRows=" + fixture.redirectRows
+                + " seedRuntimeRows=" + seedRuntimeRows
                 + " seedRootStage=" + seedRootStage
                 + " stageRows=" + stageRows
                 + " seedMs=" + seedMs
@@ -460,8 +475,8 @@ public class SourceLoaderPerformanceTest {
         rebuildRuntimeEntries();
         long syncMs = SystemClock.elapsedRealtime() - syncStartMs;
 
-        long expectedActiveRows = fixture.blockedRows + fixture.exactAllowRules
-                + fixture.suffixAllowRules;
+        long expectedActiveRows = (long) fixture.blockedRows + fixture.redirectRows
+                + fixture.exactAllowRules + fixture.suffixAllowRules;
         boolean materializedRuntimeCacheExpected =
                 expectedActiveRows <= HostEntryDao.MATERIALIZED_RUNTIME_CACHE_MAX_ROWS;
         long runtimeRows = scalarLong("SELECT COUNT(*) FROM host_entries");
@@ -480,12 +495,14 @@ public class SourceLoaderPerformanceTest {
                 + " suffixBlockedRows=" + fixture.suffixBlockedRows
                 + " exactAllowRules=" + fixture.exactAllowRules
                 + " suffixAllowRules=" + fixture.suffixAllowRules
+                + " redirectRows=" + fixture.redirectRows
                 + " exactAllowMatches=" + fixture.exactAllowMatches
                 + " suffixAllowExactMatches=" + fixture.suffixAllowExactMatches
                 + " suffixAllowSuffixMatches=" + fixture.suffixAllowSuffixMatches
                 + " runtimeRows=" + runtimeRows
                 + " rootRows=" + rootRows
                 + " materializedRuntimeCache=" + materializedRuntimeCacheExpected
+                + " seedRuntimeRows=" + seedRuntimeRows
                 + " seedRootStage=" + seedRootStage
                 + " stageRows=" + stageRows
                 + " syncMs=" + syncMs
@@ -510,7 +527,7 @@ public class SourceLoaderPerformanceTest {
         int suffixAllowRules = getPositiveIntArgument(arguments, ARG_ALLOW_STATS_SUFFIX_RULES,
                 Math.max(1, blockedRows / 200));
         AllowHeavyFixture fixture = AllowHeavyFixture.create(
-                blockedRows, exactAllowRules, suffixAllowRules);
+                blockedRows, exactAllowRules, suffixAllowRules, 0);
         boolean seedRows = getBooleanArgument(arguments, ARG_ALLOW_STATS_SEED_ROWS, true);
         long seedStartMs = SystemClock.elapsedRealtime();
         if (seedRows) {
@@ -531,8 +548,8 @@ public class SourceLoaderPerformanceTest {
         this.hostEntryDao.refreshStatsFromActiveGeneration();
         long statsMs = SystemClock.elapsedRealtime() - statsStartMs;
 
-        long expectedActiveRows = (long) fixture.blockedRows + fixture.exactAllowRules
-                + fixture.suffixAllowRules;
+        long expectedActiveRows = (long) fixture.blockedRows + fixture.redirectRows
+                + fixture.exactAllowRules + fixture.suffixAllowRules;
         assertEquals(fixture.blockedRows, this.hostEntryDao.getBlockedEntryCountNow());
         assertEquals(fixture.exactBlockedRows,
                 this.hostEntryDao.getBlockedExactEntryCountNow());
@@ -847,6 +864,11 @@ public class SourceLoaderPerformanceTest {
                     suffixBlockedReverseHostExpression(fixture), 0, 1, SOURCE_ID, GENERATION);
             printAllowHeavySeedPhase("suffix-blocked", fixture.suffixBlockedRows, phaseStartMs);
             phaseStartMs = SystemClock.elapsedRealtime();
+            insertAllowHeavyRedirectRows(writableDb, fixture.redirectRows,
+                    redirectHostExpression(), redirectReverseHostExpression(), SOURCE_ID,
+                    GENERATION);
+            printAllowHeavySeedPhase("redirect", fixture.redirectRows, phaseStartMs);
+            phaseStartMs = SystemClock.elapsedRealtime();
             insertAllowHeavyRows(writableDb, fixture.exactAllowRules,
                     "'exact-allow' || __i__ || '.allowperf.example.test'",
                     "'test.example.allowperf.exact-allow' || __i__",
@@ -859,17 +881,18 @@ public class SourceLoaderPerformanceTest {
                     1, 1, USER_SOURCE_ID, 0);
             printAllowHeavySeedPhase("suffix-allow", fixture.suffixAllowRules, phaseStartMs);
         });
-        printAllowHeavySeedPhase("total", fixture.blockedRows + fixture.exactAllowRules
+        printAllowHeavySeedPhase("total", fixture.blockedRows + fixture.redirectRows
+                + fixture.exactAllowRules
                 + fixture.suffixAllowRules, startedMs);
         int userRules = fixture.exactAllowRules + fixture.suffixAllowRules;
         this.hostsSourceDao.updateRuleStats(
                 SOURCE_ID,
-                fixture.blockedRows,
-                fixture.blockedRows,
+                fixture.blockedRows + fixture.redirectRows,
+                fixture.blockedRows + fixture.redirectRows,
                 fixture.blockedRows,
                 fixture.exactBlockedRows,
                 0,
-                0);
+                fixture.redirectRows);
         this.hostsSourceDao.updateRuleStats(
                 USER_SOURCE_ID,
                 userRules,
@@ -899,11 +922,17 @@ public class SourceLoaderPerformanceTest {
                     suffixBlockedReverseHostExpression(fixture), 0, SOURCE_ID, GENERATION);
             printAllowHeavySeedPhase("root-stage-suffix-blocked",
                     fixture.suffixBlockedRows, phaseStartMs);
+            phaseStartMs = SystemClock.elapsedRealtime();
+            insertAllowHeavyRootStageRedirectRows(writableDb, fixture.redirectRows,
+                    redirectHostExpression(), redirectReverseHostExpression(), SOURCE_ID,
+                    GENERATION);
+            printAllowHeavySeedPhase("root-stage-redirect",
+                    fixture.redirectRows, phaseStartMs);
         });
-        printAllowHeavySeedPhase("root-stage-total", fixture.blockedRows, startedMs);
+        printAllowHeavySeedPhase("root-stage-total", fixture.stagedRootRows(), startedMs);
     }
 
-    private static void printAllowHeavySeedPhase(String phase, int rows, long phaseStartMs) {
+    private static void printAllowHeavySeedPhase(String phase, long rows, long phaseStartMs) {
         System.out.println("HostEntryAllowHeavySeedPhase phase=" + phase
                 + " rows=" + rows
                 + " ms=" + (SystemClock.elapsedRealtime() - phaseStartMs));
@@ -913,12 +942,12 @@ public class SourceLoaderPerformanceTest {
         int userRules = fixture.exactAllowRules + fixture.suffixAllowRules;
         this.hostsSourceDao.updateRuleStats(
                 SOURCE_ID,
-                fixture.blockedRows,
-                fixture.blockedRows,
+                fixture.blockedRows + fixture.redirectRows,
+                fixture.blockedRows + fixture.redirectRows,
                 fixture.blockedRows,
                 fixture.exactBlockedRows,
                 0,
-                0);
+                fixture.redirectRows);
         this.hostsSourceDao.updateRuleStats(
                 USER_SOURCE_ID,
                 userRules,
@@ -964,6 +993,31 @@ public class SourceLoaderPerformanceTest {
         }
     }
 
+    private static void insertAllowHeavyRedirectRows(SupportSQLiteDatabase db, int rowCount,
+            String hostExpression, String reverseHostExpression, int sourceId, int generation) {
+        for (int offset = 0; offset < rowCount; offset += ALLOW_HEAVY_SEED_CHUNK_SIZE) {
+            int count = Math.min(ALLOW_HEAVY_SEED_CHUNK_SIZE, rowCount - offset);
+            String i = "(" + offset + " + numbers.`n`)";
+            String host = hostExpression.replace("__i__", i);
+            String reverseHost = reverseHostExpression.replace("__i__", i);
+            db.execSQL("WITH `numbers`(`n`) AS (" +
+                    "SELECT ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` " +
+                    "FROM `allow_perf_digits` AS ones " +
+                    "CROSS JOIN `allow_perf_digits` AS tens " +
+                    "CROSS JOIN `allow_perf_digits` AS hundreds " +
+                    "CROSS JOIN `allow_perf_digits` AS thousands " +
+                    "CROSS JOIN `allow_perf_digits` AS ten_thousands " +
+                    "WHERE ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` < " + count + ") " +
+                    "INSERT INTO `hosts_lists` " +
+                    "(`host`, `reverse_host`, `type`, `kind`, `enabled`, `redirection`, " +
+                    "`source_id`, `generation`) SELECT " + host + ", " + reverseHost +
+                    ", 2, 0, 1, '8.8.8.8', " + sourceId + ", " + generation +
+                    " FROM `numbers`");
+        }
+    }
+
     private static void insertAllowHeavyRootStageRows(SupportSQLiteDatabase db, int rowCount,
             String hostExpression, String reverseHostExpression, int type, int sourceId,
             int generation) {
@@ -988,6 +1042,40 @@ public class SourceLoaderPerformanceTest {
                     "SELECT " + host + ", " + reverseHost + ", " + type + ", NULL, " +
                     sourceId + ", " + generation + " FROM `numbers`");
         }
+    }
+
+    private static void insertAllowHeavyRootStageRedirectRows(SupportSQLiteDatabase db,
+            int rowCount, String hostExpression, String reverseHostExpression, int sourceId,
+            int generation) {
+        for (int offset = 0; offset < rowCount; offset += ALLOW_HEAVY_SEED_CHUNK_SIZE) {
+            int count = Math.min(ALLOW_HEAVY_SEED_CHUNK_SIZE, rowCount - offset);
+            String i = "(" + offset + " + numbers.`n`)";
+            String host = hostExpression.replace("__i__", i);
+            String reverseHost = reverseHostExpression.replace("__i__", i);
+            db.execSQL("WITH `numbers`(`n`) AS (" +
+                    "SELECT ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` " +
+                    "FROM `allow_perf_digits` AS ones " +
+                    "CROSS JOIN `allow_perf_digits` AS tens " +
+                    "CROSS JOIN `allow_perf_digits` AS hundreds " +
+                    "CROSS JOIN `allow_perf_digits` AS thousands " +
+                    "CROSS JOIN `allow_perf_digits` AS ten_thousands " +
+                    "WHERE ones.`n` + 10 * tens.`n` + 100 * hundreds.`n` + " +
+                    "1000 * thousands.`n` + 10000 * ten_thousands.`n` < " + count + ") " +
+                    "INSERT INTO `root_host_entries_stage` " +
+                    "(`host`, `reverse_host`, `type`, `redirection`, `source_id`, " +
+                    "`generation`) SELECT " + host + ", " + reverseHost +
+                    ", 2, '8.8.8.8', " + sourceId + ", " + generation +
+                    " FROM `numbers`");
+        }
+    }
+
+    private static String redirectHostExpression() {
+        return "'redirect' || __i__ || '.allowperf.example.test'";
+    }
+
+    private static String redirectReverseHostExpression() {
+        return "'test.example.allowperf.redirect' || __i__";
     }
 
     private static String exactBlockedHostExpression(AllowHeavyFixture fixture) {
@@ -1263,25 +1351,28 @@ public class SourceLoaderPerformanceTest {
         final int suffixBlockedRows;
         final int exactAllowRules;
         final int suffixAllowRules;
+        final int redirectRows;
         final int exactAllowMatches;
         final int suffixAllowExactMatches;
         final int suffixAllowSuffixMatches;
 
         private AllowHeavyFixture(int blockedRows, int exactBlockedRows, int suffixBlockedRows,
-                int exactAllowRules, int suffixAllowRules, int exactAllowMatches,
-                int suffixAllowExactMatches, int suffixAllowSuffixMatches) {
+                int exactAllowRules, int suffixAllowRules, int redirectRows,
+                int exactAllowMatches, int suffixAllowExactMatches,
+                int suffixAllowSuffixMatches) {
             this.blockedRows = blockedRows;
             this.exactBlockedRows = exactBlockedRows;
             this.suffixBlockedRows = suffixBlockedRows;
             this.exactAllowRules = exactAllowRules;
             this.suffixAllowRules = suffixAllowRules;
+            this.redirectRows = redirectRows;
             this.exactAllowMatches = exactAllowMatches;
             this.suffixAllowExactMatches = suffixAllowExactMatches;
             this.suffixAllowSuffixMatches = suffixAllowSuffixMatches;
         }
 
         static AllowHeavyFixture create(int blockedRows, int exactAllowRules,
-                int suffixAllowRules) {
+                int suffixAllowRules, int redirectRows) {
             int exactBlockedRows = blockedRows / 2;
             int suffixBlockedRows = blockedRows - exactBlockedRows;
             int exactAllowMatches = Math.min(exactAllowRules, exactBlockedRows);
@@ -1289,17 +1380,21 @@ public class SourceLoaderPerformanceTest {
             int suffixAllowExactMatches = Math.min(suffixAllowRules, exactRowsLeft);
             int suffixAllowSuffixMatches = Math.min(suffixAllowRules, suffixBlockedRows);
             return new AllowHeavyFixture(blockedRows, exactBlockedRows, suffixBlockedRows,
-                    exactAllowRules, suffixAllowRules, exactAllowMatches,
+                    exactAllowRules, suffixAllowRules, redirectRows, exactAllowMatches,
                     suffixAllowExactMatches, suffixAllowSuffixMatches);
         }
 
         long expectedRuntimeRows() {
-            return (long) blockedRows - exactAllowMatches - suffixAllowExactMatches
-                    - suffixAllowSuffixMatches;
+            return (long) blockedRows + redirectRows - exactAllowMatches
+                    - suffixAllowExactMatches - suffixAllowSuffixMatches;
         }
 
-        int expectedRootRows() {
-            return (int) expectedRuntimeRows();
+        long expectedRootRows() {
+            return expectedRuntimeRows();
+        }
+
+        long stagedRootRows() {
+            return (long) blockedRows + redirectRows;
         }
 
         String exactBlockedHost(int index) {

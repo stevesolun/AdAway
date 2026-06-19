@@ -67,6 +67,14 @@ public interface HostEntryDao {
     int SUFFIX_ALLOW_DELETE_BATCH_SIZE = 50_000;
     String TEMP_SUFFIX_ALLOW_DELETE_HOSTS = "suffix_allow_delete_hosts";
     String TEMP_ROOT_EXPORT_SKIP_STAGE_IDS = "root_export_skip_stage_ids";
+    String TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES =
+            "root_export_redirect_stage_candidates";
+    String TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS =
+            "root_export_redirect_stage_conflict_hosts";
+    String TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS =
+            "root_export_redirect_stage_winner_ids";
+    String TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_HOST_INDEX =
+            "index_root_export_redirect_stage_winner_host";
     String ROOT_STAGE_ACTIVE_SOURCE_WHERE = "(`entry`.`source_id` = 1 OR " +
             "(`entry`.`generation` = :activeGeneration AND `entry`.`source_id` != 1 " +
             "AND EXISTS (SELECT 1 FROM `hosts_sources` AS `source` " +
@@ -575,11 +583,14 @@ public interface HostEntryDao {
         clearRootExport();
         long clearMs = SystemClock.elapsedRealtime();
         boolean useStageBackedRootExport = shouldUseStageBackedRootExport(
-                stagedCandidateRows, hasWildcardExactAllowRules, hasRedirectRules);
+                stagedCandidateRows, hasWildcardExactAllowRules);
         if (hasAllowRules) {
             prepareRootExportSkippedStageRows(db, activeGeneration);
         } else if (useStageBackedRootExport) {
             createRootExportSkippedStageRowsTable(db);
+        }
+        if (useStageBackedRootExport && hasRedirectRules) {
+            prepareRootExportRedirectSkippedStageRows(db, activeGeneration);
         }
         if (useStageBackedRootExport) {
             long stageBackedMs = SystemClock.elapsedRealtime();
@@ -641,10 +652,9 @@ public interface HostEntryDao {
     }
 
     private boolean shouldUseStageBackedRootExport(long stagedCandidateRows,
-            boolean hasWildcardExactAllowRules, boolean hasRedirectRules) {
+            boolean hasWildcardExactAllowRules) {
         return stagedCandidateRows > MATERIALIZED_RUNTIME_CACHE_MAX_ROWS
-                && !hasWildcardExactAllowRules
-                && !hasRedirectRules;
+                && !hasWildcardExactAllowRules;
     }
 
     /**
@@ -1095,10 +1105,137 @@ public interface HostEntryDao {
     }
 
     private String activeStageSourceWhere(int activeGeneration) {
-        return "(entry.`source_id` = 1 OR (entry.`generation` = " + activeGeneration +
-                " AND entry.`source_id` != 1 AND EXISTS (" +
-                "SELECT 1 FROM `hosts_sources` AS source WHERE source.`id` = entry.`source_id` " +
-                "AND source.`enabled` = 1)))";
+        return activeStageSourceWhere("entry", activeGeneration);
+    }
+
+    private String activeStageSourceWhere(String alias, int activeGeneration) {
+        return "(" + alias + ".`source_id` = 1 OR (" + alias + ".`generation` = " +
+                activeGeneration + " AND " + alias + ".`source_id` != 1 AND EXISTS (" +
+                "SELECT 1 FROM `hosts_sources` AS source WHERE source.`id` = " + alias +
+                ".`source_id` AND source.`enabled` = 1)))";
+    }
+
+    private void prepareRootExportRedirectSkippedStageRows(
+            SupportSQLiteDatabase db, int activeGeneration) {
+        long startedMs = SystemClock.elapsedRealtime();
+        long existingSkippedRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "` (" +
+                "`reverse_host` TEXT NOT NULL, PRIMARY KEY(`reverse_host`)) WITHOUT ROWID");
+        db.execSQL("DELETE FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "`");
+        db.execSQL("INSERT INTO `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "` " +
+                "(`reverse_host`) SELECT entry.`reverse_host` FROM `" +
+                ROOT_EXPORT_STAGE_TABLE + "` AS entry INDEXED BY `" +
+                ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "WHERE entry.`type` IN (0, 2) AND " +
+                activeStageSourceWhere(activeGeneration) + " GROUP BY entry.`reverse_host` " +
+                "HAVING COUNT(*) > 1 AND SUM(CASE WHEN entry.`type` = 2 " +
+                "THEN 1 ELSE 0 END) > 0");
+        long conflictMs = SystemClock.elapsedRealtime();
+        long conflictHostRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS +
+                        "`");
+        if (conflictHostRows == 0) {
+            db.execSQL("DROP TABLE `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "`");
+            long finishedMs = SystemClock.elapsedRealtime();
+            Timber.i("HostEntryDao.root-export-stage redirect-skip conflicts=0 " +
+                            "conflictMs=%d cleanupMs=%d totalMs=%d",
+                    conflictMs - startedMs,
+                    finishedMs - conflictMs,
+                    finishedMs - startedMs);
+            return;
+        }
+        db.execSQL("CREATE TABLE IF NOT EXISTS `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "` (" +
+                "`host` TEXT NOT NULL, `id` INTEGER NOT NULL, " +
+                "`source_priority` INTEGER NOT NULL, `source_id` INTEGER NOT NULL, " +
+                "`redirection` TEXT NOT NULL, PRIMARY KEY(`host`, `source_priority`, " +
+                "`source_id`, `redirection`, `id`)) WITHOUT ROWID");
+        db.execSQL("DELETE FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "`");
+        db.execSQL("INSERT INTO `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "` " +
+                "(`host`, `id`, `source_priority`, `source_id`, `redirection`) " +
+                "SELECT entry.`host`, entry.`id`, " +
+                "CASE WHEN entry.`source_id` = 1 THEN 0 ELSE 1 END, " +
+                "entry.`source_id`, COALESCE(entry.`redirection`, '') " +
+                "FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS +
+                "` AS conflict JOIN `" + ROOT_EXPORT_STAGE_TABLE +
+                "` AS entry INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "ON entry.`reverse_host` = conflict.`reverse_host` " +
+                "WHERE entry.`type` = 2 AND " + activeStageSourceWhere(activeGeneration));
+        long candidateMs = SystemClock.elapsedRealtime();
+        long redirectCandidateRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "`");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "` (" +
+                "`id` INTEGER NOT NULL, `host` TEXT NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("DELETE FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "`");
+        db.execSQL("INSERT INTO `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "` " +
+                "(`id`, `host`) SELECT candidate.`id`, candidate.`host` " +
+                "FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES +
+                "` AS candidate WHERE NOT EXISTS (" +
+                "SELECT 1 FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES +
+                "` AS better WHERE better.`host` = candidate.`host` AND (" +
+                "better.`source_priority` < candidate.`source_priority` OR " +
+                "(better.`source_priority` = candidate.`source_priority` " +
+                "AND better.`source_id` < candidate.`source_id`) OR " +
+                "(better.`source_priority` = candidate.`source_priority` " +
+                "AND better.`source_id` = candidate.`source_id` " +
+                "AND better.`redirection` < candidate.`redirection`) OR " +
+                "(better.`source_priority` = candidate.`source_priority` " +
+                "AND better.`source_id` = candidate.`source_id` " +
+                "AND better.`redirection` = candidate.`redirection` " +
+                "AND better.`id` < candidate.`id`)))");
+        db.execSQL("CREATE INDEX IF NOT EXISTS `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_HOST_INDEX + "` ON `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "` (`host`)");
+        long winnerMs = SystemClock.elapsedRealtime();
+        long redirectWinnerRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "`");
+        if (redirectCandidateRows != redirectWinnerRows) {
+            db.execSQL("INSERT OR IGNORE INTO `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` " +
+                    "SELECT candidate.`id` FROM `" +
+                    TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "` AS candidate " +
+                    "WHERE NOT EXISTS (SELECT 1 FROM `" +
+                    TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "` AS winner " +
+                    "WHERE winner.`id` = candidate.`id`)");
+        }
+        long loserMs = SystemClock.elapsedRealtime();
+        db.execSQL("INSERT OR IGNORE INTO `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` " +
+                "SELECT entry.`id` FROM `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "` AS conflict " +
+                "JOIN `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry INDEXED BY `" +
+                ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "ON entry.`reverse_host` = conflict.`reverse_host` " +
+                "WHERE entry.`type` = 0 AND " + activeStageSourceWhere(activeGeneration) +
+                " AND EXISTS (" +
+                "SELECT 1 FROM `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS +
+                "` AS winner WHERE winner.`host` = entry.`host`)");
+        long shadowMs = SystemClock.elapsedRealtime();
+        long totalSkippedRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+        db.execSQL("DROP INDEX IF EXISTS `" +
+                TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_HOST_INDEX + "`");
+        db.execSQL("DROP TABLE `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_WINNER_IDS + "`");
+        db.execSQL("DROP TABLE `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CANDIDATES + "`");
+        db.execSQL("DROP TABLE `" + TEMP_ROOT_EXPORT_REDIRECT_STAGE_CONFLICT_HOSTS + "`");
+        long finishedMs = SystemClock.elapsedRealtime();
+        Timber.i("HostEntryDao.root-export-stage redirect-skip conflicts=%d " +
+                        "candidates=%d winners=%d addedSkippedRows=%d " +
+                        "totalSkippedRows=%d conflictMs=%d candidateMs=%d winnerMs=%d " +
+                        "loserMs=%d shadowMs=%d cleanupMs=%d totalMs=%d",
+                conflictHostRows,
+                redirectCandidateRows,
+                redirectWinnerRows,
+                totalSkippedRows - existingSkippedRows,
+                totalSkippedRows,
+                conflictMs - startedMs,
+                candidateMs - conflictMs,
+                winnerMs - candidateMs,
+                loserMs - winnerMs,
+                shadowMs - loserMs,
+                finishedMs - shadowMs,
+                finishedMs - startedMs);
     }
 
     private void clearRootExportSkippedStageRows(SupportSQLiteDatabase db) {
