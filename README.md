@@ -298,7 +298,10 @@ GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
 Before announcing a release, run the `RELEASING.md` artifact verifier and
 release smoke. Full smoke requires an attached physical device. After the
 release is created, run the manual `verify-release-artifacts.yml` workflow as
-the CI-backed post-publish artifact and attestation check.
+the CI-backed post-publish artifact and attestation check. For install/launch
+coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
+`android-device`; it downloads the tagged APK and runs the full release smoke
+against a physical device.
 
 **Repository Secrets** (for production-signed APKs):
 

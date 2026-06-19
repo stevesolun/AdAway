@@ -176,6 +176,14 @@ signer identity without requiring a connected device. The full
 installs the release APK on an attached physical device, launches `org.adaway`,
 and fails if the process is not running after launch.
 
+The same full device smoke can be run from the manual **Physical release smoke**
+workflow (`.github/workflows/physical-release-smoke.yml`). Use a self-hosted
+runner labeled `android-device` with PowerShell, GitHub CLI, `adb`, Android
+build-tools, and one attached physical device, or provide the optional
+`device_serial` input when several physical devices are attached. The workflow downloads
+`AdAway_<version>.apk` from the provided release tag and runs
+`run-release-smoke.ps1` without `-VerifyOnly`.
+
 On Unix-like shells with PowerShell available, the boundary checker wrapper can
 also be run directly:
 

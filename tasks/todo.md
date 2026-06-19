@@ -6616,3 +6616,31 @@
   release run remain external; MIT legal/provenance clearance remains blocked on rights and
   GPL-derived material; broader manual UX review is improved by the matrix proof but not a formal
   design sign-off.
+
+## Plan - 2026-06-19 Physical Release Smoke Workflow
+- [x] Add a red security test requiring a manual physical-device release smoke workflow.
+- [x] Add `.github/workflows/physical-release-smoke.yml` to download a tagged release APK and run
+  the full `scripts/run-release-smoke.ps1` path on a self-hosted physical Android device runner.
+- [x] Document the workflow and runner requirements in README/RELEASING.
+- [x] Re-run focused security tests, full release/security tests, compile, license boundary, and
+  diff hygiene.
+- [x] Commit the focused physical release smoke workflow slice.
+
+## Review - 2026-06-19 Physical Release Smoke Workflow
+- The release smoke script already rejected debuggable APKs and emulators, installed the release
+  APK, launched `org.adaway`, and verified that the process stayed alive, but that proof path was
+  only documented as a local/manual command.
+- Added a manual physical-device workflow entry point that requires a self-hosted runner labeled
+  `android-device`, downloads `AdAway_<version>.apk` from the requested release tag, and invokes
+  the full smoke script without `-VerifyOnly`. The workflow also checks for `gh` and `pwsh`
+  before download/smoke execution so self-hosted runner setup failures surface immediately.
+- Remaining full-goal gaps will still include actually running this workflow against a published
+  release on a real physical device with production signing material; this patch makes that gate
+  executable and reviewable, not already green in the external environment.
+- Verification passed:
+  red/green focused test
+  `SecurityHardeningTest#atk34_releaseSmokeRequiresReleaseApkOnRealDevice`;
+  full `SecurityHardeningTest`;
+  `:app:compileDebugJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings. `actionlint` is not installed in this environment.

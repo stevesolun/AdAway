@@ -945,8 +945,10 @@ public class SecurityHardeningTest {
     @Test
     public void atk34_releaseSmokeRequiresReleaseApkOnRealDevice() throws IOException {
         Path repo = repoDir();
+        Path smokeWorkflowPath = repo.resolve(".github/workflows/physical-release-smoke.yml");
         String smokeScript = readUtf8(repo.resolve("scripts/run-release-smoke.ps1"));
         String releasing = readUtf8(repo.resolve("RELEASING.md"));
+        String readme = readUtf8(repo.resolve("README.md"));
 
         assertTrue("Release smoke must require an explicit APK path.",
                 smokeScript.contains("[Parameter(Mandatory = $true)]") &&
@@ -986,6 +988,42 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must document identity-only release APK verification.",
                 releasing.contains("-VerifyOnly") &&
                         releasing.contains("without requiring a connected device"));
+        assertTrue("Manual physical-device release smoke workflow must exist.",
+                Files.exists(smokeWorkflowPath));
+        String smokeWorkflow = readUtf8(smokeWorkflowPath);
+        assertTrue("Physical release smoke workflow must be manually dispatched.",
+                smokeWorkflow.contains("workflow_dispatch:"));
+        assertTrue("Physical release smoke workflow must require release tag input.",
+                smokeWorkflow.contains("tag:") &&
+                        smokeWorkflow.contains("Release tag to smoke"));
+        assertTrue("Physical release smoke workflow must require expected signer input.",
+                smokeWorkflow.contains("expected_cert_sha256:") &&
+                        smokeWorkflow.contains("Expected release APK signing certificate"));
+        assertTrue("Physical release smoke workflow must accept an optional device serial.",
+                smokeWorkflow.contains("device_serial:") &&
+                        smokeWorkflow.contains("-DeviceSerial") &&
+                        smokeWorkflow.contains("$env:DEVICE_SERIAL"));
+        assertTrue("Physical release smoke workflow must be limited to a self-hosted " +
+                        "physical Android device runner.",
+                smokeWorkflow.contains("runs-on: [self-hosted, android-device]"));
+        assertTrue("Physical release smoke workflow must use read-only release access.",
+                smokeWorkflow.contains("permissions:") &&
+                        smokeWorkflow.contains("contents: read") &&
+                        smokeWorkflow.contains("GH_TOKEN: ${{ github.token }}"));
+        assertTrue("Physical release smoke workflow must download the tag-matching APK.",
+                smokeWorkflow.contains("gh release download \"$TAG\"") &&
+                        smokeWorkflow.contains("AdAway_${VERSION}.apk"));
+        assertTrue("Physical release smoke workflow must run the full smoke script.",
+                smokeWorkflow.contains("./scripts/run-release-smoke.ps1") &&
+                        smokeWorkflow.contains("-ExpectedCertSha256"));
+        assertFalse("Physical release smoke workflow must not skip device I/O.",
+                smokeWorkflow.contains("-VerifyOnly"));
+        assertTrue("Release docs must document the physical release smoke workflow.",
+                releasing.contains("physical-release-smoke.yml") &&
+                        releasing.contains("self-hosted") &&
+                        releasing.contains("android-device"));
+        assertTrue("README must mention the physical release smoke workflow.",
+                readme.contains("physical-release-smoke.yml"));
     }
 
     @Test

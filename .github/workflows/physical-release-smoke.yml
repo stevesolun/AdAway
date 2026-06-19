@@ -1,0 +1,76 @@
+name: Physical release smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to smoke, for example v13.5.0"
+        required: true
+      expected_cert_sha256:
+        description: "Expected release APK signing certificate SHA-256 digest"
+        required: true
+      device_serial:
+        description: "Optional adb device serial when several physical devices are attached"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, android-device]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
+
+      - name: Check runner tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gh
+          command -v pwsh
+
+      - name: Download release APK
+        id: apk
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$TAG" =~ ^v[^/[:space:]]+$ ]]; then
+            echo "::error::tag must be a release tag such as v13.5.0."
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          APK_NAME="AdAway_${VERSION}.apk"
+          OUT_DIR="release-smoke"
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+
+          gh release download "$TAG" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "$APK_NAME" \
+            --dir "$OUT_DIR" \
+            --clobber
+
+          echo "apk_path=$OUT_DIR/$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Run physical-device release smoke
+        shell: pwsh
+        env:
+          EXPECTED_CERT_SHA256: ${{ inputs.expected_cert_sha256 }}
+          DEVICE_SERIAL: ${{ inputs.device_serial }}
+        run: |
+          $smokeArgs = @(
+            "-ApkPath", "${{ steps.apk.outputs.apk_path }}",
+            "-ExpectedCertSha256", "$env:EXPECTED_CERT_SHA256"
+          )
+          if (-not [string]::IsNullOrWhiteSpace($env:DEVICE_SERIAL)) {
+            $smokeArgs += @("-DeviceSerial", "$env:DEVICE_SERIAL")
+          }
+
+          ./scripts/run-release-smoke.ps1 @smokeArgs
