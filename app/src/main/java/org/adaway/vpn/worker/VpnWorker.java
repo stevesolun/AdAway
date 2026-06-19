@@ -114,7 +114,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         this.dnsPacketProxy = new DnsPacketProxy(this, this.dnsServerMapper);
         this.connectionThrottler = new VpnConnectionThrottler();
         this.connectionMonitor = new VpnConnectionMonitor(this.vpnService);
-        this.vpnWatchDog = new VpnWatchdog();
+        this.vpnWatchDog = new VpnWatchdog(this.vpnService::protect);
         this.executor = new AtomicReference<>(null);
         this.vpnNetworkInterface = new AtomicReference<>(null);
         this.started = new AtomicBoolean(false);

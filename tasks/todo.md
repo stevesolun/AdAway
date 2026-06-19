@@ -6758,3 +6758,33 @@
 - Remaining VPN follow-up: watchdog probe sockets still use a raw `DatagramSocket` in
   `VpnWatchdog`; a future connected/injectable test should confirm those probes are protected from
   VPN capture before changing that path.
+
+## Plan - 2026-06-19 VPN Watchdog Probe Protection
+- [x] Add a red watchdog contract requiring check-alive probe sockets to be protected before send.
+- [x] Add a red watchdog contract that fails closed when socket protection fails.
+- [x] Inject a small package-visible `SocketProtector` into `VpnWatchdog`.
+- [x] Wire production `VpnWorker` to pass `VpnService.protect(...)` into the watchdog.
+- [x] Re-run focused watchdog/VPN/DNS tests, full debug unit tests, Android-test compile,
+  license-boundary, and diff hygiene.
+- [x] Commit the focused watchdog probe protection slice.
+
+## Review - 2026-06-19 VPN Watchdog Probe Protection
+- Existing DNS forwarding sockets were protected with `vpnService.protect(...)`, but
+  `VpnWatchdog.sendPacket()` opened a raw `DatagramSocket` for check-alive probes. On Android VPN
+  this risks routing watchdog probes back through the VPN tunnel instead of the underlying network.
+- Added `SocketProtector` and injected it into `VpnWatchdog`; the default constructor keeps the
+  previous no-op behavior for package-local tests, while `VpnWorker` now passes
+  `this.vpnService::protect`.
+- `VpnWatchdog.sendPacket()` now protects the probe socket before `send(...)` and throws
+  `VpnNetworkException` without sending if protection fails.
+- Verification passed:
+  red focused `VpnWatchdogTest` compile failure before `SocketProtector` existed;
+  green focused `VpnWatchdogTest`;
+  green focused `VpnWatchdogTest`, `VpnWorkerIdleTimeoutTest`, and `DnsQueryQueueTest`;
+  full `:app:testDebugUnitTest`;
+  `:app:compileDebugAndroidTestJavaWithJavac`;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree`; and `git diff --check` with only
+  existing Windows LF-to-CRLF warnings.
+- Remaining full-goal gaps: physical-device release smoke, real tagged release verification with
+  production secrets, broader manual UX sign-off, and MIT legal/provenance clearance remain
+  external to this local patch.

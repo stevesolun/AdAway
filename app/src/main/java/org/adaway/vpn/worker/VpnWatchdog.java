@@ -58,13 +58,19 @@ class VpnWatchdog {
 
     private boolean enabled;
     private DatagramPacket checkAlivePacket;
+    private final SocketProtector socketProtector;
 
     VpnWatchdog() {
+        this(socket -> true);
+    }
+
+    VpnWatchdog(SocketProtector socketProtector) {
         // Set default timestamps
         this.lastPacketSent = 0;
         this.lastPacketReceived = 0;
         // Set disable by default
         this.enabled = false;
+        this.socketProtector = socketProtector;
     }
 
 
@@ -168,6 +174,9 @@ class VpnWatchdog {
         Timber.d("sendPacket: Sending packet, poll timeout is %d.", this.pollTimeout);
 
         try (DatagramSocket socket = newDatagramSocket()) {
+            if (!this.socketProtector.protect(socket)) {
+                throw new VpnNetworkException("Failed to protect check-alive socket.");
+            }
             socket.send(this.checkAlivePacket);
             this.lastPacketSent = System.currentTimeMillis();
         } catch (IOException e) {
