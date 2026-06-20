@@ -219,7 +219,8 @@ a reviewer, review packet, `Review packet SHA-256`, checked item count,
 The same sign-off check can be run from the manual **Verify UX sign-off**
 workflow (`.github/workflows/verify-ux-signoff.yml`). Provide
 `review_packet_base64`, the base64-encoded checked `ux-matrix-review.md`, plus
-the reviewer identity. Successful runs upload the `ux-signoff-report` artifact.
+the reviewer identity. Successful runs upload the `ux-signoff-report` artifact
+with both `ux-signoff-report.md` and the checked `ux-matrix-review.md`.
 The generated readiness report repeats release tag, APK, APK SHA-256, SBOM, and
 UX review packet hash, then records SHA-256 hashes for the release artifact,
 physical smoke, UX sign-off, and license-boundary proof reports it consumed.
@@ -230,7 +231,8 @@ The final aggregation can also be run in GitHub Actions from the manual
 uploaded `release-artifact-verification-report`,
 `physical-release-smoke-report`, and `release-license-boundary-reports`, plus
 `ux_signoff_run_id`, the run that uploaded `ux-signoff-report`. The workflow
-downloads the proof artifacts, runs `verify-release-readiness.ps1`, and uploads
+downloads the proof artifacts, verifies that the checked review packet hash
+matches the UX sign-off report, runs `verify-release-readiness.ps1`, and uploads
 the final `release-readiness-report` artifact.
 
 After the GitHub release is published, download the six uploaded assets to a

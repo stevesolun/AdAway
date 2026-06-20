@@ -301,6 +301,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
   -ReleaseArtifactReport release-artifacts\verification-report.md `
   -PhysicalSmokeReport release-smoke\release-smoke-report.md `
   -UxSignOffReport app\build\reports\ux-matrix\ux-signoff-report.md `
+  -UxReviewPacket app\build\reports\ux-matrix\ux-matrix-review.md `
   -LicenseBoundaryReport app\build\reports\license-boundary\license-boundary-report.md `
   -ReportPath release-readiness-report.md
 ```
@@ -323,6 +324,8 @@ license-boundary report.
 The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
 reviewer, review packet, `Review packet SHA-256`, checked item count,
 `Unchecked items: 0`, and `Issues: 0`; do not use hand-written pass markers.
+When `-UxReviewPacket` is provided, final readiness also hashes the checked
+review packet and requires the same review packet hash as the sign-off report.
 The generated `release-readiness-report.md` repeats the release tag, APK, APK
 SHA-256, SBOM, and UX review packet hash, then records
 `Release artifact report SHA-256`, `Physical smoke report SHA-256`,
@@ -335,8 +338,8 @@ artifact verifier, physical release smoke, UX sign-off, and release
 license-boundary reports exist. Provide the run IDs for
 `release-artifact-verification-report`, `physical-release-smoke-report`, and
 `release-license-boundary-reports`, plus `ux_signoff_run_id`, the run that
-uploaded the generated `ux-signoff-report`. Successful runs upload a
-`release-readiness-report` artifact.
+uploaded the generated `ux-signoff-report` and checked `ux-matrix-review.md`.
+Successful runs upload a `release-readiness-report` artifact.
 
 ### Production Signing
 
@@ -386,7 +389,8 @@ CI also uploads a `license-boundary-report`; tagged direct-APK releases upload
 GPL/MIT boundary checks.
 Run `verify-release-readiness.yml` last to download those proof artifacts,
 download the generated UX sign-off report, run `verify-release-readiness.ps1`,
-and upload the final `release-readiness-report` artifact.
+verify the same review packet hash, and upload the final
+`release-readiness-report` artifact.
 
 **Repository Secrets** (for production-signed APKs):
 

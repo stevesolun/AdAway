@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -24,8 +26,12 @@ public class ReleaseReadinessScriptTest {
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String RELEASE_CERT_SHA256 =
             "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    private static final String UX_PACKET_TEXT =
+            "# UX Matrix Review Packet\n\n" +
+                    "Manual sign-off checklist:\n" +
+                    "- [x] Text is readable without clipping, ellipsizing, or overlap.\n";
     private static final String UX_PACKET_SHA256 =
-            "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+            sha256Hex(UX_PACKET_TEXT.getBytes(StandardCharsets.UTF_8));
 
     @Test
     public void releaseReadinessFailsWhenPhysicalSmokeDidNotRun() throws Exception {
@@ -367,6 +373,44 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenUxPacketArtifactDoesNotMatchSignOffHash()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-ux-packet-mismatch");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path uxPacket = fixture.resolve("ux-matrix-review.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writeUtf8(uxPacket, "# Different checked UX packet\n");
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, uxPacket,
+                            licenseReport, readinessReport));
+
+            assertTrue("Readiness must fail when UX report and packet hashes differ.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain UX packet hash drift.",
+                    report.contains("- Status: failed") &&
+                            report.contains("UX review packet SHA-256") &&
+                            report.contains("does not match"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -377,16 +421,18 @@ public class ReleaseReadinessScriptTest {
             Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
             Path smokeReport = fixture.resolve("release-smoke-report.md");
             Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path uxPacket = fixture.resolve("ux-matrix-review.md");
             Path licenseReport = fixture.resolve("license-boundary-report.md");
             Path readinessReport = fixture.resolve("release-readiness-report.md");
             writePassingReleaseArtifactReport(releaseReport);
             writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
                     RELEASE_CERT_SHA256);
             writePassingUxReport(uxReport);
+            writePassingUxReviewPacket(uxPacket);
             writePassingLicenseReport(licenseReport);
 
             ProcessResult result = runPowerShell(powershell,
-                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                    readinessCommand(releaseReport, smokeReport, uxReport, uxPacket, licenseReport,
                             readinessReport));
 
             assertEquals("Readiness must pass when every proof report is complete.\n" +
@@ -424,6 +470,7 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-ReleaseArtifactReport") &&
                         readme.contains("-PhysicalSmokeReport") &&
                         readme.contains("-UxSignOffReport") &&
+                        readme.contains("-UxReviewPacket") &&
                         readme.contains("-LicenseBoundaryReport") &&
                         readme.contains("same release tag") &&
                         readme.contains("same APK") &&
@@ -442,6 +489,7 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("reviewer") &&
                         readme.contains("review packet") &&
                         readme.contains("Review packet SHA-256") &&
+                        readme.contains("same review packet hash") &&
                         readme.contains("Release artifact report SHA-256") &&
                         readme.contains("Physical smoke report SHA-256") &&
                         readme.contains("UX sign-off report SHA-256") &&
@@ -463,6 +511,18 @@ public class ReleaseReadinessScriptTest {
                 " -ReleaseArtifactReport " + quote(releaseReport) +
                 " -PhysicalSmokeReport " + quote(smokeReport) +
                 " -UxSignOffReport " + quote(uxReport) +
+                " -LicenseBoundaryReport " + quote(licenseReport) +
+                " -ReportPath " + quote(readinessReport) + ";";
+    }
+
+    private static String readinessCommand(Path releaseReport, Path smokeReport,
+            Path uxReport, Path uxPacket, Path licenseReport, Path readinessReport) {
+        return "$ErrorActionPreference = 'Stop';" +
+                "& " + quote(repoDir().resolve("scripts/verify-release-readiness.ps1")) +
+                " -ReleaseArtifactReport " + quote(releaseReport) +
+                " -PhysicalSmokeReport " + quote(smokeReport) +
+                " -UxSignOffReport " + quote(uxReport) +
+                " -UxReviewPacket " + quote(uxPacket) +
                 " -LicenseBoundaryReport " + quote(licenseReport) +
                 " -ReportPath " + quote(readinessReport) + ";";
     }
@@ -561,6 +621,10 @@ public class ReleaseReadinessScriptTest {
                         "- Issues: 0\n");
     }
 
+    private static void writePassingUxReviewPacket(Path path) throws IOException {
+        writeUtf8(path, UX_PACKET_TEXT);
+    }
+
     private static void writePassingLicenseReport(Path path) throws IOException {
         writeArtifactLicenseReport(path, RELEASE_APK, RELEASE_SBOM);
     }
@@ -654,6 +718,20 @@ public class ReleaseReadinessScriptTest {
             Files.createDirectories(parent);
         }
         Files.write(path, text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(bytes);
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte value : hash) {
+                builder.append(String.format("%02x", value & 0xff));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 must be available", exception);
+        }
     }
 
     private static void deleteRecursively(Path root) throws IOException {

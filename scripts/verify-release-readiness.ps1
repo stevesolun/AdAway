@@ -2,6 +2,7 @@ param(
     [string] $ReleaseArtifactReport = "release-artifacts/verification-report.md",
     [string] $PhysicalSmokeReport = "release-smoke/release-smoke-report.md",
     [string] $UxSignOffReport = "app/build/reports/ux-matrix/ux-signoff-report.md",
+    [string] $UxReviewPacket = "",
     [string] $LicenseBoundaryReport = `
             "app/build/reports/license-boundary/license-boundary-report.md",
     [string] $ReportPath = "release-readiness-report.md"
@@ -65,6 +66,9 @@ function Normalize-Sha256([string] $value) {
 }
 
 function Get-ReportSha256([string] $path) {
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return "not-provided"
+    }
     $resolved = Resolve-RepoPath $path
     if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
         return "not-provided"
@@ -370,6 +374,36 @@ function Test-UxSignOffEvidence(
     return $passed
 }
 
+function Test-UxReviewPacketEvidence(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $uxSignOffText
+) {
+    if ([string]::IsNullOrWhiteSpace($UxReviewPacket)) {
+        return $true
+    }
+    if ([string]::IsNullOrWhiteSpace($uxSignOffText)) {
+        return $false
+    }
+
+    $resolvedPacket = Resolve-RepoPath $UxReviewPacket
+    if (-not (Test-Path -LiteralPath $resolvedPacket -PathType Leaf)) {
+        $issues.Add("UX review packet is missing: $UxReviewPacket")
+        return $false
+    }
+
+    $reportedPacketSha256 = Normalize-Sha256 (Get-ReportField $issues "UX sign-off" `
+            $uxSignOffText "Review packet SHA-256")
+    $actualPacketSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath `
+            $resolvedPacket).Hash.ToLowerInvariant()
+    if ($reportedPacketSha256 -ne $actualPacketSha256) {
+        $issues.Add("UX review packet SHA-256 '$actualPacketSha256' does not match " +
+                "UX sign-off Review packet SHA-256 '$reportedPacketSha256'.")
+        return $false
+    }
+
+    return $true
+}
+
 function Write-ReadinessReport(
     [string] $status,
     [bool] $releaseArtifactPassed,
@@ -401,6 +435,7 @@ function Write-ReadinessReport(
     $lines.Add("- APK SHA-256: $releaseApkSha256")
     $lines.Add("- SBOM: $releaseSbom")
     $lines.Add("- UX review packet SHA-256: $uxPacketSha256")
+    $lines.Add("- UX review packet file SHA-256: $(Get-ReportSha256 $UxReviewPacket)")
     $lines.Add("- Release artifact verification: $(Format-Status $releaseArtifactPassed)")
     $lines.Add("- Physical release smoke: $(Format-Status $physicalSmokePassed)")
     $lines.Add("- Release identity consistency: $(Format-Status $releaseIdentityPassed)")
@@ -476,6 +511,8 @@ $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "- Issues: 0"
     )
 $uxSignOffPassed = $uxSignOffPassed -and (Test-UxSignOffEvidence $issues $uxSignOffText)
+$uxSignOffPassed = $uxSignOffPassed -and `
+        (Test-UxReviewPacketEvidence $issues $uxSignOffText)
 $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseBoundaryText @(
         "# License Boundary Report",
         "- Status: passed",

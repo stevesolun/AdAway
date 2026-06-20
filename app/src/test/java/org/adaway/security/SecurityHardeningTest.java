@@ -1020,6 +1020,8 @@ public class SecurityHardeningTest {
                         readinessWorkflow.contains("release-smoke/release-smoke-report.md") &&
                         readinessWorkflow.contains("-UxSignOffReport") &&
                         readinessWorkflow.contains("ux-signoff/ux-signoff-report.md") &&
+                        readinessWorkflow.contains("-UxReviewPacket") &&
+                        readinessWorkflow.contains("ux-signoff/ux-matrix-review.md") &&
                         readinessWorkflow.contains("-LicenseBoundaryReport") &&
                         readinessWorkflow.contains(
                                 "release-boundary/artifact-license-boundary-report.md") &&
@@ -1076,6 +1078,7 @@ public class SecurityHardeningTest {
                 workflow.contains("Upload UX sign-off report") &&
                         workflow.contains("ux-signoff-report") &&
                         workflow.contains("ux-signoff/ux-signoff-report.md") &&
+                        workflow.contains("ux-signoff/ux-matrix-review.md") &&
                         workflow.contains(
                                 "actions/upload-artifact@" +
                                         "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));

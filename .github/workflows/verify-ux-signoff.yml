@@ -31,6 +31,7 @@ jobs:
           printf '%s' "$UX_REVIEW_PACKET_BASE64" \
             | base64 -d > ux-matrix/ux-matrix-review.md
           test -s ux-matrix/ux-matrix-review.md
+          cp ux-matrix/ux-matrix-review.md ux-signoff/ux-matrix-review.md
 
       - name: Verify UX sign-off
         shell: pwsh
@@ -47,5 +48,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ux-signoff-report
-          path: ux-signoff/ux-signoff-report.md
+          path: |
+            ux-signoff/ux-signoff-report.md
+            ux-signoff/ux-matrix-review.md
           if-no-files-found: ignore

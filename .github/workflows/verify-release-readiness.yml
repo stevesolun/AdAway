@@ -77,6 +77,7 @@ jobs:
           test -s release-artifacts/verification-report.md
           test -s release-smoke/release-smoke-report.md
           test -s ux-signoff/ux-signoff-report.md
+          test -s ux-signoff/ux-matrix-review.md
           test -s release-boundary/artifact-license-boundary-report.md
 
       - name: Verify final release readiness
@@ -86,6 +87,7 @@ jobs:
             -ReleaseArtifactReport release-artifacts/verification-report.md `
             -PhysicalSmokeReport release-smoke/release-smoke-report.md `
             -UxSignOffReport ux-signoff/ux-signoff-report.md `
+            -UxReviewPacket ux-signoff/ux-matrix-review.md `
             -LicenseBoundaryReport release-boundary/artifact-license-boundary-report.md `
             -ReportPath release-readiness/release-readiness-report.md
 

@@ -7384,3 +7384,38 @@
 - Remaining full-goal gaps: this makes UX sign-off proof durable in CI, but the real production
   tagged release, real physical-device release smoke, actual human UX screenshot sign-off, and
   MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 UX Review Packet Hash Proof
+- [x] Add failing readiness and workflow contracts for checked UX review packet hash verification.
+- [x] Make `verify-release-readiness.ps1` compare the UX sign-off report hash with the checked
+  review packet file hash when `-UxReviewPacket` is provided.
+- [x] Make `verify-ux-signoff.yml` upload the checked review packet with the sign-off report.
+- [x] Make `verify-release-readiness.yml` download and pass the checked review packet to final
+  readiness.
+- [x] Update README and `RELEASING.md` for packet-backed UX sign-off proof.
+- [x] Re-run focused readiness/workflow coverage plus the standard local gates, then commit and
+  push.
+
+## Review - 2026-06-20 UX Review Packet Hash Proof
+- Gap found: the UX sign-off report recorded `Review packet SHA-256`, but final readiness did not
+  prove that value against the actual checked `ux-matrix-review.md` bytes.
+- Added a focused red readiness test where the UX report names one packet hash while the supplied
+  packet file hashes differently. The old verifier accepted it.
+- Added workflow contracts requiring `verify-ux-signoff.yml` to upload the checked review packet
+  and requiring `verify-release-readiness.yml` to pass `-UxReviewPacket`.
+- `verify-release-readiness.ps1` now accepts `-UxReviewPacket`, computes its SHA-256, and rejects
+  mismatch against the UX sign-off report. The generated readiness report also records
+  `UX review packet file SHA-256`.
+- README and `RELEASING.md` now document the `-UxReviewPacket` path and the same-review-packet
+  hash requirement.
+- Verification passed: focused readiness/workflow tests failed first on the missing packet-backed
+  proof, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed;
+  `git diff --check` passed with only existing Windows LF-to-CRLF warnings; and changed-line
+  length scanning passed.
+- Remaining full-goal gaps: this makes the UX proof chain auditable, but the real production
+  tagged release, real physical-device release smoke, actual human UX screenshot sign-off, and
+  MIT legal/provenance clearance remain external gates.
