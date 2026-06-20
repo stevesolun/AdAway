@@ -748,6 +748,9 @@ public class SecurityHardeningTest {
             assertTrue("Verification report must summarize release artifact proof.",
                     reportText.contains("# Release Artifact Verification Report") &&
                             reportText.contains("- Status: passed") &&
+                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                                    .matcher(reportText)
+                                    .find() &&
                             reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- APK: AdAway_13.5.0.apk") &&
                             reportText.contains("- Expected version: 13.5.0") &&
@@ -1040,10 +1043,12 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must document the final readiness workflow.",
                 releasing.contains("verify-release-readiness.yml") &&
                         releasing.contains("release-readiness-report") &&
-                        releasing.contains("ux_signoff_run_id"));
+                        releasing.contains("ux_signoff_run_id") &&
+                        releasing.contains("same source commit"));
         assertTrue("README must mention the final readiness workflow.",
                 readme.contains("verify-release-readiness.yml") &&
-                        readme.contains("release-readiness-report"));
+                        readme.contains("release-readiness-report") &&
+                        readme.contains("same source commit"));
     }
 
     @Test
@@ -1233,6 +1238,9 @@ public class SecurityHardeningTest {
             assertTrue("Release smoke report must describe identity-only mode.",
                     reportText.contains("# Release Smoke Report") &&
                             reportText.contains("- Status: passed") &&
+                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                                    .matcher(reportText)
+                                    .find() &&
                             reportText.contains("- Mode: identity-only") &&
                             reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- Physical device: not-run"));
@@ -1287,6 +1295,9 @@ public class SecurityHardeningTest {
             String reportText = readUtf8(report);
             assertTrue("Physical release smoke report must record launch evidence.",
                     reportText.contains("- Mode: physical-device") &&
+                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                                    .matcher(reportText)
+                                    .find() &&
                             reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- Physical device: verified-real-device") &&
                             reportText.contains("- Launch pid observed: 4242"));
@@ -1790,8 +1801,10 @@ public class SecurityHardeningTest {
         try {
             writeBoundaryFixtureBase(fixture);
             Path report = fixture.resolve("license-boundary-report.md");
+            java.util.Map<String, String> environment = new java.util.HashMap<>();
+            environment.put("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567");
 
-            ProcessResult result = runLicenseBoundaryScript(powershell, fixture,
+            ProcessResult result = runLicenseBoundaryScript(powershell, fixture, environment,
                     "-ReportPath", report.toString());
 
             assertEquals("Passing license boundary fixture must exit successfully.",
@@ -1802,6 +1815,9 @@ public class SecurityHardeningTest {
             assertTrue("Passing report must summarize the license-boundary proof.",
                     reportText.contains("# License Boundary Report") &&
                             reportText.contains("- Status: passed") &&
+                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                                    .matcher(reportText)
+                                    .find() &&
                             reportText.contains("- Source mode: WorkingTree") &&
                             reportText.contains("- Strict source archive: false") &&
                             reportText.contains("- Strict artifacts: false") &&

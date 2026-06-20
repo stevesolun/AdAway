@@ -299,6 +299,9 @@ public class UxMatrixScriptTest {
                     reportText.contains("# UX Sign-Off Report") &&
                             reportText.contains("- Status: passed") &&
                             reportText.contains("- Reviewer: QA Lead") &&
+                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                                    .matcher(reportText)
+                                    .find() &&
                             Pattern.compile("(?m)^- Review packet SHA-256: [0-9a-f]{64}$")
                                     .matcher(reportText)
                                     .find() &&
@@ -317,6 +320,7 @@ public class UxMatrixScriptTest {
         assertTrue("README must document the UX sign-off verifier command.",
                 readme.contains("verify-ux-signoff.ps1") &&
                         readme.contains("-Reviewer") &&
+                        readme.contains("Source commit") &&
                         readme.contains("Review packet SHA-256") &&
                         readme.contains("ux-signoff-report.md"));
     }

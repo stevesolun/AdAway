@@ -118,6 +118,69 @@ function Get-NormalizedOptionalReportSha256(
     return Normalize-Sha256 (Get-OptionalReportField $content $fieldName)
 }
 
+function Normalize-SourceCommit([string] $value) {
+    return $value.Trim().ToLowerInvariant()
+}
+
+function Test-SourceCommitValue(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $label,
+    [string] $value
+) {
+    if ($value -notmatch "^[0-9a-fA-F]{40}$") {
+        $issues.Add("$label report must include a 40-hex Source commit.")
+        return $false
+    }
+    return $true
+}
+
+function Test-SourceCommitIdentity(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $releaseArtifactText,
+    [string] $physicalSmokeText,
+    [string] $uxSignOffText,
+    [string] $licenseBoundaryText
+) {
+    if ([string]::IsNullOrWhiteSpace($releaseArtifactText) -or
+            [string]::IsNullOrWhiteSpace($physicalSmokeText) -or
+            [string]::IsNullOrWhiteSpace($uxSignOffText) -or
+            [string]::IsNullOrWhiteSpace($licenseBoundaryText)) {
+        return $false
+    }
+
+    $passed = $true
+    $releaseCommit = Get-ReportField $issues "Release artifact verification" `
+        $releaseArtifactText "Source commit"
+    $smokeCommit = Get-ReportField $issues "Physical release smoke" `
+        $physicalSmokeText "Source commit"
+    $uxCommit = Get-ReportField $issues "UX sign-off" $uxSignOffText "Source commit"
+    $licenseCommit = Get-ReportField $issues "License boundary" `
+        $licenseBoundaryText "Source commit"
+
+    $passed = (Test-SourceCommitValue $issues "release artifact" $releaseCommit) -and $passed
+    $passed = (Test-SourceCommitValue $issues "physical smoke" $smokeCommit) -and $passed
+    $passed = (Test-SourceCommitValue $issues "UX sign-off" $uxCommit) -and $passed
+    $passed = (Test-SourceCommitValue $issues "license boundary" $licenseCommit) -and $passed
+    if (-not $passed) {
+        return $false
+    }
+
+    $normalizedReleaseCommit = Normalize-SourceCommit $releaseCommit
+    foreach ($entry in @(
+            @{ Label = "physical smoke"; Value = $smokeCommit },
+            @{ Label = "UX sign-off"; Value = $uxCommit },
+            @{ Label = "license boundary"; Value = $licenseCommit })) {
+        $normalizedCommit = Normalize-SourceCommit $entry["Value"]
+        if ($normalizedCommit -ne $normalizedReleaseCommit) {
+            $issues.Add("release artifact Source commit '$normalizedReleaseCommit' does " +
+                    "not match $($entry["Label"]) Source commit '$normalizedCommit'.")
+            $passed = $false
+        }
+    }
+
+    return $passed
+}
+
 function Test-ReleaseIdentity(
     [System.Collections.Generic.List[string]] $issues,
     [string] $releaseArtifactText,
@@ -409,6 +472,7 @@ function Write-ReadinessReport(
     [bool] $releaseArtifactPassed,
     [bool] $physicalSmokePassed,
     [bool] $releaseIdentityPassed,
+    [bool] $sourceCommitPassed,
     [bool] $uxSignOffPassed,
     [bool] $licenseBoundaryPassed,
     [System.Collections.Generic.List[string]] $issues
@@ -423,6 +487,7 @@ function Write-ReadinessReport(
     $releaseApk = Get-OptionalReportField $releaseArtifactText "APK"
     $releaseApkSha256 = Get-NormalizedOptionalReportSha256 $releaseArtifactText "APK SHA-256"
     $releaseSbom = Get-OptionalReportField $releaseArtifactText "SBOM"
+    $sourceCommit = Get-OptionalReportField $releaseArtifactText "Source commit"
     $uxPacketSha256 = Get-NormalizedOptionalReportSha256 `
         $uxSignOffText "Review packet SHA-256"
 
@@ -434,11 +499,13 @@ function Write-ReadinessReport(
     $lines.Add("- APK: $releaseApk")
     $lines.Add("- APK SHA-256: $releaseApkSha256")
     $lines.Add("- SBOM: $releaseSbom")
+    $lines.Add("- Source commit: $sourceCommit")
     $lines.Add("- UX review packet SHA-256: $uxPacketSha256")
     $lines.Add("- UX review packet file SHA-256: $(Get-ReportSha256 $UxReviewPacket)")
     $lines.Add("- Release artifact verification: $(Format-Status $releaseArtifactPassed)")
     $lines.Add("- Physical release smoke: $(Format-Status $physicalSmokePassed)")
     $lines.Add("- Release identity consistency: $(Format-Status $releaseIdentityPassed)")
+    $lines.Add("- Source commit consistency: $(Format-Status $sourceCommitPassed)")
     $lines.Add("- UX sign-off: $(Format-Status $uxSignOffPassed)")
     $lines.Add("- License boundary: $(Format-Status $licenseBoundaryPassed)")
     $lines.Add("- Release artifact report SHA-256: $(Get-ReportSha256 $ReleaseArtifactReport)")
@@ -470,6 +537,7 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
     $releaseArtifactText @(
         "# Release Artifact Verification Report",
         "- Status: passed",
+        "- Source commit:",
         "- Release tag:",
         "- APK:",
         "- SBOM:",
@@ -487,6 +555,7 @@ $releaseArtifactPassed = $releaseArtifactPassed -and
 $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $physicalSmokeText @(
         "# Release Smoke Report",
         "- Status: passed",
+        "- Source commit:",
         "- Mode: physical-device",
         "- Release tag:",
         "- APK:",
@@ -503,6 +572,7 @@ $physicalSmokePassed = $physicalSmokePassed -and
 $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "# UX Sign-Off Report",
         "- Status: passed",
+        "- Source commit:",
         "- Reviewer:",
         "- Review packet:",
         "- Review packet SHA-256:",
@@ -516,6 +586,7 @@ $uxSignOffPassed = $uxSignOffPassed -and `
 $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseBoundaryText @(
         "# License Boundary Report",
         "- Status: passed",
+        "- Source commit:",
         "- Source mode:",
         "- Strict source archive:",
         "- Strict artifacts:",
@@ -527,10 +598,13 @@ $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseB
 $licenseBoundaryPassed = $licenseBoundaryPassed -and
         (Test-LicenseBoundaryReleaseArtifact $issues $licenseBoundaryText $releaseArtifactText)
 $releaseIdentityPassed = Test-ReleaseIdentity $issues $releaseArtifactText $physicalSmokeText
+$sourceCommitPassed = Test-SourceCommitIdentity $issues $releaseArtifactText $physicalSmokeText `
+        $uxSignOffText $licenseBoundaryText
 
 if ($issues.Count -gt 0) {
     Write-ReadinessReport "failed" $releaseArtifactPassed $physicalSmokePassed `
-        $releaseIdentityPassed $uxSignOffPassed $licenseBoundaryPassed $issues
+        $releaseIdentityPassed $sourceCommitPassed $uxSignOffPassed `
+        $licenseBoundaryPassed $issues
     foreach ($issue in $issues) {
         [Console]::Error.WriteLine($issue)
     }
@@ -538,5 +612,5 @@ if ($issues.Count -gt 0) {
 }
 
 Write-ReadinessReport "passed" $releaseArtifactPassed $physicalSmokePassed `
-    $releaseIdentityPassed $uxSignOffPassed $licenseBoundaryPassed $issues
+    $releaseIdentityPassed $sourceCommitPassed $uxSignOffPassed $licenseBoundaryPassed $issues
 Write-Host "Release readiness verification passed."

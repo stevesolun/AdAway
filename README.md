@@ -290,7 +290,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-ux-signoff.
 For CI-backed UX sign-off, run the manual
 `.github/workflows/verify-ux-signoff.yml` workflow with `review_packet_base64`,
 the base64-encoded checked `ux-matrix-review.md`, and the reviewer identity.
-Successful runs upload a `ux-signoff-report` artifact.
+Successful runs upload a `ux-signoff-report` artifact with the source commit
+that produced the checked packet.
 
 After release artifact verification, physical release smoke, UX sign-off, and
 license-boundary checks have all produced reports, aggregate them into one final
@@ -306,28 +307,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
   -ReportPath release-readiness-report.md
 ```
 
-The readiness verifier requires the artifact verifier and physical smoke report
-to describe the same release tag, APK name, APK SHA-256, and signing
-certificate digest; do not combine proof reports from different release
-attempts. The release artifact report must come from `verify-release-artifacts`
-and include
+The readiness verifier requires all proof reports to describe the same source commit.
+It also requires the artifact verifier and physical smoke report to
+describe the same release tag, APK name, APK SHA-256, and signing certificate
+digest; do not combine proof reports from different release attempts. The
+release artifact report must come from `verify-release-artifacts` and include
+`Source commit`,
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
 The physical smoke report must come from `run-release-smoke.ps1` in
 physical-device mode and include `Release tag`, `Package`,
 `Signer certificate check: True`, `Signer certificate SHA-256`,
-`Device serial SHA-256`, and `Launch pid observed`.
+`Device serial SHA-256`, `Launch pid observed`, and `Source commit`.
 Use the tagged release artifact license-boundary report for
 `-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
 artifact names from the release artifact verification report, not the regular CI source-only
 license-boundary report.
 The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
-reviewer, review packet, `Review packet SHA-256`, checked item count,
+reviewer, review packet, `Source commit`, `Review packet SHA-256`, checked item count,
 `Unchecked items: 0`, and `Issues: 0`; do not use hand-written pass markers.
 When `-UxReviewPacket` is provided, final readiness also hashes the checked
 review packet and requires the same review packet hash as the sign-off report.
 The generated `release-readiness-report.md` repeats the release tag, APK, APK
-SHA-256, SBOM, and UX review packet hash, then records
+SHA-256, SBOM, source commit, and UX review packet hash, then records
 `Release artifact report SHA-256`, `Physical smoke report SHA-256`,
 `UX sign-off report SHA-256`, and `License boundary report SHA-256` so the final
 summary is tied to the exact proof reports it consumed.

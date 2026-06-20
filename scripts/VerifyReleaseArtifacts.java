@@ -196,6 +196,7 @@ public final class VerifyReleaseArtifacts {
         StringBuilder report = new StringBuilder();
         report.append("# Release Artifact Verification Report\n\n");
         report.append("- Status: passed\n");
+        report.append("- Source commit: ").append(sourceCommit()).append('\n');
         report.append("- Generated at: ").append(Instant.now()).append('\n');
         report.append("- Repository: ").append(options.repository).append('\n');
         report.append("- Release tag: ")
@@ -247,6 +248,34 @@ public final class VerifyReleaseArtifacts {
 
     private static String orNotProvided(String value) {
         return value == null || value.trim().isEmpty() ? "not-provided" : value;
+    }
+
+    private static String sourceCommit() {
+        String githubSha = System.getenv("GITHUB_SHA");
+        if (isSourceCommit(githubSha)) {
+            return githubSha.trim().toLowerCase(Locale.ROOT);
+        }
+
+        try {
+            Process process = new ProcessBuilder("git", "rev-parse", "HEAD")
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(),
+                    StandardCharsets.UTF_8).trim();
+            if (process.waitFor() == 0 && isSourceCommit(output)) {
+                return output.toLowerCase(Locale.ROOT);
+            }
+        } catch (IOException exception) {
+            return "not-provided";
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return "not-provided";
+        }
+        return "not-provided";
+    }
+
+    private static boolean isSourceCommit(String value) {
+        return value != null && value.trim().matches("[0-9a-fA-F]{40}");
     }
 
     private static String releaseTagFromApkUrl(String apkUrl) {

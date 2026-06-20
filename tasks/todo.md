@@ -7419,3 +7419,42 @@
 - Remaining full-goal gaps: this makes the UX proof chain auditable, but the real production
   tagged release, real physical-device release smoke, actual human UX screenshot sign-off, and
   MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 Release Source Commit Provenance
+- [x] Add failing readiness and workflow contracts that reject proof reports from mixed source
+  commits.
+- [x] Record source commit provenance in generated release artifact, physical smoke, UX sign-off,
+  and license-boundary reports.
+- [x] Require `verify-release-readiness.ps1` to compare source commits across all proof reports.
+- [x] Update README and `RELEASING.md` so release operators know final readiness is same-commit
+  as well as same-tag/same-artifact.
+- [x] Re-run focused readiness/workflow coverage plus the standard local gates, then commit and
+  push.
+
+## Review - 2026-06-20 Release Source Commit Provenance
+- Gap found: final readiness could already reject mixed release tags, APK hashes, certificate
+  hashes, license artifacts, UX packet hashes, and stale proof-report files, but it did not prove
+  that the four proof reports were produced from the same source commit.
+- Added a focused red readiness test where the release artifact, UX sign-off, and license-boundary
+  reports used one source commit while physical smoke used another. The old verifier accepted the
+  mixed proof set.
+- `VerifyReleaseArtifacts.java`, `run-release-smoke.ps1`, `verify-ux-signoff.ps1`, and
+  `check-license-boundary.ps1` now write `Source commit` using `GITHUB_SHA` first and local
+  `git rev-parse HEAD` as a fallback. The PowerShell fallback uses `System.Diagnostics.Process`
+  so non-git test fixtures return `not-provided` instead of aborting on native command errors.
+- `verify-release-readiness.ps1` now requires a 40-hex source commit in release artifact,
+  physical smoke, UX sign-off, and license-boundary reports; it rejects mismatches and records
+  `Source commit` plus `Source commit consistency` in the final readiness report.
+- README and `RELEASING.md` now document that final readiness requires same source commit as well
+  as same release tag, APK, hashes, artifacts, and UX packet.
+- Verification passed: focused readiness/UX/security tests failed first on the missing
+  source-commit contract, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed;
+  `git diff --check` passed with only existing Windows LF-to-CRLF warnings; and changed-line
+  length scanning passed.
+- Remaining full-goal gaps: this closes another stale/mixed-proof loophole, but the real
+  production tagged release, real physical-device release smoke, actual human UX screenshot
+  sign-off, and MIT legal/provenance clearance remain external gates.

@@ -22,6 +22,10 @@ public class ReleaseReadinessScriptTest {
     private static final String RELEASE_SBOM = "adaway.cdx.json";
     private static final String RELEASE_TAG = "v13.5.0";
     private static final String OTHER_RELEASE_TAG = "v13.5.1";
+    private static final String SOURCE_COMMIT =
+            "0123456789abcdef0123456789abcdef01234567";
+    private static final String OTHER_SOURCE_COMMIT =
+            "fedcba9876543210fedcba9876543210fedcba98";
     private static final String RELEASE_APK_SHA256 =
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String RELEASE_CERT_SHA256 =
@@ -142,6 +146,43 @@ public class ReleaseReadinessScriptTest {
             assertTrue("Readiness report must explain the release-tag mismatch.",
                     report.contains("- Status: failed") &&
                             report.contains("Release tag") &&
+                            report.contains("release artifact") &&
+                            report.contains("physical smoke"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void releaseReadinessFailsWhenProofReportSourceCommitsDoNotMatch()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-source-mismatch");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport, RELEASE_TAG, SOURCE_COMMIT);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256, RELEASE_TAG, OTHER_SOURCE_COMMIT);
+            writePassingUxReport(uxReport, SOURCE_COMMIT);
+            writePassingLicenseReport(licenseReport, SOURCE_COMMIT);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail when proof reports come from different commits.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain the source-commit mismatch.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Source commit") &&
                             report.contains("release artifact") &&
                             report.contains("physical smoke"));
         } finally {
@@ -445,11 +486,13 @@ public class ReleaseReadinessScriptTest {
                             report.contains("- APK: " + RELEASE_APK) &&
                             report.contains("- APK SHA-256: " + RELEASE_APK_SHA256) &&
                             report.contains("- SBOM: " + RELEASE_SBOM) &&
+                            report.contains("- Source commit: " + SOURCE_COMMIT) &&
                             report.contains("- UX review packet SHA-256: " +
                                     UX_PACKET_SHA256) &&
                             report.contains("- Release artifact verification: passed") &&
                             report.contains("- Physical release smoke: passed") &&
                             report.contains("- Release identity consistency: passed") &&
+                            report.contains("- Source commit consistency: passed") &&
                             report.contains("- UX sign-off: passed") &&
                             report.contains("- License boundary: passed") &&
                             containsSha256Field(report, "Release artifact report SHA-256") &&
@@ -473,7 +516,9 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-UxReviewPacket") &&
                         readme.contains("-LicenseBoundaryReport") &&
                         readme.contains("same release tag") &&
+                        readme.contains("same source commit") &&
                         readme.contains("same APK") &&
+                        readme.contains("Source commit") &&
                         readme.contains("Release tag") &&
                         readme.contains("APK SHA-256") &&
                         readme.contains("Package") &&
@@ -533,9 +578,16 @@ public class ReleaseReadinessScriptTest {
 
     private static void writePassingReleaseArtifactReport(Path path, String releaseTag)
             throws IOException {
+        writePassingReleaseArtifactReport(path, releaseTag, SOURCE_COMMIT);
+    }
+
+    private static void writePassingReleaseArtifactReport(Path path, String releaseTag,
+            String sourceCommit)
+            throws IOException {
         writeUtf8(path,
                 "# Release Artifact Verification Report\n\n" +
                         "- Status: passed\n" +
+                        "- Source commit: " + sourceCommit + "\n" +
                         "- Release tag: " + releaseTag + "\n" +
                         "- APK: " + RELEASE_APK + "\n" +
                         "- SBOM: " + RELEASE_SBOM + "\n" +
@@ -569,10 +621,17 @@ public class ReleaseReadinessScriptTest {
 
     private static void writePassingPhysicalSmokeReport(Path path, String apkSha256,
             String certSha256, String releaseTag) throws IOException {
+        writePassingPhysicalSmokeReport(path, apkSha256, certSha256, releaseTag,
+                SOURCE_COMMIT);
+    }
+
+    private static void writePassingPhysicalSmokeReport(Path path, String apkSha256,
+            String certSha256, String releaseTag, String sourceCommit) throws IOException {
         writeUtf8(path,
                 "# Release Smoke Report\n\n" +
                         "- Status: passed\n" +
                         "- Mode: physical-device\n" +
+                        "- Source commit: " + sourceCommit + "\n" +
                         "- Release tag: " + releaseTag + "\n" +
                         "- APK: " + RELEASE_APK + "\n" +
                         "- APK SHA-256: " + apkSha256 + "\n" +
@@ -599,9 +658,14 @@ public class ReleaseReadinessScriptTest {
     }
 
     private static void writePassingUxReport(Path path) throws IOException {
+        writePassingUxReport(path, SOURCE_COMMIT);
+    }
+
+    private static void writePassingUxReport(Path path, String sourceCommit) throws IOException {
         writeUtf8(path,
                 "# UX Sign-Off Report\n\n" +
                         "- Status: passed\n" +
+                        "- Source commit: " + sourceCommit + "\n" +
                         "- Reviewer: QA Lead\n" +
                         "- Review packet: ux-matrix-review.md\n" +
                         "- Review packet SHA-256: " + UX_PACKET_SHA256 + "\n" +
@@ -629,11 +693,23 @@ public class ReleaseReadinessScriptTest {
         writeArtifactLicenseReport(path, RELEASE_APK, RELEASE_SBOM);
     }
 
+    private static void writePassingLicenseReport(Path path, String sourceCommit)
+            throws IOException {
+        writeArtifactLicenseReport(path, RELEASE_APK, RELEASE_SBOM, sourceCommit);
+    }
+
     private static void writeArtifactLicenseReport(Path path, String apk, String sbom)
+            throws IOException {
+        writeArtifactLicenseReport(path, apk, sbom, SOURCE_COMMIT);
+    }
+
+    private static void writeArtifactLicenseReport(Path path, String apk, String sbom,
+            String sourceCommit)
             throws IOException {
         writeUtf8(path,
                 "# License Boundary Report\n\n" +
                         "- Status: passed\n" +
+                        "- Source commit: " + sourceCommit + "\n" +
                         "- Source mode: GitTracked\n" +
                         "- Strict source archive: true\n" +
                         "- Strict artifacts: true\n" +
@@ -647,6 +723,7 @@ public class ReleaseReadinessScriptTest {
         writeUtf8(path,
                 "# License Boundary Report\n\n" +
                         "- Status: passed\n" +
+                        "- Source commit: " + SOURCE_COMMIT + "\n" +
                         "- Source mode: WorkingTree\n" +
                         "- Strict source archive: false\n" +
                         "- Strict artifacts: false\n" +
