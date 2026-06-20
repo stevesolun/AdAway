@@ -60,10 +60,89 @@ function Format-Status([bool] $passed) {
     return "failed"
 }
 
+function Normalize-Sha256([string] $value) {
+    return ($value -replace "[:\s]", "").ToLowerInvariant()
+}
+
+function Get-ReportField(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $label,
+    [string] $content,
+    [string] $fieldName
+) {
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        return ""
+    }
+
+    $pattern = "(?m)^-\s*" + [Regex]::Escape($fieldName) + ":\s*(.+?)\s*$"
+    $match = [Regex]::Match($content, $pattern)
+    if (-not $match.Success) {
+        $issues.Add("$label report must contain '$fieldName'.")
+        return ""
+    }
+    return $match.Groups[1].Value.Trim()
+}
+
+function Test-ReleaseIdentity(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $releaseArtifactText,
+    [string] $physicalSmokeText
+) {
+    if ([string]::IsNullOrWhiteSpace($releaseArtifactText) -or
+            [string]::IsNullOrWhiteSpace($physicalSmokeText)) {
+        return $false
+    }
+
+    $passed = $true
+    $artifactApk = Get-ReportField $issues "Release artifact verification" `
+        $releaseArtifactText "APK"
+    $smokeApk = Get-ReportField $issues "Physical release smoke" $physicalSmokeText "APK"
+    if (-not [string]::IsNullOrWhiteSpace($artifactApk) -and
+            -not [string]::IsNullOrWhiteSpace($smokeApk) -and
+            $artifactApk -ne $smokeApk) {
+        $issues.Add("release artifact APK '$artifactApk' does not match physical smoke APK " +
+                "'$smokeApk'.")
+        $passed = $false
+    }
+
+    $artifactApkSha256 = Normalize-Sha256 (Get-ReportField $issues `
+        "Release artifact verification" $releaseArtifactText "APK SHA-256")
+    $smokeApkSha256 = Normalize-Sha256 (Get-ReportField $issues `
+        "Physical release smoke" $physicalSmokeText "APK SHA-256")
+    if (-not [string]::IsNullOrWhiteSpace($artifactApkSha256) -and
+            -not [string]::IsNullOrWhiteSpace($smokeApkSha256) -and
+            $artifactApkSha256 -ne $smokeApkSha256) {
+        $issues.Add("release artifact APK SHA-256 '$artifactApkSha256' does not match " +
+                "physical smoke APK SHA-256 '$smokeApkSha256'.")
+        $passed = $false
+    }
+
+    $artifactCertSha256 = Normalize-Sha256 (Get-ReportField $issues `
+        "Release artifact verification" $releaseArtifactText "Manifest certificate SHA-256")
+    $smokeCertSha256 = Get-ReportField $issues "Physical release smoke" `
+        $physicalSmokeText "Signer certificate SHA-256"
+    if ($smokeCertSha256 -eq "not-checked") {
+        $issues.Add("physical smoke report must include a checked signer certificate SHA-256.")
+        $passed = $false
+    } else {
+        $normalizedSmokeCert = Normalize-Sha256 $smokeCertSha256
+        if (-not [string]::IsNullOrWhiteSpace($artifactCertSha256) -and
+                -not [string]::IsNullOrWhiteSpace($normalizedSmokeCert) -and
+                $artifactCertSha256 -ne $normalizedSmokeCert) {
+            $issues.Add("release artifact signer certificate '$artifactCertSha256' does not " +
+                    "match physical smoke signer certificate '$normalizedSmokeCert'.")
+            $passed = $false
+        }
+    }
+
+    return $passed
+}
+
 function Write-ReadinessReport(
     [string] $status,
     [bool] $releaseArtifactPassed,
     [bool] $physicalSmokePassed,
+    [bool] $releaseIdentityPassed,
     [bool] $uxSignOffPassed,
     [bool] $licenseBoundaryPassed,
     [System.Collections.Generic.List[string]] $issues
@@ -80,6 +159,7 @@ function Write-ReadinessReport(
     $lines.Add("- Status: $status")
     $lines.Add("- Release artifact verification: $(Format-Status $releaseArtifactPassed)")
     $lines.Add("- Physical release smoke: $(Format-Status $physicalSmokePassed)")
+    $lines.Add("- Release identity consistency: $(Format-Status $releaseIdentityPassed)")
     $lines.Add("- UX sign-off: $(Format-Status $uxSignOffPassed)")
     $lines.Add("- License boundary: $(Format-Status $licenseBoundaryPassed)")
     $lines.Add("- Issues: $($issues.Count)")
@@ -107,6 +187,9 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
     $releaseArtifactText @(
         "# Release Artifact Verification Report",
         "- Status: passed",
+        "- APK:",
+        "- APK SHA-256:",
+        "- Manifest certificate SHA-256:",
         "- Attestations: verified",
         "- Attested artifacts: 6"
     )
@@ -114,6 +197,9 @@ $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $phys
         "# Release Smoke Report",
         "- Status: passed",
         "- Mode: physical-device",
+        "- APK:",
+        "- APK SHA-256:",
+        "- Signer certificate SHA-256:",
         "- Physical device: verified-real-device",
         "- Launch pid observed:"
     )
@@ -128,10 +214,11 @@ $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseB
         "- MIT release status: blocked until GPL-derived material is cleared",
         "- Issues: 0"
     )
+$releaseIdentityPassed = Test-ReleaseIdentity $issues $releaseArtifactText $physicalSmokeText
 
 if ($issues.Count -gt 0) {
     Write-ReadinessReport "failed" $releaseArtifactPassed $physicalSmokePassed `
-        $uxSignOffPassed $licenseBoundaryPassed $issues
+        $releaseIdentityPassed $uxSignOffPassed $licenseBoundaryPassed $issues
     foreach ($issue in $issues) {
         [Console]::Error.WriteLine($issue)
     }
@@ -139,5 +226,5 @@ if ($issues.Count -gt 0) {
 }
 
 Write-ReadinessReport "passed" $releaseArtifactPassed $physicalSmokePassed `
-    $uxSignOffPassed $licenseBoundaryPassed $issues
+    $releaseIdentityPassed $uxSignOffPassed $licenseBoundaryPassed $issues
 Write-Host "Release readiness verification passed."

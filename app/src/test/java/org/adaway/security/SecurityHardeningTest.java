@@ -274,7 +274,7 @@ public class SecurityHardeningTest {
             Thread.currentThread().interrupt();
             fail("Interrupted while generating source archive.");
         } finally {
-            Files.deleteIfExists(archive);
+            deleteFileWithRetries(archive);
         }
     }
 
@@ -1003,7 +1003,8 @@ public class SecurityHardeningTest {
                         smokeScript.contains("Signer #1 certificate SHA-256 digest was not found") &&
                         !smokeScript.contains("-replace \"^.*:\\s*\""));
         assertTrue("Release smoke must compare normalized signer digests, not parser tokens.",
-                smokeScript.contains("(Normalize-Sha256 $actualCert) -ne " +
+                smokeScript.contains("$actualCertSha256 = Normalize-Sha256 $actualCert") &&
+                        smokeScript.contains("$actualCertSha256 -ne " +
                         "(Normalize-Sha256 $ExpectedCertSha256)"));
         int verifyOnlyIndex = smokeScript.indexOf("if ($VerifyOnly)");
         int adbDiscoveryIndex = smokeScript.indexOf("$adb = Find-CommandOrSdkTool");
@@ -1094,7 +1095,7 @@ public class SecurityHardeningTest {
             environment.put("ANDROID_HOME", sdk.toString());
             environment.put("ANDROID_SDK_ROOT", null);
 
-            ProcessResult result = runProcess(fixture, environment,
+            ProcessResult result = runProcess(repoDir(), environment,
                     powershell,
                     "-NoProfile",
                     "-ExecutionPolicy", "Bypass",
@@ -1115,6 +1116,10 @@ public class SecurityHardeningTest {
                             reportText.contains("- Status: passed") &&
                             reportText.contains("- Mode: identity-only") &&
                             reportText.contains("- Physical device: not-run"));
+            assertTrue("Release smoke report must include APK identity in verify-only mode.",
+                    reportText.contains("- APK SHA-256: " +
+                            sha256Hex("fake release apk\n".getBytes(StandardCharsets.UTF_8))) &&
+                            reportText.contains("- Signer certificate SHA-256: not-checked"));
         } finally {
             deleteRecursively(fixture);
         }
@@ -1132,22 +1137,28 @@ public class SecurityHardeningTest {
             Path apk = fixture.resolve("release.apk");
             Path report = fixture.resolve("release-smoke-report.md");
             writeUtf8(apk, "fake release apk\n");
+            String certSha256 =
+                    "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
             Path sdk = fixture.resolve("android-sdk");
             writeFakeBuildTool(sdk, "36.0.0", "aapt",
                     "package: name='org.adaway' versionCode='130500' versionName='13.5.0'");
+            writeFakeBuildTool(sdk, "36.0.0", "apksigner",
+                    "Signer #1 certificate SHA-256 digest: " + certSha256);
             writeFakeAdb(sdk, "device-123", "4242");
 
             java.util.Map<String, String> environment = new java.util.HashMap<>();
             environment.put("ANDROID_HOME", sdk.toString());
             environment.put("ANDROID_SDK_ROOT", null);
 
-            ProcessResult result = runProcess(fixture, environment,
+            ProcessResult result = runProcess(repoDir(), environment,
                     powershell,
                     "-NoProfile",
                     "-ExecutionPolicy", "Bypass",
                     "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
                     "-ApkPath", apk.toString(),
                     "-ReportPath", report.toString(),
+                    "-ExpectedCertSha256", certSha256,
+                    "-LaunchWaitSeconds", "0",
                     "-DeviceSerial", "device-123");
 
             assertEquals("Release smoke must pass against the fake physical adb.",
@@ -1160,6 +1171,10 @@ public class SecurityHardeningTest {
             assertTrue("Physical release smoke report must hash the device serial.",
                     reportText.contains("- Device serial SHA-256: " +
                             sha256Hex("device-123".getBytes(StandardCharsets.UTF_8))));
+            assertTrue("Physical release smoke report must record the tested APK identity.",
+                    reportText.contains("- APK SHA-256: " +
+                            sha256Hex("fake release apk\n".getBytes(StandardCharsets.UTF_8))) &&
+                            reportText.contains("- Signer certificate SHA-256: " + certSha256));
             assertFalse("Physical release smoke report must not leak the raw device serial.",
                     reportText.contains("device-123"));
         } finally {
@@ -2182,7 +2197,7 @@ public class SecurityHardeningTest {
             }
         }
         Process process = builder.start();
-        if (!process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
+        if (!process.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)) {
             process.destroyForcibly();
             fail("Timed out running command: " + String.join(" ", command));
         }
@@ -2194,6 +2209,25 @@ public class SecurityHardeningTest {
             stderr = new String(error.readAllBytes(), StandardCharsets.UTF_8);
         }
         return new ProcessResult(process.exitValue(), stdout, stderr);
+    }
+
+    private static void deleteFileWithRetries(Path path) throws IOException {
+        IOException lastException = null;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                Files.deleteIfExists(path);
+                return;
+            } catch (IOException exception) {
+                lastException = exception;
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw exception;
+                }
+            }
+        }
+        throw lastException;
     }
 
     private static void deleteRecursively(Path root) throws IOException {

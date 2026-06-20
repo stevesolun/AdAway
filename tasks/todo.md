@@ -7002,3 +7002,38 @@
 - Remaining full-goal gaps: the readiness verifier is a local proof aggregator only. Real tagged
   release artifact verification, physical-device release smoke, human UX sign-off, and MIT
   rights/provenance clearance must still be performed before claiming release readiness.
+
+## Plan - 2026-06-20 Release Proof Identity Consistency
+- [x] Add failing readiness coverage proving physical smoke and release artifact reports cannot be
+  mixed across different APK names, hashes, or signing certificates.
+- [x] Add failing smoke-report coverage requiring `run-release-smoke.ps1` to record APK SHA-256 and
+  signer identity when checked.
+- [x] Extend the release smoke report with APK hash and normalized signer certificate fields.
+- [x] Extend `verify-release-readiness.ps1` to compare release artifact and smoke APK identity.
+- [x] Document the identity consistency expectation and rerun focused plus standard local gates.
+
+## Review - 2026-06-20 Release Proof Identity Consistency
+- The release-readiness verifier required four passing reports, but it did not prove the artifact
+  verifier and physical smoke report described the same release APK. That could let stale or mixed
+  reports pass the final local gate.
+- Added release-readiness coverage for mismatched physical-smoke APK SHA-256, and updated passing
+  fixtures to include APK name, APK SHA-256, and signer certificate identity.
+- `run-release-smoke.ps1` now writes the tested APK SHA-256 and normalized signer certificate
+  digest when signer verification is requested; verify-only reports explicitly say
+  `Signer certificate SHA-256: not-checked`.
+- `verify-release-readiness.ps1` now requires and compares the artifact verifier and physical
+  smoke APK name, APK SHA-256, and signer certificate digest, and writes a
+  `Release identity consistency` status line in the final report.
+- README and `RELEASING.md` now document that final readiness requires matching same-APK identity
+  evidence and that smoke reports include APK SHA-256 plus signer identity.
+- Verification passed:
+  focused tests first failed for missing smoke identity fields, missing readiness identity
+  comparison, and missing docs; after implementation they passed; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a 100-column check passed over the
+  modified scripts and readiness test.
+- Remaining full-goal gaps: this prevents mixed release-proof reports, but real tagged release
+  verification with production secrets, physical-device release smoke, human UX sign-off, and MIT
+  legal/provenance clearance remain external gates.

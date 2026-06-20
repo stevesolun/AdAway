@@ -300,6 +300,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
   -ReportPath release-readiness-report.md
 ```
 
+The readiness verifier requires the artifact verifier and physical smoke report
+to describe the same APK by name, APK SHA-256, and signing certificate digest;
+do not combine proof reports from different release attempts.
+
 ### Production Signing
 
 Add to `~/.gradle/gradle.properties`:
@@ -341,10 +345,11 @@ upload a `release-artifact-verification-report` artifact. For install/launch
 coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
 `android-device`; it downloads the tagged APK and runs the full release smoke
 against a physical device. Successful physical smoke runs upload a
-`physical-release-smoke-report` artifact with APK identity checks and the
-observed launch result. Regular CI also uploads a `license-boundary-report`;
-tagged direct-APK releases upload `release-license-boundary-reports` covering
-source and packaged artifact GPL/MIT boundary checks.
+`physical-release-smoke-report` artifact with APK name, APK SHA-256, signer
+certificate identity, and the observed launch result. Regular CI also uploads a
+`license-boundary-report`; tagged direct-APK releases upload
+`release-license-boundary-reports` covering source and packaged artifact
+GPL/MIT boundary checks.
 
 **Repository Secrets** (for production-signed APKs):
 

@@ -99,10 +99,16 @@ function Get-Sha256Hex([string] $value) {
     }
 }
 
+function Get-FileSha256Hex([string] $path) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+}
+
 function Write-ReleaseSmokeReport(
     [string] $Status,
     [string] $Mode,
     [string] $PhysicalDevice,
+    [string] $ApkSha256,
+    [string] $SignerCertificateSha256,
     [string] $DeviceSerialHash = "",
     [string] $LaunchPid = ""
 ) {
@@ -118,6 +124,11 @@ function Write-ReleaseSmokeReport(
 
     $apkName = Split-Path -Leaf $apk.Path
     $signerCheck = -not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)
+    $signerCertificate = if ([string]::IsNullOrWhiteSpace($SignerCertificateSha256)) {
+        "not-checked"
+    } else {
+        Normalize-Sha256 $SignerCertificateSha256
+    }
     $lines = @(
         "# Release Smoke Report",
         "",
@@ -126,8 +137,10 @@ function Write-ReleaseSmokeReport(
         "- Status: $Status",
         "- Mode: $Mode",
         "- APK: $apkName",
+        "- APK SHA-256: $ApkSha256",
         "- Package: $PackageName",
         "- Signer certificate check: $signerCheck",
+        "- Signer certificate SHA-256: $signerCertificate",
         "- Physical device: $PhysicalDevice"
     )
     if (-not [string]::IsNullOrWhiteSpace($DeviceSerialHash)) {
@@ -145,6 +158,7 @@ $apk = Resolve-Path -LiteralPath $ApkPath -ErrorAction Stop
 if ((Get-Item -LiteralPath $apk.Path).Length -le 0) {
     Fail "APK is empty: $($apk.Path)"
 }
+$apkSha256 = Get-FileSha256Hex $apk.Path
 
 $aapt = Find-BuildTool "aapt"
 
@@ -160,6 +174,7 @@ if (-not (($badging -join "`n") -match $packagePattern)) {
     Fail "APK package does not match $PackageName."
 }
 
+$actualCertSha256 = ""
 if (-not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)) {
     $apksigner = Find-BuildTool "apksigner"
     $certOutput = & $apksigner verify --print-certs $apk.Path
@@ -172,7 +187,8 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)) {
         Fail "Signer #1 certificate SHA-256 digest was not found."
     }
     $actualCert = ($actualCertLine -replace "^.*certificate SHA-256 digest:\s*", "")
-    if ((Normalize-Sha256 $actualCert) -ne (Normalize-Sha256 $ExpectedCertSha256)) {
+    $actualCertSha256 = Normalize-Sha256 $actualCert
+    if ($actualCertSha256 -ne (Normalize-Sha256 $ExpectedCertSha256)) {
         Fail "Release APK signer fingerprint does not match ExpectedCertSha256."
     }
 }
@@ -181,7 +197,9 @@ if ($VerifyOnly) {
     Write-ReleaseSmokeReport `
         -Status "passed" `
         -Mode "identity-only" `
-        -PhysicalDevice "not-run"
+        -PhysicalDevice "not-run" `
+        -ApkSha256 $apkSha256 `
+        -SignerCertificateSha256 $actualCertSha256
     Write-Host "Release APK identity verification passed for ${PackageName}: $($apk.Path)"
     Write-Host "Physical-device install/launch smoke was not run."
     exit 0
@@ -235,6 +253,8 @@ Write-ReleaseSmokeReport `
     -Status "passed" `
     -Mode "physical-device" `
     -PhysicalDevice "verified-real-device" `
+    -ApkSha256 $apkSha256 `
+    -SignerCertificateSha256 $actualCertSha256 `
     -DeviceSerialHash (Get-Sha256Hex $serial) `
     -LaunchPid $launchPid
 Write-Host "Release smoke passed for $PackageName on $serial (pid $launchPid)."

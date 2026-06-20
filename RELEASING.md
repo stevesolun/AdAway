@@ -172,7 +172,8 @@ require WSL, Bash, or OpenSSL. The release workflow still invokes the Bash
 wrapper on GitHub-hosted Linux runners.
 
 `run-release-smoke.ps1 -VerifyOnly` checks release APK badging and optional
-signer identity without requiring a connected device. The full
+signer identity without requiring a connected device, and writes the APK
+SHA-256 plus signer certificate status when `-ReportPath` is provided. The full
 `run-release-smoke.ps1` command still refuses debuggable APKs and emulators,
 installs the release APK on an attached physical device, launches `org.adaway`,
 and fails if the process is not running after launch.
@@ -184,8 +185,9 @@ build-tools, and one attached physical device, or provide the optional
 `device_serial` input when several physical devices are attached. The workflow downloads
 `AdAway_<version>.apk` from the provided release tag and runs
 `run-release-smoke.ps1` without `-VerifyOnly`. A successful run uploads the
-`physical-release-smoke-report` artifact with the APK identity checks, physical
-device status, hashed device serial, and observed launch pid.
+`physical-release-smoke-report` artifact with the APK name, APK SHA-256,
+signing certificate identity, physical device status, hashed device serial, and
+observed launch pid.
 
 On Unix-like shells with PowerShell available, the boundary checker wrapper can
 also be run directly:

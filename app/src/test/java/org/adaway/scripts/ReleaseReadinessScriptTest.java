@@ -15,6 +15,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 public class ReleaseReadinessScriptTest {
+    private static final String RELEASE_APK = "AdAway_13.5.0.apk";
+    private static final String RELEASE_APK_SHA256 =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    private static final String RELEASE_CERT_SHA256 =
+            "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
     @Test
     public void releaseReadinessFailsWhenPhysicalSmokeDidNotRun() throws Exception {
@@ -58,6 +63,44 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenSmokeIdentityDoesNotMatchArtifactReport()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-mismatch");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport,
+                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail when smoke and artifact APK hashes differ.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain the APK identity mismatch.",
+                    report.contains("- Status: failed") &&
+                            report.contains("APK SHA-256") &&
+                            report.contains("release artifact") &&
+                            report.contains("physical smoke"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -71,12 +114,8 @@ public class ReleaseReadinessScriptTest {
             Path licenseReport = fixture.resolve("license-boundary-report.md");
             Path readinessReport = fixture.resolve("release-readiness-report.md");
             writePassingReleaseArtifactReport(releaseReport);
-            writeUtf8(smokeReport,
-                    "# Release Smoke Report\n\n" +
-                            "- Status: passed\n" +
-                            "- Mode: physical-device\n" +
-                            "- Physical device: verified-real-device\n" +
-                            "- Launch pid observed: 4242\n");
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
             writePassingUxReport(uxReport);
             writePassingLicenseReport(licenseReport);
 
@@ -92,6 +131,7 @@ public class ReleaseReadinessScriptTest {
                             report.contains("- Status: passed") &&
                             report.contains("- Release artifact verification: passed") &&
                             report.contains("- Physical release smoke: passed") &&
+                            report.contains("- Release identity consistency: passed") &&
                             report.contains("- UX sign-off: passed") &&
                             report.contains("- License boundary: passed"));
         } finally {
@@ -109,6 +149,8 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-PhysicalSmokeReport") &&
                         readme.contains("-UxSignOffReport") &&
                         readme.contains("-LicenseBoundaryReport") &&
+                        readme.contains("same APK") &&
+                        readme.contains("APK SHA-256") &&
                         readme.contains("release-readiness-report.md"));
     }
 
@@ -127,8 +169,24 @@ public class ReleaseReadinessScriptTest {
         writeUtf8(path,
                 "# Release Artifact Verification Report\n\n" +
                         "- Status: passed\n" +
+                        "- APK: " + RELEASE_APK + "\n" +
+                        "- APK SHA-256: " + RELEASE_APK_SHA256 + "\n" +
+                        "- Manifest certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
                         "- Attestations: verified\n" +
                         "- Attested artifacts: 6\n");
+    }
+
+    private static void writePassingPhysicalSmokeReport(Path path, String apkSha256,
+            String certSha256) throws IOException {
+        writeUtf8(path,
+                "# Release Smoke Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Mode: physical-device\n" +
+                        "- APK: " + RELEASE_APK + "\n" +
+                        "- APK SHA-256: " + apkSha256 + "\n" +
+                        "- Signer certificate SHA-256: " + certSha256 + "\n" +
+                        "- Physical device: verified-real-device\n" +
+                        "- Launch pid observed: 4242\n");
     }
 
     private static void writePassingUxReport(Path path) throws IOException {
