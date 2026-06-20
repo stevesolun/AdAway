@@ -175,6 +175,46 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenUxSignOffProvenanceIsIncomplete()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-ux-provenance");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writeUtf8(uxReport,
+                    "# UX Sign-Off Report\n\n" +
+                            "- Status: passed\n" +
+                            "- Unchecked items: 0\n");
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail for anonymous or hand-written UX pass markers.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain missing UX sign-off provenance.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Reviewer") &&
+                            report.contains("Review packet") &&
+                            report.contains("Checked items"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -227,6 +267,9 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("APK SHA-256") &&
                         readme.contains("artifact license-boundary") &&
                         readme.contains("same APK and SBOM") &&
+                        readme.contains("UX sign-off report") &&
+                        readme.contains("reviewer") &&
+                        readme.contains("review packet") &&
                         readme.contains("Strict artifacts") &&
                         readme.contains("release-readiness-report.md"));
     }
@@ -272,7 +315,10 @@ public class ReleaseReadinessScriptTest {
                 "# UX Sign-Off Report\n\n" +
                         "- Status: passed\n" +
                         "- Reviewer: QA Lead\n" +
-                        "- Unchecked items: 0\n");
+                        "- Review packet: ux-matrix-review.md\n" +
+                        "- Checked items: 42\n" +
+                        "- Unchecked items: 0\n" +
+                        "- Issues: 0\n");
     }
 
     private static void writePassingLicenseReport(Path path) throws IOException {

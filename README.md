@@ -307,6 +307,9 @@ release artifact license-boundary report for `-LicenseBoundaryReport`; it must
 show `Strict artifacts: true` with the same APK and SBOM artifact names from the
 release artifact verification report, not the regular CI source-only
 license-boundary report.
+The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
+reviewer, review packet, checked item count, `Unchecked items: 0`, and
+`Issues: 0`; do not use hand-written pass markers.
 
 ### Production Signing
 

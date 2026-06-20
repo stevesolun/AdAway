@@ -207,6 +207,37 @@ function Test-LicenseBoundaryReleaseArtifact(
     return $passed
 }
 
+function Test-UxSignOffEvidence(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $uxSignOffText
+) {
+    if ([string]::IsNullOrWhiteSpace($uxSignOffText)) {
+        return $false
+    }
+
+    $passed = $true
+    $reviewer = Get-ReportField $issues "UX sign-off" $uxSignOffText "Reviewer"
+    if ([string]::IsNullOrWhiteSpace($reviewer) -or $reviewer -eq "not-provided") {
+        $issues.Add("UX sign-off report must include a reviewer identity.")
+        $passed = $false
+    }
+
+    $reviewPacket = Get-ReportField $issues "UX sign-off" $uxSignOffText "Review packet"
+    if ([string]::IsNullOrWhiteSpace($reviewPacket) -or $reviewPacket -eq "not-provided") {
+        $issues.Add("UX sign-off report must include the reviewed packet name.")
+        $passed = $false
+    }
+
+    $checkedItems = Get-ReportField $issues "UX sign-off" $uxSignOffText "Checked items"
+    $checkedCount = 0
+    if (-not [int]::TryParse($checkedItems, [ref] $checkedCount) -or $checkedCount -le 0) {
+        $issues.Add("UX sign-off report must include a positive checked item count.")
+        $passed = $false
+    }
+
+    return $passed
+}
+
 function Write-ReadinessReport(
     [string] $status,
     [bool] $releaseArtifactPassed,
@@ -276,8 +307,13 @@ $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $phys
 $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "# UX Sign-Off Report",
         "- Status: passed",
-        "- Unchecked items: 0"
+        "- Reviewer:",
+        "- Review packet:",
+        "- Checked items:",
+        "- Unchecked items: 0",
+        "- Issues: 0"
     )
+$uxSignOffPassed = $uxSignOffPassed -and (Test-UxSignOffEvidence $issues $uxSignOffText)
 $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseBoundaryText @(
         "# License Boundary Report",
         "- Status: passed",
