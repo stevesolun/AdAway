@@ -138,6 +138,46 @@ function Test-ReleaseIdentity(
     return $passed
 }
 
+function Test-PhysicalSmokeEvidence(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $physicalSmokeText
+) {
+    if ([string]::IsNullOrWhiteSpace($physicalSmokeText)) {
+        return $false
+    }
+
+    $passed = $true
+    $packageName = Get-ReportField $issues "Physical release smoke" $physicalSmokeText "Package"
+    if ([string]::IsNullOrWhiteSpace($packageName) -or $packageName -eq "not-provided") {
+        $issues.Add("physical smoke report must include the checked package name.")
+        $passed = $false
+    }
+
+    $signerCheck = Get-ReportField $issues "Physical release smoke" `
+        $physicalSmokeText "Signer certificate check"
+    if (-not $signerCheck.Equals("true", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $issues.Add("physical smoke report must have Signer certificate check: True.")
+        $passed = $false
+    }
+
+    $deviceSerialHash = Normalize-Sha256 (Get-ReportField $issues "Physical release smoke" `
+            $physicalSmokeText "Device serial SHA-256")
+    if ($deviceSerialHash -notmatch "^[0-9a-f]{64}$") {
+        $issues.Add("physical smoke report must include a SHA-256-shaped device serial hash.")
+        $passed = $false
+    }
+
+    $launchPid = Get-ReportField $issues "Physical release smoke" `
+        $physicalSmokeText "Launch pid observed"
+    $parsedPid = 0
+    if (-not [int]::TryParse($launchPid, [ref] $parsedPid) -or $parsedPid -le 0) {
+        $issues.Add("physical smoke report must include a positive launch pid.")
+        $passed = $false
+    }
+
+    return $passed
+}
+
 function Test-ReleaseArtifactEvidence(
     [System.Collections.Generic.List[string]] $issues,
     [string] $releaseArtifactText
@@ -340,10 +380,15 @@ $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $phys
         "- Mode: physical-device",
         "- APK:",
         "- APK SHA-256:",
+        "- Package:",
+        "- Signer certificate check:",
         "- Signer certificate SHA-256:",
         "- Physical device: verified-real-device",
+        "- Device serial SHA-256:",
         "- Launch pid observed:"
     )
+$physicalSmokePassed = $physicalSmokePassed -and
+        (Test-PhysicalSmokeEvidence $issues $physicalSmokeText)
 $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "# UX Sign-Off Report",
         "- Status: passed",

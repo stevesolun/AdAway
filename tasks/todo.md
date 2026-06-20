@@ -7177,3 +7177,40 @@
   real tagged release verification with production secrets still must be run. Physical-device
   release smoke, actual human UX screenshot sign-off, and MIT legal/provenance clearance remain
   external gates.
+
+## Plan - 2026-06-20 Release Physical Smoke Provenance
+- [x] Add a failing readiness contract that rejects sparse physical-smoke pass markers.
+- [x] Require final readiness physical-smoke evidence to include package, signer certificate
+  check, signer certificate digest, device serial hash, and launch pid.
+- [x] Validate signer certificate check is true, device serial hash is SHA-256-shaped, and launch
+  pid is a positive integer.
+- [x] Document that final readiness requires the generated `run-release-smoke.ps1` physical-device
+  report, not hand-written smoke markers.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Physical Smoke Provenance
+- The final readiness verifier accepted a sparse physical-smoke report with `Status: passed`,
+  physical-device mode, APK hash, signer certificate digest, verified-real-device marker, and
+  launch pid, but without package, signer-check flag, or device serial hash from
+  `run-release-smoke.ps1`.
+- Added a focused regression test where release artifact, UX sign-off, and license-boundary
+  reports pass while the physical-smoke report is sparse. The test failed first, proving the old
+  verifier accepted weak physical-device smoke proof.
+- `verify-release-readiness.ps1` now requires `Package`, `Signer certificate check`,
+  `Signer certificate SHA-256`, `Device serial SHA-256`, and `Launch pid observed`. It rejects
+  signer checks other than true, non-SHA-256-shaped device serial hashes, and non-positive launch
+  pids.
+- README and `RELEASING.md` now state that final readiness must use the generated
+  `run-release-smoke.ps1` physical-device report, not hand-written smoke markers.
+- Verification passed:
+  focused readiness tests first failed on sparse physical-smoke proof and README expectations,
+  then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a 100-column scan found only existing
+  long README/RELEASING lines outside this slice.
+- Remaining full-goal gaps: this makes physical-smoke proof harder to fake locally, but the real
+  physical-device release APK smoke still must be run. Real tagged release verification with
+  production secrets, actual human UX screenshot sign-off, and MIT legal/provenance clearance
+  remain external gates.

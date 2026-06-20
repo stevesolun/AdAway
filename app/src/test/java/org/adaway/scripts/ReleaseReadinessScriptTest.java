@@ -102,6 +102,43 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenPhysicalSmokeProvenanceIsIncomplete()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-sparse-smoke");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writeSparsePhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail for sparse physical-smoke pass markers.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain missing physical-smoke provenance.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Package") &&
+                            report.contains("Signer certificate check") &&
+                            report.contains("Device serial SHA-256"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessFailsWhenReleaseArtifactProofIsSparse()
             throws Exception {
         String powershell = findPowerShell();
@@ -303,6 +340,9 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-LicenseBoundaryReport") &&
                         readme.contains("same APK") &&
                         readme.contains("APK SHA-256") &&
+                        readme.contains("Package") &&
+                        readme.contains("Signer certificate check") &&
+                        readme.contains("Device serial SHA-256") &&
                         readme.contains("Checksum verification") &&
                         readme.contains("Manifest signature") &&
                         readme.contains("Manifest payload") &&
@@ -356,6 +396,22 @@ public class ReleaseReadinessScriptTest {
     }
 
     private static void writePassingPhysicalSmokeReport(Path path, String apkSha256,
+            String certSha256) throws IOException {
+        writeUtf8(path,
+                "# Release Smoke Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Mode: physical-device\n" +
+                        "- APK: " + RELEASE_APK + "\n" +
+                        "- APK SHA-256: " + apkSha256 + "\n" +
+                        "- Package: org.adaway\n" +
+                        "- Signer certificate check: True\n" +
+                        "- Signer certificate SHA-256: " + certSha256 + "\n" +
+                        "- Physical device: verified-real-device\n" +
+                        "- Device serial SHA-256: " + RELEASE_APK_SHA256 + "\n" +
+                        "- Launch pid observed: 4242\n");
+    }
+
+    private static void writeSparsePhysicalSmokeReport(Path path, String apkSha256,
             String certSha256) throws IOException {
         writeUtf8(path,
                 "# Release Smoke Report\n\n" +

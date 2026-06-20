@@ -306,6 +306,9 @@ do not combine proof reports from different release attempts. The release
 artifact report must come from `verify-release-artifacts` and include
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
+The physical smoke report must come from `run-release-smoke.ps1` in
+physical-device mode and include `Package`, `Signer certificate check: True`,
+`Signer certificate SHA-256`, `Device serial SHA-256`, and `Launch pid observed`.
 Use the tagged release artifact license-boundary report for
 `-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
 artifact names from the release artifact verification report, not the regular CI source-only
