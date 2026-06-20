@@ -138,6 +138,52 @@ function Test-ReleaseIdentity(
     return $passed
 }
 
+function Test-LicenseBoundaryReleaseArtifact(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $licenseBoundaryText
+) {
+    if ([string]::IsNullOrWhiteSpace($licenseBoundaryText)) {
+        return $false
+    }
+
+    $passed = $true
+    $sourceMode = Get-ReportField $issues "License boundary" `
+        $licenseBoundaryText "Source mode"
+    if ($sourceMode -ne "GitTracked") {
+        $issues.Add("license boundary report must use Source mode: GitTracked for release " +
+                "readiness.")
+        $passed = $false
+    }
+
+    $strictSourceArchive = Get-ReportField $issues "License boundary" `
+        $licenseBoundaryText "Strict source archive"
+    if ($strictSourceArchive -ne "true") {
+        $issues.Add("license boundary report must use Strict source archive: true.")
+        $passed = $false
+    }
+
+    $strictArtifacts = Get-ReportField $issues "License boundary" `
+        $licenseBoundaryText "Strict artifacts"
+    if ($strictArtifacts -ne "true") {
+        $issues.Add("license boundary report must use Strict artifacts: true.")
+        $passed = $false
+    }
+
+    $licenseApk = Get-ReportField $issues "License boundary" $licenseBoundaryText "APK"
+    if ([string]::IsNullOrWhiteSpace($licenseApk) -or $licenseApk -eq "not-provided") {
+        $issues.Add("license boundary report must include the release APK artifact name.")
+        $passed = $false
+    }
+
+    $licenseSbom = Get-ReportField $issues "License boundary" $licenseBoundaryText "SBOM"
+    if ([string]::IsNullOrWhiteSpace($licenseSbom) -or $licenseSbom -eq "not-provided") {
+        $issues.Add("license boundary report must include the release SBOM artifact name.")
+        $passed = $false
+    }
+
+    return $passed
+}
+
 function Write-ReadinessReport(
     [string] $status,
     [bool] $releaseArtifactPassed,
@@ -211,9 +257,16 @@ $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
 $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseBoundaryText @(
         "# License Boundary Report",
         "- Status: passed",
+        "- Source mode:",
+        "- Strict source archive:",
+        "- Strict artifacts:",
+        "- APK:",
+        "- SBOM:",
         "- MIT release status: blocked until GPL-derived material is cleared",
         "- Issues: 0"
     )
+$licenseBoundaryPassed = $licenseBoundaryPassed -and
+        (Test-LicenseBoundaryReleaseArtifact $issues $licenseBoundaryText)
 $releaseIdentityPassed = Test-ReleaseIdentity $issues $releaseArtifactText $physicalSmokeText
 
 if ($issues.Count -gt 0) {

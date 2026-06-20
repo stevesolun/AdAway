@@ -101,6 +101,42 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenLicenseBoundaryIsSourceOnly() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-license-source-only");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writeSourceOnlyLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail until artifact license-boundary proof is used.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain missing strict artifact proof.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Strict artifacts") &&
+                            report.contains("APK") &&
+                            report.contains("SBOM"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -151,6 +187,8 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-LicenseBoundaryReport") &&
                         readme.contains("same APK") &&
                         readme.contains("APK SHA-256") &&
+                        readme.contains("artifact license-boundary") &&
+                        readme.contains("Strict artifacts") &&
                         readme.contains("release-readiness-report.md"));
     }
 
@@ -201,6 +239,24 @@ public class ReleaseReadinessScriptTest {
         writeUtf8(path,
                 "# License Boundary Report\n\n" +
                         "- Status: passed\n" +
+                        "- Source mode: GitTracked\n" +
+                        "- Strict source archive: true\n" +
+                        "- Strict artifacts: true\n" +
+                        "- APK: " + RELEASE_APK + "\n" +
+                        "- SBOM: adaway.cdx.json\n" +
+                        "- MIT release status: blocked until GPL-derived material is cleared\n" +
+                        "- Issues: 0\n");
+    }
+
+    private static void writeSourceOnlyLicenseReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# License Boundary Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Source mode: WorkingTree\n" +
+                        "- Strict source archive: false\n" +
+                        "- Strict artifacts: false\n" +
+                        "- APK: not-provided\n" +
+                        "- SBOM: not-provided\n" +
                         "- MIT release status: blocked until GPL-derived material is cleared\n" +
                         "- Issues: 0\n");
     }

@@ -7037,3 +7037,38 @@
 - Remaining full-goal gaps: this prevents mixed release-proof reports, but real tagged release
   verification with production secrets, physical-device release smoke, human UX sign-off, and MIT
   legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 Release Artifact License Readiness
+- [x] Add a failing readiness contract that rejects source-only license-boundary reports for final
+  release readiness.
+- [x] Require final readiness to use strict artifact license-boundary evidence with APK and SBOM
+  artifact names.
+- [x] Keep Android CI source-only license-boundary reports valid for CI, but not sufficient for
+  final release readiness.
+- [x] Document that `verify-release-readiness.ps1` expects the tagged release artifact boundary
+  report, not the regular CI source report.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Artifact License Readiness
+- The final readiness verifier accepted any passing license-boundary report. That included the
+  regular CI source-only report, which does not prove the actual release APK and SBOM artifact
+  boundary.
+- Added a focused regression test proving a source-only license-boundary report fails final
+  readiness even when artifact verification, physical smoke, and UX sign-off reports pass.
+- `verify-release-readiness.ps1` now requires release license-boundary evidence to report
+  `Source mode: GitTracked`, `Strict source archive: true`, `Strict artifacts: true`, and concrete
+  APK and SBOM artifact names.
+- README and `RELEASING.md` now state that final readiness must use the tagged release artifact
+  license-boundary report, not the regular CI source-only report.
+- Verification passed:
+  focused readiness tests first failed on the new source-only rejection and README expectation,
+  then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a 100-column scan found only existing
+  long README/RELEASING lines outside this slice. One first-pass 100-column helper command failed
+  from PowerShell string interpolation syntax and was rerun successfully.
+- Remaining full-goal gaps: this closes the source-only license-report loophole in final release
+  readiness, but real tagged release verification with production secrets, physical-device release
+  smoke, human UX sign-off, and MIT legal/provenance clearance remain external gates.
