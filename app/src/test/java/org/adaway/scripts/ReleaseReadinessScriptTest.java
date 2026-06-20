@@ -1,0 +1,240 @@
+package org.adaway.scripts;
+
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
+
+public class ReleaseReadinessScriptTest {
+
+    @Test
+    public void releaseReadinessFailsWhenPhysicalSmokeDidNotRun() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-fail");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writeUtf8(smokeReport,
+                    "# Release Smoke Report\n\n" +
+                            "- Status: passed\n" +
+                            "- Mode: identity-only\n" +
+                            "- Physical device: not-run\n");
+            writePassingUxReport(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail until physical-device smoke ran.",
+                    result.exitCode != 0);
+            assertTrue("Readiness failure must write the requested report.",
+                    Files.isRegularFile(readinessReport));
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain the missing physical smoke proof.",
+                    report.contains("# Release Readiness Report") &&
+                            report.contains("- Status: failed") &&
+                            report.contains("physical-device") &&
+                            report.contains("verified-real-device"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-pass");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writeUtf8(smokeReport,
+                    "# Release Smoke Report\n\n" +
+                            "- Status: passed\n" +
+                            "- Mode: physical-device\n" +
+                            "- Physical device: verified-real-device\n" +
+                            "- Launch pid observed: 4242\n");
+            writePassingUxReport(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertEquals("Readiness must pass when every proof report is complete.\n" +
+                    result.stderr, 0, result.exitCode);
+            String report = readUtf8(readinessReport);
+            assertTrue("Passing readiness report must summarize all proof reports.",
+                    report.contains("# Release Readiness Report") &&
+                            report.contains("- Status: passed") &&
+                            report.contains("- Release artifact verification: passed") &&
+                            report.contains("- Physical release smoke: passed") &&
+                            report.contains("- UX sign-off: passed") &&
+                            report.contains("- License boundary: passed"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void readmeDocumentsReleaseReadinessVerifier() throws IOException {
+        String readme = readUtf8(repoDir().resolve("README.md"));
+
+        assertTrue("README must document the release-readiness verifier command.",
+                readme.contains("verify-release-readiness.ps1") &&
+                        readme.contains("-ReleaseArtifactReport") &&
+                        readme.contains("-PhysicalSmokeReport") &&
+                        readme.contains("-UxSignOffReport") &&
+                        readme.contains("-LicenseBoundaryReport") &&
+                        readme.contains("release-readiness-report.md"));
+    }
+
+    private static String readinessCommand(Path releaseReport, Path smokeReport,
+            Path uxReport, Path licenseReport, Path readinessReport) {
+        return "$ErrorActionPreference = 'Stop';" +
+                "& " + quote(repoDir().resolve("scripts/verify-release-readiness.ps1")) +
+                " -ReleaseArtifactReport " + quote(releaseReport) +
+                " -PhysicalSmokeReport " + quote(smokeReport) +
+                " -UxSignOffReport " + quote(uxReport) +
+                " -LicenseBoundaryReport " + quote(licenseReport) +
+                " -ReportPath " + quote(readinessReport) + ";";
+    }
+
+    private static void writePassingReleaseArtifactReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# Release Artifact Verification Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Attestations: verified\n" +
+                        "- Attested artifacts: 6\n");
+    }
+
+    private static void writePassingUxReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# UX Sign-Off Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Reviewer: QA Lead\n" +
+                        "- Unchecked items: 0\n");
+    }
+
+    private static void writePassingLicenseReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# License Boundary Report\n\n" +
+                        "- Status: passed\n" +
+                        "- MIT release status: blocked until GPL-derived material is cleared\n" +
+                        "- Issues: 0\n");
+    }
+
+    private static ProcessResult runPowerShell(String powershell, String command)
+            throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(powershell, "-NoProfile", "-ExecutionPolicy",
+                "Bypass", "-Command", command)
+                .directory(repoDir().toFile())
+                .start();
+        if (!process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            throw new AssertionError("Timed out running PowerShell command.");
+        }
+        String stdout;
+        String stderr;
+        try (java.io.InputStream output = process.getInputStream();
+                java.io.InputStream error = process.getErrorStream()) {
+            stdout = new String(output.readAllBytes(), StandardCharsets.UTF_8);
+            stderr = new String(error.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        return new ProcessResult(process.exitValue(), stdout, stderr);
+    }
+
+    private static String findPowerShell() {
+        for (String candidate : new String[]{"pwsh", "powershell", "powershell.exe"}) {
+            try {
+                Process process = new ProcessBuilder(candidate, "-NoProfile", "-Command",
+                        "$PSVersionTable.PSVersion.Major").start();
+                if (process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) &&
+                        process.exitValue() == 0) {
+                    return candidate;
+                }
+            } catch (IOException exception) {
+                // Try the next executable name.
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static Path repoDir() {
+        Path cwd = Paths.get("").toAbsolutePath();
+        if (Files.isDirectory(cwd.resolve("app/src/test"))) {
+            return cwd;
+        }
+        Path parent = cwd.getParent();
+        return parent != null && cwd.getFileName().toString().equals("app") ? parent : cwd;
+    }
+
+    private static String quote(Path path) {
+        return "'" + path.toString().replace("'", "''") + "'";
+    }
+
+    private static String readUtf8(Path path) throws IOException {
+        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+    }
+
+    private static void writeUtf8(Path path, String text) throws IOException {
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Files.write(path, text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void deleteRecursively(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException exception) {
+                    throw new IllegalStateException("Failed to delete " + path, exception);
+                }
+            });
+        }
+    }
+
+    private static final class ProcessResult {
+        final int exitCode;
+        final String stdout;
+        final String stderr;
+
+        ProcessResult(int exitCode, String stdout, String stderr) {
+            this.exitCode = exitCode;
+            this.stdout = stdout;
+            this.stderr = stderr;
+        }
+    }
+}

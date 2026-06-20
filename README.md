@@ -287,6 +287,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-ux-signoff.
   -ReportPath app\build\reports\ux-matrix\ux-signoff-report.md
 ```
 
+After release artifact verification, physical release smoke, UX sign-off, and
+license-boundary checks have all produced reports, aggregate them into one final
+readiness report:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-readiness.ps1 `
+  -ReleaseArtifactReport release-artifacts\verification-report.md `
+  -PhysicalSmokeReport release-smoke\release-smoke-report.md `
+  -UxSignOffReport app\build\reports\ux-matrix\ux-signoff-report.md `
+  -LicenseBoundaryReport app\build\reports\license-boundary\license-boundary-report.md `
+  -ReportPath release-readiness-report.md
+```
+
 ### Production Signing
 
 Add to `~/.gradle/gradle.properties`:

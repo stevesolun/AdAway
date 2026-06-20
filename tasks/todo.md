@@ -6972,3 +6972,33 @@
   has to be performed against real generated screenshots; physical-device release smoke, real
   tagged release verification with production secrets, and MIT rights/provenance clearance remain
   external gates.
+
+## Plan - 2026-06-20 Release Readiness Proof Aggregator
+- [x] Add failing contracts for a release-readiness verifier that rejects missing or non-passing
+  release artifact, physical smoke, UX sign-off, and license-boundary reports.
+- [x] Add a passing contract that accepts all four proof reports and writes one readiness report.
+- [x] Implement `scripts/verify-release-readiness.ps1` as a local final gate over existing reports.
+- [x] Document the release-readiness verifier in `README.md`.
+- [x] Re-run focused readiness tests and the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Readiness Proof Aggregator
+- The branch had separate proof reports for release artifacts, physical smoke, UX sign-off, and
+  license-boundary checks, but no one-command final gate that proved all four reports were present
+  and passing together.
+- Added `scripts/verify-release-readiness.ps1`. It rejects missing, empty, or non-passing reports;
+  requires physical-device smoke evidence instead of identity-only smoke; and writes
+  `release-readiness-report.md` on pass or failure.
+- Added focused script tests for the physical-smoke rejection path, the all-proofs-pass path, and
+  README documentation of the release-readiness command.
+- README now documents the final readiness aggregation command and all required report parameters.
+- Verification passed:
+  focused readiness tests first failed while the script and docs were missing, then passed after
+  implementation; forced focused test rerun with `--rerun-tasks` passed;
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  first exceeded the local 5-minute command timeout without a test result, then passed when rerun
+  with a longer timeout; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md`; `git diff --check` with
+  only existing Windows LF-to-CRLF warnings; and a 100-column check over the new script and test.
+- Remaining full-goal gaps: the readiness verifier is a local proof aggregator only. Real tagged
+  release artifact verification, physical-device release smoke, human UX sign-off, and MIT
+  rights/provenance clearance must still be performed before claiming release readiness.
