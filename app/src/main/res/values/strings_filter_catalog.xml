@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <!-- Filter List Categories (uBlock-style organization) -->
     <string name="filter_category_user">My Lists</string>
@@ -100,7 +100,7 @@
     <string name="filterlists_confirm_unsubscribe_filtered_message">This removes FilterLists.com sources that match the current view. Existing protection changes after the next update.</string>
     <string name="filterlists_confirm_unsubscribe_filtered_action">Remove visible</string>
     <string name="filterlists_subscribe_all_cancelled">FilterLists subscription cancelled</string>
-    <string name="filterlists_subscribe_all_stopping">Stopping FilterLists subscription...</string>
+    <string name="filterlists_subscribe_all_stopping">Stopping FilterLists subscription…</string>
     <string name="filterlists_subscribe_all_done_summary">Added %1$d | Already %2$d | No URL %3$d | Unsupported %4$d</string>
     <string name="filterlists_subscribe_all_cancelled_summary">Cancelled | Added %1$d | Already %2$d | No URL %3$d | Unsupported %4$d</string>
     <string name="filterlists_subscribe_all_review_summary">%1$s | Review: %2$s</string>
