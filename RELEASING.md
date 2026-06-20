@@ -220,6 +220,16 @@ The generated readiness report repeats release tag, APK, APK SHA-256, SBOM, and
 UX review packet hash, then records SHA-256 hashes for the release artifact,
 physical smoke, UX sign-off, and license-boundary proof reports it consumed.
 
+The final aggregation can also be run in GitHub Actions from the manual
+**Verify release readiness** workflow
+(`.github/workflows/verify-release-readiness.yml`). Provide the run IDs that
+uploaded `release-artifact-verification-report`,
+`physical-release-smoke-report`, and `release-license-boundary-reports`, plus
+`ux_signoff_report_base64`, the base64-encoded `ux-signoff-report.md` generated
+by `verify-ux-signoff.ps1`. The workflow downloads the proof artifacts, runs
+`verify-release-readiness.ps1`, and uploads the final
+`release-readiness-report` artifact.
+
 After the GitHub release is published, download the six uploaded assets to a
 clean checkout and verify them as a single artifact set. With
 `--verify-attestations`, the verifier checks GitHub attestations for the APK,

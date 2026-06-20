@@ -7317,3 +7317,37 @@
 - Remaining full-goal gaps: this makes the final readiness report auditable, but the real tagged
   release verification with production secrets, physical-device release APK smoke, actual human UX
   screenshot sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 Release Readiness Workflow Aggregation
+- [x] Add a failing workflow/docs contract for a manual final release-readiness workflow.
+- [x] Implement the workflow to download durable proof artifacts by run ID.
+- [x] Feed the generated UX sign-off report into the workflow without pretending human review is
+  automated.
+- [x] Run `verify-release-readiness.ps1` from the workflow and upload the final readiness report.
+- [x] Re-run focused readiness workflow coverage plus the standard local gates, then commit and
+  push.
+
+## Review - 2026-06-20 Release Readiness Workflow Aggregation
+- Gap found: the repository had a strong local `verify-release-readiness.ps1` gate, but no
+  GitHub Actions workflow to aggregate the post-publish artifact verifier, physical-device smoke,
+  release license-boundary evidence, and human UX sign-off into one durable final report.
+- Added a focused red contract requiring `.github/workflows/verify-release-readiness.yml`, read-only
+  permissions, proof artifact downloads, UX sign-off report ingestion, canonical readiness
+  verification, final report upload, and README/RELEASING documentation.
+- Added the manual `Verify release readiness` workflow. It accepts run IDs for
+  `release-artifact-verification-report`, `physical-release-smoke-report`, and
+  `release-license-boundary-reports`, decodes the base64 `ux-signoff-report.md`, runs
+  `scripts/verify-release-readiness.ps1`, and uploads `release-readiness-report`.
+- README and `RELEASING.md` now document the final workflow, including the
+  `ux_signoff_report_base64` input and the final `release-readiness-report` artifact.
+- Verification passed: the new focused workflow/docs contract failed first on the missing workflow
+  and then passed after implementation; after cleanup the focused contract passed again; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed;
+  `git diff --check` passed with only existing Windows LF-to-CRLF warnings; and changed-line
+  length scanning passed.
+- Remaining full-goal gaps: this makes the final release-readiness proof CI-backed, but the real
+  production tagged release, real physical-device release smoke, actual human UX screenshot
+  sign-off, and MIT legal/provenance clearance remain external gates.

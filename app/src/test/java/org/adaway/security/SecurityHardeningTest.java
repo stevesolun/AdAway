@@ -977,6 +977,72 @@ public class SecurityHardeningTest {
     }
 
     @Test
+    public void atk34_releaseReadinessWorkflowAggregatesProofReports() throws IOException {
+        Path repo = repoDir();
+        Path readinessWorkflowPath =
+                repo.resolve(".github/workflows/verify-release-readiness.yml");
+        assertTrue("Manual final release-readiness workflow must exist.",
+                Files.isRegularFile(readinessWorkflowPath));
+
+        String readinessWorkflow = readUtf8(readinessWorkflowPath);
+        String releasing = readUtf8(repo.resolve("RELEASING.md"));
+        String readme = readUtf8(repo.resolve("README.md"));
+
+        assertTrue("Final readiness workflow must be manually dispatched.",
+                readinessWorkflow.contains("workflow_dispatch:"));
+        assertTrue("Final readiness workflow must accept release artifact, smoke, and " +
+                        "license-boundary run ids.",
+                readinessWorkflow.contains("release_artifacts_run_id:") &&
+                        readinessWorkflow.contains("physical_smoke_run_id:") &&
+                        readinessWorkflow.contains("license_boundary_run_id:"));
+        assertTrue("Final readiness workflow must accept the generated UX sign-off report.",
+                readinessWorkflow.contains("ux_signoff_report_base64:") &&
+                        readinessWorkflow.contains("ux-signoff/ux-signoff-report.md"));
+        assertTrue("Final readiness workflow must use read-only repository and artifact access.",
+                readinessWorkflow.contains("contents: read") &&
+                        readinessWorkflow.contains("actions: read") &&
+                        readinessWorkflow.contains("GH_TOKEN: ${{ github.token }}"));
+        assertTrue("Final readiness workflow must download the durable proof artifacts.",
+                readinessWorkflow.contains("gh run download \"$RELEASE_ARTIFACTS_RUN_ID\"") &&
+                        readinessWorkflow.contains("release-artifact-verification-report") &&
+                        readinessWorkflow.contains("gh run download \"$PHYSICAL_SMOKE_RUN_ID\"") &&
+                        readinessWorkflow.contains("physical-release-smoke-report") &&
+                        readinessWorkflow.contains(
+                                "gh run download \"$LICENSE_BOUNDARY_RUN_ID\"") &&
+                        readinessWorkflow.contains("release-license-boundary-reports"));
+        assertTrue("Final readiness workflow must run the canonical readiness verifier.",
+                readinessWorkflow.contains("./scripts/verify-release-readiness.ps1") &&
+                        readinessWorkflow.contains("-ReleaseArtifactReport") &&
+                        readinessWorkflow.contains("release-artifacts/verification-report.md") &&
+                        readinessWorkflow.contains("-PhysicalSmokeReport") &&
+                        readinessWorkflow.contains("release-smoke/release-smoke-report.md") &&
+                        readinessWorkflow.contains("-UxSignOffReport") &&
+                        readinessWorkflow.contains("ux-signoff/ux-signoff-report.md") &&
+                        readinessWorkflow.contains("-LicenseBoundaryReport") &&
+                        readinessWorkflow.contains(
+                                "release-boundary/artifact-license-boundary-report.md") &&
+                        readinessWorkflow.contains("-ReportPath") &&
+                        readinessWorkflow.contains(
+                                "release-readiness/release-readiness-report.md"));
+        assertTrue("Final readiness workflow must upload the final report as a durable artifact.",
+                readinessWorkflow.contains("Upload release readiness report") &&
+                        readinessWorkflow.contains("release-readiness-report") &&
+                        readinessWorkflow.contains(
+                                "release-readiness/release-readiness-report.md") &&
+                        readinessWorkflow.contains(
+                                "actions/upload-artifact@" +
+                                        "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));
+
+        assertTrue("Release docs must document the final readiness workflow.",
+                releasing.contains("verify-release-readiness.yml") &&
+                        releasing.contains("release-readiness-report") &&
+                        releasing.contains("ux_signoff_report_base64"));
+        assertTrue("README must mention the final readiness workflow.",
+                readme.contains("verify-release-readiness.yml") &&
+                        readme.contains("release-readiness-report"));
+    }
+
+    @Test
     public void atk34_releaseSmokeRequiresReleaseApkOnRealDevice() throws IOException {
         Path repo = repoDir();
         Path smokeWorkflowPath = repo.resolve(".github/workflows/physical-release-smoke.yml");

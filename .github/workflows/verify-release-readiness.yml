@@ -1,0 +1,100 @@
+name: Verify release readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_artifacts_run_id:
+        description: "Run ID that uploaded release-artifact-verification-report"
+        required: true
+      physical_smoke_run_id:
+        description: "Run ID that uploaded physical-release-smoke-report"
+        required: true
+      license_boundary_run_id:
+        description: "Run ID that uploaded release-license-boundary-reports"
+        required: true
+      ux_signoff_report_base64:
+        description: "Base64-encoded ux-signoff-report.md from verify-ux-signoff.ps1"
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
+
+      - name: Download proof report artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ARTIFACTS_RUN_ID: ${{ inputs.release_artifacts_run_id }}
+          PHYSICAL_SMOKE_RUN_ID: ${{ inputs.physical_smoke_run_id }}
+          LICENSE_BOUNDARY_RUN_ID: ${{ inputs.license_boundary_run_id }}
+        run: |
+          set -euo pipefail
+
+          require_run_id() {
+            local label="$1"
+            local value="$2"
+            if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+              echo "::error::$label must be a numeric GitHub Actions run id."
+              exit 1
+            fi
+          }
+
+          require_run_id "release_artifacts_run_id" "$RELEASE_ARTIFACTS_RUN_ID"
+          require_run_id "physical_smoke_run_id" "$PHYSICAL_SMOKE_RUN_ID"
+          require_run_id "license_boundary_run_id" "$LICENSE_BOUNDARY_RUN_ID"
+
+          rm -rf release-artifacts release-smoke release-boundary release-readiness
+          mkdir -p release-artifacts release-smoke release-boundary release-readiness
+
+          gh run download "$RELEASE_ARTIFACTS_RUN_ID" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name release-artifact-verification-report \
+            --dir release-artifacts
+          gh run download "$PHYSICAL_SMOKE_RUN_ID" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name physical-release-smoke-report \
+            --dir release-smoke
+          gh run download "$LICENSE_BOUNDARY_RUN_ID" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name release-license-boundary-reports \
+            --dir release-boundary
+
+          test -s release-artifacts/verification-report.md
+          test -s release-smoke/release-smoke-report.md
+          test -s release-boundary/artifact-license-boundary-report.md
+
+      - name: Decode UX sign-off report
+        shell: bash
+        env:
+          UX_SIGNOFF_REPORT_BASE64: ${{ inputs.ux_signoff_report_base64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ux-signoff
+          printf '%s' "$UX_SIGNOFF_REPORT_BASE64" \
+            | base64 -d > ux-signoff/ux-signoff-report.md
+          test -s ux-signoff/ux-signoff-report.md
+
+      - name: Verify final release readiness
+        shell: pwsh
+        run: |
+          ./scripts/verify-release-readiness.ps1 `
+            -ReleaseArtifactReport release-artifacts/verification-report.md `
+            -PhysicalSmokeReport release-smoke/release-smoke-report.md `
+            -UxSignOffReport ux-signoff/ux-signoff-report.md `
+            -LicenseBoundaryReport release-boundary/artifact-license-boundary-report.md `
+            -ReportPath release-readiness/release-readiness-report.md
+
+      - name: Upload release readiness report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-readiness-report
+          path: release-readiness/release-readiness-report.md
+          if-no-files-found: ignore
