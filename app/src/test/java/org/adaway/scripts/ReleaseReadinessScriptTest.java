@@ -23,6 +23,8 @@ public class ReleaseReadinessScriptTest {
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String RELEASE_CERT_SHA256 =
             "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    private static final String UX_PACKET_SHA256 =
+            "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
 
     @Test
     public void releaseReadinessFailsWhenPhysicalSmokeDidNotRun() throws Exception {
@@ -329,6 +331,41 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenUxPacketHashIsMissing()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-ux-packet-hash");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writeUxReportWithoutPacketHash(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail when UX sign-off lacks packet hash provenance.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain missing UX packet hash provenance.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Review packet SHA-256"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -393,6 +430,7 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("UX sign-off report") &&
                         readme.contains("reviewer") &&
                         readme.contains("review packet") &&
+                        readme.contains("Review packet SHA-256") &&
                         readme.contains("Strict artifacts") &&
                         readme.contains("release-readiness-report.md"));
     }
@@ -480,6 +518,18 @@ public class ReleaseReadinessScriptTest {
     }
 
     private static void writePassingUxReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# UX Sign-Off Report\n\n" +
+                        "- Status: passed\n" +
+                        "- Reviewer: QA Lead\n" +
+                        "- Review packet: ux-matrix-review.md\n" +
+                        "- Review packet SHA-256: " + UX_PACKET_SHA256 + "\n" +
+                        "- Checked items: 42\n" +
+                        "- Unchecked items: 0\n" +
+                        "- Issues: 0\n");
+    }
+
+    private static void writeUxReportWithoutPacketHash(Path path) throws IOException {
         writeUtf8(path,
                 "# UX Sign-Off Report\n\n" +
                         "- Status: passed\n" +

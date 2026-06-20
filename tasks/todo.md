@@ -7250,3 +7250,36 @@
 - Remaining full-goal gaps: this closes another local stale-report loophole, but real tagged
   release verification with production secrets, physical-device release APK smoke, actual human UX
   screenshot sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 UX Sign-Off Packet Hash Provenance
+- [x] Add failing contracts that require UX sign-off reports to carry a review-packet SHA-256.
+- [x] Make `verify-ux-signoff.ps1` hash the exact packet it reviewed.
+- [x] Require final readiness UX evidence to include a SHA-256-shaped review-packet hash.
+- [x] Document that UX sign-off is tied to the exact review packet contents.
+- [x] Re-run focused script tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 UX Sign-Off Packet Hash Provenance
+- The UX sign-off report already required reviewer identity, packet name, checked count, zero
+  unchecked items, and zero issues, but it did not bind the sign-off to the exact review-packet
+  bytes.
+- Added focused red tests requiring `verify-ux-signoff.ps1` to emit
+  `Review packet SHA-256` and requiring `verify-release-readiness.ps1` to reject an otherwise
+  complete UX sign-off report without that field.
+- `verify-ux-signoff.ps1` now hashes the resolved review packet with SHA-256 and writes the
+  lowercase digest into every generated sign-off report.
+- `verify-release-readiness.ps1` now requires `Review packet SHA-256` and validates that it is a
+  SHA-256-shaped value.
+- README and `RELEASING.md` now state that final UX sign-off evidence includes the review-packet
+  hash, not just a packet filename.
+- Verification passed:
+  focused UX/readiness script tests first failed on missing packet-hash provenance, then passed
+  after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and changed-line length scanning found
+  only pre-existing README long lines.
+- Remaining full-goal gaps: this makes UX sign-off harder to reuse against a different packet, but
+  the actual human screenshot review still must be performed. Real tagged release verification
+  with production secrets, physical-device release APK smoke, and MIT legal/provenance clearance
+  remain external gates.

@@ -322,6 +322,13 @@ function Test-UxSignOffEvidence(
         $passed = $false
     }
 
+    $reviewPacketSha256 = Normalize-Sha256 (Get-ReportField $issues "UX sign-off" `
+            $uxSignOffText "Review packet SHA-256")
+    if ($reviewPacketSha256 -notmatch "^[0-9a-f]{64}$") {
+        $issues.Add("UX sign-off report must include a SHA-256-shaped review packet hash.")
+        $passed = $false
+    }
+
     $checkedItems = Get-ReportField $issues "UX sign-off" $uxSignOffText "Checked items"
     $checkedCount = 0
     if (-not [int]::TryParse($checkedItems, [ref] $checkedCount) -or $checkedCount -le 0) {
@@ -416,6 +423,7 @@ $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "- Status: passed",
         "- Reviewer:",
         "- Review packet:",
+        "- Review packet SHA-256:",
         "- Checked items:",
         "- Unchecked items: 0",
         "- Issues: 0"

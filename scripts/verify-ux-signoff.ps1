@@ -21,6 +21,14 @@ function Format-RelativeName([string] $path) {
     return [System.IO.Path]::GetFileName($path)
 }
 
+function Get-ReviewPacketSha256 {
+    $resolvedPacket = Resolve-RepoPath $ReviewPacket
+    if (-not (Test-Path -LiteralPath $resolvedPacket -PathType Leaf)) {
+        return "not-provided"
+    }
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedPacket).Hash.ToLowerInvariant()
+}
+
 function Write-UxSignOffReport(
     [string] $Status,
     [int] $CheckedCount,
@@ -45,6 +53,7 @@ function Write-UxSignOffReport(
     $lines.Add("- Status: $Status")
     $lines.Add("- Reviewer: $Reviewer")
     $lines.Add("- Review packet: $(Format-RelativeName $ReviewPacket)")
+    $lines.Add("- Review packet SHA-256: $(Get-ReviewPacketSha256)")
     $lines.Add("- Checked items: $CheckedCount")
     $lines.Add("- Unchecked items: $($UncheckedItems.Count)")
     $lines.Add("- Issues: $($Issues.Count)")
