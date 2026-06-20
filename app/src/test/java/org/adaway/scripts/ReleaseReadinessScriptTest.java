@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -394,11 +395,21 @@ public class ReleaseReadinessScriptTest {
             assertTrue("Passing readiness report must summarize all proof reports.",
                     report.contains("# Release Readiness Report") &&
                             report.contains("- Status: passed") &&
+                            report.contains("- Release tag: " + RELEASE_TAG) &&
+                            report.contains("- APK: " + RELEASE_APK) &&
+                            report.contains("- APK SHA-256: " + RELEASE_APK_SHA256) &&
+                            report.contains("- SBOM: " + RELEASE_SBOM) &&
+                            report.contains("- UX review packet SHA-256: " +
+                                    UX_PACKET_SHA256) &&
                             report.contains("- Release artifact verification: passed") &&
                             report.contains("- Physical release smoke: passed") &&
                             report.contains("- Release identity consistency: passed") &&
                             report.contains("- UX sign-off: passed") &&
-                            report.contains("- License boundary: passed"));
+                            report.contains("- License boundary: passed") &&
+                            containsSha256Field(report, "Release artifact report SHA-256") &&
+                            containsSha256Field(report, "Physical smoke report SHA-256") &&
+                            containsSha256Field(report, "UX sign-off report SHA-256") &&
+                            containsSha256Field(report, "License boundary report SHA-256"));
         } finally {
             deleteRecursively(fixture);
         }
@@ -431,8 +442,18 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("reviewer") &&
                         readme.contains("review packet") &&
                         readme.contains("Review packet SHA-256") &&
+                        readme.contains("Release artifact report SHA-256") &&
+                        readme.contains("Physical smoke report SHA-256") &&
+                        readme.contains("UX sign-off report SHA-256") &&
+                        readme.contains("License boundary report SHA-256") &&
                         readme.contains("Strict artifacts") &&
                         readme.contains("release-readiness-report.md"));
+    }
+
+    private static boolean containsSha256Field(String report, String fieldName) {
+        return Pattern.compile("(?m)^- " + Pattern.quote(fieldName) + ": [0-9a-f]{64}$")
+                .matcher(report)
+                .find();
     }
 
     private static String readinessCommand(Path releaseReport, Path smokeReport,

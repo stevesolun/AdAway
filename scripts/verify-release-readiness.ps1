@@ -64,6 +64,14 @@ function Normalize-Sha256([string] $value) {
     return ($value -replace "[:\s]", "").ToLowerInvariant()
 }
 
+function Get-ReportSha256([string] $path) {
+    $resolved = Resolve-RepoPath $path
+    if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
+        return "not-provided"
+    }
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $resolved).Hash.ToLowerInvariant()
+}
+
 function Get-ReportField(
     [System.Collections.Generic.List[string]] $issues,
     [string] $label,
@@ -81,6 +89,29 @@ function Get-ReportField(
         return ""
     }
     return $match.Groups[1].Value.Trim()
+}
+
+function Get-OptionalReportField(
+    [string] $content,
+    [string] $fieldName
+) {
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        return "not-provided"
+    }
+
+    $pattern = "(?m)^-\s*" + [Regex]::Escape($fieldName) + ":\s*(.+?)\s*$"
+    $match = [Regex]::Match($content, $pattern)
+    if (-not $match.Success) {
+        return "not-provided"
+    }
+    return $match.Groups[1].Value.Trim()
+}
+
+function Get-NormalizedOptionalReportSha256(
+    [string] $content,
+    [string] $fieldName
+) {
+    return Normalize-Sha256 (Get-OptionalReportField $content $fieldName)
 }
 
 function Test-ReleaseIdentity(
@@ -354,15 +385,31 @@ function Write-ReadinessReport(
         New-Item -ItemType Directory -Force $reportDirectory | Out-Null
     }
 
+    $releaseTag = Get-OptionalReportField $releaseArtifactText "Release tag"
+    $releaseApk = Get-OptionalReportField $releaseArtifactText "APK"
+    $releaseApkSha256 = Get-NormalizedOptionalReportSha256 $releaseArtifactText "APK SHA-256"
+    $releaseSbom = Get-OptionalReportField $releaseArtifactText "SBOM"
+    $uxPacketSha256 = Get-NormalizedOptionalReportSha256 `
+        $uxSignOffText "Review packet SHA-256"
+
     $lines = New-Object System.Collections.Generic.List[string]
     $lines.Add("# Release Readiness Report")
     $lines.Add("")
     $lines.Add("- Status: $status")
+    $lines.Add("- Release tag: $releaseTag")
+    $lines.Add("- APK: $releaseApk")
+    $lines.Add("- APK SHA-256: $releaseApkSha256")
+    $lines.Add("- SBOM: $releaseSbom")
+    $lines.Add("- UX review packet SHA-256: $uxPacketSha256")
     $lines.Add("- Release artifact verification: $(Format-Status $releaseArtifactPassed)")
     $lines.Add("- Physical release smoke: $(Format-Status $physicalSmokePassed)")
     $lines.Add("- Release identity consistency: $(Format-Status $releaseIdentityPassed)")
     $lines.Add("- UX sign-off: $(Format-Status $uxSignOffPassed)")
     $lines.Add("- License boundary: $(Format-Status $licenseBoundaryPassed)")
+    $lines.Add("- Release artifact report SHA-256: $(Get-ReportSha256 $ReleaseArtifactReport)")
+    $lines.Add("- Physical smoke report SHA-256: $(Get-ReportSha256 $PhysicalSmokeReport)")
+    $lines.Add("- UX sign-off report SHA-256: $(Get-ReportSha256 $UxSignOffReport)")
+    $lines.Add("- License boundary report SHA-256: $(Get-ReportSha256 $LicenseBoundaryReport)")
     $lines.Add("- Issues: $($issues.Count)")
     if ($issues.Count -gt 0) {
         $lines.Add("")

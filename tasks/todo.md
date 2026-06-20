@@ -7283,3 +7283,37 @@
   the actual human screenshot review still must be performed. Real tagged release verification
   with production secrets, physical-device release APK smoke, and MIT legal/provenance clearance
   remain external gates.
+
+## Plan - 2026-06-20 Release Readiness Evidence Summary
+- [x] Add a failing readiness contract requiring the final readiness report to preserve release
+  identity and proof-report hashes.
+- [x] Make `verify-release-readiness.ps1` summarize release tag, APK, APK SHA-256, SBOM, and UX
+  packet hash in its output report.
+- [x] Make `verify-release-readiness.ps1` hash the four consumed proof reports so the final report
+  is auditable.
+- [x] Document the readiness evidence summary and proof-report hash fields.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Readiness Evidence Summary
+- The final readiness verifier validated the four proof reports, but the output
+  `release-readiness-report.md` only kept pass/fail categories. It did not preserve the release
+  identity or fingerprints of the proof reports it accepted.
+- Added a focused red test requiring a passing readiness report to include release tag, APK,
+  APK SHA-256, SBOM, UX review packet SHA-256, and SHA-256 hashes for the release artifact,
+  physical smoke, UX sign-off, and license-boundary reports.
+- `verify-release-readiness.ps1` now repeats the release identity from the artifact/UX reports
+  and writes SHA-256 fingerprints for all four input proof reports in both passing and failing
+  readiness reports.
+- README and `RELEASING.md` now document the readiness evidence summary and proof-report hash
+  fields.
+- Verification passed:
+  focused readiness tests first failed on missing readiness identity/hash output, then passed
+  after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and changed-line scanning found only
+  pre-existing README long lines.
+- Remaining full-goal gaps: this makes the final readiness report auditable, but the real tagged
+  release verification with production secrets, physical-device release APK smoke, actual human UX
+  screenshot sign-off, and MIT legal/provenance clearance remain external gates.

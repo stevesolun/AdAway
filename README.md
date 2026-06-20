@@ -318,6 +318,11 @@ license-boundary report.
 The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
 reviewer, review packet, `Review packet SHA-256`, checked item count,
 `Unchecked items: 0`, and `Issues: 0`; do not use hand-written pass markers.
+The generated `release-readiness-report.md` repeats the release tag, APK, APK
+SHA-256, SBOM, and UX review packet hash, then records
+`Release artifact report SHA-256`, `Physical smoke report SHA-256`,
+`UX sign-off report SHA-256`, and `License boundary report SHA-256` so the final
+summary is tied to the exact proof reports it consumed.
 
 ### Production Signing
 
