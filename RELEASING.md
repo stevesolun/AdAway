@@ -203,8 +203,8 @@ boundary reports.
 
 Use the tagged release artifact boundary report, not the regular CI source-only
 report, when running `verify-release-readiness.ps1`. The final readiness check
-expects `Strict artifacts: true` plus the selected release APK and SBOM artifact
-names.
+expects `Strict artifacts: true` plus the same APK and SBOM artifact names from
+the release artifact verification report.
 
 After the GitHub release is published, download the six uploaded assets to a
 clean checkout and verify them as a single artifact set. With

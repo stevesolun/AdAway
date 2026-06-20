@@ -304,8 +304,9 @@ The readiness verifier requires the artifact verifier and physical smoke report
 to describe the same APK by name, APK SHA-256, and signing certificate digest;
 do not combine proof reports from different release attempts. Use the tagged
 release artifact license-boundary report for `-LicenseBoundaryReport`; it must
-show `Strict artifacts: true` with the release APK and SBOM artifact names, not
-the regular CI source-only license-boundary report.
+show `Strict artifacts: true` with the same APK and SBOM artifact names from the
+release artifact verification report, not the regular CI source-only
+license-boundary report.
 
 ### Production Signing
 

@@ -140,7 +140,8 @@ function Test-ReleaseIdentity(
 
 function Test-LicenseBoundaryReleaseArtifact(
     [System.Collections.Generic.List[string]] $issues,
-    [string] $licenseBoundaryText
+    [string] $licenseBoundaryText,
+    [string] $releaseArtifactText
 ) {
     if ([string]::IsNullOrWhiteSpace($licenseBoundaryText)) {
         return $false
@@ -179,6 +180,28 @@ function Test-LicenseBoundaryReleaseArtifact(
     if ([string]::IsNullOrWhiteSpace($licenseSbom) -or $licenseSbom -eq "not-provided") {
         $issues.Add("license boundary report must include the release SBOM artifact name.")
         $passed = $false
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($releaseArtifactText)) {
+        $artifactApk = Get-ReportField $issues "Release artifact verification" `
+            $releaseArtifactText "APK"
+        if (-not [string]::IsNullOrWhiteSpace($artifactApk) -and
+                -not [string]::IsNullOrWhiteSpace($licenseApk) -and
+                $artifactApk -ne $licenseApk) {
+            $issues.Add("license boundary APK '$licenseApk' does not match release " +
+                    "artifact APK '$artifactApk'.")
+            $passed = $false
+        }
+
+        $artifactSbom = Get-ReportField $issues "Release artifact verification" `
+            $releaseArtifactText "SBOM"
+        if (-not [string]::IsNullOrWhiteSpace($artifactSbom) -and
+                -not [string]::IsNullOrWhiteSpace($licenseSbom) -and
+                $artifactSbom -ne $licenseSbom) {
+            $issues.Add("license boundary SBOM '$licenseSbom' does not match release " +
+                    "artifact SBOM '$artifactSbom'.")
+            $passed = $false
+        }
     }
 
     return $passed
@@ -234,6 +257,7 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
         "# Release Artifact Verification Report",
         "- Status: passed",
         "- APK:",
+        "- SBOM:",
         "- APK SHA-256:",
         "- Manifest certificate SHA-256:",
         "- Attestations: verified",
@@ -266,7 +290,7 @@ $licenseBoundaryPassed = Test-ReportMarkers $issues "License boundary" $licenseB
         "- Issues: 0"
     )
 $licenseBoundaryPassed = $licenseBoundaryPassed -and
-        (Test-LicenseBoundaryReleaseArtifact $issues $licenseBoundaryText)
+        (Test-LicenseBoundaryReleaseArtifact $issues $licenseBoundaryText $releaseArtifactText)
 $releaseIdentityPassed = Test-ReleaseIdentity $issues $releaseArtifactText $physicalSmokeText
 
 if ($issues.Count -gt 0) {

@@ -16,6 +16,7 @@ import static org.junit.Assume.assumeTrue;
 
 public class ReleaseReadinessScriptTest {
     private static final String RELEASE_APK = "AdAway_13.5.0.apk";
+    private static final String RELEASE_SBOM = "adaway.cdx.json";
     private static final String RELEASE_APK_SHA256 =
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String RELEASE_CERT_SHA256 =
@@ -137,6 +138,43 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenLicenseBoundaryArtifactDoesNotMatchReleaseArtifact()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-license-artifact-mismatch");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writePassingReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writeArtifactLicenseReport(licenseReport, "OtherAdAway.apk", "other.cdx.json");
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail when artifact and license reports name different " +
+                    "release artifacts.", result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain the APK/SBOM artifact mismatch.",
+                    report.contains("- Status: failed") &&
+                            report.contains("license boundary") &&
+                            report.contains("APK") &&
+                            report.contains("SBOM"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessPassesWhenAllProofReportsPass() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -188,6 +226,7 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("same APK") &&
                         readme.contains("APK SHA-256") &&
                         readme.contains("artifact license-boundary") &&
+                        readme.contains("same APK and SBOM") &&
                         readme.contains("Strict artifacts") &&
                         readme.contains("release-readiness-report.md"));
     }
@@ -208,6 +247,7 @@ public class ReleaseReadinessScriptTest {
                 "# Release Artifact Verification Report\n\n" +
                         "- Status: passed\n" +
                         "- APK: " + RELEASE_APK + "\n" +
+                        "- SBOM: " + RELEASE_SBOM + "\n" +
                         "- APK SHA-256: " + RELEASE_APK_SHA256 + "\n" +
                         "- Manifest certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
                         "- Attestations: verified\n" +
@@ -236,14 +276,19 @@ public class ReleaseReadinessScriptTest {
     }
 
     private static void writePassingLicenseReport(Path path) throws IOException {
+        writeArtifactLicenseReport(path, RELEASE_APK, RELEASE_SBOM);
+    }
+
+    private static void writeArtifactLicenseReport(Path path, String apk, String sbom)
+            throws IOException {
         writeUtf8(path,
                 "# License Boundary Report\n\n" +
                         "- Status: passed\n" +
                         "- Source mode: GitTracked\n" +
                         "- Strict source archive: true\n" +
                         "- Strict artifacts: true\n" +
-                        "- APK: " + RELEASE_APK + "\n" +
-                        "- SBOM: adaway.cdx.json\n" +
+                        "- APK: " + apk + "\n" +
+                        "- SBOM: " + sbom + "\n" +
                         "- MIT release status: blocked until GPL-derived material is cleared\n" +
                         "- Issues: 0\n");
     }

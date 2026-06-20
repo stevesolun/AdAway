@@ -7072,3 +7072,36 @@
 - Remaining full-goal gaps: this closes the source-only license-report loophole in final release
   readiness, but real tagged release verification with production secrets, physical-device release
   smoke, human UX sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 Release License Artifact Identity
+- [x] Add a failing readiness contract that rejects a license-boundary artifact report for a
+  different APK or SBOM than the release artifact verification report.
+- [x] Require release artifact reports used for readiness to include the SBOM artifact name.
+- [x] Compare release artifact and license-boundary APK/SBOM names in
+  `verify-release-readiness.ps1`.
+- [x] Document that final readiness requires the same APK/SBOM across release artifact and
+  license-boundary reports.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release License Artifact Identity
+- The final readiness verifier proved the release artifact and physical smoke reports described
+  the same APK, and required strict artifact license-boundary evidence, but it did not prove the
+  license-boundary report named the same APK/SBOM artifacts as the release artifact verifier.
+- Added a focused regression test where release artifact, physical smoke, and UX reports pass, but
+  the license-boundary report names `OtherAdAway.apk` and `other.cdx.json`. The test failed first,
+  proving the old verifier accepted mixed artifact-license proof.
+- `verify-release-readiness.ps1` now requires `- SBOM:` in the release artifact report and compares
+  release artifact APK/SBOM names against the license-boundary APK/SBOM names.
+- README and `RELEASING.md` now state that final readiness requires the same APK and SBOM artifact
+  names from the release artifact verification report.
+- Verification passed:
+  focused readiness tests first failed on the new artifact mismatch and README expectation, then
+  passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a 100-column scan found only existing
+  long README/RELEASING lines outside this slice.
+- Remaining full-goal gaps: this prevents mixed release artifact/license proof reports, but real
+  tagged release verification with production secrets, physical-device release smoke, human UX
+  sign-off, and MIT legal/provenance clearance remain external gates.
