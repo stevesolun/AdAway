@@ -94,6 +94,26 @@ function Test-ReleaseIdentity(
     }
 
     $passed = $true
+    $artifactReleaseTag = Get-ReportField $issues "Release artifact verification" `
+        $releaseArtifactText "Release tag"
+    $smokeReleaseTag = Get-ReportField $issues "Physical release smoke" `
+        $physicalSmokeText "Release tag"
+    if ($artifactReleaseTag -notmatch "^v[^/\s]+$") {
+        $issues.Add("release artifact report must include a release tag such as v13.5.0.")
+        $passed = $false
+    }
+    if ($smokeReleaseTag -notmatch "^v[^/\s]+$") {
+        $issues.Add("physical smoke report must include a release tag such as v13.5.0.")
+        $passed = $false
+    }
+    if ($artifactReleaseTag -match "^v[^/\s]+$" -and
+            $smokeReleaseTag -match "^v[^/\s]+$" -and
+            $artifactReleaseTag -ne $smokeReleaseTag) {
+        $issues.Add("release artifact Release tag '$artifactReleaseTag' does not match " +
+                "physical smoke Release tag '$smokeReleaseTag'.")
+        $passed = $false
+    }
+
     $artifactApk = Get-ReportField $issues "Release artifact verification" `
         $releaseArtifactText "APK"
     $smokeApk = Get-ReportField $issues "Physical release smoke" $physicalSmokeText "APK"
@@ -361,6 +381,7 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
     $releaseArtifactText @(
         "# Release Artifact Verification Report",
         "- Status: passed",
+        "- Release tag:",
         "- APK:",
         "- SBOM:",
         "- APK SHA-256:",
@@ -378,6 +399,7 @@ $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $phys
         "# Release Smoke Report",
         "- Status: passed",
         "- Mode: physical-device",
+        "- Release tag:",
         "- APK:",
         "- APK SHA-256:",
         "- Package:",

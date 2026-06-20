@@ -301,14 +301,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
 ```
 
 The readiness verifier requires the artifact verifier and physical smoke report
-to describe the same APK by name, APK SHA-256, and signing certificate digest;
-do not combine proof reports from different release attempts. The release
-artifact report must come from `verify-release-artifacts` and include
+to describe the same release tag, APK name, APK SHA-256, and signing
+certificate digest; do not combine proof reports from different release
+attempts. The release artifact report must come from `verify-release-artifacts`
+and include
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
 The physical smoke report must come from `run-release-smoke.ps1` in
-physical-device mode and include `Package`, `Signer certificate check: True`,
-`Signer certificate SHA-256`, `Device serial SHA-256`, and `Launch pid observed`.
+physical-device mode and include `Release tag`, `Package`,
+`Signer certificate check: True`, `Signer certificate SHA-256`,
+`Device serial SHA-256`, and `Launch pid observed`.
 Use the tagged release artifact license-boundary report for
 `-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
 artifact names from the release artifact verification report, not the regular CI source-only
@@ -358,9 +360,9 @@ upload a `release-artifact-verification-report` artifact. For install/launch
 coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
 `android-device`; it downloads the tagged APK and runs the full release smoke
 against a physical device. Successful physical smoke runs upload a
-`physical-release-smoke-report` artifact with APK name, APK SHA-256, signer
-certificate identity, and the observed launch result. Regular CI also uploads a
-`license-boundary-report`; tagged direct-APK releases upload
+`physical-release-smoke-report` artifact with release tag, APK name, APK
+SHA-256, signer certificate identity, and the observed launch result. Regular
+CI also uploads a `license-boundary-report`; tagged direct-APK releases upload
 `release-license-boundary-reports` covering source and packaged artifact
 GPL/MIT boundary checks.
 

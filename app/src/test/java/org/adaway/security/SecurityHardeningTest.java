@@ -748,6 +748,7 @@ public class SecurityHardeningTest {
             assertTrue("Verification report must summarize release artifact proof.",
                     reportText.contains("# Release Artifact Verification Report") &&
                             reportText.contains("- Status: passed") &&
+                            reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- APK: AdAway_13.5.0.apk") &&
                             reportText.contains("- Expected version: 13.5.0") &&
                             reportText.contains("- Expected channel: stable") &&
@@ -1054,6 +1055,7 @@ public class SecurityHardeningTest {
         assertTrue("Physical release smoke workflow must run the full smoke script.",
                 smokeWorkflow.contains("./scripts/run-release-smoke.ps1") &&
                         smokeWorkflow.contains("-ExpectedCertSha256") &&
+                        smokeWorkflow.contains("-ReleaseTag") &&
                         smokeWorkflow.contains("-ReportPath"));
         assertTrue("Physical release smoke workflow must upload the smoke report artifact.",
                 smokeWorkflow.contains("Upload release smoke report") &&
@@ -1102,6 +1104,7 @@ public class SecurityHardeningTest {
                     "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
                     "-ApkPath", apk.toString(),
                     "-ReportPath", report.toString(),
+                    "-ReleaseTag", "v13.5.0",
                     "-VerifyOnly");
 
             assertEquals("Release smoke must select build-tools 36.0.0 over stale 9.0.0.",
@@ -1115,6 +1118,7 @@ public class SecurityHardeningTest {
                     reportText.contains("# Release Smoke Report") &&
                             reportText.contains("- Status: passed") &&
                             reportText.contains("- Mode: identity-only") &&
+                            reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- Physical device: not-run"));
             assertTrue("Release smoke report must include APK identity in verify-only mode.",
                     reportText.contains("- APK SHA-256: " +
@@ -1158,6 +1162,7 @@ public class SecurityHardeningTest {
                     "-ApkPath", apk.toString(),
                     "-ReportPath", report.toString(),
                     "-ExpectedCertSha256", certSha256,
+                    "-ReleaseTag", "v13.5.0",
                     "-LaunchWaitSeconds", "0",
                     "-DeviceSerial", "device-123");
 
@@ -1166,6 +1171,7 @@ public class SecurityHardeningTest {
             String reportText = readUtf8(report);
             assertTrue("Physical release smoke report must record launch evidence.",
                     reportText.contains("- Mode: physical-device") &&
+                            reportText.contains("- Release tag: v13.5.0") &&
                             reportText.contains("- Physical device: verified-real-device") &&
                             reportText.contains("- Launch pid observed: 4242"));
             assertTrue("Physical release smoke report must hash the device serial.",

@@ -9,6 +9,8 @@ param(
 
     [string] $ExpectedCertSha256 = "",
 
+    [string] $ReleaseTag = "",
+
     [int] $LaunchWaitSeconds = 5,
 
     [string] $ReportPath = "",
@@ -103,6 +105,16 @@ function Get-FileSha256Hex([string] $path) {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
 }
 
+function Get-ReportReleaseTag([string] $apkName) {
+    if (-not [string]::IsNullOrWhiteSpace($ReleaseTag)) {
+        return $ReleaseTag.Trim()
+    }
+    if ($apkName -match "^AdAway_(.+)\.apk$") {
+        return "v$($Matches[1])"
+    }
+    return "not-provided"
+}
+
 function Write-ReleaseSmokeReport(
     [string] $Status,
     [string] $Mode,
@@ -136,6 +148,7 @@ function Write-ReleaseSmokeReport(
         "",
         "- Status: $Status",
         "- Mode: $Mode",
+        "- Release tag: $(Get-ReportReleaseTag $apkName)",
         "- APK: $apkName",
         "- APK SHA-256: $ApkSha256",
         "- Package: $PackageName",

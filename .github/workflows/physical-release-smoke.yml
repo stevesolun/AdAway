@@ -68,6 +68,7 @@ jobs:
           $smokeArgs = @(
             "-ApkPath", "${{ steps.apk.outputs.apk_path }}",
             "-ExpectedCertSha256", "$env:EXPECTED_CERT_SHA256",
+            "-ReleaseTag", "${{ inputs.tag }}",
             "-ReportPath", "release-smoke/release-smoke-report.md"
           )
           if (-not [string]::IsNullOrWhiteSpace($env:DEVICE_SERIAL)) {

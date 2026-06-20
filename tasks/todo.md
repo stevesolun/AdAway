@@ -7214,3 +7214,39 @@
   physical-device release APK smoke still must be run. Real tagged release verification with
   production secrets, actual human UX screenshot sign-off, and MIT legal/provenance clearance
   remain external gates.
+
+## Plan - 2026-06-20 Release Tag Provenance
+- [x] Add a failing readiness contract that rejects release artifact and physical-smoke reports
+  from different release tags.
+- [x] Record release-tag provenance in generated artifact-verification and release-smoke reports.
+- [x] Pass the release tag through the physical smoke workflow and document the requirement.
+- [x] Require matching release tags in `verify-release-readiness.ps1`.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Tag Provenance
+- The final readiness verifier already compared APK name, APK SHA-256, signer certificate, and
+  release APK/license artifact names, but it did not prove artifact verification and physical
+  smoke came from the same release tag.
+- Added a focused regression test where the release artifact report names `v13.5.0` and the
+  physical smoke report names `v13.5.1`. The test failed first, proving the old verifier accepted
+  mixed release-tag proof.
+- `VerifyReleaseArtifacts.java` now records `Release tag` in its generated report by parsing the
+  signed manifest APK URL. `run-release-smoke.ps1` records `Release tag` from an explicit
+  `-ReleaseTag` argument or from standard `AdAway_<version>.apk` names.
+- `.github/workflows/physical-release-smoke.yml` now passes the workflow dispatch tag into
+  `run-release-smoke.ps1`.
+- `verify-release-readiness.ps1` now requires release-tag fields in the release artifact and
+  physical-smoke reports, validates their `v...` shape, and rejects mismatches.
+- README and `RELEASING.md` now document same-release-tag readiness and physical-smoke report
+  provenance.
+- Verification passed:
+  focused readiness/security unit tests first failed on the new tag-mismatch contract, then passed
+  after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a changed-hunk line-length scan found
+  no new long code lines beyond pre-existing README/test/ledger lines.
+- Remaining full-goal gaps: this closes another local stale-report loophole, but real tagged
+  release verification with production secrets, physical-device release APK smoke, actual human UX
+  screenshot sign-off, and MIT legal/provenance clearance remain external gates.

@@ -198,6 +198,9 @@ public final class VerifyReleaseArtifacts {
         report.append("- Status: passed\n");
         report.append("- Generated at: ").append(Instant.now()).append('\n');
         report.append("- Repository: ").append(options.repository).append('\n');
+        report.append("- Release tag: ")
+                .append(releaseTagFromApkUrl(manifestPayload.apkUrl))
+                .append('\n');
         report.append("- APK: ").append(baseName(options.apk)).append('\n');
         report.append("- Manifest: ").append(baseName(options.manifest)).append('\n');
         report.append("- SBOM: ").append(baseName(options.sbom)).append('\n');
@@ -244,6 +247,24 @@ public final class VerifyReleaseArtifacts {
 
     private static String orNotProvided(String value) {
         return value == null || value.trim().isEmpty() ? "not-provided" : value;
+    }
+
+    private static String releaseTagFromApkUrl(String apkUrl) {
+        if (apkUrl == null || apkUrl.trim().isEmpty()) {
+            return "not-provided";
+        }
+        URI uri = URI.create(apkUrl);
+        String path = uri.getPath();
+        int markerIndex = path.indexOf("/releases/download/");
+        if (markerIndex < 0) {
+            return "not-provided";
+        }
+        String rest = path.substring(markerIndex + "/releases/download/".length());
+        int slashIndex = rest.indexOf('/');
+        if (slashIndex <= 0) {
+            return "not-provided";
+        }
+        return rest.substring(0, slashIndex);
     }
 
     private static void requireEqualToken(String name, String actual, String expected) {
