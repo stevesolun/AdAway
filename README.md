@@ -302,10 +302,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
 
 The readiness verifier requires the artifact verifier and physical smoke report
 to describe the same APK by name, APK SHA-256, and signing certificate digest;
-do not combine proof reports from different release attempts. Use the tagged
-release artifact license-boundary report for `-LicenseBoundaryReport`; it must
-show `Strict artifacts: true` with the same APK and SBOM artifact names from the
-release artifact verification report, not the regular CI source-only
+do not combine proof reports from different release attempts. The release
+artifact report must come from `verify-release-artifacts` and include
+`Checksum verification: passed`, `Manifest signature: passed`,
+`Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
+Use the tagged release artifact license-boundary report for
+`-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
+artifact names from the release artifact verification report, not the regular CI source-only
 license-boundary report.
 The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
 reviewer, review packet, checked item count, `Unchecked items: 0`, and

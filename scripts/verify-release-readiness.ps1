@@ -138,6 +138,40 @@ function Test-ReleaseIdentity(
     return $passed
 }
 
+function Test-ReleaseArtifactEvidence(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $releaseArtifactText
+) {
+    if ([string]::IsNullOrWhiteSpace($releaseArtifactText)) {
+        return $false
+    }
+
+    $passed = $true
+    $expectedCertSha256 = Get-ReportField $issues "Release artifact verification" `
+        $releaseArtifactText "Expected certificate SHA-256"
+    if ([string]::IsNullOrWhiteSpace($expectedCertSha256) -or
+            $expectedCertSha256 -eq "not-provided") {
+        $issues.Add("release artifact report must include a checked expected certificate " +
+                "SHA-256.")
+        $passed = $false
+    }
+
+    $manifestCertSha256 = Get-ReportField $issues "Release artifact verification" `
+        $releaseArtifactText "Manifest certificate SHA-256"
+    $normalizedExpectedCert = Normalize-Sha256 $expectedCertSha256
+    $normalizedManifestCert = Normalize-Sha256 $manifestCertSha256
+    if (-not [string]::IsNullOrWhiteSpace($normalizedExpectedCert) -and
+            -not [string]::IsNullOrWhiteSpace($normalizedManifestCert) -and
+            $expectedCertSha256 -ne "not-provided" -and
+            $normalizedExpectedCert -ne $normalizedManifestCert) {
+        $issues.Add("release artifact expected certificate '$normalizedExpectedCert' does " +
+                "not match manifest certificate '$normalizedManifestCert'.")
+        $passed = $false
+    }
+
+    return $passed
+}
+
 function Test-LicenseBoundaryReleaseArtifact(
     [System.Collections.Generic.List[string]] $issues,
     [string] $licenseBoundaryText,
@@ -290,10 +324,16 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
         "- APK:",
         "- SBOM:",
         "- APK SHA-256:",
+        "- Expected certificate SHA-256:",
         "- Manifest certificate SHA-256:",
+        "- Checksum verification: passed",
+        "- Manifest signature: passed",
+        "- Manifest payload: passed",
         "- Attestations: verified",
         "- Attested artifacts: 6"
     )
+$releaseArtifactPassed = $releaseArtifactPassed -and
+        (Test-ReleaseArtifactEvidence $issues $releaseArtifactText)
 $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $physicalSmokeText @(
         "# Release Smoke Report",
         "- Status: passed",

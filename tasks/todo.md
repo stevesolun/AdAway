@@ -7139,3 +7139,41 @@
 - Remaining full-goal gaps: this makes UX proof harder to fake, but the real human screenshot
   review still must be performed. Real tagged release verification with production secrets,
   physical-device release smoke, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 Release Artifact Proof Detail
+- [x] Add a failing readiness contract that rejects sparse release artifact reports with only
+  pass/status and attestation markers.
+- [x] Require final readiness to see checksum verification, manifest signature verification,
+  manifest payload verification, and expected signing certificate evidence.
+- [x] Reject release artifact reports where the expected certificate was not provided or does not
+  match the manifest signing certificate.
+- [x] Document that final readiness requires the generated `verify-release-artifacts` report, not
+  hand-written artifact pass markers.
+- [x] Re-run focused readiness tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 Release Artifact Proof Detail
+- The final readiness verifier accepted a sparse release artifact report that had `Status: passed`,
+  APK/SBOM names, APK SHA-256, manifest certificate, and attestation markers, but omitted the
+  checksum, manifest signature, manifest payload, and expected-certificate proof emitted by
+  `verify-release-artifacts`.
+- Added a focused regression test where physical smoke, UX sign-off, and license-boundary reports
+  pass while the release artifact report is sparse. The test failed first, proving the old verifier
+  accepted weak release artifact proof.
+- `verify-release-readiness.ps1` now requires `Checksum verification: passed`,
+  `Manifest signature: passed`, `Manifest payload: passed`, and `Expected certificate SHA-256`.
+  It rejects `not-provided` expected certificates and checks the expected certificate matches the
+  manifest certificate.
+- README and `RELEASING.md` now state that final readiness must use the generated
+  `verify-release-artifacts` report, not hand-written artifact pass markers.
+- Verification passed:
+  focused readiness tests first failed on sparse artifact proof and README expectations, then
+  passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`
+  gate passed; `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed; `git diff --check`
+  passed with only existing Windows LF-to-CRLF warnings; and a 100-column scan found only existing
+  long README/RELEASING lines outside this slice.
+- Remaining full-goal gaps: this makes release artifact proof harder to fake locally, but the
+  real tagged release verification with production secrets still must be run. Physical-device
+  release smoke, actual human UX screenshot sign-off, and MIT legal/provenance clearance remain
+  external gates.

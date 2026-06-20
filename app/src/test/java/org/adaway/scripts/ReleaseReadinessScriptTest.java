@@ -102,6 +102,44 @@ public class ReleaseReadinessScriptTest {
     }
 
     @Test
+    public void releaseReadinessFailsWhenReleaseArtifactProofIsSparse()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-readiness-sparse-artifact");
+        try {
+            Path releaseReport = fixture.resolve("release-artifact-verification-report.md");
+            Path smokeReport = fixture.resolve("release-smoke-report.md");
+            Path uxReport = fixture.resolve("ux-signoff-report.md");
+            Path licenseReport = fixture.resolve("license-boundary-report.md");
+            Path readinessReport = fixture.resolve("release-readiness-report.md");
+            writeSparseReleaseArtifactReport(releaseReport);
+            writePassingPhysicalSmokeReport(smokeReport, RELEASE_APK_SHA256,
+                    RELEASE_CERT_SHA256);
+            writePassingUxReport(uxReport);
+            writePassingLicenseReport(licenseReport);
+
+            ProcessResult result = runPowerShell(powershell,
+                    readinessCommand(releaseReport, smokeReport, uxReport, licenseReport,
+                            readinessReport));
+
+            assertTrue("Readiness must fail for sparse release artifact pass markers.",
+                    result.exitCode != 0);
+            String report = readUtf8(readinessReport);
+            assertTrue("Readiness report must explain missing artifact verifier detail.",
+                    report.contains("- Status: failed") &&
+                            report.contains("Checksum verification") &&
+                            report.contains("Manifest signature") &&
+                            report.contains("Manifest payload") &&
+                            report.contains("Expected certificate"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void releaseReadinessFailsWhenLicenseBoundaryIsSourceOnly() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the release-readiness script.",
@@ -265,6 +303,10 @@ public class ReleaseReadinessScriptTest {
                         readme.contains("-LicenseBoundaryReport") &&
                         readme.contains("same APK") &&
                         readme.contains("APK SHA-256") &&
+                        readme.contains("Checksum verification") &&
+                        readme.contains("Manifest signature") &&
+                        readme.contains("Manifest payload") &&
+                        readme.contains("Expected certificate") &&
                         readme.contains("artifact license-boundary") &&
                         readme.contains("same APK and SBOM") &&
                         readme.contains("UX sign-off report") &&
@@ -286,6 +328,22 @@ public class ReleaseReadinessScriptTest {
     }
 
     private static void writePassingReleaseArtifactReport(Path path) throws IOException {
+        writeUtf8(path,
+                "# Release Artifact Verification Report\n\n" +
+                        "- Status: passed\n" +
+                        "- APK: " + RELEASE_APK + "\n" +
+                        "- SBOM: " + RELEASE_SBOM + "\n" +
+                        "- APK SHA-256: " + RELEASE_APK_SHA256 + "\n" +
+                        "- Expected certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
+                        "- Manifest certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
+                        "- Checksum verification: passed\n" +
+                        "- Manifest signature: passed\n" +
+                        "- Manifest payload: passed\n" +
+                        "- Attestations: verified\n" +
+                        "- Attested artifacts: 6\n");
+    }
+
+    private static void writeSparseReleaseArtifactReport(Path path) throws IOException {
         writeUtf8(path,
                 "# Release Artifact Verification Report\n\n" +
                         "- Status: passed\n" +
