@@ -994,10 +994,10 @@ public class SecurityHardeningTest {
                         "license-boundary run ids.",
                 readinessWorkflow.contains("release_artifacts_run_id:") &&
                         readinessWorkflow.contains("physical_smoke_run_id:") &&
+                        readinessWorkflow.contains("ux_signoff_run_id:") &&
                         readinessWorkflow.contains("license_boundary_run_id:"));
-        assertTrue("Final readiness workflow must accept the generated UX sign-off report.",
-                readinessWorkflow.contains("ux_signoff_report_base64:") &&
-                        readinessWorkflow.contains("ux-signoff/ux-signoff-report.md"));
+        assertFalse("Final readiness workflow must not take raw UX report blobs directly.",
+                readinessWorkflow.contains("ux_signoff_report_base64:"));
         assertTrue("Final readiness workflow must use read-only repository and artifact access.",
                 readinessWorkflow.contains("contents: read") &&
                         readinessWorkflow.contains("actions: read") &&
@@ -1009,6 +1009,8 @@ public class SecurityHardeningTest {
                         readinessWorkflow.contains("physical-release-smoke-report") &&
                         readinessWorkflow.contains(
                                 "gh run download \"$LICENSE_BOUNDARY_RUN_ID\"") &&
+                        readinessWorkflow.contains("gh run download \"$UX_SIGNOFF_RUN_ID\"") &&
+                        readinessWorkflow.contains("ux-signoff-report") &&
                         readinessWorkflow.contains("release-license-boundary-reports"));
         assertTrue("Final readiness workflow must run the canonical readiness verifier.",
                 readinessWorkflow.contains("./scripts/verify-release-readiness.ps1") &&
@@ -1036,10 +1038,55 @@ public class SecurityHardeningTest {
         assertTrue("Release docs must document the final readiness workflow.",
                 releasing.contains("verify-release-readiness.yml") &&
                         releasing.contains("release-readiness-report") &&
-                        releasing.contains("ux_signoff_report_base64"));
+                        releasing.contains("ux_signoff_run_id"));
         assertTrue("README must mention the final readiness workflow.",
                 readme.contains("verify-release-readiness.yml") &&
                         readme.contains("release-readiness-report"));
+    }
+
+    @Test
+    public void atk34_uxSignoffWorkflowUploadsDurableReport() throws IOException {
+        Path repo = repoDir();
+        Path workflowPath = repo.resolve(".github/workflows/verify-ux-signoff.yml");
+        assertTrue("Manual UX sign-off workflow must exist.",
+                Files.isRegularFile(workflowPath));
+
+        String workflow = readUtf8(workflowPath);
+        String releasing = readUtf8(repo.resolve("RELEASING.md"));
+        String readme = readUtf8(repo.resolve("README.md"));
+
+        assertTrue("UX sign-off workflow must be manually dispatched.",
+                workflow.contains("workflow_dispatch:"));
+        assertTrue("UX sign-off workflow must accept a checked review packet and reviewer.",
+                workflow.contains("review_packet_base64:") &&
+                        workflow.contains("reviewer:"));
+        assertTrue("UX sign-off workflow must use read-only repository access.",
+                workflow.contains("permissions:") &&
+                        workflow.contains("contents: read"));
+        assertTrue("UX sign-off workflow must decode the checked review packet.",
+                workflow.contains("UX_REVIEW_PACKET_BASE64") &&
+                        workflow.contains("base64 -d") &&
+                        workflow.contains("ux-matrix/ux-matrix-review.md"));
+        assertTrue("UX sign-off workflow must run the canonical sign-off verifier.",
+                workflow.contains("./scripts/verify-ux-signoff.ps1") &&
+                        workflow.contains("-ReviewPacket ux-matrix/ux-matrix-review.md") &&
+                        workflow.contains("-Reviewer \"$env:REVIEWER\"") &&
+                        workflow.contains("-ReportPath ux-signoff/ux-signoff-report.md"));
+        assertTrue("UX sign-off workflow must upload a durable sign-off report.",
+                workflow.contains("Upload UX sign-off report") &&
+                        workflow.contains("ux-signoff-report") &&
+                        workflow.contains("ux-signoff/ux-signoff-report.md") &&
+                        workflow.contains(
+                                "actions/upload-artifact@" +
+                                        "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"));
+
+        assertTrue("Release docs must document the UX sign-off workflow.",
+                releasing.contains("verify-ux-signoff.yml") &&
+                        releasing.contains("review_packet_base64") &&
+                        releasing.contains("ux-signoff-report"));
+        assertTrue("README must mention the UX sign-off workflow.",
+                readme.contains("verify-ux-signoff.yml") &&
+                        readme.contains("ux-signoff-report"));
     }
 
     @Test

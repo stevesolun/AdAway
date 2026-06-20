@@ -7351,3 +7351,36 @@
 - Remaining full-goal gaps: this makes the final release-readiness proof CI-backed, but the real
   production tagged release, real physical-device release smoke, actual human UX screenshot
   sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 UX Sign-Off Workflow Artifact
+- [x] Add failing contracts for a durable UX sign-off workflow and readiness UX artifact
+  consumption.
+- [x] Implement a manual UX sign-off workflow that validates the checked review packet.
+- [x] Switch final release readiness from raw UX report input to a UX sign-off run ID.
+- [x] Update README and `RELEASING.md` for the UX sign-off artifact flow.
+- [x] Re-run focused workflow coverage plus the standard local gates, then commit and push.
+
+## Review - 2026-06-20 UX Sign-Off Workflow Artifact
+- Gap found: `verify-release-readiness.yml` improved final aggregation, but it still accepted a
+  raw base64 UX sign-off report. That made the UX proof less durable than the release artifact,
+  physical smoke, and license-boundary reports.
+- Added focused red contracts requiring a new `.github/workflows/verify-ux-signoff.yml` workflow
+  and requiring final readiness to consume `ux-signoff-report` by run ID.
+- Added the manual `Verify UX sign-off` workflow. It accepts a base64 checked
+  `ux-matrix-review.md` plus reviewer identity, runs `scripts/verify-ux-signoff.ps1`, and uploads
+  a durable `ux-signoff-report` artifact.
+- Updated `verify-release-readiness.yml` to accept `ux_signoff_run_id`, download
+  `ux-signoff-report`, and remove the raw `ux_signoff_report_base64` input.
+- README and `RELEASING.md` now document the UX sign-off workflow and the artifact-based final
+  readiness flow.
+- Verification passed: the focused workflow contracts failed first on the old readiness UX input
+  and missing UX sign-off workflow, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed;
+  `scripts/check-license-boundary.ps1 -SourceMode WorkingTree -ReportPath
+  app/build/reports/license-boundary/local-license-boundary-report.md` passed;
+  `git diff --check` passed with only existing Windows LF-to-CRLF warnings; and changed-line
+  length scanning passed.
+- Remaining full-goal gaps: this makes UX sign-off proof durable in CI, but the real production
+  tagged release, real physical-device release smoke, actual human UX screenshot sign-off, and
+  MIT legal/provenance clearance remain external gates.
