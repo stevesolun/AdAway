@@ -93,6 +93,7 @@ public class HomeActivity extends AppCompatActivity {
             // Fragment manager restores the fragments automatically; just sync the selected item.
             this.binding.bottomNavigation.setSelectedItemId(this.currentSelectedId);
         }
+        checkAppUpdateAtStartup(savedInstanceState);
     }
 
     @Override
@@ -198,6 +199,16 @@ public class HomeActivity extends AppCompatActivity {
                 // We don't launch it automatically here to avoid interrupting navigation.
             }
         }
+    }
+
+    private void checkAppUpdateAtStartup(@Nullable Bundle savedInstanceState) {
+        if (savedInstanceState != null) {
+            return;
+        }
+        if (!PreferenceHelper.getUpdateCheckAppStartup(this)) {
+            return;
+        }
+        new ViewModelProvider(this).get(HomeViewModel.class).checkForAppUpdate();
     }
 
     /**

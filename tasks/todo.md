@@ -7507,3 +7507,29 @@
   order, fill error fields with real test evidence, patch each confirmed logistical/UX error, and
   retest the affected rows.
 - Verification passed: `tasks/user-story-status.tsv` parses as 98 stories with 15 columns.
+
+## Plan - 2026-06-25 Story Fix Loop 1
+- [x] Start from `tasks/user-story-status.tsv` and select grounded high-priority defects rather
+  than introducing unrelated feature work.
+- [x] Add red tests for `UPDATE-005` startup update preference wiring and `SYS-001` Quick Settings
+  tile null handling.
+- [x] Wire startup app-update checks through the existing HomeViewModel update path on fresh Home
+  launches only.
+- [x] Make Quick Settings tile updates tolerate a missing tile handle.
+- [x] Update the canonical story ledger with fix and focused retest evidence.
+
+## Review - 2026-06-25 Story Fix Loop 1
+- Confirmed `UPDATE-005`: the app had `updateCheckAppStartup` resources and
+  `PreferenceHelper.getUpdateCheckAppStartup()`, but no main-code caller. Added a focused source
+  contract that failed first.
+- `HomeActivity` now calls `HomeViewModel.checkForAppUpdate()` on fresh launch only when
+  `PreferenceHelper.getUpdateCheckAppStartup(this)` is true. Restored activities do not rerun the
+  startup check.
+- Confirmed `SYS-001`: `AdBlockingTileService.updateTile()` dereferenced `getQsTile()` without a
+  null guard. Added a focused crash-surface contract that failed first.
+- `AdBlockingTileService.updateTile()` now returns when Android does not provide a tile handle.
+- Focused retest passed:
+  `:app:testDebugUnitTest --tests org.adaway.ui.home.HomeNavigationSourcesContractTest --tests
+  org.adaway.security.CrashSurfaceHardeningTest --dependency-verification=strict --stacktrace`.
+- Remaining story-loop work: full device behavior is still open for both rows, and the rest of the
+  P0/P1 story ledger still needs systematic test/fix/retest passes.

@@ -48,6 +48,17 @@ public class CrashSurfaceHardeningTest {
                         && source.contains("bytesDownloadedColumnIndex < 0"));
     }
 
+    @Test
+    public void quickSettingsTileToleratesMissingTileHandle() throws IOException {
+        String source = read("app/src/main/java/org/adaway/tile/AdBlockingTileService.java");
+
+        assertTrue("Quick Settings tile updates must tolerate getQsTile() returning null.",
+                source.contains("Tile tile = getQsTile();") &&
+                        source.contains("if (tile == null)") &&
+                        source.indexOf("if (tile == null)")
+                                < source.indexOf("tile.setState"));
+    }
+
     private static String read(String relativePath) throws IOException {
         Path path = repoDir().resolve(relativePath);
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);

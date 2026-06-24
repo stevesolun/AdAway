@@ -402,7 +402,31 @@ public class HomeNavigationSourcesContractTest {
                 testState.contains("WORK_MANAGER_RESET_TIMEOUT_SECONDS") &&
                         testState.contains("WORK_MANAGER_RESET_TIMEOUT_SECONDS = 30") &&
                         testState.contains(
-                                "WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS"));
+                        "WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS"));
+    }
+
+    @Test
+    public void homeHonorsStartupAppUpdatePreference() throws Exception {
+        String homeActivity = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeActivity.java");
+        String preferenceHelper = readRepoFile(
+                "app/src/main/java/org/adaway/helper/PreferenceHelper.java");
+        String preferences = readRepoFile("app/src/main/res/xml/preferences_update.xml");
+
+        assertTrue("Update preferences must expose the app startup update switch.",
+                preferences.contains("@string/pref_update_check_app_startup_key"));
+        assertTrue("PreferenceHelper must expose the app startup update switch.",
+                preferenceHelper.contains("getUpdateCheckAppStartup"));
+        assertTrue("HomeActivity must honor the startup app update preference on fresh launch.",
+                homeActivity.contains("checkAppUpdateAtStartup(savedInstanceState)") &&
+                        homeActivity.contains("PreferenceHelper.getUpdateCheckAppStartup(this)") &&
+                        homeActivity.contains("new ViewModelProvider(this).get(" +
+                                "HomeViewModel.class)") &&
+                        homeActivity.contains("checkForAppUpdate()"));
+        assertTrue("Startup update checks must not rerun after Activity state restoration.",
+                homeActivity.contains("if (savedInstanceState != null)") &&
+                        homeActivity.indexOf("if (savedInstanceState != null)")
+                                < homeActivity.indexOf("checkForAppUpdate()"));
     }
 
     @Test

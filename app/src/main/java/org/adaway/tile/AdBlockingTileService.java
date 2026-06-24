@@ -52,6 +52,9 @@ public class AdBlockingTileService extends TileService {
 
     private void updateTile(boolean adBlocked) {
         Tile tile = getQsTile();
+        if (tile == null) {
+            return;
+        }
         tile.setState(adBlocked ? STATE_ACTIVE : STATE_INACTIVE);
         tile.updateTile();
     }
