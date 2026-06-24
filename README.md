@@ -275,7 +275,8 @@ The runner covers baseline, 1.3/1.6 font scales, and RTL pseudo-locale variants.
 It pulls screenshots for the key app shells and writes
 `app/build/reports/ux-matrix/ux-matrix-review.md`, a checklist packet for manual
 review of clipping, overlap, touch targets, RTL anchoring, FAB clearance, and the
-AdAway bird brand signal.
+AdAway bird brand signal. The packet includes `Source commit`, binding the
+screenshots and checklist to the source revision that generated them.
 
 After the reviewer marks every checklist item in `ux-matrix-review.md` as
 complete, verify the sign-off packet and write a durable report:
@@ -290,8 +291,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-ux-signoff.
 For CI-backed UX sign-off, run the manual
 `.github/workflows/verify-ux-signoff.yml` workflow with `review_packet_base64`,
 the base64-encoded checked `ux-matrix-review.md`, and the reviewer identity.
-Successful runs upload a `ux-signoff-report` artifact with the source commit
-that produced the checked packet.
+Successful runs upload a `ux-signoff-report` artifact with the current source
+commit and the checked packet's source commit; stale packets from another
+source revision are rejected.
 
 After release artifact verification, physical release smoke, UX sign-off, and
 license-boundary checks have all produced reports, aggregate them into one final
@@ -324,8 +326,9 @@ Use the tagged release artifact license-boundary report for
 artifact names from the release artifact verification report, not the regular CI source-only
 license-boundary report.
 The UX sign-off report must come from `verify-ux-signoff.ps1` and include a
-reviewer, review packet, `Source commit`, `Review packet SHA-256`, checked item count,
-`Unchecked items: 0`, and `Issues: 0`; do not use hand-written pass markers.
+reviewer, review packet, `Source commit`, `Review packet source commit`,
+`Review packet SHA-256`, checked item count, `Unchecked items: 0`, and
+`Issues: 0`; do not use hand-written pass markers.
 When `-UxReviewPacket` is provided, final readiness also hashes the checked
 review packet and requires the same review packet hash as the sign-off report.
 The generated `release-readiness-report.md` repeats the release tag, APK, APK

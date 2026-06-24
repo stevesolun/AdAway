@@ -29,6 +29,19 @@ function Get-ReviewPacketSha256 {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedPacket).Hash.ToLowerInvariant()
 }
 
+function Get-ReviewPacketSourceCommit {
+    $resolvedPacket = Resolve-RepoPath $ReviewPacket
+    if (-not (Test-Path -LiteralPath $resolvedPacket -PathType Leaf)) {
+        return "not-provided"
+    }
+    foreach ($line in Get-Content -LiteralPath $resolvedPacket) {
+        if ($line -match "^\s*-\s+Source commit:\s*(?<commit>\S+)\s*$") {
+            return $Matches["commit"].Trim().ToLowerInvariant()
+        }
+    }
+    return "not-provided"
+}
+
 function Get-SourceCommit {
     if ($env:GITHUB_SHA -match "^[0-9a-fA-F]{40}$") {
         return $env:GITHUB_SHA.ToLowerInvariant()
@@ -76,6 +89,7 @@ function Write-UxSignOffReport(
     $lines.Add("")
     $lines.Add("- Status: $Status")
     $lines.Add("- Source commit: $(Get-SourceCommit)")
+    $lines.Add("- Review packet source commit: $(Get-ReviewPacketSourceCommit)")
     $lines.Add("- Reviewer: $Reviewer")
     $lines.Add("- Review packet: $(Format-RelativeName $ReviewPacket)")
     $lines.Add("- Review packet SHA-256: $(Get-ReviewPacketSha256)")
@@ -132,6 +146,22 @@ if (-not (Test-Path -LiteralPath $resolvedPacket -PathType Leaf)) {
     }
     if ($checkboxCount -eq 0) {
         $issues.Add("Review packet contains no checklist items.")
+    }
+
+    $currentSourceCommit = Get-SourceCommit
+    $reviewPacketSourceCommit = Get-ReviewPacketSourceCommit
+    $commitPattern = "^[0-9a-fA-F]{40}$"
+    if ($reviewPacketSourceCommit -notmatch $commitPattern) {
+        $issues.Add("Review packet source commit is missing or invalid.")
+    }
+    if ($currentSourceCommit -notmatch $commitPattern) {
+        $issues.Add("Current source commit is missing or invalid.")
+    }
+    if ($reviewPacketSourceCommit -match $commitPattern -and
+            $currentSourceCommit -match $commitPattern -and
+            $reviewPacketSourceCommit -ne $currentSourceCommit) {
+        $issues.Add("Review packet source commit '$reviewPacketSourceCommit' does not " +
+                "match current source commit '$currentSourceCommit'.")
     }
 }
 

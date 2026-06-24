@@ -16,6 +16,10 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 public class UxMatrixScriptTest {
+    private static final String SOURCE_COMMIT =
+            "0123456789abcdef0123456789abcdef01234567";
+    private static final String OTHER_SOURCE_COMMIT =
+            "fedcba9876543210fedcba9876543210fedcba98";
     private static final String[] UX_VARIANTS = {
             "baseline",
             "font-1.3",
@@ -183,6 +187,10 @@ public class UxMatrixScriptTest {
             String manifest = readUtf8(output.resolve("ux-matrix-review.md"));
             assertTrue("Manifest must include the manual review checklist.",
                     manifest.contains("Manual sign-off checklist"));
+            assertTrue("Manifest must bind the packet to the source commit.",
+                    Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
+                            .matcher(manifest)
+                            .find());
             assertTrue("Manifest must include the strongest RTL/font-scale variant.",
                     manifest.contains("## font-1.6-rtl"));
             assertTrue("Manifest must link expected screenshots by relative path.",
@@ -238,6 +246,7 @@ public class UxMatrixScriptTest {
             Path report = fixture.resolve("ux-signoff-report.md");
             Files.write(packet, (
                     "# UX Matrix Review Packet\n\n" +
+                            "- Source commit: " + SOURCE_COMMIT + "\n\n" +
                             "Manual sign-off checklist:\n" +
                             "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
                             "- [ ] Touch targets remain reachable and visually stable.\n" +
@@ -246,6 +255,7 @@ public class UxMatrixScriptTest {
             ).getBytes(StandardCharsets.UTF_8));
 
             ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
                     "& " + quote(repoDir().resolve("scripts/verify-ux-signoff.ps1")) +
                     " -ReviewPacket " + quote(packet) +
                     " -Reviewer 'QA Lead'" +
@@ -268,6 +278,47 @@ public class UxMatrixScriptTest {
     }
 
     @Test
+    public void uxSignOffVerifierFailsWhenPacketSourceCommitDiffersFromCurrentCommit()
+            throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX sign-off verifier.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-signoff-source-drift");
+        try {
+            Path packet = fixture.resolve("ux-matrix-review.md");
+            Path report = fixture.resolve("ux-signoff-report.md");
+            Files.write(packet, (
+                    "# UX Matrix Review Packet\n\n" +
+                            "- Source commit: " + OTHER_SOURCE_COMMIT + "\n\n" +
+                            "Manual sign-off checklist:\n" +
+                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
+                            "- [x] Touch targets remain reachable and visually stable.\n" +
+                            "## baseline\n" +
+                            "- [x] home - baseline/ux-matrix/home.png\n"
+            ).getBytes(StandardCharsets.UTF_8));
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
+                    "& " + quote(repoDir().resolve("scripts/verify-ux-signoff.ps1")) +
+                    " -ReviewPacket " + quote(packet) +
+                    " -Reviewer 'QA Lead'" +
+                    " -ReportPath " + quote(report) + ";");
+
+            assertTrue("UX sign-off must fail when the packet source commit is stale.",
+                    result.exitCode != 0);
+            String reportText = readUtf8(report);
+            assertTrue("Failure report must explain the source-commit mismatch.",
+                    reportText.contains("# UX Sign-Off Report") &&
+                            reportText.contains("- Status: failed") &&
+                            reportText.contains("Review packet source commit") &&
+                            reportText.contains("does not match"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void uxSignOffVerifierWritesPassingReportForCompletedChecklist() throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the UX sign-off verifier.",
@@ -279,6 +330,7 @@ public class UxMatrixScriptTest {
             Path report = fixture.resolve("ux-signoff-report.md");
             Files.write(packet, (
                     "# UX Matrix Review Packet\n\n" +
+                            "- Source commit: " + SOURCE_COMMIT + "\n\n" +
                             "Manual sign-off checklist:\n" +
                             "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
                             "- [x] Touch targets remain reachable and visually stable.\n" +
@@ -287,6 +339,7 @@ public class UxMatrixScriptTest {
             ).getBytes(StandardCharsets.UTF_8));
 
             ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
                     "& " + quote(repoDir().resolve("scripts/verify-ux-signoff.ps1")) +
                     " -ReviewPacket " + quote(packet) +
                     " -Reviewer 'QA Lead'" +
@@ -302,6 +355,8 @@ public class UxMatrixScriptTest {
                             Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
                                     .matcher(reportText)
                                     .find() &&
+                            reportText.contains("- Review packet source commit: " +
+                                    SOURCE_COMMIT) &&
                             Pattern.compile("(?m)^- Review packet SHA-256: [0-9a-f]{64}$")
                                     .matcher(reportText)
                                     .find() &&
@@ -321,6 +376,7 @@ public class UxMatrixScriptTest {
                 readme.contains("verify-ux-signoff.ps1") &&
                         readme.contains("-Reviewer") &&
                         readme.contains("Source commit") &&
+                        readme.contains("Review packet source commit") &&
                         readme.contains("Review packet SHA-256") &&
                         readme.contains("ux-signoff-report.md"));
     }

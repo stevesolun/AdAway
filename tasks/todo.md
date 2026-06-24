@@ -7458,3 +7458,52 @@
 - Remaining full-goal gaps: this closes another stale/mixed-proof loophole, but the real
   production tagged release, real physical-device release smoke, actual human UX screenshot
   sign-off, and MIT legal/provenance clearance remain external gates.
+
+## Plan - 2026-06-20 UX Packet Source Commit Binding
+- [x] Add failing UX script tests requiring generated review packets to carry a source commit and
+  sign-off to reject stale packet commits.
+- [x] Stamp `ux-matrix-review.md` with the source commit that generated it.
+- [x] Make `verify-ux-signoff.ps1` require the packet source commit to match the current source
+  commit and record both values in the sign-off report.
+- [x] Update README and `RELEASING.md` so human reviewers know the checked packet is source-bound.
+- [x] Re-run focused UX tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-25 UX Packet Source Commit Binding
+- Added focused red tests requiring generated UX review packets to carry `Source commit`,
+  requiring stale packet/current source mismatches to fail sign-off, and requiring the report to
+  include `Review packet source commit`.
+- `run-ux-matrix.ps1` now stamps `ux-matrix-review.md` with `GITHUB_SHA` or local
+  `git rev-parse HEAD`.
+- `verify-ux-signoff.ps1` now records the packet source commit and rejects missing, invalid, or
+  mismatched packet/current source commits before producing a passing sign-off report.
+- README and `RELEASING.md` now document that the checked UX packet is source-bound.
+- Verification passed: the focused `UxMatrixScriptTest` suite first failed on the missing
+  source-commit contract, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only existing LF-to-CRLF warnings; and changed-line scanning
+  for edited code/docs passed.
+
+## Plan - 2026-06-25 Canonical User Story Ledger
+- [x] Pivot from the previous release-proof goal to the new objective: enumerate repo features as
+  user stories, track status in one canonical spreadsheet, then test/fix/retest each behavior.
+- [x] Dispatch read-only feature explorers for Home/onboarding, filter management, runtime/prefs,
+  and update/release/security surfaces.
+- [x] Create `tasks/user-story-status.tsv` as the canonical spreadsheet with stable story IDs,
+  expected behavior, evidence paths, status, error IDs, fix status, and retest status.
+- [x] Seed the ledger with current repo-derived stories and initial open risks from the explorers.
+- [x] Validate the TSV shape so later tooling can iterate row-by-row.
+
+## Review - 2026-06-25 Canonical User Story Ledger
+- Created `tasks/user-story-status.tsv` with 98 current user-story rows and 15 tracking columns:
+  story id, area, feature, user story, expected behavior, code/test evidence, status, test state,
+  priority, risk notes, error id, error notes, fix status, and retest status.
+- Integrated findings from all four read-only explorers. First grounded open rows include Home
+  protection-state visibility, leak-status clean-state reachability, redirected-rule IP validation
+  parity, Quick Settings tile null handling, inert startup update preference, root DNS log copy,
+  launcher shortcut package drift, and adware matcher freshness.
+- The new ledger is intentionally marked `Not tested`, `Partially covered`, `Needs attention`, or
+  `Needs fix` rather than claiming completion. The next phase is to execute the stories in priority
+  order, fill error fields with real test evidence, patch each confirmed logistical/UX error, and
+  retest the affected rows.
+- Verification passed: `tasks/user-story-status.tsv` parses as 98 stories with 15 columns.

@@ -206,6 +206,30 @@ function Get-RelativeUxPath {
     return $resolvedPath.Substring($root.Length + 1).Replace("\", "/")
 }
 
+function Get-SourceCommit {
+    if ($env:GITHUB_SHA -match "^[0-9a-fA-F]{40}$") {
+        return $env:GITHUB_SHA.ToLowerInvariant()
+    }
+
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        return "not-provided"
+    }
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $git.Source
+    $startInfo.Arguments = "rev-parse HEAD"
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    $commit = $process.StandardOutput.ReadToEnd().Trim()
+    $process.WaitForExit()
+    if ($process.ExitCode -eq 0 -and $commit -match "^[0-9a-fA-F]{40}$") {
+        return $commit.ToLowerInvariant()
+    }
+    return "not-provided"
+}
+
 function Write-UxMatrixReviewManifest {
     param([string]$Directory = $OutputDir)
 
@@ -217,6 +241,7 @@ function Write-UxMatrixReviewManifest {
     $lines.Add("# UX Matrix Review Packet")
     $lines.Add("")
     $lines.Add("Generated: $(Get-Date -Format o)")
+    $lines.Add("- Source commit: $(Get-SourceCommit)")
     $lines.Add("")
     $lines.Add("Manual sign-off checklist:")
     $lines.Add("- [ ] Text is readable without clipping, ellipsizing, or overlap.")
