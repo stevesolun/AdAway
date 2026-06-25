@@ -1754,6 +1754,9 @@ public class SourceModel {
             if (response.code() == HTTP_NOT_MODIFIED) {
                 return DownloadResult.notModified(source);
             }
+            if (!response.isSuccessful()) {
+                return DownloadResult.failed(source, "HTTP " + response.code());
+            }
             ResponseBody body = response.body();
             if (body == null) {
                 return DownloadResult.failed(source, "Empty response body");

@@ -8023,3 +8023,16 @@
 - Post-split license-boundary check passed; `git diff --check` passed with only LF-to-CRLF
   warnings; TSV shape check passed as 98 stories with 15 columns; and changed source added-line
   length scanning passed.
+- PR connected execution still failed on commit `8b4a6502` at the same assertion. Root cause:
+  `downloadToTempFile` accepted HTTP 500 responses as parseable success whenever a response body
+  existed, so the failed source became a successful empty parse and bypassed failed-source
+  carry-forward.
+- Fixed HTTP status handling so HTTP 304 is the only non-2xx response that skips parsing and
+  all HTTP 4xx/5xx responses enter the failed-source carry-forward path. Added
+  `Generation304MigrationTest.sourceModel_treatsNonSuccessfulHttpStatusAsDownloadFailure`.
+- Focused status-code gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.Generation304MigrationTest
+  --dependency-verification=strict --stacktrace`.
+- Full post-status-code local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.

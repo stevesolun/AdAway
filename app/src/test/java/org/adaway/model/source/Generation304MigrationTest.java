@@ -202,6 +202,25 @@ public class Generation304MigrationTest {
     }
 
     @Test
+    public void sourceModel_treatsNonSuccessfulHttpStatusAsDownloadFailure() throws Exception {
+        String sourceModel = readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SourceModel.java");
+        String downloadToTempFile = sourceModel.substring(
+                sourceModel.indexOf("private DownloadResult downloadToTempFile"),
+                sourceModel.indexOf("private static final class DownloadResult"));
+
+        assertTrue("HTTP 304 is the only non-2xx response that may skip parsing.",
+                downloadToTempFile.contains("response.code() == HTTP_NOT_MODIFIED"));
+        assertTrue("HTTP 4xx/5xx responses must enter the failed-source carry-forward path.",
+                downloadToTempFile.contains("if (!response.isSuccessful())") &&
+                        downloadToTempFile.contains("return DownloadResult.failed(source, " +
+                                "\"HTTP \" + response.code())"));
+        assertTrue("Response bodies may be parsed only after the HTTP status is accepted.",
+                downloadToTempFile.indexOf("if (!response.isSuccessful())") <
+                        downloadToTempFile.indexOf("ResponseBody body = response.body()"));
+    }
+
+    @Test
     public void sourceModel_serializesEveryPublicUpdateEntryPoint() throws Exception {
         String sourceModel = readRepoFile("app/src/main/java/org/adaway/model/source/SourceModel.java");
 
