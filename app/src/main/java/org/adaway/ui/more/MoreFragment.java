@@ -1,5 +1,6 @@
 package org.adaway.ui.more;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -25,6 +26,8 @@ import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.prefs.PrefsActivity;
+
+import timber.log.Timber;
 
 /**
  * More tab: list of tools and settings entries.
@@ -102,7 +105,7 @@ public class MoreFragment extends Fragment {
 
         // GitHub / Help
         this.binding.moreRowGithub.setOnClickListener(v ->
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL))));
+                openExternalUri(Uri.parse(GITHUB_URL)));
     }
 
     private void showAdwareScanner() {
@@ -122,5 +125,18 @@ public class MoreFragment extends Fragment {
                 .replace(R.id.nav_fragment_container, fragment, "adware")
                 .addToBackStack("adware")
                 .commit();
+    }
+
+    private void openExternalUri(@NonNull Uri uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
+            Timber.w("No Activity available to open external URL: %s", uri);
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException exception) {
+            Timber.w(exception, "Failed to open external URL: %s", uri);
+        }
     }
 }

@@ -59,6 +59,20 @@ public class CrashSurfaceHardeningTest {
                                 < source.indexOf("tile.setState"));
     }
 
+    @Test
+    public void moreGithubHelpLinkToleratesMissingExternalActivity() throws IOException {
+        String source = read("app/src/main/java/org/adaway/ui/more/MoreFragment.java");
+
+        assertTrue("More GitHub/Help row must use a crash-safe external link helper.",
+                source.contains("openExternalUri(Uri.parse(GITHUB_URL))"));
+        assertTrue("External links must check for an available Activity before launch.",
+                source.contains("resolveActivity(requireContext().getPackageManager())"));
+        assertTrue("External links must catch missing or blocked Activity launches.",
+                source.contains("ActivityNotFoundException | SecurityException"));
+        assertTrue("More GitHub/Help row must not directly start an unguarded ACTION_VIEW.",
+                !source.contains("startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))"));
+    }
+
     private static String read(String relativePath) throws IOException {
         Path path = repoDir().resolve(relativePath);
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);

@@ -7556,3 +7556,26 @@
   --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
   `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
   with 15 columns; and edited Java plus Story Fix Loop 2 todo line-length scans passed.
+
+## Plan - 2026-06-25 Story Fix Loop 3
+- [x] Confirm `MORE-001` with a failing crash-surface contract for the More GitHub/Help external
+  link.
+- [x] Make the More GitHub/Help row resolve and catch external Activity launch failures instead
+  of crashing the More tab.
+- [x] Update `tasks/user-story-status.tsv` with the concrete fix and focused retest evidence.
+- [x] Re-run focused crash-surface tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-25 Story Fix Loop 3
+- Confirmed `MORE-001`: the More GitHub/Help row directly launched an external `ACTION_VIEW`
+  intent. A device or managed profile with no browser handler could throw instead of keeping the
+  More tab usable. Added a focused crash-surface contract that failed first.
+- `MoreFragment` now routes the GitHub/Help row through `openExternalUri`, checks
+  `resolveActivity`, and catches `ActivityNotFoundException` plus `SecurityException`.
+- Updated `tasks/user-story-status.tsv` so `MORE-001` records the external-link crash fix while
+  keeping the broader More navigation/device pass open.
+- Verification passed: focused `CrashSurfaceHardeningTest` failed first on the missing More link
+  guard, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
+  with 15 columns; and edited Java plus Story Fix Loop 3 todo line-length scans passed.
