@@ -7792,3 +7792,43 @@
   shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
 - Local connected run was not attempted because `adb.exe devices` reported no attached devices;
   PR CI remains the connected-device gate for this slice.
+
+## Plan - 2026-06-25 Story Fix Loop 11
+- [x] Confirm `ONB-001` and `ONB-002` with a failing onboarding first-run contract before
+  production edits.
+- [x] Stop no-root auto-detect from launching the VPN permission prompt before user intent.
+- [x] Keep VPN as the preselected no-root recommendation and request permission only when the
+  user selects or starts VPN protection.
+- [x] Keep onboarding completion grounded: save the selected method, launch Home with
+  `EXTRA_ONBOARDING_COMPLETE`, and let Home subscribe default lists if empty.
+- [x] Update `tasks/user-story-status.tsv` with concrete onboarding evidence and remaining
+  connected install-smoke gaps.
+- [x] Run focused onboarding coverage plus standard local gates, then commit and push if green.
+
+## Review - 2026-06-25 Story Fix Loop 11
+- Confirmed `ONB-001` and `ONB-002`: Home redirects unconfigured users to onboarding, and Home
+  subscribes default lists after the onboarding-complete flag, but the no-root auto-detect path
+  could call the VPN permission flow before explicit user intent.
+- Added a focused onboarding first-run contract that failed first at
+  `OnboardingFirstRunContractTest.java:26` because no-root auto-detect called `trySelectVpn()`.
+- Split onboarding VPN state into passive preselection and explicit authorization:
+  no-root auto-detect now calls `preselectVpn()`, while VPN card clicks and Start can request
+  Android VPN consent.
+- Added a pending-finish flag so accepting VPN consent from Start completes onboarding and launches
+  Home with `EXTRA_ONBOARDING_COMPLETE`.
+- Kept default-list behavior grounded: Home still calls
+  `DefaultListsSubscriber.subscribeDefaultsIfEmpty` only after onboarding completion.
+- Updated `tasks/user-story-status.tsv` for `ONB-001` and `ONB-002` while keeping fresh-install
+  device smoke open.
+- Focused red/green verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.onboarding.OnboardingFirstRunContractTest.
+  noRootAutoDetectPreselectsVpnWithoutSurprisePermissionPrompt
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
+- Local fresh-install smoke was not attempted because `adb.exe devices` reported no attached
+  devices; PR CI remains the connected-device gate for this slice.

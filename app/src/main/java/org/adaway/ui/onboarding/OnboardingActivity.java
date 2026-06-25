@@ -44,6 +44,7 @@ public class OnboardingActivity extends AppCompatActivity {
 
     // Track which method the user has chosen
     private AdBlockMethod selectedMethod = AdBlockMethod.UNDEFINED;
+    private boolean finishAfterVpnAuthorization;
 
     // Card color resources
     private int cardNormalColor;
@@ -61,13 +62,14 @@ public class OnboardingActivity extends AppCompatActivity {
         this.cardNormalColor = getResources().getColor(R.color.cardBackground, null);
         this.cardSelectedColor = getResources().getColor(R.color.cardEnabledBackground, null);
 
-        this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
-            if (result.getResultCode() == RESULT_OK) {
-                onVpnSelected();
-            } else {
-                onVpnDenied();
-            }
-        });
+        this.prepareVpnLauncher = registerForActivityResult(
+                new StartActivityForResult(), result -> {
+                    if (result.getResultCode() == RESULT_OK) {
+                        onVpnSelected();
+                    } else {
+                        onVpnDenied();
+                    }
+                });
 
         this.binding.onboardingVpnCard.setOnClickListener(v -> trySelectVpn());
         this.binding.onboardingRootCard.setOnClickListener(v -> trySelectRoot());
@@ -91,7 +93,7 @@ public class OnboardingActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 if (!hasRoot) {
                     // No root — pre-select VPN
-                    trySelectVpn();
+                    preselectVpn();
                 }
                 // If root is available, let the user choose explicitly
             });
@@ -99,6 +101,7 @@ public class OnboardingActivity extends AppCompatActivity {
     }
 
     private void trySelectVpn() {
+        this.finishAfterVpnAuthorization = false;
         Intent prepareIntent = VpnService.prepare(this);
         if (prepareIntent == null) {
             // VPN already authorized
@@ -106,6 +109,15 @@ public class OnboardingActivity extends AppCompatActivity {
         } else {
             this.prepareVpnLauncher.launch(prepareIntent);
         }
+    }
+
+    private void preselectVpn() {
+        SentryLog.recordBreadcrumb("Onboarding: VPN preselected");
+        this.selectedMethod = AdBlockMethod.VPN;
+        this.binding.onboardingVpnCard.setCardBackgroundColor(this.cardSelectedColor);
+        this.binding.onboardingRootCard.setCardBackgroundColor(this.cardNormalColor);
+        this.binding.onboardingStartButton.setEnabled(true);
+        updateMethodCards();
     }
 
     private void trySelectRoot() {
@@ -130,10 +142,15 @@ public class OnboardingActivity extends AppCompatActivity {
         this.binding.onboardingRootCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(true);
         updateMethodCards();
+        if (this.finishAfterVpnAuthorization) {
+            this.finishAfterVpnAuthorization = false;
+            finishOnboarding(AdBlockMethod.VPN);
+        }
     }
 
     private void onVpnDenied() {
         // VPN permission denied — check if always-on is blocking
+        this.finishAfterVpnAuthorization = false;
         this.selectedMethod = AdBlockMethod.UNDEFINED;
         this.binding.onboardingVpnCard.setCardBackgroundColor(this.cardNormalColor);
         this.binding.onboardingStartButton.setEnabled(false);
@@ -210,10 +227,29 @@ public class OnboardingActivity extends AppCompatActivity {
 
     private void startProtecting() {
         if (this.selectedMethod == AdBlockMethod.UNDEFINED) return;
-        PreferenceHelper.setAbBlockMethod(this, this.selectedMethod);
+        if (this.selectedMethod == AdBlockMethod.VPN) {
+            startVpnProtection();
+            return;
+        }
+        finishOnboarding(this.selectedMethod);
+    }
+
+    private void startVpnProtection() {
+        Intent prepareIntent = VpnService.prepare(this);
+        if (prepareIntent == null) {
+            finishOnboarding(AdBlockMethod.VPN);
+        } else {
+            this.finishAfterVpnAuthorization = true;
+            this.prepareVpnLauncher.launch(prepareIntent);
+        }
+    }
+
+    private void finishOnboarding(AdBlockMethod method) {
+        PreferenceHelper.setAbBlockMethod(this, method);
         Intent intent = new Intent(this, HomeActivity.class);
         intent.putExtra(HomeActivity.EXTRA_ONBOARDING_COMPLETE, true);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
+        finish();
     }
 }
