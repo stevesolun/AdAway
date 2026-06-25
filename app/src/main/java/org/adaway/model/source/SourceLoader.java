@@ -75,7 +75,8 @@ class SourceLoader {
     static final Pattern UNBOUND_LOCAL_ZONE =
             Pattern.compile("^\\s*local-zone:\\s*\"([^\"]+)\"\\s+([A-Za-z_]+).*$");
     // Unbound DNS: local-data: "example.com A 0.0.0.0"
-    static final Pattern UNBOUND_LOCAL_DATA = Pattern.compile("^\\s*local-data:\\s*\"([^\\s\"]+)\\s.*$");
+    static final Pattern UNBOUND_LOCAL_DATA =
+            Pattern.compile("^\\s*local-data:\\s*\"([^\\s\"]+)\\s+([A-Za-z]+)\\s+([^\\s\"]+)\".*$");
     // BIND RPZ: example.com CNAME .  (optionally: example.com 60 IN CNAME .)
     static final Pattern RPZ_CNAME_DOT = Pattern.compile("^([a-zA-Z0-9][a-zA-Z0-9._-]{0,252})\\s+(?:\\d+\\s+)?(?:IN\\s+)?CNAME\\s+\\..*$");
     // Surge/Quantumult/Clash host rules. Action-bearing rules are accepted only
@@ -283,7 +284,8 @@ class SourceLoader {
         // Unbound: local-data: "example.com A 0.0.0.0"
         Matcher unboundData = UNBOUND_LOCAL_DATA.matcher(line);
         if (unboundData.matches()) {
-            return exactRule(unboundData.group(1));
+            return isUnboundBlockDataTarget(unboundData.group(2), unboundData.group(3))
+                    ? exactRule(unboundData.group(1)) : null;
         }
 
         // BIND RPZ: example.com CNAME .  (optionally with TTL/IN class)
@@ -382,6 +384,19 @@ class SourceLoader {
                 || type.equals("always_nodata")
                 || type.equals("always_deny")
                 || type.equals("always_null");
+    }
+
+    private static boolean isUnboundBlockDataTarget(@NonNull String rawRecordType,
+            @NonNull String rawTarget) {
+        String recordType = rawRecordType.toUpperCase(Locale.ROOT);
+        String target = rawTarget.toLowerCase(Locale.ROOT);
+        if (recordType.equals("A")) {
+            return target.equals(BOGUS_IPV4) || target.equals(LOCALHOST_IPV4);
+        }
+        if (recordType.equals("AAAA")) {
+            return target.equals("::") || target.equals(LOCALHOST_IPV6);
+        }
+        return false;
     }
 
     @Nullable

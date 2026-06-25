@@ -101,6 +101,34 @@ public class SourceLoaderParserPatternsTest {
     }
 
     @Test
+    public void unboundLocalData_nullIpv4_isExactBlock() {
+        String line = "local-data: \"tracker.com A 0.0.0.0\"";
+
+        assertEquals("tracker.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void unboundLocalData_nullIpv6_isExactBlock() {
+        String line = "local-data: \"tracker.com AAAA ::\"";
+
+        assertEquals("tracker.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void unboundLocalData_publicAddress_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "local-data: \"cdn.example.com A 1.2.3.4\""));
+    }
+
+    @Test
+    public void unboundLocalData_privateAddress_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "local-data: \"router.example.com A 192.168.1.1\""));
+    }
+
+    @Test
     public void unboundLocalData_matchesWithLeadingWhitespace() {
         String line = "  local-data: \"ads.evil.org A 127.0.0.1\"";
         Matcher m = UNBOUND_LOCAL_DATA.matcher(line);

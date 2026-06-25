@@ -8109,3 +8109,31 @@
   fallback behavior, Unbound `local-data` target safety, and broader dnsmasq formatting coverage.
 - PR CI passed on commit `f0848cd0`: Connected Android tests, Development build, CodeQL,
   locale validation, Java analysis, and C++ analysis were all green.
+
+## Plan - 2026-06-25 Story Fix Loop 18
+- [x] Tighten `RUNTIME-005` with parser behavior tests for Unbound `local-data` target safety.
+- [x] Prove non-null Unbound `local-data` records fail before changing production code.
+- [x] Fix only the concrete `local-data` target gap exposed by the tests.
+- [x] Run the focused parser gate and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 18
+- Starting state: `RUNTIME-005` remained `Partially covered`; the row still listed Unbound
+  `local-data` target safety as an open parser semantics gap.
+- Added behavior tests for Unbound `local-data`: `A 0.0.0.0` and `AAAA ::` remain exact blocks,
+  while public and private address answers are skipped instead of flattened into DNS blocks.
+- Red parser gate failed before production changes:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace` reported 68 tests, 2 failures for public and
+  private Unbound `local-data` answers being extracted as blocks.
+- Fixed `SourceLoader` so Unbound `local-data` captures record type and target, then imports only
+  block-safe A/AAAA null-style targets while skipping redirect-style address answers.
+- Focused parser gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining `RUNTIME-005` gaps stay open: parse-to-DB semantic proof, redirect-enabled source
+  fallback behavior, and broader dnsmasq formatting coverage.
