@@ -8050,7 +8050,7 @@
   runtime truth gap exposed by the test.
 - [x] Update `tasks/user-story-status.tsv` with the new evidence and remaining hardware/runtime
   gaps.
-- [ ] Run focused connected/test compile gates plus the standard local gates, then commit, push,
+- [x] Run focused connected/test compile gates plus the standard local gates, then commit, push,
   and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 16
@@ -8072,3 +8072,5 @@
 - Local connected execution was not attempted because
   `C:\Users\solun\AppData\Local\Android\Sdk\platform-tools\adb.exe devices` reported no attached
   devices; PR CI remains the connected-device gate for this test.
+- PR CI passed on commit `52188300`: Connected Android tests, Development build, CodeQL,
+  locale validation, Java analysis, and C++ analysis were all green.
