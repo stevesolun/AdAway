@@ -7579,3 +7579,31 @@
   --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
   `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
   with 15 columns; and edited Java plus Story Fix Loop 3 todo line-length scans passed.
+
+## Plan - 2026-06-25 Story Fix Loop 4
+- [x] Confirm `SYS-004` with a failing package-replace contract proving scheduled work is
+  repaired after `ACTION_MY_PACKAGE_REPLACED`.
+- [x] Expose the existing hosts-update and app-update preference sync helpers for receiver use.
+- [x] Add filter-set schedule preference sync that restores defaults and enqueues or cancels work
+  from persisted state.
+- [x] Wire `UpdateReceiver` to repair hosts, app, and filter-set scheduled work after app update.
+- [x] Update `tasks/user-story-status.tsv` with the concrete fix and focused retest evidence.
+- [x] Re-run focused package-replace coverage plus the standard local gates, then commit and push.
+
+## Review - 2026-06-25 Story Fix Loop 4
+- Confirmed `SYS-004`: `UpdateReceiver` handled `ACTION_MY_PACKAGE_REPLACED` but only logged the
+  new version. It did not repair scheduled hosts-update, app-update, or filter-set work after app
+  replacement. Added a focused package-replace contract that failed first.
+- `UpdateReceiver` now resyncs hosts, APK update, and filter-set scheduled work from persisted
+  preferences when Android sends `ACTION_MY_PACKAGE_REPLACED`.
+- `SourceUpdateService.syncPreferences()` and `ApkUpdateService.syncPreferences()` are public for
+  receiver use. `FilterSetUpdateService.syncPreferences()` now restores filter-set schedule
+  defaults, then enqueues or cancels work from persisted global schedule state.
+- Updated `tasks/user-story-status.tsv` so `SYS-004` records the schedule-repair fix while keeping
+  real installed-app replacement smoke open as a release/device gate.
+- Verification passed: focused `SystemReceiverContractTest` failed first on the missing receiver
+  repair call, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
+  with 15 columns; and the new test line-length scan passed.

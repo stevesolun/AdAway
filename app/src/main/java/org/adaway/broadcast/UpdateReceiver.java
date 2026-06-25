@@ -7,6 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 
 import org.adaway.AdAwayApplication;
+import org.adaway.model.source.SourceUpdateService;
+import org.adaway.model.update.ApkUpdateService;
+import org.adaway.ui.hosts.FilterSetUpdateService;
 
 import timber.log.Timber;
 
@@ -23,6 +26,9 @@ public class UpdateReceiver extends BroadcastReceiver {
             String versionName = application.getUpdateModel().getVersionName();
             Timber.d("UpdateReceiver invoked");
             Timber.i("Application update to version %s", versionName);
+            SourceUpdateService.syncPreferences(context);
+            ApkUpdateService.syncPreferences(context);
+            FilterSetUpdateService.syncPreferences(context);
         }
     }
 }

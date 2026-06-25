@@ -40,6 +40,15 @@ public final class FilterSetUpdateService {
     public static void disable(@NonNull Context context) {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME);
     }
+
+    public static void syncPreferences(@NonNull Context context) {
+        FilterSetStore.ensureGlobalDefaults(context);
+        if (FilterSetStore.isGlobalScheduleEnabled(context)) {
+            enable(context);
+        } else {
+            disable(context);
+        }
+    }
 }
 
 

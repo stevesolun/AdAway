@@ -93,7 +93,7 @@ public final class SourceUpdateService {
      *
      * @param context The application context.
      */
-    static void syncPreferences(Context context) {
+    public static void syncPreferences(Context context) {
         if (PreferenceHelper.getUpdateCheckHostsDaily(context)) {
             enqueueWork(context, UPDATE, PreferenceHelper.getUpdateOnlyOnWifi(context));
         } else {
