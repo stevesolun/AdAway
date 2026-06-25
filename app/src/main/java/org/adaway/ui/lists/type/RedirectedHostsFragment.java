@@ -74,7 +74,8 @@ public class RedirectedHostsFragment extends AbstractListFragment {
                             // Check if hostname and IP are valid
                             String hostname = hostnameEditText.getText().toString();
                             String ip = ipEditText.getText().toString();
-                            if (RegexUtils.isValidHostname(hostname) && RegexUtils.isValidIP(ip)) {
+                            if (RegexUtils.isValidHostname(hostname) &&
+                                    RegexUtils.isValidRedirectIp(ip)) {
                                 // Insert host to redirection list
                                 this.mViewModel.addListItem(ListType.REDIRECTED, hostname, ip);
                             }
@@ -93,7 +94,7 @@ public class RedirectedHostsFragment extends AbstractListFragment {
                 input -> {
                     String hostname = hostnameEditText.getText().toString();
                     String ip = ipEditText.getText().toString();
-                    return RegexUtils.isValidHostname(hostname) && RegexUtils.isValidIP(ip);
+                    return RegexUtils.isValidHostname(hostname) && RegexUtils.isValidRedirectIp(ip);
                 },
                 false
         );
@@ -127,7 +128,8 @@ public class RedirectedHostsFragment extends AbstractListFragment {
                             // Check hostname and IP validity
                             String hostname = hostnameEditText.getText().toString();
                             String ip = ipEditText.getText().toString();
-                            if (RegexUtils.isValidHostname(hostname) && RegexUtils.isValidIP(ip)) {
+                            if (RegexUtils.isValidHostname(hostname) &&
+                                    RegexUtils.isValidRedirectIp(ip)) {
                                 // Update list item
                                 this.mViewModel.updateListItem(item, hostname, ip);
                             }
@@ -146,7 +148,7 @@ public class RedirectedHostsFragment extends AbstractListFragment {
                 input -> {
                     String hostname = hostnameEditText.getText().toString();
                     String ip = ipEditText.getText().toString();
-                    return RegexUtils.isValidHostname(hostname) && RegexUtils.isValidIP(ip);
+                    return RegexUtils.isValidHostname(hostname) && RegexUtils.isValidRedirectIp(ip);
                 },
                 true
         );

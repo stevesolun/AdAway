@@ -7607,3 +7607,29 @@
   --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
   `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
   with 15 columns; and the new test line-length scan passed.
+
+## Plan - 2026-06-25 Story Fix Loop 5
+- [x] Confirm `LIST-003` with a failing contract proving redirected user-rule add/edit validation
+  rejects private or reserved redirect IPs like backup import does.
+- [x] Add one shared `RegexUtils` redirect-target validator for valid public redirect IPs.
+- [x] Wire redirected-list add/edit validation and backup import through the shared validator.
+- [x] Update `tasks/user-story-status.tsv` with the concrete fix and focused retest evidence.
+- [x] Re-run focused redirected-rule validation coverage plus the standard local gates, then
+  commit and push.
+
+## Review - 2026-06-25 Story Fix Loop 5
+- Confirmed `LIST-003`: redirected user-rule add/edit validation only required
+  `RegexUtils.isValidIP(ip)`, so loopback, RFC1918, link-local, and multicast redirect targets
+  could be accepted by the UI even though backup import rejected those targets. Added a focused
+  contract that failed first.
+- Added `RegexUtils.isValidRedirectIp()` as the single policy for valid public redirect targets.
+- `RedirectedHostsFragment` now uses that policy for both add and edit dialogs, and
+  `BackupFormat` uses the same helper instead of duplicating the IP plus private/reserved checks.
+- Updated `tasks/user-story-status.tsv` so `LIST-003` records the redirected-IP validation fix
+  while keeping full UI add/edit device coverage open.
+- Verification passed: focused `RedirectedHostsValidationContractTest` failed first on the weak UI
+  policy, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
+  with 15 columns; and edited Java line-length scanning passed.

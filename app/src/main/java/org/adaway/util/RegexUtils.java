@@ -113,10 +113,11 @@ public class RegexUtils {
      * <li>{@code ?} for any character</li>
      * </ul>
      * <p/>
-     * Wildcard validation is quite tricky, because wildcards can be placed anywhere and can match with
-     * anything. To make sure we don't dismiss certain valid wildcard host names, we trim wildcards
-     * or replace them with an alphanumeric character for further validation.<br/>
-     * We only reject whitelist host names which cannot match against valid host names under any circumstances.
+     * Wildcard validation is quite tricky, because wildcards can be placed anywhere and can match
+     * with anything. To make sure we don't dismiss certain valid wildcard host names, we trim
+     * wildcards or replace them with an alphanumeric character for further validation.<br/>
+     * We only reject whitelist host names which cannot match against valid host names under any
+     * circumstances.
      *
      * @param hostname The wildcard hostname to validate.
      * @return return {@code true} if wildcard hostname is valid, {@code false} otherwise.
@@ -151,7 +152,8 @@ public class RegexUtils {
      * non-routable. Used to block DNS redirect attacks that route traffic to internal hosts.
      *
      * <p>Covers: RFC 1918 (10/8, 172.16/12, 192.168/16), loopback (127/8, ::1),
-     * link-local (169.254/16, fe80::/10), site-local, multicast, and broadcast (0.0.0.0/255.255.255.255).
+     * link-local (169.254/16, fe80::/10), site-local, multicast, and broadcast
+     * (0.0.0.0/255.255.255.255).
      *
      * @param ip The IP string to check.
      * @return {@code true} if the IP is private/reserved and must NOT be used as a redirect target.
@@ -168,6 +170,16 @@ public class RegexUtils {
             // Not a valid IP — caller's isValidIP() will reject it separately
             return false;
         }
+    }
+
+    /**
+     * Check if an IP address is safe to use as a DNS redirect target.
+     *
+     * @param ip The IP to validate.
+     * @return {@code true} if the IP is valid and publicly routable, {@code false} otherwise.
+     */
+    public static boolean isValidRedirectIp(String ip) {
+        return isValidIP(ip) && !isPrivateOrReservedIp(ip);
     }
 
     /*

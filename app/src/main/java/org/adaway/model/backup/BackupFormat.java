@@ -93,7 +93,7 @@ final class BackupFormat {
         if (hostObject.has(REDIRECT_ATTRIBUTE)) {
             String redirection = hostObject.getString(REDIRECT_ATTRIBUTE);
             // ATK-23: reject private/reserved IPs as redirect targets (same as SourceLoader check).
-            if (!RegexUtils.isValidIP(redirection) || RegexUtils.isPrivateOrReservedIp(redirection)) {
+            if (!RegexUtils.isValidRedirectIp(redirection)) {
                 throw new JSONException("Invalid or private redirect IP in backup: " + redirection);
             }
             host.setRedirection(redirection);
