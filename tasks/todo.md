@@ -8320,7 +8320,7 @@
 - [x] Verify switching the stored method invalidates the cached app-level ad-block model.
 - [x] Run the focused connected dispatch test and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 24
 - Starting state: `RUNTIME-000` was `Not tested`; the canonical row tracked
@@ -8338,5 +8338,7 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `c8d9fadb`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining runtime smokes are still tracked separately: `RUNTIME-007` for rooted hosts apply
   and `RUNTIME-008` for user-granted Android VPN/TUN behavior.
