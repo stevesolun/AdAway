@@ -8380,3 +8380,33 @@
   analysis, and locale validation all reported success.
 - Remaining boundary: this proves receiver behavior directly, not a physical device reboot smoke;
   physical reboot remains part of release smoke coverage.
+
+## Plan - 2026-06-26 Story Fix Loop 26
+- [x] Tighten `LIST-001` with a functional connected test for the blocked, allowed, and
+  redirected Your Lists tabs.
+- [x] Seed one dedicated test row per list type in the production app database and verify each
+  requested tab selects the matching bottom-navigation item.
+- [x] Verify each tab renders only its own rule row, including redirected-host subtext.
+- [x] Patch production only if the functional test exposes a real tab/data routing defect.
+- [x] Run the focused connected list-tab test and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 26
+- Starting state: `LIST-001` was `Partially covered`; its canonical row tracked
+  `Needs functional tab test`.
+- Added `ListsTabsInstrumentedTest`, a focused connected test that seeds one dedicated blocked,
+  allowed, and redirected row into the production app database, launches `ListsActivity` with each
+  tab extra, and verifies the selected bottom-navigation item, fragment class, visible host row,
+  and redirected IP subtext.
+- The focused test passed on the first run, so no production tab/data-routing defect was found and
+  no production code was changed for this slice.
+- Focused connected list-tab gate passed by XML evidence:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsTabsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` produced
+  `tests="1" failures="0" errors="0"` for `ListsTabsInstrumentedTest` on `adaway-api34`.
+- Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining related flows are tracked separately: `LIST-003` add user rule, `LIST-004` edit/delete,
+  `LIST-005` toggle enabled state, and `LIST-006` downloaded-rule override.
