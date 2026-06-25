@@ -8242,3 +8242,35 @@
   --dependency-verification=strict --stacktrace`.
 - PR CI passed on `9eeb441f`: Connected Android tests, Development build, CodeQL Java/C++
   analysis, and locale validation all reported success.
+
+## Plan - 2026-06-25 Story Fix Loop 22
+- [x] Tighten `RUNTIME-011` by proving DNS packet enforcement through `DnsPacketProxy`,
+  not only runtime cache lookup.
+- [x] Add packet-level connected coverage for exact blocked domains, allowed/default
+  forwarding, and exact redirected domains.
+- [x] Keep `RUNTIME-007` root hosts apply open until a rooted-device smoke proves the shell
+  apply path; the local emulator exposes `su`, but standard `su -c` is not usable as-is.
+- [x] Run the focused connected DNS proxy test and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 22
+- Starting state: `RUNTIME-011` was `Partially covered`; the canonical row tracked
+  `Needs packet-level integration test`.
+- Extended `DnsPacketProxyRuntimeTruthTest` so packet-level connected coverage now verifies:
+  suffix block, exact block, default allowed forwarding to the mapped upstream DNS server, and
+  exact redirect synthesis with an A record.
+- No production defect was found; existing DNS packet enforcement behavior matched runtime truth
+  once exercised through the real `DnsPacketProxy` path.
+- `RUNTIME-007` remains open. Local ADB sees `emulator-5554` and `/system/xbin/su`, but
+  standard `su -c` fails with `invalid uid/gid '-c'`, so this environment is not accepted as a
+  rooted hosts-file apply smoke.
+- Focused android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Focused connected DNS proxy test passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.

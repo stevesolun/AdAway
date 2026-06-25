@@ -1,10 +1,13 @@
 package org.adaway.vpn.dns;
 
 import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.adaway.db.entity.ListType.REDIRECTED;
+import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -19,6 +22,8 @@ import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.ListType;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.junit.After;
@@ -35,6 +40,7 @@ import org.pcap4j.packet.namednumber.IpNumber;
 import org.pcap4j.packet.namednumber.IpV4TosPrecedence;
 import org.pcap4j.packet.namednumber.IpVersion;
 import org.pcap4j.packet.namednumber.UdpPort;
+import org.xbill.DNS.ARecord;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Flags;
 import org.xbill.DNS.Message;
@@ -64,6 +70,8 @@ public class DnsPacketProxyRuntimeTruthTest {
     private AdBlockMethod originalMethod;
     private String suffixHost;
     private String childHost;
+    private String exactBlockedHost;
+    private String redirectedHost;
 
     @Before
     public void setUp() {
@@ -78,6 +86,8 @@ public class DnsPacketProxyRuntimeTruthTest {
         long uniqueSuffix = System.nanoTime();
         suffixHost = "dns-proxy-runtime-" + uniqueSuffix + ".invalid";
         childHost = "ads." + suffixHost;
+        exactBlockedHost = "blocked." + suffixHost;
+        redirectedHost = "redirect." + suffixHost;
         cleanup();
         insertSource();
     }
@@ -90,7 +100,7 @@ public class DnsPacketProxyRuntimeTruthTest {
 
     @Test
     public void dnsRequestForChildDomain_isBlockedByRuntimeSuffixRule() throws Exception {
-        insertSuffixBlockedHost(suffixHost);
+        insertHostListItem(suffixHost, BLOCKED, SUFFIX, null);
         hostEntryDao.sync();
         application.invalidateVpnRulesCache();
         RecordingEventLoop eventLoop = new RecordingEventLoop();
@@ -103,11 +113,73 @@ public class DnsPacketProxyRuntimeTruthTest {
 
         assertEquals(0, eventLoop.forwardedPackets);
         assertNotNull(eventLoop.devicePacket);
+        assertBlockedResponse(eventLoop.devicePacket);
+    }
+
+    @Test
+    public void dnsRequestForExactBlockedDomain_isAnsweredLocallyWithoutForwarding()
+            throws Exception {
+        insertHostListItem(exactBlockedHost, BLOCKED, EXACT, null);
+        hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
+        RecordingEventLoop eventLoop = new RecordingEventLoop();
+        DnsPacketProxy proxy = new DnsPacketProxy(
+                eventLoop,
+                new FixedDnsServerMapper(InetAddress.getByName("8.8.8.8")));
+        proxy.initialize(application);
+
+        proxy.handleDnsRequest(buildDnsQueryPacket(exactBlockedHost));
+
+        assertEquals(0, eventLoop.forwardedPackets);
+        assertNotNull(eventLoop.devicePacket);
+        assertBlockedResponse(eventLoop.devicePacket);
+    }
+
+    @Test
+    public void dnsRequestWithoutMatchingRule_isForwardedToMappedDns() throws Exception {
+        hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
+        InetAddress mappedDns = InetAddress.getByName("8.8.8.8");
+        RecordingEventLoop eventLoop = new RecordingEventLoop();
+        DnsPacketProxy proxy = new DnsPacketProxy(
+                eventLoop,
+                new FixedDnsServerMapper(mappedDns));
+        proxy.initialize(application);
+
+        proxy.handleDnsRequest(buildDnsQueryPacket("allowed." + suffixHost));
+
+        assertEquals(1, eventLoop.forwardedPackets);
+        assertNotNull(eventLoop.forwardedPacket);
+        assertEquals(mappedDns, eventLoop.forwardedPacket.getAddress());
+        assertEquals(53, eventLoop.forwardedPacket.getPort());
+        assertTrue(eventLoop.forwardedPacket.getLength() > 0);
+        assertNull(eventLoop.devicePacket);
+    }
+
+    @Test
+    public void dnsRequestForRedirectedDomain_returnsSyntheticAnswerWithoutForwarding()
+            throws Exception {
+        String redirection = "93.184.216.34";
+        insertHostListItem(redirectedHost, REDIRECTED, EXACT, redirection);
+        hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
+        RecordingEventLoop eventLoop = new RecordingEventLoop();
+        DnsPacketProxy proxy = new DnsPacketProxy(
+                eventLoop,
+                new FixedDnsServerMapper(InetAddress.getByName("8.8.8.8")));
+        proxy.initialize(application);
+
+        proxy.handleDnsRequest(buildDnsQueryPacket(redirectedHost));
+
+        assertEquals(0, eventLoop.forwardedPackets);
+        assertNotNull(eventLoop.devicePacket);
         Message response = readDnsResponse(eventLoop.devicePacket);
         assertTrue(response.getHeader().getFlag(Flags.QR));
         assertEquals(Rcode.NOERROR, response.getRcode());
-        assertEquals(0, response.getSectionArray(Section.ANSWER).length);
-        assertEquals(1, response.getSectionArray(Section.AUTHORITY).length);
+        assertEquals(1, response.getSectionArray(Section.ANSWER).length);
+        Record answer = response.getSectionArray(Section.ANSWER)[0];
+        assertTrue(answer instanceof ARecord);
+        assertEquals(InetAddress.getByName(redirection), ((ARecord) answer).getAddress());
     }
 
     private void insertSource() {
@@ -119,12 +191,14 @@ public class DnsPacketProxyRuntimeTruthTest {
         hostsSourceDao.insert(source);
     }
 
-    private void insertSuffixBlockedHost(String host) {
+    private void insertHostListItem(
+            String host, ListType type, RuleKind kind, String redirection) {
         HostListItem item = new HostListItem();
         item.setHost(host);
-        item.setType(BLOCKED);
-        item.setKind(SUFFIX);
+        item.setType(type);
+        item.setKind(kind);
         item.setEnabled(true);
+        item.setRedirection(redirection);
         item.setSourceId(TEST_SOURCE_ID);
         item.setGeneration(hostEntryDao.getActiveGeneration());
         hostListItemDao.insert(item);
@@ -177,6 +251,14 @@ public class DnsPacketProxyRuntimeTruthTest {
         return new Message(payload.getRawData());
     }
 
+    private static void assertBlockedResponse(IpPacket packet) throws IOException {
+        Message response = readDnsResponse(packet);
+        assertTrue(response.getHeader().getFlag(Flags.QR));
+        assertEquals(Rcode.NOERROR, response.getRcode());
+        assertEquals(0, response.getSectionArray(Section.ANSWER).length);
+        assertEquals(1, response.getSectionArray(Section.AUTHORITY).length);
+    }
+
     private static final class FixedDnsServerMapper extends DnsServerMapper {
         private final InetAddress dnsServer;
 
@@ -192,16 +274,19 @@ public class DnsPacketProxyRuntimeTruthTest {
 
     private static final class RecordingEventLoop implements DnsPacketProxy.EventLoop {
         private int forwardedPackets;
+        private DatagramPacket forwardedPacket;
         private IpPacket devicePacket;
 
         @Override
         public void forwardPacket(DatagramPacket packet) {
             forwardedPackets++;
+            forwardedPacket = packet;
         }
 
         @Override
         public void forwardPacket(DatagramPacket packet, Consumer<byte[]> callback) {
             forwardedPackets++;
+            forwardedPacket = packet;
         }
 
         @Override
