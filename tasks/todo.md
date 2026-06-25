@@ -7953,3 +7953,5 @@
   passed.
 - Local connected execution was not attempted because `adb devices` reported no attached devices;
   PR CI remains the connected-device gate for the new worker test.
+- PR CI then passed on commit `32fde642`: Connected Android tests, Development build, CodeQL,
+  locale validation, and Java/C++ analysis were all green.
