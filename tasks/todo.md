@@ -8313,3 +8313,30 @@
   analysis, and locale validation all reported success.
 - Remaining gap: this still does not prove a real user-granted Android VPN interface and TUN fd;
   `RUNTIME-008` remains partially covered until that device smoke exists.
+
+## Plan - 2026-06-25 Story Fix Loop 24
+- [x] Tighten `RUNTIME-000` by proving runtime method dispatch for undefined, root, and VPN
+  methods through `AdAwayApplication.getAdBlockModel()`.
+- [x] Verify switching the stored method invalidates the cached app-level ad-block model.
+- [x] Run the focused connected dispatch test and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 24
+- Starting state: `RUNTIME-000` was `Not tested`; the canonical row tracked
+  `Needs root and VPN mode coverage`.
+- Added `AdBlockModelDispatchTest`, a connected instrumentation test that verifies
+  `AdAwayApplication.getAdBlockModel()` dispatches `UNDEFINED`, `ROOT`, and `VPN` preferences
+  to the corresponding model classes and rebuilds the cached app-level model after the stored
+  method changes.
+- No production defect was found; existing dispatch behavior matched the expected runtime method
+  model.
+- Focused connected dispatch test passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.adblocking.AdBlockModelDispatchTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining runtime smokes are still tracked separately: `RUNTIME-007` for rooted hosts apply
+  and `RUNTIME-008` for user-granted Android VPN/TUN behavior.
