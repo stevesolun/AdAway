@@ -7911,3 +7911,5 @@
   passed.
 - Local connected execution was not attempted because the configured SDK `adb.exe devices` reported
   no attached devices; PR CI remains the connected-device gate for this new test.
+- PR CI connected execution then passed on commit `c6cc86bc`: Connected Android tests, Development
+  build, CodeQL, locale validation, and Java/C++ analysis were all green.
