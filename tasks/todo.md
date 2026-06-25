@@ -8139,3 +8139,38 @@
   analysis, and locale validation all reported success.
 - Remaining `RUNTIME-005` gaps stay open: parse-to-DB semantic proof, redirect-enabled source
   fallback behavior, and broader dnsmasq formatting coverage.
+
+## Plan - 2026-06-25 Story Fix Loop 19
+- [x] Tighten `RUNTIME-005` with a connected parse-to-DB semantic proof for extracted
+  `RuleKind`, skip behavior, generation, and root export staging.
+- [x] Investigate redirect-enabled source fallback behavior for hosts-shaped DNS syntaxes.
+- [x] Fix only the concrete redirect-enabled RPZ fallback bug.
+- [x] Run the focused parser gate and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 19
+- Starting state: `RUNTIME-005` remained `Partially covered`; the remaining row gaps were
+  parse-to-DB semantic proof, redirect-enabled source fallback behavior, and broader dnsmasq
+  formatting coverage.
+- Added `SourceLoaderDatabaseSemanticsTest` to drive mixed exact, ABP suffix, dnsmasq suffix,
+  dnsmasq local suffix, and Unbound local-data rules through `SourceLoader.parse(...)` with
+  the raw SQLite/`SqlUpdateDeduper` fast path, then assert persisted `hosts_lists.kind`,
+  generation, skipped unsafe rows, and `root_host_entries_stage` output.
+- Explorer review found that `HostsSource.redirectEnabled` could misroute hosts-shaped DNS
+  syntaxes such as `ads.example.com CNAME .` through the redirect branch and drop them after
+  invalid redirect validation.
+- Fixed `SourceLoader` so hosts-shaped lines with a non-IP first token fall back to
+  block-safe non-hosts syntax extraction before redirect handling.
+- Local connected execution was not attempted because
+  `C:\Users\solun\AppData\Local\Android\Sdk\platform-tools\adb.exe devices` reported no attached
+  devices; PR CI remains the connected-device gate for the new instrumentation test.
+- A parallel Gradle probe produced one noisy `compileDebugJavaWithJavac` failure while a concurrent
+  android-test compile succeeded; serial reruns are the authoritative local evidence.
+- Focused parser gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining `RUNTIME-005` gap stays open: broader dnsmasq formatting coverage.

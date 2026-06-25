@@ -561,6 +561,18 @@ class SourceLoader {
                     || BOGUS_IPV4.equals(ip)
                     || LOCALHOST_IPV6.equals(ip)) {
                 type = BLOCKED;
+            } else if (!RegexUtils.isValidIP(ip)) {
+                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
+                if (extracted != null) {
+                    HostListItem item = new HostListItem();
+                    item.setType(BLOCKED);
+                    item.setHost(extracted.host);
+                    item.setKind(extracted.kind);
+                    item.setEnabled(true);
+                    item.setSourceId(this.source.getId());
+                    return item;
+                }
+                return null;
             } else if (this.source.isRedirectEnabled()) {
                 type = REDIRECTED;
             } else {
