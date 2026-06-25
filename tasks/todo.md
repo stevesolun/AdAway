@@ -8147,7 +8147,7 @@
 - [x] Fix only the concrete redirect-enabled RPZ fallback bug.
 - [x] Run the focused parser gate and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 19
 - Starting state: `RUNTIME-005` remained `Partially covered`; the remaining row gaps were
@@ -8177,4 +8177,6 @@
   `hosts_sources.url`; `HostsSourceDao.insert(...)` ignored the second source and the parser
   correctly hit a `hosts_lists.source_id` foreign-key failure. The fixture now assigns a unique
   URL per source id.
+- PR CI passed on `0bad5e05`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining `RUNTIME-005` gap stays open: broader dnsmasq formatting coverage.
