@@ -8173,4 +8173,8 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR connected CI failed on `884217c9` because the test fixture reused a unique
+  `hosts_sources.url`; `HostsSourceDao.insert(...)` ignored the second source and the parser
+  correctly hit a `hosts_lists.source_id` foreign-key failure. The fixture now assigns a unique
+  URL per source id.
 - Remaining `RUNTIME-005` gap stays open: broader dnsmasq formatting coverage.

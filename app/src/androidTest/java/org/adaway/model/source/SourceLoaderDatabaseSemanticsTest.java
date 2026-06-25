@@ -158,7 +158,7 @@ public class SourceLoaderDatabaseSemanticsTest {
         HostsSource source = new HostsSource();
         source.setId(sourceId);
         source.setLabel("Parser DB semantics");
-        source.setUrl("https://parser.example.test/hosts.txt");
+        source.setUrl("https://parser.example.test/hosts-" + sourceId + ".txt");
         source.setEnabled(true);
         source.setRedirectEnabled(redirectEnabled);
         hostsSourceDao.insert(source);
