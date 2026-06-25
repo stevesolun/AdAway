@@ -8116,7 +8116,7 @@
 - [x] Fix only the concrete `local-data` target gap exposed by the tests.
 - [x] Run the focused parser gate and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 18
 - Starting state: `RUNTIME-005` remained `Partially covered`; the row still listed Unbound
@@ -8135,5 +8135,7 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `f613ec6a`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining `RUNTIME-005` gaps stay open: parse-to-DB semantic proof, redirect-enabled source
   fallback behavior, and broader dnsmasq formatting coverage.
