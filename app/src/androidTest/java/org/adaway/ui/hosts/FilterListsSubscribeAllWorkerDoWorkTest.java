@@ -168,6 +168,31 @@ public class FilterListsSubscribeAllWorkerDoWorkTest extends DbTest {
     }
 
     @Test
+    public void doWork_skipsUnsupportedScopedRowsWithoutFetchInsertOrUpdate() {
+        dependencies.directoryClient.summaries.add(summary(31, "Browser rules",
+                "uBO browser-only rules", new int[]{3}, new int[]{7}, new int[]{2}));
+        dependencies.directoryClient.details.put(31, details(31, "Browser rules",
+                "https://browser.test/list.txt"));
+
+        Data input = FilterListsSubscribeAllWorker.buildScopeInput(null, 0, 0, false,
+                new int[]{31});
+        ListenableWorker.Result result = runWorker(input);
+
+        assertTrue(result instanceof ListenableWorker.Result.Success);
+        Data output = ((ListenableWorker.Result.Success) result).getOutputData();
+        assertEquals(0, output.getInt(OUTPUT_SUBSCRIBED, -1));
+        assertEquals(1, output.getInt(OUTPUT_SKIPPED_UNSUPPORTED, -1));
+        assertEquals(1, output.getInt(OUTPUT_REVIEW_COUNT, -1));
+        assertTrue(output.getString(OUTPUT_REVIEW_PREVIEW).contains("Browser rules"));
+
+        assertFalse(dependencies.directoryClient.requestedDetailIds.contains(31));
+        assertFalse(hostsSourceDao.getByUrl("https://browser.test/list.txt").isPresent());
+        assertEquals(0, dependencies.enqueueUpdateNowCount);
+        String ledger = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        assertTrue(ledger.contains("SKIPPED_UNSUPPORTED\t31\tBrowser rules"));
+    }
+
+    @Test
     public void doWork_returnsRetryWhenListFetchFails() {
         dependencies.directoryClient.throwOnGetLists = true;
 

@@ -7913,3 +7913,43 @@
   no attached devices; PR CI remains the connected-device gate for this new test.
 - PR CI connected execution then passed on commit `c6cc86bc`: Connected Android tests, Development
   build, CodeQL, locale validation, and Java/C++ analysis were all green.
+
+## Plan - 2026-06-25 Story Fix Loop 14
+- [x] Confirm `DISC-006` compatibility gating at the integration boundary, not only in parser
+  unit tests.
+- [x] Add a scoped bulk-subscribe worker proof that unsupported browser-rule FilterLists entries
+  are skipped before detail fetch, source insertion, or update enqueue side effects.
+- [x] Keep production code unchanged if the behavior already holds; fix only a real behavior gap.
+- [x] Update `tasks/user-story-status.tsv` with the connected/integration evidence and remaining
+  manual Discover review gap.
+- [x] Run focused worker/android-test compile gates plus the standard local gates, then commit and
+  push if green.
+
+## Review - 2026-06-25 Story Fix Loop 14
+- Confirmed `DISC-006` still had parser/unit coverage but needed a worker/database boundary proof.
+- Added `FilterListsSubscribeAllWorkerDoWorkTest.
+  doWork_skipsUnsupportedScopedRowsWithoutFetchInsertOrUpdate` for a scoped unsupported
+  browser-rule list that has a downloadable URL available in the fake directory.
+- The test proves unsupported bulk candidates are not detail-fetched, not inserted into
+  `hosts_sources`, and recorded for manual review.
+- Found and fixed one real no-op side effect: a subscribe-all run enqueued immediate source update
+  work even when it subscribed zero new sources.
+- Updated the worker to call `enqueueUpdateNow` only when `recorder.getSubscribed() > 0`.
+- Updated `tasks/user-story-status.tsv` for `DISC-006`; PR connected execution and full manual
+  Discover visual review remain open.
+- Focused android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Focused unit gate passed when run alone:
+  `:app:testDebugUnitTest --tests org.adaway.ui.hosts.FilterListsSubscribeAllWorkerTest --tests
+  org.adaway.model.source.FilterListCompatibilityTest --dependency-verification=strict
+  --stacktrace`.
+- A parallel Gradle attempt produced transient missing-package compile errors while another Gradle
+  process compiled the same variant; the same unit gate passed when rerun alone.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed source added-line length scanning
+  passed.
+- Local connected execution was not attempted because `adb devices` reported no attached devices;
+  PR CI remains the connected-device gate for the new worker test.

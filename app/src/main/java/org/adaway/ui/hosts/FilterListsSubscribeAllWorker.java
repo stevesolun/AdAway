@@ -280,9 +280,11 @@ public class FilterListsSubscribeAllWorker extends Worker {
                             recorder.getSkippedNoUrl(), recorder.getSkippedUnsupported())
             );
 
-            // Kick off an update run so newly added sources actually download/convert right away.
-            // This runs as a separate WorkManager job so Home can show source update % once subscribe-all completes.
-            dependencies.enqueueUpdateNow(context);
+            // Kick off an update run only when newly added sources need download/convert work.
+            // This runs as a separate WorkManager job so Home can show source update % once needed.
+            if (recorder.getSubscribed() > 0) {
+                dependencies.enqueueUpdateNow(context);
+            }
 
             return Result.success(recorder.finish(false));
         } catch (IOException e) {
