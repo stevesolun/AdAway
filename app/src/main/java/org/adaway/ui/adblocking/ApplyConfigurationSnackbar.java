@@ -171,7 +171,6 @@ public class ApplyConfigurationSnackbar {
         }
         // Clear snackbars
         this.waitSnackbar.dismiss();
-        // Check install failure
         if (!successfulInstall) {
             Snackbar failureSnackbar = Snackbar.make(this.view, R.string.notification_configuration_failed,
                     LENGTH_LONG);
@@ -179,17 +178,24 @@ public class ApplyConfigurationSnackbar {
             view.setImageResource(R.drawable.ic_error_outline_24dp);
             appendViewToSnackbar(failureSnackbar, view);
             failureSnackbar.show();
+            return;
         }
-        // Check pending update notification
-        else if (this.update) {
+        if (this.update) {
             // Ignore next update event if events should be ignored
             if (this.ignoreEventDuringInstall) {
                 this.skipUpdate = true;
+                showApplied();
             } else {
                 // Otherwise display update notification
                 notifyUpdateAvailable();
             }
+            return;
         }
+        showApplied();
+    }
+
+    private void showApplied() {
+        Snackbar.make(this.view, R.string.notification_configuration_applied, LENGTH_LONG).show();
     }
 
     private void appendViewToSnackbar(Snackbar snackbar, View view) {

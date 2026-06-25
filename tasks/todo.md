@@ -7687,3 +7687,36 @@
   --dependency-verification=strict --stacktrace`.
 - License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
   shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
+
+## Plan - 2026-06-25 Story Fix Loop 8
+- [x] Confirm `SRC-002` with a failing contract for source-toggle apply feedback.
+- [x] Add distinct success copy for applied protection changes.
+- [x] Make `ApplyConfigurationSnackbar` show success after a source-toggle apply completes.
+- [x] Stop Sources update/apply success paths from reusing pending-configuration copy.
+- [x] Update `tasks/user-story-status.tsv` with the concrete SRC-002 evidence and remaining gap.
+- [x] Run focused source-apply feedback coverage plus standard local gates, then commit and
+  push if green.
+
+## Review - 2026-06-25 Story Fix Loop 8
+- Confirmed `SRC-002`: source row toggles route through `ApplyConfigurationSnackbar`, but a
+  successful apply could dismiss the installing snackbar with no distinct success confirmation.
+  The Sources update/apply success path also reused pending-configuration copy.
+- Added a focused source apply-feedback contract that failed first because
+  `notification_configuration_applied` did not exist.
+- Added `Protection changes applied.` as the explicit success state.
+- `ApplyConfigurationSnackbar` now shows applied-success feedback after successful source-toggle
+  apply, including the ignored self-update event path used by Sources.
+- Sources update/apply success now uses applied-success copy instead of telling the user they still
+  need to apply configuration.
+- Updated `tasks/user-story-status.tsv` while keeping full connected source-toggle apply device
+  verification open.
+- Focused verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.adblocking.ApplyConfigurationSnackbarContractTest.
+  applyFeedbackDistinguishesPendingInstallingSuccessAndFailure
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.

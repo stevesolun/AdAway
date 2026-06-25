@@ -732,7 +732,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 if (!finalOk) {
                     Snackbar.make(coordinatorLayout, R.string.notification_configuration_failed, Snackbar.LENGTH_LONG).show();
                 } else {
-                    Snackbar.make(coordinatorLayout, R.string.notification_configuration_changed, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(coordinatorLayout, R.string.notification_configuration_applied,
+                            Snackbar.LENGTH_LONG).show();
                 }
             });
         });

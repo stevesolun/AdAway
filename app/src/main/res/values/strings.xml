@@ -217,6 +217,7 @@
     <string name="notification_configuration_changed">Your configuration changed. You need to apply it.</string>
     <string name="notification_configuration_changed_action">Apply</string>
     <string name="notification_configuration_installing">Applying new configuration…</string>
+    <string name="notification_configuration_applied">Protection changes applied.</string>
     <string name="notification_configuration_failed">Failed to apply new configuration.</string>
 
     <!--Apply and Revert Dialogs-->
