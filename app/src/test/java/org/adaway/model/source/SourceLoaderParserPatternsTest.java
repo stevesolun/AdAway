@@ -387,13 +387,114 @@ public class SourceLoaderParserPatternsTest {
     }
 
     @Test
+    public void dnsmasqAddressNullIpv4WithInlineComment_isSuffixBlock() {
+        String line = "address=/example.com/0.0.0.0 # comment";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressNullIpv6WithInlineComment_isSuffixBlock() {
+        String line = "address=/example.com/:: # comment";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressNullHashWithInlineComment_isSuffixBlock() {
+        String line = "address=/example.com/# # comment";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressTrailingRootDot_isSuffixBlock() {
+        String line = "address=/example.com./0.0.0.0";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqAddressLeadingDot_isSuffixBlock() {
+        String line = "address=/.example.com/0.0.0.0";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
     public void dnsmasqAddressPublicRedirect_notExtractedAsBlock() {
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("address=/example.com/8.8.8.8"));
     }
 
     @Test
+    public void dnsmasqAddressPrivateRedirect_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "address=/example.com/192.168.1.1"));
+    }
+
+    @Test
+    public void dnsmasqAddressLoopbackRedirect_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "address=/example.com/127.0.0.1"));
+    }
+
+    @Test
+    public void dnsmasqAddressLoopbackIpv6Redirect_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "address=/example.com/::1"));
+    }
+
+    @Test
+    public void dnsmasqAddressEmptyTarget_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("address=/example.com/"));
+    }
+
+    @Test
+    public void dnsmasqAddressMultiDomainShape_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "address=/one.example/two.example/0.0.0.0"));
+    }
+
+    @Test
     public void dnsmasqLocalRule_isSuffixBlock() {
         String line = "local=/example.com/";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqLocalRuleWithoutTrailingSlash_isSuffixBlock() {
+        String line = "local=/example.com";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqLocalRuleWithInlineComment_isSuffixBlock() {
+        String line = "local=/example.com/ # comment";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqLocalRuleWithoutTrailingSlashWithInlineComment_isSuffixBlock() {
+        String line = "local=/example.com # comment";
+
+        assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void dnsmasqLocalTrailingRootDot_isSuffixBlock() {
+        String line = "local=/example.com./";
 
         assertEquals("example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
         assertEquals(SUFFIX, SourceLoader.extractRuleKindFromNonHostsSyntax(line));

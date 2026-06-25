@@ -68,8 +68,9 @@ class SourceLoader {
     static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$]+).*$");
     static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
     private static final Pattern DNSMASQ_ADDRESS =
-            Pattern.compile("^address=/([^/]+)/([^\\s]*)\\s*(?:#.*)?$");
-    private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
+            Pattern.compile("^address=/([^/\\s#]+)/([^\\s]*)\\s*(?:#.*)?$");
+    private static final Pattern DNSMASQ_LOCAL =
+            Pattern.compile("^local=/([^/\\s#]+)/?\\s*(?:#.*)?$");
     private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
     // Unbound DNS: local-zone: "example.com" always_refuse
     static final Pattern UNBOUND_LOCAL_ZONE =

@@ -8180,3 +8180,32 @@
 - PR CI passed on `0bad5e05`: Connected Android tests, Development build, CodeQL Java/C++
   analysis, and locale validation all reported success.
 - Remaining `RUNTIME-005` gap stays open: broader dnsmasq formatting coverage.
+
+## Plan - 2026-06-25 Story Fix Loop 20
+- [x] Tighten `RUNTIME-005` with dnsmasq formatting and safety parser matrix tests.
+- [x] Prove inline-comment `local=/.../` dnsmasq rules fail before changing production code.
+- [x] Fix only the concrete dnsmasq local inline-comment parsing gap exposed by the tests.
+- [x] Run the focused parser gate and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 20
+- Starting state: `RUNTIME-005` remained `Partially covered`; its only remaining tracked gap was
+  broader dnsmasq formatting coverage.
+- Added dnsmasq parser tests for null-address inline comments, trailing-root-dot normalization,
+  leading-dot normalization, `local=/domain` without a trailing slash, `local=/domain[/]`
+  inline comments, private/loopback/empty-target redirect skips, and malformed multi-domain
+  `address=` shapes.
+- Red parser gate failed before production changes:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace` reported 82 tests, 2 failures for
+  `local=/example.com/ # comment` and `local=/example.com # comment`.
+- Fixed `SourceLoader` so dnsmasq domain captures reject whitespace/comment-contaminated tokens
+  and `local=/domain[/]` accepts trailing inline comments.
+- Focused parser gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- No remaining `RUNTIME-005` parser matrix gap is tracked locally; PR CI is pending.
