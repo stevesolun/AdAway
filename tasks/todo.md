@@ -7658,3 +7658,32 @@
   --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
   `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
   with 15 columns; and changed-line length scanning passed.
+
+## Plan - 2026-06-25 Story Fix Loop 7
+- [x] Confirm `HOME-006` with a failing Home contract for the visible update action controls.
+- [x] Make the Home check/update controls semantic buttons with clear labels and tooltips.
+- [x] Keep the action wiring grounded: check triggers Home update; update/apply triggers sync.
+- [x] Update `tasks/user-story-status.tsv` with the concrete HOME-006 evidence and remaining gap.
+- [x] Run focused Home action coverage plus standard local gates, then commit and push if green.
+
+## Review - 2026-06-25 Story Fix Loop 7
+- Confirmed `HOME-006`: the Home source-card update actions were wired to the right ViewModel
+  paths, but the primary user controls were plain `ImageView` icons with no tooltip semantics and
+  vague `Update hosts` copy for an action that also applies protection.
+- Added a focused Home contract that failed first on the missing semantic button/tooltip/copy
+  requirements.
+- Changed the Home check and update/apply controls to `ImageButton` widgets with selectable
+  feedback, focusability, content descriptions, and tooltips.
+- Updated the user-facing labels to `Check sources for updates` and
+  `Update and apply protection`.
+- Updated `tasks/user-story-status.tsv` while keeping the full connected update/apply user path
+  open for device verification.
+- Focused verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest.homeUpdateActionsAreClearSemanticButtons
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.

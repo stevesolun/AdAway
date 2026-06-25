@@ -189,6 +189,44 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void homeUpdateActionsAreClearSemanticButtons() throws Exception {
+        String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
+        String homeFragment = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
+        String homeViewModel = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeViewModel.java");
+        String strings = readRepoFile("app/src/main/res/values/strings_home.xml");
+
+        assertTrue("Home check action must be a semantic button with a tooltip.",
+                homeLayout.contains("<ImageButton\n                " +
+                        "android:id=\"@+id/checkForUpdateImageView\"") &&
+                        homeLayout.contains(
+                                "android:tooltipText=\"@string/check_hosts_update_description\""));
+        assertTrue("Home update/apply action must be a semantic button with a tooltip.",
+                homeLayout.contains("<ImageButton\n                " +
+                        "android:id=\"@+id/updateImageView\"") &&
+                        homeLayout.contains(
+                                "android:tooltipText=\"@string/update_hosts_description\""));
+        assertTrue("Home update action labels must distinguish checking from applying protection.",
+                strings.contains("<string name=\"check_hosts_update_description\">" +
+                        "Check sources for updates</string>") &&
+                        strings.contains("<string name=\"update_hosts_description\">" +
+                                "Update and apply protection</string>"));
+        assertTrue("Home buttons must keep the existing source update/apply wiring.",
+                homeFragment.contains("checkForUpdateImageView") &&
+                        homeFragment.contains(".setOnClickListener(v -> " +
+                                "this.homeViewModel.update())") &&
+                        homeFragment.contains("updateImageView") &&
+                        homeFragment.contains(".setOnClickListener(v -> " +
+                                "this.homeViewModel.sync())"));
+        assertTrue("HomeViewModel sync must retrieve sources and apply ad blocking.",
+                homeViewModel.contains("public void sync()") &&
+                        homeViewModel.contains(
+                                "this.sourceModel.checkAndRetrieveHostsSources();") &&
+                        homeViewModel.contains("this.adBlockModel.apply();"));
+    }
+
+    @Test
     public void homeAndDiscoverDoNotExposeAiPrompting() throws Exception {
         String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
         String discoverLayout = readRepoFile("app/src/main/res/layout/fragment_discover.xml");

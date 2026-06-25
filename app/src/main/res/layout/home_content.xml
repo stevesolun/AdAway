@@ -435,12 +435,15 @@
                 app:layout_constraintTop_toTopOf="parent"
                 tools:text="3 up-to-date sources" />
 
-            <ImageView
+            <ImageButton
                 android:id="@+id/checkForUpdateImageView"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/check_hosts_update_description"
+                android:focusable="true"
                 android:padding="8dp"
+                android:tooltipText="@string/check_hosts_update_description"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_sync_24dp" />
@@ -460,13 +463,16 @@
                 app:layout_constraintTop_toBottomOf="@id/upToDateSourcesTextView"
                 tools:text="2 outdated sources" />
 
-            <ImageView
+            <ImageButton
                 android:id="@+id/updateImageView"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginTop="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/update_hosts_description"
+                android:focusable="true"
                 android:padding="8dp"
+                android:tooltipText="@string/update_hosts_description"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/checkForUpdateImageView"
                 app:srcCompat="@drawable/ic_get_app_24dp" />

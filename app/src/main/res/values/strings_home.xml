@@ -18,8 +18,8 @@
         <item quantity="one">%d outdated source</item>
         <item quantity="other">%d outdated sources</item>
     </plurals>
-    <string name="check_hosts_update_description">Check for hosts updates</string>
-    <string name="update_hosts_description">Update hosts</string>
+    <string name="check_hosts_update_description">Check sources for updates</string>
+    <string name="update_hosts_description">Update and apply protection</string>
 
     <!-- Log card -->
     <string name="log_label">Show DNS request log</string>
