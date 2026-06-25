@@ -300,6 +300,29 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void homeHeroShowsExplicitProtectionState() throws Exception {
+        String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
+        String homeFragment = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
+        String strings = readRepoFile("app/src/main/res/values/strings_home.xml");
+
+        assertTrue("Home hero must include a primary protection status line.",
+                homeLayout.contains("android:id=\"@+id/protectionStatusTextView\"") &&
+                        homeLayout.contains("@string/home_protection_status_inactive"));
+        assertTrue("Home status strings must name both protection states clearly.",
+                strings.contains("home_protection_status_active") &&
+                        strings.contains("home_protection_status_inactive"));
+        assertTrue("Home must render active and inactive states from isAdBlocked().",
+                homeFragment.contains("R.string.home_protection_status_active") &&
+                        homeFragment.contains("R.string.home_protection_status_inactive") &&
+                        homeFragment.contains("protectionStatusTextView.setText"));
+        assertFalse("Home must not ignore the adBlocked value in notifyAdBlocked.",
+                homeFragment.contains("private void notifyAdBlocked(boolean adBlocked) {\n" +
+                        "        if (this.binding == null) return;\n" +
+                        "        this.binding.content.headerFrameLayout.setBackgroundColor"));
+    }
+
+    @Test
     public void homeDoesNotCrowdBottomNavWithDecorativeCreditLine() throws Exception {
         String homeLayout = readRepoFile("app/src/main/res/layout/home_content.xml");
         String preferences = readRepoFile("app/src/main/res/xml/preferences_main.xml");

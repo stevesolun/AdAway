@@ -724,6 +724,12 @@ public class HomeFragment extends Fragment {
 
     private void notifyAdBlocked(boolean adBlocked) {
         if (this.binding == null) return;
+        this.binding.content.protectionStatusTextView.setText(adBlocked
+                ? R.string.home_protection_status_active
+                : R.string.home_protection_status_inactive);
+        this.binding.content.protectionStatusTextView.setTextColor(
+                getResources().getColor(adBlocked ? R.color.status_green : R.color.status_red,
+                        null));
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
     }

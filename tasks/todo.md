@@ -7633,3 +7633,28 @@
   --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
   `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
   with 15 columns; and edited Java line-length scanning passed.
+
+## Plan - 2026-06-25 Story Fix Loop 6
+- [x] Confirm `HOME-003` with a failing Home contract proving the primary Home surface exposes
+  active and inactive protection state instead of ignoring `isAdBlocked()`.
+- [x] Add a concise primary protection status line to the Home hero.
+- [x] Bind `notifyAdBlocked(boolean)` to explicit active/inactive strings and styling.
+- [x] Update `tasks/user-story-status.tsv` with the concrete fix and focused retest evidence.
+- [x] Re-run focused Home status coverage plus the standard local gates, then commit and push.
+
+## Review - 2026-06-25 Story Fix Loop 6
+- Confirmed `HOME-003`: Home observed `isAdBlocked()` but `notifyAdBlocked(boolean)` ignored the
+  actual value and only repainted the header with the same background color. Added a focused Home
+  contract that failed first.
+- Added `protectionStatusTextView` to the Home hero, with explicit `Protection active` and
+  `Protection off` states.
+- `notifyAdBlocked(boolean)` now updates the primary status text and red/green state color from
+  the applied-protection boolean.
+- Updated `tasks/user-story-status.tsv` so `HOME-003` records the primary Home status fix while
+  keeping full visual UX matrix coverage open for active, off, and VPN stopped device states.
+- Verification passed: focused `homeHeroShowsExplicitProtectionState` failed first on the missing
+  Home status, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
+  with 15 columns; and changed-line length scanning passed.

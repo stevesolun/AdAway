@@ -6,6 +6,8 @@
     <string name="allowed_hosts_label">Allowed</string>
     <string name="redirect_hosts_label">Redirected</string>
     <string name="home_count_zero">0</string>
+    <string name="home_protection_status_active">Protection active</string>
+    <string name="home_protection_status_inactive">Protection off</string>
 
     <!-- Source card -->
     <plurals name="up_to_date_source_label">

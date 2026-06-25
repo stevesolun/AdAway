@@ -77,10 +77,29 @@
         android:textColor="@color/ui_text_secondary"
         android:maxLines="2"
         android:ellipsize="end"
-        app:layout_constraintBottom_toBottomOf="@+id/logoImageView"
+        app:layout_constraintBottom_toTopOf="@+id/protectionStatusTextView"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintStart_toEndOf="@+id/logoImageView"
         app:layout_constraintTop_toBottomOf="@+id/appNameTextView" />
+
+    <TextView
+        android:id="@+id/protectionStatusTextView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/home_protection_status_inactive"
+        android:textAppearance="@style/TextAppearance.AppCompat.Small"
+        android:textColor="@color/status_red"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/logoImageView"
+        app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
+        app:layout_constraintStart_toEndOf="@+id/logoImageView"
+        app:layout_constraintTop_toBottomOf="@+id/appDescriptionTextView" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/blockedHostCardView"
