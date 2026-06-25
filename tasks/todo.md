@@ -8287,7 +8287,7 @@
   gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence,
   preserving any remaining Android VPN consent/TUN-device smoke gap.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 23
 - Starting state: `RUNTIME-008` was `Partially covered`; its canonical row still tracked
@@ -8309,5 +8309,7 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `de5ec702`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining gap: this still does not prove a real user-granted Android VPN interface and TUN fd;
   `RUNTIME-008` remains partially covered until that device smoke exists.
