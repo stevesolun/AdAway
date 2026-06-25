@@ -8221,7 +8221,7 @@
   upstream.
 - [x] Run the focused connected test compile/test gate and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 21
 - Starting state: `RUNTIME-006` is `Partially covered`; the canonical row still tracks
@@ -8240,3 +8240,5 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `9eeb441f`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
