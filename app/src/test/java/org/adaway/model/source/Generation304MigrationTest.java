@@ -165,12 +165,15 @@ public class Generation304MigrationTest {
                 sourceModel.contains("countSourceHostsForGeneration(source.getId(), oldGeneration)"));
         assertTrue("Never-synced failed sources must not be treated as migrated.",
                 sourceModel.contains("activeRows <= 0 && source.getLocalModificationDate() == null"));
-        assertTrue("Failed sources must defer carry-forward until successful parses have marked " +
-                        "the SQL dedup surface.",
-                sourceModel.contains("deferredCarryForwardSources.add(source)") &&
-                        sourceModel.contains("deferredCarryForwardSources.add(result.source)"));
-        assertTrue("Deferred carry-forward must mark the full-update generation unsafe and use " +
-                        "the SQL dedup surface.",
+        assertTrue("Failed sources must use direct carry-forward so SQL dedupe cannot suppress " +
+                        "their previous active coverage.",
+                sourceModel.contains("failedCarryForwardSources.add(source)") &&
+                        sourceModel.contains("failedCarryForwardSources.add(result.source)") &&
+                        compactSourceModel.contains("for (HostsSource source : " +
+                                "failedCarryForwardSources) { if (!carryForwardPreviousGeneration" +
+                                "(source, importGeneration)) { generationUnsafe.set(true); } }"));
+        assertTrue("304 carry-forward must mark the full-update generation unsafe and use " +
+                        "the SQL dedupe surface.",
                 compactSourceModel.contains("for (HostsSource source : deferredCarryForwardSources) " +
                         "{ if (!carryForwardPreviousGeneration(source, importGeneration, " +
                         "sqlDeduper)) { generationUnsafe.set(true); } }"));

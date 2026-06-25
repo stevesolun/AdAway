@@ -629,6 +629,8 @@ public class SourceModel {
         final AtomicBoolean generationUnsafe = new AtomicBoolean(false);
         final List<HostsSource> deferredCarryForwardSources =
                 Collections.synchronizedList(new ArrayList<>());
+        final List<HostsSource> failedCarryForwardSources =
+                Collections.synchronizedList(new ArrayList<>());
         final SqlUpdateDeduper sqlDeduper = new SqlUpdateDeduper(writableDb);
         sqlDeduperRef[0] = sqlDeduper;
 
@@ -661,7 +663,7 @@ public class SourceModel {
                 progressBuilder.incrementParsed();
             } catch (IOException e) {
                 Timber.w(e, "Failed to retrieve host source %s.", source.getUrl());
-                deferredCarryForwardSources.add(source);
+                failedCarryForwardSources.add(source);
                 sourceFailures.add(SourceFailure.of(source.getId(), e));
                 failedCount.incrementAndGet();
                 progressBuilder.incrementDownloaded();
@@ -784,7 +786,7 @@ public class SourceModel {
                                         changedSourceCount.incrementAndGet();
                                     } catch (Exception e) {
                                         Timber.w(e, "Failed to parse %s", result.source.getUrl());
-                                        deferredCarryForwardSources.add(result.source);
+                                        failedCarryForwardSources.add(result.source);
                                         sourceFailures.add(SourceFailure.of(result.source.getId(), e));
                                         failedCount.incrementAndGet();
                                     } finally {
@@ -807,7 +809,7 @@ public class SourceModel {
                                         result.source.getLabel(), result.success, result.notModified);
                                 String errMsg = result.errorMessage != null ? result.errorMessage : "Download failed";
                                 sourceFailures.add(SourceFailure.of(result.source.getId(), errMsg));
-                                deferredCarryForwardSources.add(result.source);
+                                failedCarryForwardSources.add(result.source);
                             }
                             postMultiPhaseProgress(progressBuilder.build());
                         }
@@ -916,6 +918,11 @@ public class SourceModel {
         progressBuilder.setCurrentLabel(null);
         postMultiPhaseProgress(progressBuilder.build(), true);
         long carryForwardStartedMs = SystemClock.elapsedRealtime();
+        for (HostsSource source : failedCarryForwardSources) {
+            if (!carryForwardPreviousGeneration(source, importGeneration)) {
+                generationUnsafe.set(true);
+            }
+        }
         for (HostsSource source : deferredCarryForwardSources) {
             if (!carryForwardPreviousGeneration(source, importGeneration, sqlDeduper)) {
                 generationUnsafe.set(true);
@@ -937,7 +944,8 @@ public class SourceModel {
                 finalProgress.checkedCount, totalDownloaded, totalFailed);
         Timber.i("Pipeline finalize perf: deferredCarryForwardSources=%d carryForwardMs=%d "
                         + "cleanupMs=%d syncMs=%d",
-                deferredCarryForwardSources.size(), carryForwardMs,
+                deferredCarryForwardSources.size() + failedCarryForwardSources.size(),
+                carryForwardMs,
                 finalizeTimings.cleanupMs, finalizeTimings.syncMs);
         progressBuilder.setFinalizing(false);
         progressBuilder.setComplete(true);

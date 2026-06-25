@@ -8008,3 +8008,18 @@
 - Post-fix license-boundary check passed; `git diff --check` passed with only LF-to-CRLF
   warnings; TSV shape check passed as 98 stories with 15 columns; and changed source added-line
   length scanning passed.
+- PR connected execution still failed on commit `ffeb48a0` at the same assertion, proving the
+  SQL-dedupe fallback was not reached for the failed source.
+- Split failed-source carry-forward from 304 carry-forward: failed sources now direct-copy previous
+  active rows, while 304 sources continue through the SQL dedupe carry-forward path.
+- Updated `Generation304MigrationTest` to guard the split so future refactors do not put failed
+  sources back on the dedupe path.
+- Focused post-split gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.Generation304MigrationTest
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Full post-split local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Post-split license-boundary check passed; `git diff --check` passed with only LF-to-CRLF
+  warnings; TSV shape check passed as 98 stories with 15 columns; and changed source added-line
+  length scanning passed.
