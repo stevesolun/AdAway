@@ -108,7 +108,7 @@
 
     <!-- Hosts sources -->
     <string name="menu_check_updates">Check updates</string>
-    <string name="menu_update_all">Update all</string>
+    <string name="menu_update_all">Update all and apply protection</string>
     <string name="menu_save_filter_set">Save filter set</string>
     <string name="menu_apply_filter_set">Apply filter set</string>
     <string name="menu_schedule_filter_set">Schedule filter set updates</string>
@@ -218,6 +218,7 @@
     <string name="notification_configuration_changed_action">Apply</string>
     <string name="notification_configuration_installing">Applying new configuration…</string>
     <string name="notification_configuration_applied">Protection changes applied.</string>
+    <string name="sources_apply_installing">Updating sources and applying protection…</string>
     <string name="notification_configuration_failed">Failed to apply new configuration.</string>
 
     <!--Apply and Revert Dialogs-->

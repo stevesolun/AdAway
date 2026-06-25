@@ -7720,3 +7720,37 @@
   --dependency-verification=strict --stacktrace`.
 - License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
   shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
+
+## Plan - 2026-06-25 Story Fix Loop 9
+- [x] Confirm `SRC-005` with a failing Sources update-all menu-path contract.
+- [x] Make the update-all menu copy disclose that protection is applied after updating.
+- [x] Show source-update-specific running feedback for the update-all path.
+- [x] Keep the action wiring grounded: menu action calls update all, updates sources, then applies.
+- [x] Update `tasks/user-story-status.tsv` with concrete SRC-005 evidence and remaining gap.
+- [x] Run focused source update-all coverage plus standard local gates, then commit and
+  push if green.
+
+## Review - 2026-06-25 Story Fix Loop 9
+- Confirmed `SRC-005`: the Sources overflow menu reached the correct all-sources update/apply
+  code path, but the visible action said only `Update all` and the running snackbar used generic
+  configuration-apply copy while downloading sources.
+- Added a focused Sources action contract that failed first on the missing explicit update/apply
+  copy and source-update running message.
+- Changed the menu title to `Update all and apply protection`.
+- Added `Updating sources and applying protection...` and use it only for the all-sources
+  `runUpdateSources(null)` path.
+- Kept the existing all-sources behavior grounded: menu action calls `updateAllSources()`,
+  `updateAllSources()` calls `runUpdateSources(null)`, and the background path calls
+  `checkAndRetrieveHostsSources()` before `adBlockModel.apply()`.
+- Updated `tasks/user-story-status.tsv` while keeping full connected overflow-menu device
+  verification open.
+- Focused verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.hosts.HostsSourcesActionsContractTest.
+  updateAllMenuPathUpdatesSourcesThenAppliesProtection
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.

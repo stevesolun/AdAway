@@ -702,9 +702,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
      * If {@code source} is null, updates all enabled sources.
      */
     private void runUpdateSources(@Nullable HostsSource source) {
+        int installingMessage = source == null
+                ? R.string.sources_apply_installing
+                : R.string.notification_configuration_installing;
         Snackbar waitSnackbar = Snackbar.make(
                 coordinatorLayout,
-                R.string.notification_configuration_installing,
+                installingMessage,
                 Snackbar.LENGTH_INDEFINITE
         );
         waitSnackbar.show();
