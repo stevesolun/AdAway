@@ -8038,3 +8038,37 @@
   --dependency-verification=strict --stacktrace`.
 - PR CI passed on commit `b1d0b99c`: Connected Android tests, Development build, CodeQL,
   locale validation, Java analysis, and C++ analysis were all green.
+
+## Plan - 2026-06-25 Story Fix Loop 16
+- [x] Confirm `RUNTIME-004` with a connected mutation-matrix proof instead of another
+  source-text assertion.
+- [x] Drive `SourceModel.syncHostEntries()` through user allow insert/delete and source
+  disable/enable mutations while active, stale, and future source-generation rows coexist.
+- [x] Verify runtime resolution, materialized runtime rows, root export rows, and stats all use
+  user rows plus active-generation enabled source rows only after each mutation.
+- [x] Keep production code unchanged if the connected behavior already holds; fix only a concrete
+  runtime truth gap exposed by the test.
+- [x] Update `tasks/user-story-status.tsv` with the new evidence and remaining hardware/runtime
+  gaps.
+- [ ] Run focused connected/test compile gates plus the standard local gates, then commit, push,
+  and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 16
+- Confirmed `RUNTIME-004` already had direct DAO active-generation and Domain Checker runtime
+  truth coverage, but lacked a connected mutation-matrix proof through the public
+  `SourceModel.syncHostEntries()` refresh path.
+- Added `SourceModelRuntimeTruthMutationTest.
+  syncHostEntries_keepsActiveTruthAcrossUserAndSourceMutations`.
+- The test sets active generation `2`, seeds active, stale, and future source rows, then verifies
+  runtime rows, root export rows, and stats after initial sync, user allow insert, user allow
+  delete, source disable, and source re-enable.
+- No production code changed before connected execution; the new behavior proof compiled against
+  the existing runtime truth path.
+- Focused android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Local connected execution was not attempted because
+  `C:\Users\solun\AppData\Local\Android\Sdk\platform-tools\adb.exe devices` reported no attached
+  devices; PR CI remains the connected-device gate for this test.
