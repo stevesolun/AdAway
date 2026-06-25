@@ -7754,3 +7754,41 @@
   --dependency-verification=strict --stacktrace`.
 - License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
   shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
+
+## Plan - 2026-06-25 Story Fix Loop 10
+- [x] Confirm `HOME-001` and `HOME-002` with a failing launch-shell and bottom-nav
+  contract before production edits.
+- [x] Keep the launcher shell grounded: `HomeActivity` is the only launcher entry and starts on
+  the Home tab unless a deliberate deep-navigation extra is present.
+- [x] Make singleTop deep-navigation intents update the Activity intent before routing.
+- [x] Keep all four bottom-nav destinations reachable through the same `showTab` switch.
+- [x] Update `tasks/user-story-status.tsv` with concrete Home launch/navigation evidence and
+  remaining connected-device gaps.
+- [x] Run focused Home navigation coverage plus standard local gates, then commit and
+  push if green.
+
+## Review - 2026-06-25 Story Fix Loop 10
+- Confirmed `HOME-001` and `HOME-002`: the launcher and four-tab bottom-nav shell were present,
+  but `HomeActivity.onNewIntent()` routed singleTop Discover intents without storing the new
+  Activity intent first.
+- Added a focused Home launch-shell contract that failed first at
+  `HomeNavigationSourcesContractTest.java:71` because `setIntent(intent)` was missing.
+- Added the minimal lifecycle fix: `onNewIntent()` now calls `setIntent(intent)` before reading
+  `EXTRA_NAV_DISCOVER` and routing to Discover.
+- Kept existing launch behavior grounded: fresh launches still default to Home unless
+  `EXTRA_NAV_DISCOVER` is present, and `showTab()` still routes Home, Discover, Sources,
+  and More.
+- Updated `tasks/user-story-status.tsv` for `HOME-001` and `HOME-002` while keeping full
+  connected-device launch/navigation verification open.
+- Focused red/green verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.home.HomeNavigationSourcesContractTest.
+  homeLaunchShellStartsOnHomeAndKeepsLatestDeepIntent
+  --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
+- Local connected run was not attempted because `adb.exe devices` reported no attached devices;
+  PR CI remains the connected-device gate for this slice.

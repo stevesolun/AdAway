@@ -99,6 +99,7 @@ public class HomeActivity extends AppCompatActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         if (intent.getBooleanExtra(EXTRA_NAV_DISCOVER, false)) {
             showTab(R.id.nav_discover);
         }

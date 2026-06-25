@@ -32,6 +32,47 @@ public class HomeNavigationSourcesContractTest {
     }
 
     @Test
+    public void homeLaunchShellStartsOnHomeAndKeepsLatestDeepIntent() throws Exception {
+        String manifest = readRepoFile("app/src/main/AndroidManifest.xml");
+        String bottomNav = readRepoFile("app/src/main/res/menu/bottom_nav_menu.xml");
+        String homeNav = readRepoFile("app/src/main/res/layout/activity_home_nav.xml");
+        String homeActivity = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeActivity.java");
+
+        assertTrue("HomeActivity must be the exported launcher shell.",
+                manifest.contains("android:name=\".ui.home.HomeActivity\"") &&
+                        manifest.contains("android:exported=\"true\"") &&
+                        manifest.contains("android.intent.action.MAIN") &&
+                        manifest.contains("android.intent.category.LAUNCHER"));
+        assertTrue("Home launch shell must host the bottom navigation menu.",
+                homeNav.contains("android:id=\"@+id/nav_fragment_container\"") &&
+                        homeNav.contains("android:id=\"@+id/bottom_navigation\"") &&
+                        homeNav.contains("app:menu=\"@menu/bottom_nav_menu\""));
+        assertTrue("Bottom navigation must expose Home, Discover, Sources, and More.",
+                bottomNav.contains("@+id/nav_home") &&
+                        bottomNav.contains("@+id/nav_discover") &&
+                        bottomNav.contains("@+id/nav_sources") &&
+                        bottomNav.contains("@+id/nav_more"));
+        assertTrue("Fresh launches must default to the Home tab unless Discover is requested.",
+                homeActivity.contains("int startTab = getIntent().getBooleanExtra(" +
+                        "EXTRA_NAV_DISCOVER, false)") &&
+                        homeActivity.contains("? R.id.nav_discover : R.id.nav_home") &&
+                        homeActivity.contains("showTab(startTab);"));
+        assertTrue("Tab routing must keep all four first-class destinations reachable.",
+                homeActivity.contains("fragment = new HomeFragment()") &&
+                        homeActivity.contains("fragment = new DiscoverFragment()") &&
+                        homeActivity.contains("fragment = new HostsSourcesTabFragment()") &&
+                        homeActivity.contains("fragment = new MoreFragment()"));
+
+        int onNewIntent = homeActivity.indexOf("protected void onNewIntent(Intent intent)");
+        int setIntent = homeActivity.indexOf("setIntent(intent)", onNewIntent);
+        int readExtra = homeActivity.indexOf(
+                "intent.getBooleanExtra(EXTRA_NAV_DISCOVER, false)", onNewIntent);
+        assertTrue("singleTop launch intents must replace stale Activity intent before routing.",
+                onNewIntent >= 0 && setIntent >= 0 && setIntent < readExtra);
+    }
+
+    @Test
     public void homeNavContentStaysAboveBottomNavigation() throws Exception {
         String homeNav = readRepoFile("app/src/main/res/layout/activity_home_nav.xml");
 
