@@ -7875,3 +7875,39 @@
   passed.
 - Local connected run was not attempted because the configured SDK `adb.exe devices` reported no
   attached devices; PR CI remains the connected-device gate for this slice.
+
+## Plan - 2026-06-25 Story Fix Loop 13
+- [x] Confirm `DISC-002` quick presets with connected evidence instead of another source-text
+  assertion.
+- [x] Drive the real Discover Safe preset chip through `HomeActivity` and verify preset sources are
+  inserted or re-enabled in the app database.
+- [x] Verify the active profile is persisted as Safe and an immediate hosts update work item is
+  enqueued for the preset change.
+- [x] Keep production code unchanged if the connected behavior already passes; fix only if the
+  instrumented proof exposes a real behavior gap.
+- [x] Update `tasks/user-story-status.tsv` with the connected quick-preset evidence and remaining
+  device/manual gaps.
+- [x] Run focused connected/test compile gates plus the standard local gates, then commit and push
+  if green.
+
+## Review - 2026-06-25 Story Fix Loop 13
+- Confirmed `DISC-002` had source-text unit coverage but no connected test for the real Discover
+  chip path.
+- Added `DiscoverQuickPresetInstrumentedTest` to launch `HomeActivity`, navigate to Discover, tap
+  the Safe preset chip, and verify preset sources, active Safe profile persistence, and immediate
+  source-update work enqueue.
+- Kept production code unchanged because this slice is proof-chain coverage unless CI/device
+  execution exposes a real behavior failure.
+- Updated `tasks/user-story-status.tsv` conservatively: android-test compile passed locally, while
+  actual connected execution remains pending until PR CI runs because no local Android device is
+  attached.
+- Focused local compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed source added-line length scanning
+  passed.
+- Local connected execution was not attempted because the configured SDK `adb.exe devices` reported
+  no attached devices; PR CI remains the connected-device gate for this new test.
