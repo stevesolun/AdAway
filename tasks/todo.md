@@ -8211,3 +8211,32 @@
 - PR CI passed on `5a3fb656`: Connected Android tests, Development build, CodeQL Java/C++
   analysis, and locale validation all reported success.
 - No remaining `RUNTIME-005` parser matrix gap is tracked locally.
+
+## Plan - 2026-06-25 Story Fix Loop 21
+- [x] Tighten `RUNTIME-006` by proving suffix rules block through the actual VPN DNS packet
+  path, not only `VpnModel.getEntry`.
+- [x] Seed a runtime suffix rule in connected test setup and feed `DnsPacketProxy` a synthetic
+  A-query for a child domain.
+- [x] Verify a suffix-blocked DNS request returns a local blocked response and does not forward
+  upstream.
+- [x] Run the focused connected test compile/test gate and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 21
+- Starting state: `RUNTIME-006` is `Partially covered`; the canonical row still tracks
+  `Needs VPN suffix lookup test`.
+- Added `DnsPacketProxyRuntimeTruthTest`, which seeds a suffix-only blocked rule, feeds
+  `DnsPacketProxy` a synthetic A-query for a child domain, and verifies the proxy writes a
+  local blocked DNS response without forwarding upstream.
+- No production defect was found; existing runtime suffix matching behavior passed through the
+  actual VPN DNS packet path.
+- Focused android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- First focused connected run was blocked by `No connected devices`; booted local AVD
+  `adaway-api34` and reran the focused class successfully:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
