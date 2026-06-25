@@ -87,7 +87,7 @@ final class LeakStatus {
     }
 
     boolean hasDohRisk() {
-        return true;
+        return !hasCommonDohRouteCoverage();
     }
 
     boolean hasVpnStoppedRisk() {

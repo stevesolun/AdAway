@@ -4,11 +4,12 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class LeakStatusTest {
     @Test
-    public void runningVpn_reportsEncryptedDnsCoverageLimit() {
+    public void runningVpnWithoutBypassOrPrivateDns_reportsNoDetectedRisks() {
         LeakStatus status = LeakStatus.create(
                 AdBlockMethod.VPN,
                 true,
@@ -19,13 +20,13 @@ public class LeakStatusTest {
                 LeakStatus.VPN_EXCLUDED_SYSTEM_NONE);
 
         assertTrue(status.hasCommonDohRouteCoverage());
-        assertTrue(status.hasDohRisk());
-        assertTrue(status.hasRisks());
-        assertEquals(1, status.riskCount());
+        assertFalse(status.hasDohRisk());
+        assertFalse(status.hasRisks());
+        assertEquals(0, status.riskCount());
     }
 
     @Test
-    public void vpnWithPrivateDnsAndExcludedApps_reportsThreeRisks() {
+    public void vpnWithPrivateDnsAndExcludedApps_reportsTwoRisks() {
         LeakStatus status = LeakStatus.create(
                 AdBlockMethod.VPN,
                 true,
@@ -37,8 +38,8 @@ public class LeakStatusTest {
 
         assertTrue(status.hasPrivateDnsRisk());
         assertTrue(status.hasVpnBypassRisk());
-        assertTrue(status.hasDohRisk());
-        assertEquals(3, status.riskCount());
+        assertFalse(status.hasDohRisk());
+        assertEquals(2, status.riskCount());
     }
 
     @Test
@@ -84,7 +85,8 @@ public class LeakStatusTest {
                 LeakStatus.VPN_EXCLUDED_SYSTEM_NONE);
 
         assertTrue(status.hasVpnBypassRisk());
-        assertEquals(2, status.riskCount());
+        assertFalse(status.hasDohRisk());
+        assertEquals(1, status.riskCount());
     }
 
     @Test
@@ -100,6 +102,7 @@ public class LeakStatusTest {
 
         assertTrue(status.isPrivateDnsUnknown());
         assertTrue(status.hasPrivateDnsRisk());
-        assertEquals(2, status.riskCount());
+        assertFalse(status.hasDohRisk());
+        assertEquals(1, status.riskCount());
     }
 }

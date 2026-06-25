@@ -7533,3 +7533,26 @@
   org.adaway.security.CrashSurfaceHardeningTest --dependency-verification=strict --stacktrace`.
 - Remaining story-loop work: full device behavior is still open for both rows, and the rest of the
   P0/P1 story ledger still needs systematic test/fix/retest passes.
+
+## Plan - 2026-06-25 Story Fix Loop 2
+- [x] Confirm `HOME-010` with a failing unit test for a running VPN state with Private DNS off,
+  no app bypass, and no excluded apps.
+- [x] Make DoH leak classification distinguish covered common DoH routing from an active detected
+  risk so the clean summary can render when no detectable leak risks remain.
+- [x] Update `tasks/user-story-status.tsv` with the concrete fix and focused retest evidence.
+- [x] Re-run focused leak-status tests plus the standard local gates, then commit and push.
+
+## Review - 2026-06-25 Story Fix Loop 2
+- Confirmed `HOME-010`: `LeakStatus.hasDohRisk()` counted DoH as an active risk even when the
+  VPN was running and common DoH routes were covered, so the clean Home summary could not render.
+  Added a focused unit test that failed first.
+- `LeakStatus` now treats covered common DoH routing as a disclosed limitation, not an active
+  detected risk. Root mode and stopped VPN mode still report DoH risk.
+- Updated `tasks/user-story-status.tsv` so `HOME-010` records the clean-state fix while keeping the
+  real device Private DNS/VPN bypass/excluded-app pass open.
+- Verification passed: focused `LeakStatusTest` failed first on the unreachable clean-state
+  behavior, then passed after implementation; the full
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` gate passed; license-boundary check passed;
+  `git diff --check` passed with only LF-to-CRLF warnings; TSV shape check passed as 98 stories
+  with 15 columns; and edited Java plus Story Fix Loop 2 todo line-length scans passed.
