@@ -1315,6 +1315,14 @@ public class SourceModel {
         }
         if (sqlDeduper != null) {
             sqlDeduper.copyUnseenSourceGeneration(source.getId(), oldGeneration, importGeneration);
+            int copiedRows = this.hostListItemDao.countSourceHostsForGeneration(
+                    source.getId(), importGeneration);
+            if (activeRows > 0 && copiedRows == 0) {
+                Timber.w("Falling back to direct carry-forward for source %s.", source.getUrl());
+                this.hostListItemDao.copySourceGenerationReplacingTarget(
+                        source.getId(), oldGeneration, importGeneration);
+                copyRootExportStageFromHostsListsReplacingTarget(source.getId(), importGeneration);
+            }
         } else {
             this.hostListItemDao.copySourceGenerationReplacingTarget(
                     source.getId(), oldGeneration, importGeneration);

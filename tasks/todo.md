@@ -7992,3 +7992,19 @@
   passed.
 - Local connected execution was not attempted because `adb devices` reported no attached devices;
   PR CI remains the connected-device gate for the new mixed update test.
+- PR connected execution failed on commit `88f69910` at
+  `SourceModelHttpConditionalTest.
+  checkAndRetrieveHostsSources_mixed200304AndFailurePreservesCoverage`: the failed source had zero
+  rows in the activated staging generation after cleanup.
+- Patched `SourceModel.carryForwardPreviousGeneration` so a full update falls back to a direct
+  generation copy when SQL dedupe carry-forward produces no target rows despite prior active
+  coverage.
+- Focused post-fix gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.Generation304MigrationTest
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Full post-fix local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Post-fix license-boundary check passed; `git diff --check` passed with only LF-to-CRLF
+  warnings; TSV shape check passed as 98 stories with 15 columns; and changed source added-line
+  length scanning passed.
