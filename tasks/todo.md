@@ -8276,3 +8276,38 @@
   --dependency-verification=strict --stacktrace`.
 - PR CI passed on `7da85aed`: Connected Android tests, Development build, CodeQL Java/C++
   analysis, and locale validation all reported success.
+
+## Plan - 2026-06-25 Story Fix Loop 23
+- [x] Tighten `RUNTIME-008` by proving the `VpnWorker` packet-routing seam, not only
+  `DnsPacketProxy` behavior.
+- [x] Write a red unit test for tunnel-read-to-DNS-handler forwarding and queued tunnel writes.
+- [x] Extract the smallest package-private packet processor from `VpnWorker` without changing
+  public VPN behavior.
+- [x] Run the focused worker test, focused DNS proxy connected test, and standard local Gradle
+  gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence,
+  preserving any remaining Android VPN consent/TUN-device smoke gap.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 23
+- Starting state: `RUNTIME-008` was `Partially covered`; its canonical row still tracked
+  `Needs connected VPN test`.
+- Added a red unit test for the missing worker packet-routing seam. The first focused run failed
+  at compile time because `VpnPacketProcessor` did not exist.
+- Extracted `VpnPacketProcessor` from `VpnWorker` so tunnel reads forward the exact read bytes to
+  the DNS handler and packet monitor, and queued proxy responses are drained back to the tunnel
+  output stream in order.
+- No public VPN behavior was intentionally changed; `VpnWorker` still owns lifecycle, socket
+  forwarding, DNS query queueing, watchdog, and VPN interface establishment.
+- Focused worker unit gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.vpn.worker.*
+  --dependency-verification=strict --stacktrace`.
+- Focused connected DNS proxy gate passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining gap: this still does not prove a real user-granted Android VPN interface and TUN fd;
+  `RUNTIME-008` remains partially covered until that device smoke exists.

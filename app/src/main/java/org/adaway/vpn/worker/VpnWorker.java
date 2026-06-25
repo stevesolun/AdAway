@@ -42,7 +42,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -80,6 +79,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
     private final DnsServerMapper dnsServerMapper;
     // The object where we actually handle packets.
     private final DnsPacketProxy dnsPacketProxy;
+    private final VpnPacketProcessor packetProcessor;
 
     // TODO Comment
     private final VpnConnectionThrottler connectionThrottler;
@@ -115,6 +115,10 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         this.connectionThrottler = new VpnConnectionThrottler();
         this.connectionMonitor = new VpnConnectionMonitor(this.vpnService);
         this.vpnWatchDog = new VpnWatchdog(this.vpnService::protect);
+        this.packetProcessor = new VpnPacketProcessor(
+                this.deviceWrites,
+                this.dnsPacketProxy::handleDnsRequest,
+                this.vpnWatchDog::handlePacket);
         this.executor = new AtomicReference<>(null);
         this.vpnNetworkInterface = new AtomicReference<>(null);
         this.started = new AtomicBoolean(false);
@@ -249,7 +253,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         StructPollfd deviceFd = new StructPollfd();
         deviceFd.fd = inputStream.getFD();
         deviceFd.events = (short) POLLIN;
-        boolean deviceWaitingToWrite = !this.deviceWrites.isEmpty();
+        boolean deviceWaitingToWrite = this.packetProcessor.hasDeviceWrites();
         if (deviceWaitingToWrite) {
             deviceFd.events |= (short) POLLOUT;
         }
@@ -293,32 +297,11 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
     }
 
     private void writeToDevice(FileOutputStream fileOutputStream) throws IOException {
-        Timber.d("Write to device %d packets.", this.deviceWrites.size());
-        try {
-            while (!this.deviceWrites.isEmpty()) {
-                byte[] ipPacketData = this.deviceWrites.poll();
-                fileOutputStream.write(ipPacketData);
-            }
-        } catch (IOException e) {
-            throw new IOException("Failed to write to tunnel output stream.", e);
-        }
+        this.packetProcessor.writeToDevice(fileOutputStream);
     }
 
     private int readPacketFromDevice(FileInputStream inputStream, byte[] packet) throws IOException {
-        Timber.d("Read a packet from device.");
-        // Read the outgoing packet from the input stream.
-        int length = inputStream.read(packet);
-        if (length < 0) {
-            // TODO Stream closed. Is there anything else to do?
-            Timber.d("Tunnel input stream closed.");
-        } else if (length == 0) {
-            Timber.d("Read empty packet from tunnel.");
-        } else {
-            byte[] readPacket = Arrays.copyOf(packet, length);
-            vpnWatchDog.handlePacket(readPacket);
-            dnsPacketProxy.handleDnsRequest(readPacket);
-        }
-        return length;
+        return this.packetProcessor.readPacketFromDevice(inputStream, packet);
     }
 
     @Override
@@ -357,10 +340,6 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
 
     @Override
     public void queueDeviceWrite(IpPacket ipOutPacket) {
-        byte[] rawData = ipOutPacket.getRawData();
-        // TODO Check why data could be null
-        if (rawData != null) {
-            this.deviceWrites.add(rawData);
-        }
+        this.packetProcessor.queueDeviceWrite(ipOutPacket);
     }
 }
