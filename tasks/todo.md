@@ -8082,7 +8082,7 @@
 - [x] Fix only the concrete parser gap exposed by the tests.
 - [x] Run the focused parser gate, the standard JVM gate, and story-ledger hygiene checks.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 17
 - Starting state: `RUNTIME-005` remained `Partially covered` with `Needs expanded parser
@@ -8107,3 +8107,5 @@
   --dependency-verification=strict --stacktrace`.
 - Remaining `RUNTIME-005` gaps stay open: parse-to-DB semantic proof, redirect-enabled source
   fallback behavior, Unbound `local-data` target safety, and broader dnsmasq formatting coverage.
+- PR CI passed on commit `f0848cd0`: Connected Android tests, Development build, CodeQL,
+  locale validation, Java analysis, and C++ analysis were all green.
