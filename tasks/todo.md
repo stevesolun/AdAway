@@ -8352,7 +8352,7 @@
   start the service in the same boot callback.
 - [x] Run the focused connected boot-restore test and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 25
 - Starting state: `SYS-002` was the only P0 story still marked `Not tested`; its canonical row
@@ -8376,5 +8376,7 @@
 - Standard local gates passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
   `:app:testDebugUnitTest --dependency-verification=strict --stacktrace` and
   `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- PR CI passed on `2b0c89cf`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining boundary: this proves receiver behavior directly, not a physical device reboot smoke;
   physical reboot remains part of release smoke coverage.
