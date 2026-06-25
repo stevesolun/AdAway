@@ -7955,3 +7955,40 @@
   PR CI remains the connected-device gate for the new worker test.
 - PR CI then passed on commit `32fde642`: Connected Android tests, Development build, CodeQL,
   locale validation, and Java/C++ analysis were all green.
+
+## Plan - 2026-06-25 Story Fix Loop 15
+- [x] Confirm `RUNTIME-003` with a real mixed network update: one changed HTTP source, one
+  HTTP 304 source, and one failed HTTP source with previous active rows.
+- [x] Prove the full-update pipeline activates only a complete generation containing changed rows
+  plus carried-forward 304 and failed-source rows.
+- [x] Verify failed-source metadata is recorded without losing active coverage or stale rows.
+- [x] Keep production code unchanged if the behavior already holds; fix only a concrete runtime
+  truth gap exposed by the test.
+- [x] Update `tasks/user-story-status.tsv` with the integration evidence and remaining runtime
+  gates.
+- [x] Run focused android-test compile/full local gates, then commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 15
+- Confirmed `RUNTIME-003` had direct file-success/failure coverage and direct `200 + 304`
+  coverage, but no connected proof for a single network update mixing changed, unchanged, and
+  failed enabled sources.
+- Added `SourceModelHttpConditionalTest.
+  checkAndRetrieveHostsSources_mixed200304AndFailurePreservesCoverage`.
+- The test sets up three active HTTPS sources, returns `200` for one, `304` for one, and `500` for
+  one, then verifies the new active generation contains the changed source row plus carried-forward
+  rows for the unchanged and failed sources.
+- The test also verifies stale changed-source rows are absent, failed-source metadata is recorded,
+  successful source errors are cleared, source sizes remain consistent, and the scratch dedupe table
+  is cleaned up.
+- No production code changed in this slice because the focused proof compiles against the existing
+  update pipeline; connected PR execution will decide whether a production patch is needed.
+- Focused android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed source added-line length scanning
+  passed.
+- Local connected execution was not attempted because `adb devices` reported no attached devices;
+  PR CI remains the connected-device gate for the new mixed update test.

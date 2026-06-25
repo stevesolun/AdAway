@@ -1,5 +1,6 @@
 package org.adaway.model.source;
 
+import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -41,10 +42,12 @@ import okhttp3.tls.HeldCertificate;
 public class SourceModelHttpConditionalTest {
     private static final int FIRST_SOURCE_ID = 929291;
     private static final int SECOND_SOURCE_ID = 929292;
+    private static final int THIRD_SOURCE_ID = 929293;
     private static final int ACTIVE_GENERATION = 7;
     private static final int STAGING_GENERATION = 8;
     private static final String FIRST_HOST = "first-active.example";
     private static final String SECOND_HOST = "second-active.example";
+    private static final String THIRD_HOST = "third-active.example";
     private static final String UPDATED_FIRST_HOST = "first-updated.example";
     private static final String IF_NONE_MATCH = "If-None-Match";
     private static final String IF_MODIFIED_SINCE = "If-Modified-Since";
@@ -183,6 +186,58 @@ public class SourceModelHttpConditionalTest {
         assertEquals(0, countTableRows("root_host_entries"));
         assertNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow().getLastDownloadError());
         assertNull(hostsSourceDao.getById(SECOND_SOURCE_ID).orElseThrow().getLastDownloadError());
+        assertScratchTableAbsent();
+    }
+
+    @Test
+    public void checkAndRetrieveHostsSources_mixed200304AndFailurePreservesCoverage()
+            throws Exception {
+        ZonedDateTime freshDate = ZonedDateTime.now().minusDays(1);
+        insertHttpsSource(THIRD_SOURCE_ID, "Third failing source", "/third.txt",
+                "\"third-etag\"", freshDate);
+        insertHostRow(THIRD_HOST, THIRD_SOURCE_ID, ACTIVE_GENERATION);
+        hostsSourceDao.updateSizeForGeneration(THIRD_SOURCE_ID, ACTIVE_GENERATION);
+        hostEntryDao.sync();
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if ("/first.txt".equals(request.getPath())) {
+                    return new MockResponse()
+                            .setResponseCode(200)
+                            .setHeader("ETag", "\"first-new-etag\"")
+                            .setHeader("Last-Modified", "Sat, 13 Jun 2026 00:00:00 GMT")
+                            .setBody("0.0.0.0 " + UPDATED_FIRST_HOST + "\n");
+                }
+                if ("/second.txt".equals(request.getPath())) {
+                    return new MockResponse().setResponseCode(304);
+                }
+                if ("/third.txt".equals(request.getPath())) {
+                    return new MockResponse().setResponseCode(500);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        });
+
+        sourceModel.checkAndRetrieveHostsSources();
+
+        assertEquals(STAGING_GENERATION, getActiveGeneration());
+        assertEquals(0, countRows(FIRST_SOURCE_ID, ACTIVE_GENERATION));
+        assertEquals(1, countRows(FIRST_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(0, countRows(SECOND_SOURCE_ID, ACTIVE_GENERATION));
+        assertEquals(1, countRows(SECOND_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(0, countRows(THIRD_SOURCE_ID, ACTIVE_GENERATION));
+        assertEquals(1, countRows(THIRD_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(SECOND_HOST).getType());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(THIRD_HOST).getType());
+        assertNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow().getLastDownloadError());
+        assertNull(hostsSourceDao.getById(SECOND_SOURCE_ID).orElseThrow().getLastDownloadError());
+        assertNotNull(hostsSourceDao.getById(THIRD_SOURCE_ID).orElseThrow()
+                .getLastDownloadError());
+        assertEquals(1, hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow().getSize());
+        assertEquals(1, hostsSourceDao.getById(SECOND_SOURCE_ID).orElseThrow().getSize());
+        assertEquals(1, hostsSourceDao.getById(THIRD_SOURCE_ID).orElseThrow().getSize());
         assertScratchTableAbsent();
     }
 
