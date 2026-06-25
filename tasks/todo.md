@@ -7832,3 +7832,46 @@
   shape check passed as 98 stories with 15 columns; and changed-line length scanning passed.
 - Local fresh-install smoke was not attempted because `adb.exe devices` reported no attached
   devices; PR CI remains the connected-device gate for this slice.
+
+## Plan - 2026-06-25 Story Fix Loop 12
+- [x] Confirm the next Discover proof-chain gap with a failing contract before production edits.
+- [x] Preserve subscribed FilterLists row state from durable `hosts_sources` metadata when the
+  transient FilterLists URL cache is cold or stale.
+- [x] Make visible bulk remove use the same durable FilterLists ID to selected-URL mapping so
+  subscribed rows can be removed after restart/cache miss.
+- [x] Keep compatibility gating unchanged: unsupported rows remain manual-review only, and bulk
+  subscribe still avoids unsafe browser-rule flattening.
+- [x] Update `tasks/user-story-status.tsv` with concrete Discover evidence and remaining device
+  gaps.
+- [x] Run focused Discover/FilterLists tests plus standard local gates, then commit and push if
+  green.
+
+## Review - 2026-06-25 Story Fix Loop 12
+- Confirmed `DISC-007` and `DISC-008`: subscribed FilterLists rows could depend on the transient
+  FilterLists URL cache for row state and visible bulk removal, despite durable FilterLists
+  provenance being stored on `hosts_sources`.
+- Added a focused Discover contract that failed first at
+  `DiscoverPresetSubscriptionTest.filterListsSubscribedRowsUseDurableSourceMetadataWhenUrlCacheMisses`
+  because no durable FilterLists ID to source URL index existed.
+- Added a durable in-memory index from `HostsSource.filterListId` to selected source URL, preferring
+  `filterListSelectedUrl` and falling back to the source URL.
+- Row state, single unsubscribe, and visible bulk remove now use durable source metadata before
+  transient FilterLists URL prefs, so restart/cache-miss paths remain removable.
+- Updated `tasks/user-story-status.tsv` for `DISC-007` and `DISC-008` while keeping full connected
+  filtered/remove device verification open.
+- Focused red/green verification passed:
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.discover.DiscoverPresetSubscriptionTest.
+  filterListsSubscribedRowsUseDurableSourceMetadataWhenUrlCacheMisses
+  --dependency-verification=strict --stacktrace`.
+- Nearby Discover/FilterLists unit coverage passed:
+  `DiscoverPresetSubscriptionTest`, `FilterListsSubscriptionStateTest`,
+  `FilterListCompatibilityTest`, and `FilterListsSubscribeAllWorkerTest`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- License-boundary check passed; `git diff --check` passed with only LF-to-CRLF warnings; TSV
+  shape check passed as 98 stories with 15 columns; and changed source added-line length scanning
+  passed.
+- Local connected run was not attempted because the configured SDK `adb.exe devices` reported no
+  attached devices; PR CI remains the connected-device gate for this slice.

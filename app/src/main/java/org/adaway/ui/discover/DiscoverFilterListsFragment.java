@@ -85,6 +85,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final List<FilterListsDirectoryApi.ListSummary> filtered = new ArrayList<>();
     private Map<Integer, String> syntaxNames;
     private final Map<Integer, String> resolvedUrlCache = new HashMap<>();
+    private final Map<Integer, String> existingFilterListUrlsById = new HashMap<>();
     private final Set<String> existingUrls = new HashSet<>();
     private HostsSourceDao hostsSourceDao;
 
@@ -160,15 +161,21 @@ public class DiscoverFilterListsFragment extends Fragment {
             final List<HostsSource> snapshot = sources != null ? new ArrayList<>(sources) : null;
             AppExecutors.getInstance().diskIO().execute(() -> {
                 Set<String> urls = new HashSet<>();
+                Map<Integer, String> filterListUrls = new HashMap<>();
                 if (snapshot != null) {
                     for (HostsSource s : snapshot) {
                         urls.add(s.getUrl());
+                        indexExistingSource(s, filterListUrls);
                     }
                 }
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
                     existingUrls.clear();
                     existingUrls.addAll(urls);
+                    synchronized (existingFilterListUrlsById) {
+                        existingFilterListUrlsById.clear();
+                        existingFilterListUrlsById.putAll(filterListUrls);
+                    }
                     refreshBulkActionsState();
                     requestAdapterRefreshThrottled(1000);
                 });
@@ -297,8 +304,10 @@ public class DiscoverFilterListsFragment extends Fragment {
                 // Load existing sources
                 List<HostsSource> existing = hostsSourceDao.getAll();
                 Set<String> existingUrlsLocal = new HashSet<>();
+                Map<Integer, String> existingFilterListUrlsLocal = new HashMap<>();
                 for (HostsSource s : existing) {
                     existingUrlsLocal.add(s.getUrl());
+                    indexExistingSource(s, existingFilterListUrlsLocal);
                 }
 
                 SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -332,6 +341,10 @@ public class DiscoverFilterListsFragment extends Fragment {
                             this.syntaxNames = cachedSyntaxNames;
                             this.existingUrls.clear();
                             this.existingUrls.addAll(existingUrlsLocal);
+                            synchronized (existingFilterListUrlsById) {
+                                this.existingFilterListUrlsById.clear();
+                                this.existingFilterListUrlsById.putAll(existingFilterListUrlsLocal);
+                            }
                             all.clear();
                             all.addAll(cachedLists);
                             populateTagChips(cachedTags);
@@ -383,6 +396,10 @@ public class DiscoverFilterListsFragment extends Fragment {
                     this.syntaxNames = syntaxNamesNet;
                     this.existingUrls.clear();
                     this.existingUrls.addAll(existingUrlsLocal);
+                    synchronized (existingFilterListUrlsById) {
+                        this.existingFilterListUrlsById.clear();
+                        this.existingFilterListUrlsById.putAll(existingFilterListUrlsLocal);
+                    }
                     all.clear();
                     all.addAll(lists);
                     populateTagChips(tags);
@@ -639,6 +656,10 @@ public class DiscoverFilterListsFragment extends Fragment {
             String url = resolvedUrlCache.get(id);
             if (url != null) return normalizeCachedUrl(url);
         }
+        String sourceUrl = getSourceUrlForFilterListId(id);
+        if (sourceUrl != null) {
+            return sourceUrl;
+        }
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String url;
         url = prefs.getString(KEY_URL_PREFIX + id, null);
@@ -662,6 +683,27 @@ public class DiscoverFilterListsFragment extends Fragment {
         }
         String trimmed = url.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    @Nullable
+    private String getSourceUrlForFilterListId(int id) {
+        synchronized (existingFilterListUrlsById) {
+            return existingFilterListUrlsById.get(id);
+        }
+    }
+
+    private static void indexExistingSource(@NonNull HostsSource source,
+            @NonNull Map<Integer, String> filterListUrls) {
+        Integer filterListId = source.getFilterListId();
+        if (filterListId == null) {
+            return;
+        }
+        String selectedUrl = normalizeCachedUrl(source.getFilterListSelectedUrl());
+        String sourceUrl = normalizeCachedUrl(source.getUrl());
+        String url = selectedUrl != null ? selectedUrl : sourceUrl;
+        if (url != null) {
+            filterListUrls.put(filterListId, url);
+        }
     }
 
     private void cacheResolvedUrl(@NonNull Context context, int id, @Nullable String url) {
@@ -792,8 +834,14 @@ public class DiscoverFilterListsFragment extends Fragment {
                     // adapter (which reads existingUrls on main thread) sees a consistent view.
                     if (subscribed) {
                         existingUrls.add(finalUrl);
+                        synchronized (existingFilterListUrlsById) {
+                            existingFilterListUrlsById.put(summary.id, finalUrl);
+                        }
                     } else {
                         existingUrls.remove(finalUrl);
+                        synchronized (existingFilterListUrlsById) {
+                            existingFilterListUrlsById.remove(summary.id);
+                        }
                     }
                     binding.filterlistsProgress.setVisibility(View.GONE);
                     notifyFilterListRowChanged(summary.id);
@@ -948,7 +996,10 @@ public class DiscoverFilterListsFragment extends Fragment {
             SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             Set<String> filterListUrls = new HashSet<>();
             for (FilterListsDirectoryApi.ListSummary summary : listSnapshot) {
-                String url = urlSnapshot.get(summary.id);
+                String url = getSourceUrlForFilterListId(summary.id);
+                if (url == null) {
+                    url = urlSnapshot.get(summary.id);
+                }
                 if (url == null) {
                     url = prefs.getString(KEY_URL_PREFIX + summary.id, null);
                 }

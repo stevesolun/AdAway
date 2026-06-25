@@ -452,6 +452,26 @@ public class DiscoverPresetSubscriptionTest {
     }
 
     @Test
+    public void filterListsSubscribedRowsUseDurableSourceMetadataWhenUrlCacheMisses()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        assertTrue("Discover must keep a durable FilterLists ID to source URL index.",
+                source.contains("existingFilterListUrlsById"));
+        assertTrue("The durable index must be built from source FilterLists metadata.",
+                source.contains("source.getFilterListId()"));
+        assertTrue("The durable index must prefer the selected FilterLists download URL.",
+                source.contains("source.getFilterListSelectedUrl()"));
+        assertTrue("Row state must fall back to source metadata before transient URL prefs.",
+                source.contains("String sourceUrl = getSourceUrlForFilterListId(id);")
+                        && source.indexOf("String sourceUrl = getSourceUrlForFilterListId(id);")
+                        < source.indexOf("prefs.getString(KEY_URL_PREFIX + id, null)"));
+        assertTrue("Visible bulk remove must use the same durable source metadata fallback.",
+                source.contains("String url = getSourceUrlForFilterListId(summary.id);"));
+    }
+
+    @Test
     public void filterListsCancellationKeepsDurableStoppingAndCancelledStates()
             throws Exception {
         String source = readRepoFile(
