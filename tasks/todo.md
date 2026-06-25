@@ -8390,7 +8390,7 @@
 - [x] Patch production only if the functional test exposes a real tab/data routing defect.
 - [x] Run the focused connected list-tab test and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 26
 - Starting state: `LIST-001` was `Partially covered`; its canonical row tracked
@@ -8408,5 +8408,7 @@
 - Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `10519abb`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining related flows are tracked separately: `LIST-003` add user rule, `LIST-004` edit/delete,
   `LIST-005` toggle enabled state, and `LIST-006` downloaded-rule override.
