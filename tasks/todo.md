@@ -8252,7 +8252,7 @@
   apply path; the local emulator exposes `su`, but standard `su -c` is not usable as-is.
 - [x] Run the focused connected DNS proxy test and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 22
 - Starting state: `RUNTIME-011` was `Partially covered`; the canonical row tracked
@@ -8274,3 +8274,5 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
+- PR CI passed on `7da85aed`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
