@@ -14,11 +14,22 @@ public class CrashSurfaceHardeningTest {
 
     @Test
     public void bootReceiverAddsNewTaskFlagBeforeStartingVpnPermissionActivity() throws IOException {
-        String source = read("app/src/main/java/org/adaway/broadcast/BootReceiver.java");
+        String source = read("app/src/main/java/org/adaway/broadcast/BootRestoreController.java");
+        int permissionBranch = source.indexOf("if (prepareIntent != null)");
+        int addNewTaskFlag = source.indexOf("prepareIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);",
+                permissionBranch);
+        int startPermissionActivity = source.indexOf("context.startActivity(prepareIntent);",
+                addNewTaskFlag);
+        int returnAfterPermissionRequest = source.indexOf("return;", startPermissionActivity);
+        int startVpnService = source.indexOf("this.mVpnGateway.start(context);",
+                returnAfterPermissionRequest);
 
         assertTrue("Broadcast receivers must add FLAG_ACTIVITY_NEW_TASK before starting a VPN "
                         + "permission Activity.",
-                source.contains("prepareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);"));
+                addNewTaskFlag >= 0 && addNewTaskFlag < startPermissionActivity);
+        assertTrue("Boot restore must not start the VPN service until VPN permission is granted.",
+                startPermissionActivity < returnAfterPermissionRequest
+                        && returnAfterPermissionRequest < startVpnService);
     }
 
     @Test

@@ -21,15 +21,10 @@
 package org.adaway.broadcast;
 
 import static android.content.Intent.ACTION_BOOT_COMPLETED;
-import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-
-import org.adaway.helper.PreferenceHelper;
-import org.adaway.model.adblocking.AdBlockMethod;
-import org.adaway.vpn.VpnServiceControls;
 
 import timber.log.Timber;
 
@@ -39,21 +34,21 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class BootReceiver extends BroadcastReceiver {
+    private final BootRestoreController mBootRestoreController;
+
+    public BootReceiver() {
+        this(new BootRestoreController());
+    }
+
+    BootReceiver(BootRestoreController bootRestoreController) {
+        this.mBootRestoreController = bootRestoreController;
+    }
+
     @Override
     public void onReceive(Context context, Intent intent) {
         if (ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             Timber.d("BootReceiver invoked.");
-            AdBlockMethod adBlockMethod = PreferenceHelper.getAdBlockMethod(context);
-            if (adBlockMethod == VPN && PreferenceHelper.getVpnServiceOnBoot(context)) {
-                // Ensure VPN is prepared
-                Intent prepareIntent = android.net.VpnService.prepare(context);
-                if (prepareIntent != null) {
-                    prepareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(prepareIntent);
-                }
-                // Start VPN service if enabled in preferences
-                VpnServiceControls.start(context);
-            }
+            this.mBootRestoreController.restoreAfterBoot(context);
         }
     }
 }

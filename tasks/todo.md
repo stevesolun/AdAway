@@ -8342,3 +8342,39 @@
   analysis, and locale validation all reported success.
 - Remaining runtime smokes are still tracked separately: `RUNTIME-007` for rooted hosts apply
   and `RUNTIME-008` for user-granted Android VPN/TUN behavior.
+
+## Plan - 2026-06-25 Story Fix Loop 25
+- [x] Tighten `SYS-002` by proving boot restore behavior instead of only source-text
+  receiver wiring.
+- [x] Add focused connected coverage for BOOT_COMPLETED dispatch, VPN-on-boot disabled,
+  non-VPN method, VPN permission-required, and VPN permission-granted branches.
+- [x] Fix the receiver so a missing VPN permission requests permission and does not also
+  start the service in the same boot callback.
+- [x] Run the focused connected boot-restore test and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 25
+- Starting state: `SYS-002` was the only P0 story still marked `Not tested`; its canonical row
+  tracked `Needs integration pass`.
+- Added `BootReceiverBehaviorTest`, a focused connected test that proves BOOT_COMPLETED dispatch,
+  non-boot intent ignoring, VPN-on-boot disabled behavior, non-VPN method behavior, the
+  permission-required branch, and the permission-granted branch with fake VPN platform hooks.
+- The red run failed at compile time because the receiver did not expose a testable boot-restore
+  controller seam.
+- Extracted `BootRestoreController` from `BootReceiver`. The production behavior change is that
+  a missing VPN permission now starts the permission activity with `FLAG_ACTIVITY_NEW_TASK` and
+  returns without also starting the VPN service in the same boot callback.
+- Updated the stale crash-surface source contract so it follows the new controller and asserts the
+  permission request returns before service start.
+- Focused connected boot-restore gate passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.broadcast.BootReceiverBehaviorTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 5 tests on
+  `adaway-api34`.
+- A combined standard gate run under the default shell JDK timed out and left Gradle Java
+  processes alive; those processes were inspected and stopped before rerunning.
+- Standard local gates passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest --dependency-verification=strict --stacktrace` and
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Remaining boundary: this proves receiver behavior directly, not a physical device reboot smoke;
+  physical reboot remains part of release smoke coverage.
