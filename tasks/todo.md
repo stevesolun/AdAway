@@ -8074,3 +8074,36 @@
   devices; PR CI remains the connected-device gate for this test.
 - PR CI passed on commit `52188300`: Connected Android tests, Development build, CodeQL,
   locale validation, Java analysis, and C++ analysis were all green.
+
+## Plan - 2026-06-25 Story Fix Loop 17
+- [x] Tighten `RUNTIME-005` with parser behavior tests for DNS root-dot normalization and
+  unsafe Unbound local-zone types.
+- [x] Prove the tests fail before changing production code.
+- [x] Fix only the concrete parser gap exposed by the tests.
+- [x] Run the focused parser gate, the standard JVM gate, and story-ledger hygiene checks.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and watch PR CI.
+
+## Review - 2026-06-25 Story Fix Loop 17
+- Starting state: `RUNTIME-005` remained `Partially covered` with `Needs expanded parser
+  matrix`, while PR #6 was green on head `8c523228`.
+- The next parser proof targets DNS-list fidelity rather than broad refactoring: valid FQDN
+  trailing dots should normalize before storage, and Unbound local-zone types that resolve
+  normally or only log should not be flattened into blocking rules.
+- Red parser gate failed before production changes:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --stacktrace` reported 62 tests, 3 failures for Unbound
+  trailing-root-dot import, Unbound `inform` skip, and RPZ trailing-root-dot import.
+- After the first fix, a second red parser gate failed with 64 tests, 2 failures for unanchored
+  ABP path/options false positives: `example.com$third-party` and `example.com/path/ad.js`.
+- Fixed `SourceLoader` to strip one DNS root dot before hostname validation, accept only
+  block-safe Unbound `always_*` zone types, and reject unanchored path/options syntax before the
+  plain-domain sanitizer can truncate it into a DNS block.
+- Forced focused parser gate passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.SourceLoaderParserPatternsTest
+  --dependency-verification=strict --rerun-tasks --stacktrace`.
+- Full local Gradle gate passed:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Remaining `RUNTIME-005` gaps stay open: parse-to-DB semantic proof, redirect-enabled source
+  fallback behavior, Unbound `local-data` target safety, and broader dnsmasq formatting coverage.

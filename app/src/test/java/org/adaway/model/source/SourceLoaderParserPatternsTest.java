@@ -55,6 +55,26 @@ public class SourceLoaderParserPatternsTest {
     }
 
     @Test
+    public void unboundLocalZone_alwaysNxdomainTrailingRootDot_isExactBlock() {
+        String line = "local-zone: \"ads.example.com.\" always_nxdomain";
+
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
+    }
+
+    @Test
+    public void unboundLocalZone_transparent_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "local-zone: \"cdn.example.com\" transparent"));
+    }
+
+    @Test
+    public void unboundLocalZone_inform_notExtractedAsBlock() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax(
+                "local-zone: \"telemetry.example.com\" inform"));
+    }
+
+    @Test
     public void unboundLocalZone_noMatchOnPlainDomain() {
         String line = "ads.example.com";
         Matcher m = UNBOUND_LOCAL_ZONE.matcher(line);
@@ -129,6 +149,14 @@ public class SourceLoaderParserPatternsTest {
         Matcher m = RPZ_CNAME_DOT.matcher(line);
         assertTrue("RPZ_CNAME_DOT should match line with IN class and no TTL", m.matches());
         assertEquals("bad.domain.com", m.group(1));
+    }
+
+    @Test
+    public void rpzCnameDot_trailingOwnerRootDot_isExactBlock() {
+        String line = "ads.example.com. CNAME .";
+
+        assertEquals("ads.example.com", SourceLoader.extractHostnameFromNonHostsSyntax(line));
+        assertEquals(EXACT, SourceLoader.extractRuleKindFromNonHostsSyntax(line));
     }
 
     @Test
@@ -413,6 +441,16 @@ public class SourceLoaderParserPatternsTest {
     public void abpRule_dollarNoCaretThirdParty_skipped() {
         // ||example.com$third-party (no ^ separator) — has $options → skip, same as with ^
         assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("||example.com$third-party"));
+    }
+
+    @Test
+    public void abpRule_unanchoredDollarOptions_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("example.com$third-party"));
+    }
+
+    @Test
+    public void abpRule_unanchoredPath_notExtracted() {
+        assertNull(SourceLoader.extractHostnameFromNonHostsSyntax("example.com/path/ad.js"));
     }
 
     @Test

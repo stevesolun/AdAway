@@ -72,7 +72,8 @@ class SourceLoader {
     private static final Pattern DNSMASQ_LOCAL = Pattern.compile("^local=/([^/]+)/?$");
     private static final Pattern DNSMASQ_SERVER = Pattern.compile("^server=/([^/]+)/.*$");
     // Unbound DNS: local-zone: "example.com" always_refuse
-    static final Pattern UNBOUND_LOCAL_ZONE = Pattern.compile("^\\s*local-zone:\\s*\"([^\"]+)\"\\s+\\w+.*$");
+    static final Pattern UNBOUND_LOCAL_ZONE =
+            Pattern.compile("^\\s*local-zone:\\s*\"([^\"]+)\"\\s+([A-Za-z_]+).*$");
     // Unbound DNS: local-data: "example.com A 0.0.0.0"
     static final Pattern UNBOUND_LOCAL_DATA = Pattern.compile("^\\s*local-data:\\s*\"([^\\s\"]+)\\s.*$");
     // BIND RPZ: example.com CNAME .  (optionally: example.com 60 IN CNAME .)
@@ -275,7 +276,8 @@ class SourceLoader {
         // Unbound: local-zone: "example.com" always_refuse
         Matcher unboundZone = UNBOUND_LOCAL_ZONE.matcher(line);
         if (unboundZone.matches()) {
-            return exactRule(unboundZone.group(1));
+            return isUnboundBlockZoneType(unboundZone.group(2))
+                    ? exactRule(unboundZone.group(1)) : null;
         }
 
         // Unbound: local-data: "example.com A 0.0.0.0"
@@ -312,6 +314,9 @@ class SourceLoader {
         // and sanitizeHostname() would otherwise strip the leading '||' and return a hostname
         // even for content-filter rules like ||google.com^$third-party.
         if (!line.startsWith("|")) {
+            if (line.indexOf('/') >= 0 || line.indexOf('$') >= 0) {
+                return null;
+            }
             String plain = sanitizeHostname(line);
             if (plain != null) {
                 return new ExtractedRule(plain, EXACT);
@@ -370,6 +375,15 @@ class SourceLoader {
         return firstAction.equals("REJECT") || firstAction.equals("REJECT-DROP");
     }
 
+    private static boolean isUnboundBlockZoneType(@NonNull String rawType) {
+        String type = rawType.toLowerCase(Locale.ROOT);
+        return type.equals("always_refuse")
+                || type.equals("always_nxdomain")
+                || type.equals("always_nodata")
+                || type.equals("always_deny")
+                || type.equals("always_null");
+    }
+
     @Nullable
     static String sanitizeHostname(@Nullable String raw) {
         if (raw == null) return null;
@@ -379,6 +393,9 @@ class SourceLoader {
         // Remove leading separators used in some syntaxes
         while (!h.isEmpty() && (h.charAt(0) == '.' || h.charAt(0) == '|')) {
             h = h.substring(1);
+        }
+        if (h.length() > 1 && h.charAt(h.length() - 1) == '.') {
+            h = h.substring(0, h.length() - 1);
         }
 
         // Truncate at common ABP/uBO delimiters
