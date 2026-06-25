@@ -8187,7 +8187,7 @@
 - [x] Fix only the concrete dnsmasq local inline-comment parsing gap exposed by the tests.
 - [x] Run the focused parser gate and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and watch PR CI.
+- [x] Commit, push, and watch PR CI.
 
 ## Review - 2026-06-25 Story Fix Loop 20
 - Starting state: `RUNTIME-005` remained `Partially covered`; its only remaining tracked gap was
@@ -8208,4 +8208,6 @@
 - Full local Gradle gate passed:
   `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`.
-- No remaining `RUNTIME-005` parser matrix gap is tracked locally; PR CI is pending.
+- PR CI passed on `5a3fb656`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
+- No remaining `RUNTIME-005` parser matrix gap is tracked locally.
