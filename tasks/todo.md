@@ -9438,7 +9438,7 @@
 - [x] Run the focused connected Home launch/navigation/state test.
 - [x] Run the standard local Gradle gate and broader connected gate if isolation risk is present.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 50
 - Starting state: `HOME-001`, `HOME-002`, and `HOME-003` were `Partially covered`;
@@ -9463,6 +9463,50 @@
   `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
   `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest
   :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 3 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `e2f2479e test: cover home shell state` was pushed to PR #6.
+- Final PR CI recheck for head `e2f2479e` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 51
+- [x] Re-ground `RUNTIME-001` from the canonical story spreadsheet, `SourceModel`,
+  `HomeViewModel`, `HostEntryDao`, the test content provider, and the existing Home update action
+  connected test.
+- [x] Strengthen connected user-path proof for Home update/apply actions so the test asserts
+  source parsing, generation activation, source metadata/stat updates, host_entries runtime counts,
+  and apply-boundary ordering.
+- [x] Patch production only if the proof exposes a real update, runtime truth, or apply-ordering
+  defect.
+- [x] Run the focused connected Home update action test.
+- [x] Run the standard local Gradle gate and the full connected suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 51
+- Starting state: `RUNTIME-001` was `Partially covered`; generation-failure tests covered failed
+  source preservation and active-generation safety, and Home update action tests proved apply saw
+  one resolved host, but the canonical story had no connected proof of the full user path:
+  download, parse, insert, generation activation, runtime cache materialization, and apply ordering.
+- A read-only explorer confirmed the production path: `HomeViewModel.update()` and `sync()` call
+  `SourceModel.checkAndRetrieveHostsSources()` on the network executor, and only call
+  `AdBlockModel.apply()` when the source pipeline returns success.
+- Strengthened `HomeUpdateActionsInstrumentedTest` rather than adding a synthetic model-only test.
+  The existing deterministic content provider now proves two parsed hosts, active generation > 0,
+  cleared download error, source freshness timestamps, source size/stat counters, active
+  `hosts_lists` rows, `host_entries` runtime counts, and both hosts resolving as blocked before the
+  recording `AdBlockModel.apply()` reports success.
+- No production patch was needed in this loop. The first focused command failed before compilation
+  because PowerShell/Gradle parsed the unquoted instrumentation property as a task name; the quoted
+  command reached the device and passed.
+- Focused connected Home update gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateActionsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
   `adaway-api34`.
 - Standard local gate passed with the same JDK:
   `test --dependency-verification=strict --stacktrace`.

@@ -4,8 +4,11 @@ import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -49,6 +52,7 @@ public class HomeUpdateActionsInstrumentedTest {
     private static final int TEST_SOURCE_ID = 1311;
     private static final String TEST_SOURCE_URL = "content://org.adaway.test.hosts/success.txt";
     private static final String FIRST_HOST = "fresh-success.example";
+    private static final String SECOND_HOST = "second-success.example";
 
     private Context context;
     private AdAwayApplication application;
@@ -101,12 +105,37 @@ public class HomeUpdateActionsInstrumentedTest {
             clickView(scenario, actionViewId);
 
             waitForApplyCount(1);
-            assertEquals(BLOCKED,
-                    AppDatabase.getInstance(this.context)
-                            .hostEntryDao()
-                            .resolveEntry(FIRST_HOST)
-                            .getType());
+            assertRuntimePipelineState();
         }
+    }
+
+    private void assertRuntimePipelineState() {
+        AppDatabase database = AppDatabase.getInstance(this.context);
+        int activeGeneration = database.hostEntryDao().getActiveGeneration();
+        HostsSource source = database.hostsSourceDao().getById(TEST_SOURCE_ID).orElseThrow();
+
+        assertTrue("The update must activate a new source generation.",
+                activeGeneration > 0);
+        assertNull("A successful file-source update must clear the last download error.",
+                source.getLastDownloadError());
+        assertNotNull("A successful update must record the local source freshness.",
+                source.getLocalModificationDate());
+        assertNotNull("A successful update must record the online source freshness.",
+                source.getOnlineModificationDate());
+        assertEquals(2, source.getSize());
+        assertEquals(2, source.getActiveRuleCount());
+        assertEquals(2, source.getBlockedCount());
+        assertEquals(2, source.getBlockedExactCount());
+        assertEquals(0, source.getAllowedCount());
+        assertEquals(0, source.getRedirectedCount());
+        assertEquals(2, database.hostsListItemDao()
+                .countSourceHostsForGeneration(TEST_SOURCE_ID, activeGeneration));
+        assertEquals(2, countSourceRows(database, TEST_SOURCE_ID));
+        assertEquals(2, database.hostEntryDao().countActiveRuntimeRuleRows());
+        assertEquals(2, database.hostEntryDao().getBlockedEntryCountNow());
+        assertEquals(2, database.hostEntryDao().getBlockedExactEntryCountNow());
+        assertEquals(BLOCKED, database.hostEntryDao().resolveEntry(FIRST_HOST).getType());
+        assertEquals(BLOCKED, database.hostEntryDao().resolveEntry(SECOND_HOST).getType());
     }
 
     private void waitForApplyCount(int expectedCount) {
@@ -176,6 +205,15 @@ public class HomeUpdateActionsInstrumentedTest {
                             + "(id, blocked_count, blocked_exact_count, allowed_count, "
                             + "redirected_count, active_rule_count) VALUES (0, 0, 0, 0, 0, 0)");
         });
+    }
+
+    private static int countSourceRows(AppDatabase database, int sourceId) {
+        try (Cursor cursor = database.getOpenHelper().getWritableDatabase().query(
+                "SELECT COUNT(*) FROM hosts_lists WHERE source_id = ?",
+                new Object[]{sourceId})) {
+            cursor.moveToFirst();
+            return cursor.getInt(0);
+        }
     }
 
     private static void runDatabaseWork(Context context, DatabaseWork work) {
