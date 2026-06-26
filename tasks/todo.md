@@ -9746,3 +9746,27 @@
 - RUNTIME-008 is now covered by connected smoke for the emulator-backed Android consent/TUN
   path. Physical-device release smoke remains tracked under `REL-003`, rooted hosts apply
   remains `RUNTIME-007`, and the overall market-leading release goal remains open.
+
+## Plan - 2026-06-27 REL-001 Local Source Boundary Reports
+- [x] Install the missing Mac PowerShell prerequisite required by the release scripts.
+- [x] Run GitTracked and WorkingTree license-boundary reports on current head.
+- [x] Run focused `SecurityHardeningTest` coverage for the license-boundary guard.
+- [x] Record REL-001 source-scan evidence without closing the legal/provenance gate.
+
+## Review - 2026-06-27 REL-001 Local Source Boundary Reports
+- PR #6 CI recheck later passed on pushed head `6cb4d35b`: Analyze (cpp), Analyze (java),
+  CodeQL, Development build, Validate locales, and Connected Android tests all passed. The
+  connected job finished `167` tests with `3` skipped and `0` failed.
+- Installed PowerShell 7.6.3 via Homebrew on this Mac so `scripts/check-license-boundary.ps1`
+  can run locally.
+- Generated source-boundary reports for current head `6cb4d35b5178beb15625e8a4d6c8be6f7e5c9ef2`:
+  `SourceMode GitTracked` inspected `2416` entries and `SourceMode WorkingTree` inspected `2169`
+  entries. Both reports passed with `Issues: 0`.
+- Both reports still state `MIT release status: blocked until GPL-derived material is cleared`.
+  This is evidence that the source guard is clean; it is not legal/provenance clearance and does
+  not satisfy final artifact license readiness.
+- Focused guard regression coverage passed:
+  `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
+  --dependency-verification=strict --stacktrace`.
+- REL-001 is advanced with local source-report evidence, but remains open for legal review and
+  release artifact boundary proof.
