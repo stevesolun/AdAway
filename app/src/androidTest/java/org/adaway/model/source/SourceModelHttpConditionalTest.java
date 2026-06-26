@@ -30,6 +30,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -179,6 +181,7 @@ public class SourceModelHttpConditionalTest {
 
         sourceModel.checkAndRetrieveHostsSources();
 
+        assertConditionalRequestsSent("/first.txt", "/second.txt");
         assertEquals(STAGING_GENERATION, getActiveGeneration());
         assertEquals(0, countRows(FIRST_SOURCE_ID, ACTIVE_GENERATION));
         assertEquals(1, countRows(FIRST_SOURCE_ID, STAGING_GENERATION));
@@ -225,6 +228,7 @@ public class SourceModelHttpConditionalTest {
 
         sourceModel.checkAndRetrieveHostsSources();
 
+        assertConditionalRequestsSent("/first.txt", "/second.txt", "/third.txt");
         assertEquals(STAGING_GENERATION, getActiveGeneration());
         assertEquals(0, countRows(FIRST_SOURCE_ID, ACTIVE_GENERATION));
         assertEquals(1, countRows(FIRST_SOURCE_ID, STAGING_GENERATION));
@@ -355,6 +359,25 @@ public class SourceModelHttpConditionalTest {
                 new Object[]{sourceId, generation})) {
             cursor.moveToFirst();
             return cursor.getInt(0);
+        }
+    }
+
+    private void assertConditionalRequestsSent(String... expectedPaths) throws Exception {
+        Map<String, RecordedRequest> requestsByPath = new HashMap<>();
+        for (int i = 0; i < expectedPaths.length; i++) {
+            RecordedRequest request = server.takeRequest(5, TimeUnit.SECONDS);
+            assertNotNull("Expected conditional request " + (i + 1), request);
+            requestsByPath.put(request.getPath(), request);
+        }
+
+        for (String path : expectedPaths) {
+            RecordedRequest request = requestsByPath.get(path);
+            assertNotNull("Expected request for " + path, request);
+            assertEquals("GET", request.getMethod());
+            assertNotNull(path + " must send " + IF_NONE_MATCH,
+                    request.getHeader(IF_NONE_MATCH));
+            assertNotNull(path + " must send " + IF_MODIFIED_SINCE,
+                    request.getHeader(IF_MODIFIED_SINCE));
         }
     }
 

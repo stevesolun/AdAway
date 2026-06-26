@@ -9485,7 +9485,7 @@
 - [x] Run the focused connected Home update action test.
 - [x] Run the standard local Gradle gate and the full connected suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 51
 - Starting state: `RUNTIME-001` was `Partially covered`; generation-failure tests covered failed
@@ -9507,6 +9507,45 @@
   `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
   `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateActionsInstrumentedTest
   :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `b229d24c test: prove runtime update apply pipeline` was pushed to PR #6.
+- Final PR CI recheck for head `b229d24c` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 52
+- [x] Re-ground `RUNTIME-002` from the canonical story spreadsheet,
+  `SourceModelHttpConditionalTest`, `Generation304MigrationTest`, and the conditional download
+  path in `SourceModel`.
+- [x] Strengthen connected mixed-network proof so the 200/304/500 run asserts conditional
+  `If-None-Match` and `If-Modified-Since` request headers for every source.
+- [x] Patch production only if the proof exposes a real conditional GET, 304 carry-forward, or
+  failed-source preservation defect.
+- [x] Run the focused connected conditional GET test class.
+- [x] Run the standard local Gradle gate and the full connected suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 52
+- Starting state: `RUNTIME-002` was `Covered by tests`, but its `test_state` still said
+  `Needs mixed network test`. Local inspection showed `SourceModelHttpConditionalTest` already had
+  a connected mixed 200/304/HTTP 500 preservation test, while the remaining proof gap was that the
+  mixed run did not assert conditional request headers for every source.
+- Strengthened `SourceModelHttpConditionalTest` with a path-indexed MockWebServer request drain.
+  The changed+304 test now proves two conditional GET requests, and the mixed 200/304/500 test
+  proves three conditional GET requests while keeping the active-generation, carry-forward,
+  failure metadata, and runtime resolution assertions.
+- No production patch was needed in this loop. The first focused run failed for a test-scope
+  reason: the three-source assertion was initially placed in the two-source changed+304 test.
+  After correcting that scope, the focused connected class passed.
+- Focused connected conditional gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelHttpConditionalTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
   `adaway-api34`.
 - Standard local gate passed with the same JDK:
   `test --dependency-verification=strict --stacktrace`.
