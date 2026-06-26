@@ -8482,3 +8482,36 @@
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 135
   tests on `adaway-api34` with 3 skipped and 0 failed.
 - PR CI recheck is pending until this fix is pushed.
+
+## Plan - 2026-06-26 Story Fix Loop 29
+- [x] Re-ground `DISC-005` from the canonical story spreadsheet and current Discover
+  FilterLists implementation.
+- [x] Add a connected user-path proof for directory search, tag filtering, language filtering,
+  DNS-safe compatibility filtering, and no-match state.
+- [x] Seed deterministic cached FilterLists directory data so the test does not depend on the
+  live FilterLists.com API.
+- [x] Run the focused connected `DISC-005` test and patch production only if it exposes a real
+  behavior defect.
+- [x] Run the standard local Gradle gate and full connected suite.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 29
+- Starting state: `DISC-005` was `Partially covered`; its canonical row tracked
+  `Needs UX flow test`.
+- Added `DiscoverFilterListsFiltersInstrumentedTest`, a connected test that launches Discover,
+  uses cached FilterLists directory data, then drives the real search field, Regional tag chip,
+  English language spinner, DNS-safe-only switch, and no-match search state.
+- The focused connected test passed on the first run, so no production code was changed for this
+  slice.
+- Focused connected `DISC-005` gate passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverFilterListsFiltersInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 136
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: this proves the control behavior and visible-row scope on device; broader
+  Discover visual coverage across device sizes remains part of the UX matrix/release sweep.
