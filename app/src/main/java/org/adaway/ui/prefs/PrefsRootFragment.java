@@ -97,7 +97,10 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        Context context = requireContext();
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
         // Restart web server on icon change
         if (context.getString(R.string.pref_webserver_icon_key).equals(key) && isWebServerRunning()) {
             stopWebServer();

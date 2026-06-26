@@ -9299,7 +9299,10 @@
 - [x] Patch production only if the proof exposes a real switch-flow or navigation defect.
 - [x] Run the focused connected switch-flow test and the standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit `48e9864f test: cover preference method switching` and push PR #6.
+- [x] Triage the failed remote Connected Android tests job on `48e9864f`.
+- [x] Patch the exposed `PrefsRootFragment` detached-listener crash and verify locally.
+- [ ] Commit, push, and recheck PR CI for the lifecycle fix.
 
 ## Review - 2026-06-26 Story Fix Loop 47
 - Starting state: `PREF-002` was `Partially covered`; source-text/security tests covered pieces
@@ -9324,3 +9327,52 @@
   `adaway-api34`.
 - Standard local gate passed with the same JDK:
   `test --dependency-verification=strict --stacktrace`.
+- Commit `48e9864f test: cover preference method switching` was pushed to PR #6.
+  Development build, Validate locales, Analyze (java), Analyze (cpp), and CodeQL passed, but
+  remote Connected Android tests failed in `PrefsVpnSettingsInstrumentedTest` because a detached
+  `PrefsRootFragment` preference listener called `requireContext()` after a full-suite preference
+  reset.
+- Patched `PrefsRootFragment.onSharedPreferenceChanged(...)` to ignore callbacks after detach
+  instead of crashing on `requireContext()`.
+- Focused CI-failure retest passed locally with
+  `PrefsAdBlockMethodSwitchInstrumentedTest,PrefsVpnSettingsInstrumentedTest`.
+
+## Plan - 2026-06-26 Story Fix Loop 48
+- [x] Re-ground `LIST-003` from the canonical story spreadsheet, list fragments,
+  dialog layouts, `ListsActivity`, `ListsViewModel`, and current DB tests.
+- [x] Add a connected user-path proof that the real Lists FAB/dialog flow stores blocked,
+  allowed, and redirected user rules in `hosts_lists` with the right type, source, enabled state,
+  and redirect IP.
+- [x] Patch production only if the proof exposes a real add-flow, validation, persistence, or UX
+  defect.
+- [x] Run the focused connected add-rule test and standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 48
+- Starting state: `LIST-003` was `Partially covered`; DB/runtime tests covered direct user-rule
+  inserts, and source-text tests covered redirected IP policy, but no connected test drove the real
+  Lists FAB, tab routing, dialog validation path, and ViewModel persistence.
+- A read-only explorer confirmed the expected behavior: `ListsActivity` routes the FAB to the
+  current tab, blocked add accepts valid multiline hostnames, allowed add accepts wildcard
+  hostnames, redirected add requires hostname plus public redirect IP, and `ListsViewModel` stores
+  enabled `USER_SOURCE_ID` rows before surfacing the apply snackbar.
+- Added `ListsAddUserRulesInstrumentedTest`, using a private Room database swapped into the app
+  singleton. The test launches real `ListsActivity`, drives blocked/allowed/redirected FAB dialogs,
+  fills the real text fields through accessibility, clicks Add, and asserts the resulting
+  `hosts_lists` rows by type/source/enabled/redirection.
+- The first red runs exposed a test harness idle problem, not an add-flow defect:
+  `ActivityScenario.close()` and later `ActivityScenario.onActivity()` waited forever after the
+  add flow. The test now avoids global-idle waits for post-add actions by using the lifecycle
+  monitor plus `runOnMainSync`, and teardown finishes resumed activities directly.
+- No `LIST-003` production patch was needed. The only production patch in this work batch is the
+  `PrefsRootFragment` detached-listener guard from the remote CI failure.
+- Focused connected add-rule gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsAddUserRulesInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 160
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
