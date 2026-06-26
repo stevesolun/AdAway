@@ -8970,3 +8970,47 @@
 - Remaining boundary: `HOME-006` is device-covered for the deterministic local source path; the
   broader visual matrix remains under `REL-004`, and real network/update-source behavior remains
   under `RUNTIME-001` and `RUNTIME-010`.
+
+## Plan - 2026-06-26 Story Fix Loop 40
+- [x] Re-ground `HOME-010` from the canonical story spreadsheet and the real Home leak-status
+  rendering path.
+- [x] Add a focused connected proof that launches Home with VPN mode selected, Private DNS set on
+  the device, app-managed VPN bypass enabled, user-app exclusions configured, and system-app
+  exclusions configured.
+- [x] Assert the visible Home leak card summarizes every risk and exposes the expected Private DNS
+  and VPN settings actions.
+- [x] Patch production only if the connected proof exposes a real leak-status rendering defect.
+- [x] Run the focused connected leak-status test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 40
+- Starting state: `HOME-010` was `Partially covered`; leak-state semantics had unit coverage, but
+  the real Home card had no connected proof that Android Private DNS globals and VPN
+  bypass/exclusion preferences render as user-visible warnings with settings actions.
+- Added `HomeLeakStatusInstrumentedTest`, a connected test that stores the emulator's original
+  `private_dns_mode` and `private_dns_specifier`, sets Private DNS to `hostname` /
+  `dns.example`, selects VPN mode while stopped, enables app-managed bypass, seeds two excluded
+  user apps, and marks all system apps excluded.
+- The test launches real `HomeActivity` and asserts the leak card shows `4 risks need attention`,
+  VPN selected but not running, the Private DNS provider, Browser DoH bypass risk, app-managed VPN
+  bypass, two excluded user apps, all system apps excluded, the strict-mode hint, and visible
+  Private DNS / VPN settings actions.
+- No production code changed for `HOME-010`; the slice device-proves existing Home leak-status
+  rendering for the high-risk settings state.
+- Focused connected Home leak-status gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeLeakStatusInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 150
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Post-test device checks confirmed `private_dns_mode` and `private_dns_specifier` were restored
+  to `null` after the focused and full connected runs.
+- Remaining boundary: the warning UI is device-covered for seeded Android Private DNS and VPN
+  bypass/exclusion states; actual Always-on VPN and block-without-VPN OS toggle walkthroughs stay
+  under release-smoke/manual settings coverage.
