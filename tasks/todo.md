@@ -9114,3 +9114,48 @@
 - Remaining boundary: the real toolbar update-all dispatch and apply ordering are device-proven
   for a deterministic local source; real network download/parse/update-all scale remains under
   `RUNTIME-001` and `RUNTIME-010`.
+
+## Plan - 2026-06-26 Story Fix Loop 43
+- [x] Re-ground `SRC-003` and `SRC-004` from the canonical story spreadsheet and current
+  `SourceEditActivity` / Sources FAB code.
+- [x] Add a connected proof that opens the real Sources add sheet, launches custom source add,
+  rejects an invalid URL without inserting a source, saves a valid custom HTTPS source, then
+  reopens the visible source row for editing.
+- [x] Assert edit save replaces the source URL/label/format metadata deterministically in Room.
+- [x] Patch production only if the connected proof exposes a real add/edit validation or save
+  defect.
+- [x] Run the focused connected source add/edit test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 43
+- Starting state: `SRC-003` and `SRC-004` were `Not tested`; the code showed the real add path is
+  `HostsSourcesFragment` FAB -> add-options bottom sheet -> `SourceEditActivity`, while edit opens
+  `SourceEditActivity` from the displayed source card.
+- Added `SourceEditAddEditInstrumentedTest`, a connected test that launches `HomeActivity`,
+  navigates to Sources, opens the real Sources FAB add-options sheet, chooses Custom source,
+  rejects an invalid HTTP URL without inserting a row, saves a valid HTTPS source, reopens the
+  visible source card, and saves edited label/URL/allow-format metadata.
+- The first red runs found harness gaps in the test: the add-options bottom sheet lives in a dialog
+  window, and AppCompat toolbar actions were not reachable through `invokeMenuActionSync`. The
+  final test drives those visible actions through accessibility and synchronizes on Room state.
+- The connected proof exposed a real production lifecycle defect: `SourceEditActivity` saved the
+  source on `diskIO()` and then called `finish()` from that background executor. The apply path now
+  posts `finish()` back to `AppExecutors.mainThread()`, matching the existing delete-source path.
+- Red/green note: after the production fix, the data assertions passed but `ActivityScenario.close()`
+  hung on Android global-idle cleanup. The final test follows the existing Sources update-all
+  connected-test pattern and lets teardown finish resumed activities instead of using the
+  idle-prone close path.
+- Focused connected Sources add/edit gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.source.SourceEditAddEditInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 153
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Remaining boundary: custom HTTPS URL add and visible source-row edit are device-proven; file
+  picker source selection and FilterLists manual-add metadata stay under their separate Discover
+  and file-source stories.

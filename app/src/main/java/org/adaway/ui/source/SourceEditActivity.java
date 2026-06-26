@@ -276,7 +276,7 @@ public class SourceEditActivity extends AppCompatActivity {
                     this.hostsSourceDao.delete(this.edited);
                 }
                 this.hostsSourceDao.insert(source);
-                finish();
+                AppExecutors.getInstance().mainThread().execute(this::finish);
             });
             return true;
         } else if (item.getItemId() == R.id.auto_update_action) {
