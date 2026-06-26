@@ -9391,7 +9391,7 @@
 - [x] Run the focused connected onboarding test.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
 - [x] Run the standard local Gradle gate.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 49
 - Starting state: `ONB-001` and `ONB-002` were `Partially covered`; unit/source-contract tests
@@ -9422,4 +9422,50 @@
   `test --dependency-verification=strict --stacktrace`.
 - Full connected Android suite passed locally with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 164
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `28f65a62 test: cover onboarding first run` was pushed to PR #6.
+- Final PR CI recheck for head `28f65a62` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 50
+- [x] Re-ground `HOME-001`, `HOME-002`, and `HOME-003` from the canonical story spreadsheet,
+  `HomeActivity`, `HomeFragment`, Home layouts/resources, and current Home connected/unit tests.
+- [x] Add connected user-path proof for passive Home launch defaulting to the Home tab, all four
+  bottom navigation destinations, singleTop Discover deep-entry freshness, and visible
+  active/off protection state rendering.
+- [x] Patch production only if the proof exposes a real Home shell, navigation, or status-rendering
+  defect.
+- [x] Run the focused connected Home launch/navigation/state test.
+- [x] Run the standard local Gradle gate and broader connected gate if isolation risk is present.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 50
+- Starting state: `HOME-001`, `HOME-002`, and `HOME-003` were `Partially covered`;
+  source-contract tests and UX screenshots covered the shell textually/visually, but there was no
+  connected proof that passive launch selects the real Home tab, that users can traverse all four
+  bottom-nav destinations, or that the Home hero reacts to live active/off protection state.
+- A read-only explorer confirmed the expected contract: configured passive launch defaults to
+  `HomeFragment`, first install redirects to onboarding instead, Discover deep intents must update
+  `Activity.getIntent()`, bottom nav routes Home/Discover/Sources/More inside one shell, and
+  `HomeFragment` renders `Protection off`/`Protection active` from `AdBlockModel.isApplied()`.
+- Added `HomeLaunchNavigationStateInstrumentedTest`, which injects a deterministic
+  `AdBlockModel`, launches real `HomeActivity`, asserts passive launch on `HomeFragment`, verifies
+  all four real `BottomNavigationView` destinations, calls `onNewIntent(...)` for the singleTop
+  Discover path, and toggles the model state through off/active/off while asserting visible status
+  text.
+- The first red run exposed a connected-test harness cleanup issue, not a production defect:
+  assertions passed, but `ActivityScenario.close()` timed out waiting for a resumed `HomeActivity`
+  to become destroyed. The test now uses explicit lifecycle-monitor cleanup, matching the stable
+  list/preferences connected tests.
+- No production patch was needed in this loop.
+- Focused connected Home shell gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 3 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
   tests on `adaway-api34`, with 3 skipped and 0 failed.
