@@ -9014,3 +9014,44 @@
 - Remaining boundary: the warning UI is device-covered for seeded Android Private DNS and VPN
   bypass/exclusion states; actual Always-on VPN and block-without-VPN OS toggle walkthroughs stay
   under release-smoke/manual settings coverage.
+
+## Plan - 2026-06-26 Story Fix Loop 41
+- [x] Re-ground `SRC-002` from the canonical story spreadsheet and the real Sources toggle path.
+- [x] Add a focused connected proof that launches Home, navigates to Sources, drives the real
+  source-row switch checked-change listener, and observes the pending apply snackbar.
+- [x] Assert the toggle persists to both `hosts_sources` and downloaded `hosts_lists` rows.
+- [x] Click the snackbar Apply action and assert the ad-blocking apply boundary is reached without
+  network-dependent fixture data.
+- [x] Patch production only if the connected proof exposes a real Sources toggle/apply defect.
+- [x] Run the focused connected Sources toggle test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 41
+- Starting state: `SRC-002` was `Partially covered`; apply-feedback copy had unit coverage, but
+  the real Sources screen did not have connected evidence for changing a source, persisting row
+  state, showing pending apply, and reaching the apply boundary.
+- Added `SourcesToggleApplyInstrumentedTest`, a connected test that launches `HomeActivity`,
+  navigates to Sources, seeds one deterministic local source with one active host row, verifies the
+  displayed source switch, drives the switch checked-change listener off, and asserts both
+  `hosts_sources` and `hosts_lists` reflect the disabled state.
+- The test injects a local-sync `SourceModel` and recording `AdBlockModel` so the proof stays on
+  the real Home/Sources UI and Room path without depending on external filter-list network I/O.
+- During red/green work, Espresso and `ActivityScenario.onActivity()` snackbar polling repeatedly
+  hung on Android global-idle waits. The final test uses bounded UI-tree checks on the main thread
+  for snackbar text/action and lets database/apply assertions prove behavior. A low-level
+  `SwitchMaterial.performClick()` run was observed once as passed in logcat but was not stable
+  enough for the verifier, so this slice records a checked-change listener proof rather than a
+  tap-dispatch proof.
+- No production code changed for `SRC-002`; the slice adds connected coverage for existing
+  source-toggle persistence and pending apply behavior.
+- Focused connected Sources toggle/apply gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.SourcesToggleApplyInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Remaining boundary: real tap dispatch on the source switch and real network update-all stay under
+  `SRC-005` / runtime update stories; `ApplyConfigurationSnackbarContractTest` continues to cover
+  the success and failure copy contract.
