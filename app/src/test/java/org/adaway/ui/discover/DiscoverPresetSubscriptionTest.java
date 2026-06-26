@@ -596,8 +596,11 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("rowState + \". \" + capabilitySummary"));
         assertTrue("Unsupported rows must show manual-review status copy.",
                 source.contains("FilterListCompatibility.rowSummary(s.syntaxIds)"));
-        assertTrue("Capability disclosure needs room for description plus support detail.",
-                layout.contains("android:maxLines=\"3\""));
+        String descriptionView = xmlTagById(layout, "filterlistsItemDesc");
+        assertFalse("Capability disclosure must wrap instead of clipping the description.",
+                descriptionView.contains("android:maxLines="));
+        assertFalse("Capability disclosure must not ellipsize support detail.",
+                descriptionView.contains("android:ellipsize="));
     }
 
     @Test
@@ -623,5 +626,16 @@ public class DiscoverPresetSubscriptionTest {
 
     private static String normalizeLineEndings(String value) {
         return value.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    private static String xmlTagById(String layout, String id) {
+        String needle = "android:id=\"@+id/" + id + "\"";
+        int idIndex = layout.indexOf(needle);
+        assertTrue("Expected layout to contain " + needle, idIndex >= 0);
+        int tagStart = layout.lastIndexOf("<", idIndex);
+        int tagEnd = layout.indexOf("/>", idIndex);
+        assertTrue("Expected " + id + " to be declared in a self-closing XML tag",
+                tagStart >= 0 && tagEnd > idIndex);
+        return layout.substring(tagStart, tagEnd);
     }
 }

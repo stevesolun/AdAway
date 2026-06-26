@@ -8451,6 +8451,7 @@
 - [x] Confirm whether the failure is a production crash, native crash, ANR, emulator noise, or a
   deterministic UX/accessibility issue.
 - [x] Patch the smallest production layout surface that caused the failure.
+- [x] Update the stale unit contract after CI's clean run exposed the old three-line cap assertion.
 - [x] Rerun the focused UX matrix connected test.
 - [x] Rerun the standard local Gradle gate and full local connected Android suite.
 - [ ] Push the fix and recheck PR CI.
@@ -8464,6 +8465,12 @@
   Long third-party descriptions could therefore be clipped in the directory UI.
 - Fixed the FilterLists row layout to let description and capability text wrap fully instead of
   truncating.
+- The first pushed fix exposed a clean-run unit-test failure:
+  `DiscoverPresetSubscriptionTest.filterListsRowsExposeCapabilityDisclosure` still asserted the
+  old `android:maxLines="3"` contract. Forced local rerun reproduced it, and the contract now
+  asserts that `filterlistsItemDesc` has neither `android:maxLines` nor `android:ellipsize`.
+- CI-equivalent unit gate passed after the contract update:
+  `test --dependency-verification=strict --stacktrace --rerun-tasks`.
 - Focused UX matrix gate passed:
   `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.UxDeviceMatrixTest
   :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
