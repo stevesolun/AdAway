@@ -330,7 +330,11 @@ public class SecurityHardeningTest {
         assertTrue("OpenDNS IPv6 DoH endpoint must be blocked when IPv6 is configured.",
                 dnsServerMapper.contains("2620:119:35::35"));
         assertTrue("IPv6 DoH routes must use host-prefix /128 routes.",
-                dnsServerMapper.contains("addDohBlockRoute(builder, ip, 128)"));
+                dnsServerMapper.contains("addDohRoutes(routes, DOH_PROVIDER_IPV6, 128)"));
+        assertTrue("Production VPN configuration must apply the shared DoH route plan.",
+                dnsServerMapper.contains("for (DohRoute route : commonDohBlockRoutes(includeIpv6))") &&
+                        dnsServerMapper.contains(
+                                "builder.addRoute(route.address, route.prefixLength)"));
     }
 
     @Test

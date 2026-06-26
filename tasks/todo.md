@@ -9528,7 +9528,7 @@
 - [x] Run the focused connected conditional GET test class.
 - [x] Run the standard local Gradle gate and the full connected suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 52
 - Starting state: `RUNTIME-002` was `Covered by tests`, but its `test_state` still said
@@ -9546,6 +9546,52 @@
   `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
   `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelHttpConditionalTest
   :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `fb8bad9a test: cover mixed conditional source updates` was pushed to PR #6.
+- Final PR CI recheck for head `fb8bad9a` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 53
+- [x] Re-ground `RUNTIME-012` from the canonical story spreadsheet, `DnsServerMapper`,
+  `LeakStatus`, Home leak strings, `SecurityHardeningTest`, and `HomeLeakStatusInstrumentedTest`.
+- [x] Add behavior-level DoH route-plan proof for common IPv4 and IPv6 provider routes, while
+  preserving copy that discloses finite coverage instead of promising universal encrypted-DNS
+  blocking.
+- [x] Patch production only if the proof exposes a real route-planning, leak-status, or
+  false-guarantee defect.
+- [x] Run focused route/security JVM tests and the connected Home leak-status test.
+- [x] Run the standard local Gradle gate and the full connected suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 53
+- Starting state: `RUNTIME-012` was `Partially covered`; `SecurityHardeningTest` only scanned
+  source text for DoH provider constants, `LeakStatusTest` covered risk classification, and
+  `HomeLeakStatusInstrumentedTest` covered the visible stopped-VPN/Private-DNS/bypass risk state.
+  There was no behavior test proving the route plan that production VPN configuration applies.
+- Added `DnsServerMapperDohRoutesTest` test-first. The first focused run failed at compilation
+  because `DnsServerMapper.DohRoute` and `commonDohBlockRoutes(boolean)` did not exist.
+- Added a package-visible route-plan seam in `DnsServerMapper` and rewired production
+  `addDohBlockRoutes(...)` to iterate that plan. The route test now proves eight IPv4 `/32` common
+  DoH provider routes and eight IPv6 `/128` common provider routes when IPv6 is configured.
+- Updated the stale security source guard to assert production applies
+  `commonDohBlockRoutes(includeIpv6)` and that IPv6 DoH routes are still planned as `/128` host
+  routes.
+- This does not claim universal encrypted-DNS interception. The product copy still says common DoH
+  providers are routed and other encrypted DNS may bypass filtering, and real Android VPN tunnel
+  interception remains tracked by `RUNTIME-008`.
+- Focused JVM gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest --tests org.adaway.vpn.dns.DnsServerMapperDohRoutesTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`.
+- Focused connected Home leak-status gate passed with the same JDK:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeLeakStatusInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
   `adaway-api34`.
 - Standard local gate passed with the same JDK:
   `test --dependency-verification=strict --stacktrace`.

@@ -126,24 +126,45 @@ public class DnsServerMapper {
      * will be silently dropped, forcing browsers to fall back to system UDP/53 DNS.
      */
     private void addDohBlockRoutes(VpnService.Builder builder, boolean includeIpv6) {
-        for (String ip : DOH_PROVIDER_IPV4) {
-            addDohBlockRoute(builder, ip, 32);
-        }
-        if (!includeIpv6) {
-            return;
-        }
-        for (String ip : DOH_PROVIDER_IPV6) {
-            addDohBlockRoute(builder, ip, 128);
+        for (DohRoute route : commonDohBlockRoutes(includeIpv6)) {
+            builder.addRoute(route.address, route.prefixLength);
+            Timber.d("Added DoH block route for %s/%d.",
+                    route.address.getHostAddress(), route.prefixLength);
         }
     }
 
-    private void addDohBlockRoute(VpnService.Builder builder, String ip, int prefixLength) {
-        try {
-            InetAddress address = InetAddress.getByName(ip);
-            builder.addRoute(address, prefixLength);
-            Timber.d("Added DoH block route for %s/%d.", ip, prefixLength);
-        } catch (UnknownHostException e) {
-            Timber.w(e, "Failed to add DoH block route for %s.", ip);
+    static List<DohRoute> commonDohBlockRoutes(boolean includeIpv6) {
+        List<DohRoute> routes = new ArrayList<>(DOH_PROVIDER_IPV4.length
+                + (includeIpv6 ? DOH_PROVIDER_IPV6.length : 0));
+        addDohRoutes(routes, DOH_PROVIDER_IPV4, 32);
+        if (includeIpv6) {
+            addDohRoutes(routes, DOH_PROVIDER_IPV6, 128);
+        }
+        return routes;
+    }
+
+    private static void addDohRoutes(List<DohRoute> routes, String[] addresses, int prefixLength) {
+        for (String address : addresses) {
+            routes.add(DohRoute.from(address, prefixLength));
+        }
+    }
+
+    static final class DohRoute {
+        final InetAddress address;
+        final int prefixLength;
+
+        private DohRoute(InetAddress address, int prefixLength) {
+            this.address = address;
+            this.prefixLength = prefixLength;
+        }
+
+        static DohRoute from(String address, int prefixLength) {
+            try {
+                return new DohRoute(InetAddress.getByName(address), prefixLength);
+            } catch (UnknownHostException exception) {
+                throw new IllegalStateException("Invalid hardcoded DoH route: " + address,
+                        exception);
+            }
         }
     }
 
