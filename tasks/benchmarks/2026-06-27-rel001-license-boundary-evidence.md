@@ -18,8 +18,20 @@ pwsh -NoProfile -File scripts/check-license-boundary.ps1 \
   -SourceMode WorkingTree \
   -ReportPath tasks/benchmarks/2026-06-27-rel001-license-boundary-workingtree-report.md
 
+pwsh -NoProfile -File scripts/check-license-boundary.ps1 \
+  -SourceMode GitTracked \
+  -StrictSourceArchive \
+  -ReportPath tasks/benchmarks/2026-06-27-rel001-license-boundary-gittracked-strict-source-archive-report.md
+
 ./gradlew --no-daemon --no-build-cache :app:testDebugUnitTest \
   --tests org.adaway.security.SecurityHardeningTest \
+  --dependency-verification=strict --stacktrace
+
+./gradlew --no-daemon --no-build-cache :app:testDebugUnitTest \
+  --tests org.adaway.security.SecurityHardeningTest \
+  --tests org.adaway.scripts.ReleaseReadinessScriptTest \
+  --tests org.adaway.scripts.UxMatrixScriptTest \
+  --tests org.adaway.model.update.ApkIntegrityVerifierTest \
   --dependency-verification=strict --stacktrace
 ```
 
@@ -32,14 +44,22 @@ Raw artifacts:
 - `tasks/benchmarks/2026-06-27-rel001-license-boundary-workingtree.out.log`
 - `tasks/benchmarks/2026-06-27-rel001-license-boundary-workingtree.err.log`
 - `tasks/benchmarks/2026-06-27-rel001-license-boundary-workingtree.exitcode`
+- `tasks/benchmarks/2026-06-27-rel001-license-boundary-gittracked-strict-source-archive-report.md`
+- `tasks/benchmarks/2026-06-27-rel001-license-boundary-gittracked-strict-source-archive.out.log`
+- `tasks/benchmarks/2026-06-27-rel001-license-boundary-gittracked-strict-source-archive.err.log`
+- `tasks/benchmarks/2026-06-27-rel001-license-boundary-gittracked-strict-source-archive.exitcode`
 
 Result:
 
 ```text
 GitTracked report: Status passed, Source entries inspected 2416, Issues 0
 WorkingTree report: Status passed, Source entries inspected 2169, Issues 0
-Both reports: MIT release status: blocked until GPL-derived material is cleared
+Strict source archive report: Status passed, Source entries inspected 2425,
+  Source archive entries inspected 2115, Issues 0
+All reports: MIT release status: blocked until GPL-derived material is cleared
 SecurityHardeningTest: BUILD SUCCESSFUL in 18s
+SecurityHardeningTest + ReleaseReadinessScriptTest + UxMatrixScriptTest +
+  ApkIntegrityVerifierTest: BUILD SUCCESSFUL in 31s
 ```
 
 The local source boundary checks prove the working tree and tracked sources do not contain a

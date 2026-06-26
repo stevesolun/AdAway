@@ -9750,7 +9750,9 @@
 ## Plan - 2026-06-27 REL-001 Local Source Boundary Reports
 - [x] Install the missing Mac PowerShell prerequisite required by the release scripts.
 - [x] Run GitTracked and WorkingTree license-boundary reports on current head.
+- [x] Run GitTracked strict source-archive license-boundary report on the local evidence head.
 - [x] Run focused `SecurityHardeningTest` coverage for the license-boundary guard.
+- [x] Run the focused release/update script contract bundle for release gate coverage.
 - [x] Record REL-001 source-scan evidence without closing the legal/provenance gate.
 
 ## Review - 2026-06-27 REL-001 Local Source Boundary Reports
@@ -9762,11 +9764,21 @@
 - Generated source-boundary reports for current head `6cb4d35b5178beb15625e8a4d6c8be6f7e5c9ef2`:
   `SourceMode GitTracked` inspected `2416` entries and `SourceMode WorkingTree` inspected `2169`
   entries. Both reports passed with `Issues: 0`.
+- Generated a strict source-archive report on local evidence head
+  `fe5f66da46c149829d6d3883d6e9d532c06b71e2`: `SourceMode GitTracked
+  -StrictSourceArchive` inspected `2425` source entries and `2115` source archive entries, with
+  `Issues: 0`.
 - Both reports still state `MIT release status: blocked until GPL-derived material is cleared`.
   This is evidence that the source guard is clean; it is not legal/provenance clearance and does
   not satisfy final artifact license readiness.
 - Focused guard regression coverage passed:
   `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
+  --dependency-verification=strict --stacktrace`.
+- Focused release/update source-contract bundle passed:
+  `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
+  --tests org.adaway.scripts.ReleaseReadinessScriptTest
+  --tests org.adaway.scripts.UxMatrixScriptTest
+  --tests org.adaway.model.update.ApkIntegrityVerifierTest
   --dependency-verification=strict --stacktrace`.
 - REL-001 is advanced with local source-report evidence, but remains open for legal review and
   release artifact boundary proof.
