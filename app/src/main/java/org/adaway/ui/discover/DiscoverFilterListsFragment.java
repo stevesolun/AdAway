@@ -887,6 +887,8 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void subscribeAll() {
         if (binding == null) return;
+        Context appContext = requireContext().getApplicationContext();
+        FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
         binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
         binding.filterlistsSubscribeAllStatus.setText(R.string.filterlists_status_preparing);
         setSubscribeAllStopping(false);
@@ -916,7 +918,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
-        WorkManager wm = WorkManager.getInstance(requireContext());
+        WorkManager wm = WorkManager.getInstance(appContext);
         wm.enqueueUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request);
 
         showSnackbar(getString(R.string.filterlists_running_in_background));
@@ -1031,7 +1033,9 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void cancelSubscribeAll() {
         if (binding == null) return;
-        WorkManager.getInstance(requireContext())
+        Context appContext = requireContext().getApplicationContext();
+        FilterListsSubscribeAllWorker.requestCancel(appContext);
+        WorkManager.getInstance(appContext)
                 .cancelUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME);
         setSubscribeAllStopping(true);
         bulkOperationRunning = true;
@@ -1118,6 +1122,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     private void retryLastRunNoUrlLists() {
         if (binding == null) return;
         Context appContext = requireContext().getApplicationContext();
+        FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
         SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
         int[] retryIds = parseRetryableNoUrlIds(outcomes != null ? outcomes : "");

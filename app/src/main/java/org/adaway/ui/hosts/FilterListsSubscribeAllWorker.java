@@ -58,6 +58,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
     private static final String PREFS = "filterlists_cache";
     private static final String KEY_URL_PREFIX = "listUrl_";
+    private static final String KEY_CANCEL_REQUESTED = "subscribeAllCancelRequested";
     private static final int MAX_PARALLEL_DETAILS = 8;
     private static final int BATCH_DB = 200;
     private static final int BATCH_PREFS = 200;
@@ -97,6 +98,20 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
     public FilterListsSubscribeAllWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
+    }
+
+    public static boolean prepareForNewRun(@NonNull Context context) {
+        return sDependencies.getCachePreferences(context.getApplicationContext())
+                .edit()
+                .putBoolean(KEY_CANCEL_REQUESTED, false)
+                .commit();
+    }
+
+    public static boolean requestCancel(@NonNull Context context) {
+        return sDependencies.getCachePreferences(context.getApplicationContext())
+                .edit()
+                .putBoolean(KEY_CANCEL_REQUESTED, true)
+                .commit();
     }
 
     /**
@@ -190,7 +205,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
             // Process cached items immediately (no network).
             for (FilterListsDirectoryApi.ListSummary s : lists) {
-                if (isStopped()) {
+                if (isCancellationRequested(prefs)) {
                     return finishCancelled(pool, notificationManager, recorder);
                 }
                 String cached = prefs.getString(KEY_URL_PREFIX + s.id, null);
@@ -199,7 +214,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
                 }
 
                 String url = cached == null || cached.isEmpty() ? null : cached;
-                if (isStopped()) {
+                if (isCancellationRequested(prefs)) {
                     return finishCancelled(pool, notificationManager, recorder);
                 }
                 recorder.accept(s.id, s.name, s.syntaxIds, s.tagIds, s.languageIds, url);
@@ -216,7 +231,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
             // Now process uncached items as their network results complete (out of order, faster).
             while (pending > 0) {
-                if (isStopped()) {
+                if (isCancellationRequested(prefs)) {
                     return finishCancelled(pool, notificationManager, recorder);
                 }
                 Future<Resolved> future;
@@ -247,7 +262,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     continue;
                 }
                 pending--;
-                if (isStopped()) {
+                if (isCancellationRequested(prefs)) {
                     return finishCancelled(pool, notificationManager, recorder);
                 }
 
@@ -300,6 +315,10 @@ public class FilterListsSubscribeAllWorker extends Worker {
             );
             return Result.retry();
         }
+    }
+
+    private boolean isCancellationRequested(@NonNull SharedPreferences prefs) {
+        return isStopped() || prefs.getBoolean(KEY_CANCEL_REQUESTED, false);
     }
 
     private Result finishCancelled(ExecutorService pool, NotificationManager notificationManager,

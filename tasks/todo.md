@@ -8528,7 +8528,7 @@
 - [x] Run the focused connected `DISC-009` test, the standard local Gradle gate, and full connected
   suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 30
 - Starting state: `DISC-009` was `Partially covered`; its canonical row tracked
@@ -8555,3 +8555,53 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 137
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Commit `6a14637e` was pushed and PR #6 CI passed: Development build, Connected Android tests,
+  locale validation, CodeQL Java/C++ analysis, and CodeQL status all reported success.
+
+## Plan - 2026-06-26 Story Fix Loop 31
+- [x] Re-ground `DISC-010` from the canonical story spreadsheet and current Discover
+  FilterLists implementation.
+- [x] Confirm existing coverage boundary: source-text contracts cover unsupported-review wiring,
+  but no connected test drives the actual unsupported row/review/manual-add user path.
+- [x] Add a connected user-path proof that uses deterministic FilterLists API responses, opens an
+  unsupported row review, verifies compatibility disclosure, and confirms manual add opens the
+  source editor with the resolved URL.
+- [x] Patch production only if the focused proof exposes a real UX/logistical defect.
+- [x] Run the focused connected `DISC-010` test, standard local Gradle gate, and full connected
+  suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 31
+- Starting state: `DISC-010` was `Partially covered`; its canonical row tracked
+  `Needs manual dialog test`.
+- Added `DiscoverUnsupportedReviewInstrumentedTest`, a connected test that launches the real Home
+  shell, navigates to Discover, loads deterministic unsupported FilterLists data, opens the
+  unsupported review dialog, verifies the DNS capability disclosure and skipped browser-rule
+  semantics, then taps `Add manually` and asserts `SourceEditActivity` receives the resolved label,
+  URL, FilterLists ID, name, and selected URL extras.
+- The first focused test passed, but the full connected suite exposed a test isolation problem:
+  earlier Discover directory work could leave the fragment showing the live directory instead of
+  the test-owned row. The test now reseeds the cached directory after Discover is active and
+  invokes the existing retry/load action before applying the unique search filter.
+- The same full-suite loop also exposed a real `DISC-009` cancellation race: `cancelUniqueWork()`
+  can lag behind a resolved detail result, allowing source insertion and follow-up update enqueue
+  after the user taps cancel. `DiscoverFilterListsFragment` now writes a synchronous cancel marker
+  before calling WorkManager, and `FilterListsSubscribeAllWorker` checks that marker anywhere it
+  previously relied only on `isStopped()`.
+- Focused affected connected gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest,org.adaway.ui.hosts.FilterListsBulkUiInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Final focused `DISC-010` connected retest passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 138
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: the manual-add path is proven for an unsupported row with a usable resolved
+  URL; no-URL unsupported review and broader visual matrix coverage remain separate stories.
