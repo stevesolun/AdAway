@@ -8622,7 +8622,7 @@
 - [x] Run the focused connected bulk visible-actions test, standard local Gradle gate, and full
   connected suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 32
 - Starting state: `DISC-007` and `DISC-008` were `Partially covered`; their canonical rows
@@ -8652,5 +8652,49 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 139
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Committed and pushed as `bdb318d8`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: this proves filtered visible subscribe/remove; all-sources destructive remove
   remains covered by source contracts and should get its own device proof if prioritized.
+
+## Plan - 2026-06-26 Story Fix Loop 33
+- [x] Re-ground `NAV-001` from the canonical story spreadsheet and current Home navigation code.
+- [x] Add a connected user-path proof that launches `HomeActivity` with
+  `HomeActivity.EXTRA_NAV_DISCOVER=true` and asserts the selected bottom tab and fragment are
+  Discover without a manual post-launch navigation call.
+- [x] Add a connected Home no-source CTA proof that waits for the visible Browse Filter Lists CTA,
+  taps it, and asserts the same Discover destination.
+- [x] Patch production only if the focused proof exposes a real navigation defect.
+- [x] Run the focused connected direct-entry test, standard local Gradle gate, and full connected
+  suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 33
+- Starting state: `NAV-001` is `Partially covered`; source-text contracts and UX matrix coverage
+  exist, but the launch-intent path has no direct connected assertion.
+- Added `HomeDiscoverDeepEntryInstrumentedTest`, a connected test that launches the real
+  `HomeActivity` shell with `HomeActivity.EXTRA_NAV_DISCOVER=true` and asserts `nav_discover`,
+  the `DiscoverFragment`, and visible Discover content without calling `navigateTo()` after launch.
+- Added a second connected proof for the Home no-source CTA: the test clears external sources from
+  the launched app context on disk IO, waits for the visible `discoverCta`, taps it, and asserts the
+  same Discover destination.
+- The first focused run exposed a test harness issue, not production behavior: directly invoking
+  `HomeActivity.onNewIntent()` changed `Activity.getIntent()`, causing `ActivityScenario.close()`
+  to ignore the destroy lifecycle because the activity intent no longer matched the launch intent.
+- The second focused run exposed a setup issue: deleting sources before the activity launched did
+  not create the no-source UI state because the target app context seeded default sources at
+  startup. The final test now clears sources inside the launched activity context.
+- No production code was changed in this loop; the connected proofs verified existing behavior.
+- Focused connected deep-entry gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeDiscoverDeepEntryInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 141
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: FilterLists subscription progress text is still source-level covered as a
+  Discover navigation entry point; this slice proves the launch extra and Home no-source CTA.
