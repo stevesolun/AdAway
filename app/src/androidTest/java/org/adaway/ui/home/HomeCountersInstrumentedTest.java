@@ -1,0 +1,215 @@
+package org.adaway.ui.home;
+
+import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
+import static org.junit.Assert.assertTrue;
+
+import android.content.Context;
+import android.os.SystemClock;
+import android.widget.TextView;
+
+import androidx.test.core.app.ActivityScenario;
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import org.adaway.R;
+import org.adaway.db.AppDatabase;
+import org.adaway.db.entity.HostListItem;
+import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.ListType;
+import org.adaway.testing.InstrumentedTestState;
+import org.adaway.util.AppExecutors;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.time.ZonedDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+@RunWith(AndroidJUnit4.class)
+public class HomeCountersInstrumentedTest {
+    private static final int TIMEOUT_MS = 10_000;
+    private static final int ACTIVE_GENERATION = 7;
+    private static final int CURRENT_SOURCE_ID = 1201;
+    private static final int OUTDATED_SOURCE_ID = 1202;
+
+    private Context context;
+
+    @Before
+    public void setUp() {
+        this.context = ApplicationProvider.getApplicationContext();
+        InstrumentedTestState.resetForPassiveRootUi(this.context, "set up Home counters");
+    }
+
+    @After
+    public void tearDown() {
+        if (this.context != null) {
+            clearCounterFixture(this.context);
+            InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down Home counters");
+        }
+    }
+
+    @Test
+    public void homeCountersReflectSeededRuntimeAndSourceTruth() {
+        try (ActivityScenario<HomeActivity> scenario =
+                     ActivityScenario.launch(HomeActivity.class)) {
+            seedCounterFixture(scenario);
+
+            waitForText(scenario, R.id.blockedHostCounterTextView, "3");
+            waitForText(scenario, R.id.allowedHostCounterTextView, "2");
+            waitForText(scenario, R.id.redirectHostCounterTextView, "1");
+            waitForText(scenario, R.id.upToDateSourcesTextView, "1 up-to-date source");
+            waitForText(scenario, R.id.outdatedSourcesTextView, "1 outdated source");
+        }
+    }
+
+    private static void seedCounterFixture(ActivityScenario<HomeActivity> scenario) {
+        runOnDiskIo(scenario, activity -> {
+            AppDatabase database = AppDatabase.getInstance(activity);
+            resetCounterTables(database);
+
+            database.hostsSourceDao().insert(source(
+                    CURRENT_SOURCE_ID,
+                    "Counter current source",
+                    "https://counter-current.test/hosts.txt",
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z"),
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z")));
+            database.hostsSourceDao().insert(source(
+                    OUTDATED_SOURCE_ID,
+                    "Counter outdated source",
+                    "https://counter-outdated.test/hosts.txt",
+                    ZonedDateTime.parse("2026-05-01T00:00:00Z"),
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z")));
+
+            insertItem(database, "ads-one.example", ListType.BLOCKED, CURRENT_SOURCE_ID);
+            insertItem(database, "ads-two.example", ListType.BLOCKED, CURRENT_SOURCE_ID);
+            insertItem(database, "ads-three.example", ListType.BLOCKED, OUTDATED_SOURCE_ID);
+            insertItem(database, "allow-one.example", ListType.ALLOWED, USER_SOURCE_ID);
+            insertItem(database, "allow-two.example", ListType.ALLOWED, CURRENT_SOURCE_ID);
+            insertItem(database, "redirect-one.example", ListType.REDIRECTED, OUTDATED_SOURCE_ID);
+
+            database.hostsSourceDao().updateActiveRuleStats(CURRENT_SOURCE_ID);
+            database.hostsSourceDao().updateActiveRuleStats(OUTDATED_SOURCE_ID);
+            database.hostEntryDao().sync();
+        });
+    }
+
+    private static void clearCounterFixture(Context context) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            try {
+                resetCounterTables(AppDatabase.getInstance(context));
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            assertTrue(latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while clearing Home counter fixture.",
+                    interruptedException);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError("Failed to clear Home counter fixture.", failure.get());
+        }
+    }
+
+    private static void resetCounterTables(AppDatabase database) {
+        database.getOpenHelper().getWritableDatabase().execSQL("DELETE FROM hosts_lists");
+        database.hostEntryDao().clear();
+        database.hostsSourceDao().deleteAll();
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "INSERT OR REPLACE INTO hosts_meta (id, active_generation) VALUES (0, "
+                        + ACTIVE_GENERATION + ")");
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "INSERT OR REPLACE INTO hosts_stats "
+                        + "(id, blocked_count, blocked_exact_count, allowed_count, "
+                        + "redirected_count, active_rule_count) VALUES (0, 0, 0, 0, 0, 0)");
+    }
+
+    private static HostsSource source(int id, String label, String url,
+            ZonedDateTime localModificationDate, ZonedDateTime onlineModificationDate) {
+        HostsSource source = new HostsSource();
+        source.setId(id);
+        source.setLabel(label);
+        source.setUrl(url);
+        source.setEnabled(true);
+        source.setLocalModificationDate(localModificationDate);
+        source.setOnlineModificationDate(onlineModificationDate);
+        return source;
+    }
+
+    private static void insertItem(
+            AppDatabase database,
+            String host,
+            ListType type,
+            int sourceId) {
+        HostListItem item = new HostListItem();
+        item.setHost(host);
+        item.setType(type);
+        item.setEnabled(true);
+        item.setSourceId(sourceId);
+        item.setGeneration(ACTIVE_GENERATION);
+        if (type == ListType.REDIRECTED) {
+            item.setRedirection("127.0.0.1");
+        }
+        database.hostsListItemDao().insert(item);
+    }
+
+    private static void waitForText(
+            ActivityScenario<HomeActivity> scenario,
+            int viewId,
+            String expectedText) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            AtomicReference<String> actualText = new AtomicReference<>("");
+            scenario.onActivity(activity -> {
+                TextView view = activity.findViewById(viewId);
+                actualText.set(view == null ? "" : view.getText().toString());
+            });
+            if (expectedText.equals(actualText.get())) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("View " + viewId + " did not show \"" + expectedText + "\".");
+    }
+
+    private static void runOnDiskIo(
+            ActivityScenario<HomeActivity> scenario,
+            ActivityWork work) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        scenario.onActivity(activity -> AppExecutors.getInstance().diskIO().execute(() -> {
+            try {
+                work.run(activity);
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            } finally {
+                latch.countDown();
+            }
+        }));
+        try {
+            assertTrue(latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while seeding Home counter fixture.",
+                    interruptedException);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError("Failed to seed Home counter fixture.", failure.get());
+        }
+    }
+
+    private interface ActivityWork {
+        void run(HomeActivity activity);
+    }
+}

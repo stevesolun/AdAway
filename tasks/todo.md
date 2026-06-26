@@ -8698,3 +8698,40 @@
   tests on `adaway-api34` with 3 skipped and 0 failed.
 - Remaining boundary: FilterLists subscription progress text is still source-level covered as a
   Discover navigation entry point; this slice proves the launch extra and Home no-source CTA.
+
+## Plan - 2026-06-26 Story Fix Loop 34
+- [x] Re-ground `HOME-004` and `HOME-005` from the canonical story spreadsheet and current Home
+  counter bindings.
+- [x] Add a connected Home user-path proof that seeds known blocked, allowed, redirected,
+  up-to-date, and outdated source counts inside the launched app context.
+- [x] Assert the visible Home counter text matches the seeded runtime/source truth.
+- [x] Patch production only if the focused proof exposes a real counter or freshness defect.
+- [x] Run the focused connected Home counters test, standard local Gradle gate, and full connected
+  suite if the test mutates shared app data.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 34
+- Starting state: `HOME-004` is `Partially covered` with no visual/data device proof, and
+  `HOME-005` is `Needs connected data test`.
+- Added `HomeCountersInstrumentedTest`, a connected test that launches the real Home shell, seeds
+  known `hosts_lists`, `hosts_sources`, active generation, and runtime `host_entries` state through
+  the launched app context, then asserts visible blocked, allowed, redirected, up-to-date, and
+  outdated Home counters.
+- The seeded proof drives production `hostEntryDao.sync()` before asserting the UI, so the blocked
+  count follows the same runtime truth path that root-mode Home uses.
+- No production code was changed in this loop; the connected proof verified existing post-sync
+  counter and freshness behavior.
+- Focused connected Home counters gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeCountersInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 142
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: `HOME-004` still needs a focused active-operation proof for the counter-freeze
+  behavior during an in-progress update.
