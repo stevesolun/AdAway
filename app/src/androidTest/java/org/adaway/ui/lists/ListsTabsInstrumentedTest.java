@@ -30,6 +30,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.room.Room;
+import androidx.room.RoomDatabase;
+import androidx.sqlite.db.SimpleSQLiteQuery;
+import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -54,8 +58,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.reflect.Field;
+
 @RunWith(AndroidJUnit4.class)
 public class ListsTabsInstrumentedTest {
+    private static final String TEST_DATABASE_NAME = "lists-tabs-instrumented-test.db";
     private static final int TEST_SOURCE_ID = 919191;
     private static final String BLOCKED_HOST = "000-list-blocked-ui.invalid";
     private static final String ALLOWED_HOST = "000-list-allowed-ui.invalid";
@@ -67,28 +74,49 @@ public class ListsTabsInstrumentedTest {
     private AppDatabase database;
     private HostListItemDao hostListItemDao;
     private HostsSourceDao hostsSourceDao;
+    private AppDatabase previousDatabase;
+    private boolean databaseSingletonSwapped;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(context, "set up lists tabs");
-        database = AppDatabase.getInstance(context);
+        context.deleteDatabase(TEST_DATABASE_NAME);
+        database = Room.databaseBuilder(context, AppDatabase.class, TEST_DATABASE_NAME)
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .allowMainThreadQueries()
+                .build();
+        initializeTestDatabase(database.getOpenHelper().getWritableDatabase());
+        previousDatabase = swapAppDatabaseSingleton(database);
+        databaseSingletonSwapped = true;
         hostListItemDao = database.hostsListItemDao();
         hostsSourceDao = database.hostsSourceDao();
-        cleanup();
         insertSource();
         insertListItem(BLOCKED, BLOCKED_HOST, null);
         insertListItem(ALLOWED, ALLOWED_HOST, null);
         insertListItem(REDIRECTED, REDIRECTED_HOST, REDIRECT_IP);
+        assertVisibleRuntimeRow(BLOCKED, BLOCKED_HOST);
+        assertVisibleRuntimeRow(ALLOWED, ALLOWED_HOST);
+        assertVisibleRuntimeRow(REDIRECTED, REDIRECTED_HOST);
     }
 
     @After
-    public void tearDown() {
-        if (database != null) {
-            cleanup();
-        }
-        if (context != null) {
-            InstrumentedTestState.resetForPassiveRootUi(context, "tear down lists tabs");
+    public void tearDown() throws Exception {
+        try {
+            if (context != null) {
+                InstrumentedTestState.resetForPassiveRootUi(context, "tear down lists tabs");
+            }
+        } finally {
+            if (databaseSingletonSwapped) {
+                swapAppDatabaseSingleton(previousDatabase);
+                databaseSingletonSwapped = false;
+            }
+            if (database != null) {
+                database.close();
+            }
+            if (context != null) {
+                context.deleteDatabase(TEST_DATABASE_NAME);
+            }
         }
     }
 
@@ -229,10 +257,35 @@ public class ListsTabsInstrumentedTest {
         }
     }
 
-    private void cleanup() {
-        database.getOpenHelper().getWritableDatabase().execSQL(
-                "DELETE FROM hosts_lists WHERE source_id = ? OR host IN (?, ?, ?)",
-                new Object[]{TEST_SOURCE_ID, BLOCKED_HOST, ALLOWED_HOST, REDIRECTED_HOST});
-        hostsSourceDao.getById(TEST_SOURCE_ID).ifPresent(hostsSourceDao::delete);
+    private void assertVisibleRuntimeRow(@NonNull ListType type, @NonNull String host) {
+        try (Cursor cursor = database.getOpenHelper().getReadableDatabase().query(
+                new SimpleSQLiteQuery("SELECT COUNT(*) FROM hosts_lists "
+                        + "WHERE type = ? AND host = ? AND "
+                        + "(source_id = 1 OR generation = "
+                        + "(SELECT active_generation FROM hosts_meta WHERE id = 0))",
+                        new Object[]{type.getValue(), host}))) {
+            assertTrue(cursor.moveToFirst());
+            assertEquals("Seeded row must be visible to the lists runtime query: " + host,
+                    1, cursor.getInt(0));
+        }
+    }
+
+    private static void initializeTestDatabase(@NonNull SupportSQLiteDatabase writableDatabase) {
+        AppDatabase.optimizeCreatedDatabaseStorage(writableDatabase);
+        writableDatabase.execSQL("INSERT OR IGNORE INTO hosts_meta "
+                + "(id, active_generation) VALUES (0, 0)");
+        writableDatabase.execSQL("INSERT OR IGNORE INTO hosts_stats "
+                + "(id, blocked_count, blocked_exact_count, allowed_count, redirected_count, "
+                + "active_rule_count, root_export_materialized, root_export_stage_materialized) "
+                + "VALUES (0, 0, 0, 0, 0, 0, 0, 0)");
+    }
+
+    private static AppDatabase swapAppDatabaseSingleton(@Nullable AppDatabase database)
+            throws Exception {
+        Field field = AppDatabase.class.getDeclaredField("instance");
+        field.setAccessible(true);
+        AppDatabase previous = (AppDatabase) field.get(null);
+        field.set(null, database);
+        return previous;
     }
 }

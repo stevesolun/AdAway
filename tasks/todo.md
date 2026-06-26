@@ -8412,3 +8412,35 @@
   analysis, and locale validation all reported success.
 - Remaining related flows are tracked separately: `LIST-003` add user rule, `LIST-004` edit/delete,
   `LIST-005` toggle enabled state, and `LIST-006` downloaded-rule override.
+
+## Plan - 2026-06-26 Story Fix Loop 27
+- [x] Debug the branch-tip connected Android CI failure on `ccf571d2` before guessing at a fix.
+- [x] Pull CI logs/artifacts and classify the failure as test fixture state leakage, production
+  crash, native crash, ANR, or emulator noise.
+- [x] Make `ListsTabsInstrumentedTest` deterministic under the full connected suite without
+  changing production list behavior.
+- [x] Rerun the focused connected list-tab test and standard local Gradle gate.
+- [x] Rerun the full local connected Android suite that failed in CI.
+- [ ] Push the fix and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 27
+- The failed PR check was `Connected Android tests` on `ccf571d2`. The log showed one failure:
+  `ListsTabsInstrumentedTest` timed out waiting for `000-list-blocked-ui.invalid` in tab 0; no
+  app crash, native crash, or ANR was present in the failure evidence.
+- Root cause: the first version seeded the production app database and waited for the row to be
+  attached as a visible `TextView`. That passed focused, but full-suite state can leave earlier
+  sorting rows in the shared app DB, so the seeded row may be present but off screen.
+- Fixed the connected test to own a private WAL Room database through the existing
+  `AppDatabase` singleton seam, seed `hosts_meta`/`hosts_stats`, assert each seeded row is visible
+  to the runtime list query, and restore the previous singleton in teardown.
+- Focused connected list-tab gate passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsTabsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 135
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- PR CI recheck is pending until this fix is pushed.
