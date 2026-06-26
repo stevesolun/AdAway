@@ -8493,7 +8493,7 @@
 - [x] Run the focused connected `DISC-005` test and patch production only if it exposes a real
   behavior defect.
 - [x] Run the standard local Gradle gate and full connected suite.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 29
 - Starting state: `DISC-005` was `Partially covered`; its canonical row tracked
@@ -8513,5 +8513,7 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 136
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- PR CI passed on `29324001`: Connected Android tests, Development build, CodeQL Java/C++
+  analysis, and locale validation all reported success.
 - Remaining boundary: this proves the control behavior and visible-row scope on device; broader
   Discover visual coverage across device sizes remains part of the UX matrix/release sweep.
