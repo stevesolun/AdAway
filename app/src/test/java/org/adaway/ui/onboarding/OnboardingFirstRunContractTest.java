@@ -55,6 +55,18 @@ public class OnboardingFirstRunContractTest {
                                 .contains("PreferenceHelper.setAbBlockMethod(this, method)") &&
                         getMethodBody(onboarding, "finishOnboarding")
                                 .contains("HomeActivity.EXTRA_ONBOARDING_COMPLETE"));
+        assertTrue("Completing VPN onboarding must apply protection after accepted consent.",
+                onboarding.contains("import org.adaway.AdAwayApplication;") &&
+                        onboarding.contains("import org.adaway.model.adblocking.AdBlockModel;") &&
+                        onboarding.contains("import org.adaway.model.error.HostErrorException;") &&
+                        getMethodBody(onboarding, "finishOnboarding")
+                                .contains("method == AdBlockMethod.VPN") &&
+                        getMethodBody(onboarding, "finishOnboarding")
+                                .contains("applyVpnProtection()") &&
+                        getMethodBody(onboarding, "applyVpnProtection")
+                                .contains("getAdBlockModel()") &&
+                        getMethodBody(onboarding, "applyVpnProtection")
+                                .contains("adBlockModel.apply()"));
         assertTrue("Home must subscribe default lists only after onboarding completion.",
                 homeActivity.contains("EXTRA_ONBOARDING_COMPLETE") &&
                         homeActivity.contains("DefaultListsSubscriber.subscribeDefaultsIfEmpty"));
@@ -62,6 +74,9 @@ public class OnboardingFirstRunContractTest {
 
     private static String getMethodBody(String source, String methodName) {
         int start = source.indexOf("private void " + methodName + "(");
+        if (start < 0) {
+            start = source.indexOf("private boolean " + methodName + "(");
+        }
         if (start < 0) {
             return "";
         }

@@ -9702,3 +9702,47 @@
 - RUNTIME-010 now has fresh connected evidence for 100k, 1M, and 5M full parse/import/sync/root
   write. The overall market-leading release goal remains open for non-performance P0 gates,
   including release artifacts, physical/root/VPN smoke, UX sign-off, and legal/provenance review.
+
+## Plan - 2026-06-27 RUNTIME-008 Fresh VPN Consent/TUN Proof
+- [x] Re-ground `RUNTIME-008` from `tasks/user-story-status.tsv`, existing VPN worker/proxy
+  tests, onboarding, Home status, and leak-status rendering.
+- [x] Manually drive the first-run API 34 VPN consent path on a fresh debug install.
+- [x] Fix only verified first-run defects exposed by that smoke path.
+- [x] Run focused JVM contracts for onboarding and Home status/leak refresh.
+- [x] Re-run fresh uninstall/reinstall VPN consent smoke and preserve raw evidence.
+- [x] Update the canonical story ledger without marking the overall release goal complete.
+
+## Review - 2026-06-27 RUNTIME-008 Fresh VPN Consent/TUN Proof
+- Starting state: `RUNTIME-008` still had worker/proxy packet coverage but no real Android
+  user-consent/TUN proof. The Mac API 34 emulator was available, so I used it for a fresh
+  first-run non-root VPN smoke.
+- The first manual pass exposed a real product defect: after Android VPN consent was accepted,
+  `OnboardingActivity.finishOnboarding(VPN)` saved the method and launched Home, but did not
+  apply the shared VPN model. Home could show VPN selected but not running after the user tapped
+  `START PROTECTING`.
+- Patched onboarding to call the active `AdBlockModel.apply()` after saving VPN mode, so the
+  VPN start goes through the same model that Home observes. If VPN start fails, onboarding now
+  stays visible and shows the existing VPN enable error instead of navigating to a misleading
+  Home state.
+- The first patch iteration started the raw service but left Home's `isAdBlocked()` observer
+  stale; the final patch intentionally uses `AdBlockModel.apply()` and adds a bounded Home
+  leak-status resample when VPN protection transitions active.
+- Focused JVM contracts passed:
+  `:app:testDebugUnitTest --tests org.adaway.ui.onboarding.OnboardingFirstRunContractTest
+  --tests org.adaway.ui.home.HomeNavigationSourcesContractTest --dependency-verification=strict
+  --stacktrace`.
+- Fresh emulator smoke used `adb uninstall org.adaway`, `:app:installDebug`, launcher start,
+  tap `START PROTECTING`, accept the Android VPN `Connection request`, then collect UI dumps,
+  `dumpsys vpn_management`, `dumpsys connectivity`, and logcat.
+- Final evidence was preserved under
+  `tasks/benchmarks/2026-06-27-runtime008-vpn-consent-tun-evidence.md` plus the
+  `tasks/benchmarks/2026-06-27-runtime008-vpn-smoke-final-postfix-*` raw artifacts.
+- Final proof highlights: consent XML contains `Connection request`, `AdAway wants`, and `OK`;
+  Home XML contains `Protection active`; leak detail says `Protection method: VPN running`;
+  `dumpsys vpn_management` reports active package `org.adaway`; `dumpsys connectivity` reports
+  `NetworkAgentInfo ... VPN CONNECTED` with `InterfaceName: tun0`, `sessionId=AdAway`, and
+  `OwnerUid: 10195`; logcat shows `VpnServiceControls.start()`, `Processing START`,
+  `VPN established`, and status `RUNNING`.
+- RUNTIME-008 is now covered by connected smoke for the emulator-backed Android consent/TUN
+  path. Physical-device release smoke remains tracked under `REL-003`, rooted hosts apply
+  remains `RUNTIME-007`, and the overall market-leading release goal remains open.

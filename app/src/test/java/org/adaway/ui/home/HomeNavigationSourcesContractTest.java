@@ -632,6 +632,22 @@ public class HomeNavigationSourcesContractTest {
                         uxMatrix.contains("availableTextWidth"));
     }
 
+    @Test
+    public void homeRefreshesLeakStatusAfterVpnProtectionStarts() throws Exception {
+        String homeFragment = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
+        int notifyStart = homeFragment.indexOf("private void notifyAdBlocked(boolean adBlocked)");
+        int notifyEnd = homeFragment.indexOf("private void notifyError", notifyStart);
+        String notifyAdBlocked = homeFragment.substring(notifyStart, notifyEnd);
+
+        assertTrue("Home must resample leak status after VPN transitions from starting to running.",
+                homeFragment.contains("VPN_LEAK_STATUS_REFRESH_DELAY_MS") &&
+                        notifyAdBlocked.contains("renderLeakStatus();") &&
+                        notifyAdBlocked.contains("postDelayed(this::renderLeakStatus") &&
+                        notifyAdBlocked.contains("PreferenceHelper.getAdBlockMethod") &&
+                        notifyAdBlocked.contains("== VPN"));
+    }
+
     private static boolean statLabelUsesAutosize(String layout, String id) {
         int start = layout.indexOf("android:id=\"@+id/" + id + "\"");
         if (start < 0) {

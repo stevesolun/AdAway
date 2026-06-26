@@ -17,11 +17,14 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.topjohnwu.superuser.Shell;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.databinding.ActivityOnboardingBinding;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.helper.ThemeHelper;
+import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.error.HostErrorException;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.log.SentryLog;
 
@@ -246,10 +249,30 @@ public class OnboardingActivity extends AppCompatActivity {
 
     private void finishOnboarding(AdBlockMethod method) {
         PreferenceHelper.setAbBlockMethod(this, method);
+        if (method == AdBlockMethod.VPN && !applyVpnProtection()) {
+            return;
+        }
         Intent intent = new Intent(this, HomeActivity.class);
         intent.putExtra(HomeActivity.EXTRA_ONBOARDING_COMPLETE, true);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
+    }
+
+    private boolean applyVpnProtection() {
+        AdBlockModel adBlockModel =
+                ((AdAwayApplication) getApplication()).getAdBlockModel();
+        try {
+            adBlockModel.apply();
+            return true;
+        } catch (HostErrorException exception) {
+            SentryLog.recordBreadcrumb("Onboarding: VPN start failed");
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(exception.getError().getMessageKey())
+                    .setMessage(exception.getError().getDetailsKey())
+                    .setPositiveButton(R.string.button_close, null)
+                    .show();
+            return false;
+        }
     }
 }

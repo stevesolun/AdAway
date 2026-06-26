@@ -77,6 +77,7 @@ public class HomeFragment extends Fragment {
     private long initialBlockedCount = -1;
 
     private static final NumberFormat COUNT_FORMAT = NumberFormat.getIntegerInstance(Locale.US);
+    private static final long VPN_LEAK_STATUS_REFRESH_DELAY_MS = 1_000L;
     @Nullable
     private LiveData<Integer> blockedHostCountLiveData;
     @Nullable
@@ -731,6 +732,11 @@ public class HomeFragment extends Fragment {
                         null));
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
+        renderLeakStatus();
+        if (adBlocked && PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
+            this.binding.getRoot().postDelayed(this::renderLeakStatus,
+                    VPN_LEAK_STATUS_REFRESH_DELAY_MS);
+        }
     }
 
     private void notifyError(HostError error) {

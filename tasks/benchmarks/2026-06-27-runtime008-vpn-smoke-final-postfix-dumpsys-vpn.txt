@@ -1,0 +1,15 @@
+VPNs:
+  0: org.adaway
+    Active package name: org.adaway
+    Active vpn type: 1
+    NetworkCapabilities: [ Transports: VPN Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED TransportInfo: <VpnTransportInfo{type=1, sessionId=AdAway, bypassable=false longLivedTcpConnectionsExpensive=false}> Uids: <{0-99999}> OwnerUid: 10195 AdminUids: [10195] UnderlyingNetworks: Null]
+    
+    mCachedCarrierConfigInfoPerSubId={}
+    mEventChanges (most recent first):
+      2026-06-27T02:30:10.513960 - [UnderlyingNW] Switch to null
+      2026-06-27T02:28:01.775127 - [UnderlyingNW] Switch to null
+      2026-06-27T02:27:36.046274 - [UnderlyingNW] Switch to null
+      2026-06-27T02:26:01.531966 - [UnderlyingNW] Switch to null
+      2026-06-27T02:24:34.831855 - [UnderlyingNW] Switch to null
+      2026-06-27T02:18:20.119649 - [LockdownAlwaysOn] Mode changed: lockdown=false alwaysOn=false calling from 1000
+  
