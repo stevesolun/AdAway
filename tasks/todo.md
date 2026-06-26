@@ -8748,7 +8748,7 @@
 - [x] Run the focused connected Home counter-freeze test, standard local Gradle gate, and full
   connected suite if the test mutates shared app data.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 35
 - Starting state: `HOME-004` remained `Partially covered`; the post-sync counter path was proven,
@@ -8782,5 +8782,44 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 143
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Committed and pushed as `2785d447`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: `HOME-004` is now covered by connected UI flow; broader Home progress visual
   matrix coverage remains tracked under `HOME-007`.
+
+## Plan - 2026-06-26 Story Fix Loop 36
+- [x] Re-ground `HOME-007` from the canonical story spreadsheet and current Home progress binding.
+- [x] Add a connected Home progress proof that drives the real UI through shared
+  `FilterOperationState` values for active, finalizing, complete, and stopped states.
+- [x] Assert visible summary text, progress container visibility, and pause/stop control
+  enablement match each operation state.
+- [x] Patch production only if the focused proof exposes a real progress UX defect.
+- [x] Run the focused connected Home progress test, standard local Gradle gate, and full connected
+  suite if the test mutates shared app state.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 36
+- Starting state: `HOME-007` was `Partially covered`; `FilterOperationState` unit tests and UX
+  screenshots existed, but no connected test drove Home through visible progress-state transitions.
+- Added `HomeProgressInstrumentedTest`, a connected test that launches the real Home shell and
+  injects shared `FilterOperationState` values through the same `SourceModel` LiveData used in
+  production.
+- The test verifies idle hides the progress container; active download shows `34.0% Complete`,
+  progress bar value `34`, hidden phase-detail rows, and enabled pause/stop controls; active parse
+  shows accepted-rule count copy; finalizing shows finalizing copy and disables controls; stopped
+  shows `Update stopped`; complete shows `Protection updated`; and idle hides progress again.
+- No production code was changed in this loop; the connected proof verified existing progress UI
+  behavior.
+- Focused connected Home progress gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeProgressInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 141
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: `HOME-007` is now covered by connected UI flow; human visual release
+  sign-off remains tracked under `REL-004`.
