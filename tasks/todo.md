@@ -8517,3 +8517,41 @@
   analysis, and locale validation all reported success.
 - Remaining boundary: this proves the control behavior and visible-row scope on device; broader
   Discover visual coverage across device sizes remains part of the UX matrix/release sweep.
+
+## Plan - 2026-06-26 Story Fix Loop 30
+- [x] Re-ground `DISC-009` from the canonical story spreadsheet and current Discover/worker code.
+- [x] Confirm existing coverage boundary: worker cancellation internals are covered, but the
+  Discover retry/progress/cancel/review affordance path lacks a device-level proof.
+- [x] Add a connected user-path proof that seeds a last-run ledger, starts retry from Discover,
+  observes a running bulk job, cancels it, and verifies durable stopping/cancelled UI feedback.
+- [x] Patch production only if the focused proof exposes a real UX/logistical defect.
+- [x] Run the focused connected `DISC-009` test, the standard local Gradle gate, and full connected
+  suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 30
+- Starting state: `DISC-009` was `Partially covered`; its canonical row tracked
+  `Needs long-run cancel test`.
+- Added `FilterListsBulkUiInstrumentedTest`, a connected test that launches the real Home shell,
+  navigates to Discover, seeds cached FilterLists last-run review data, verifies review/retry/
+  unsupported actions, starts a retry through the UI, observes a running worker, cancels it, and
+  verifies the cancelled status plus no source insertion or update enqueue.
+- The first two red runs exposed over-specific test expectations: the progress label can
+  legitimately skip from `Preparing` to numeric progress, and the explicit `Stopping` text is a
+  transient click-handler state before WorkManager reports `CANCELLED`.
+- The full connected suite then exposed a real race: after cancellation, a detail request could
+  resolve before the worker observed `isStopped()`, allowing the source insert and follow-up update
+  enqueue to happen anyway.
+- Fixed the worker by re-checking `isStopped()` after cached URL resolution and after `future.get()`
+  returns a resolved detail, before any cache write, source record, or update enqueue side effect.
+- Focused connected `DISC-009` gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsBulkUiInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 137
+  tests on `adaway-api34` with 3 skipped and 0 failed.

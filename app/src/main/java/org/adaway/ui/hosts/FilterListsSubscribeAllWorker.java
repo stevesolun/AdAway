@@ -199,6 +199,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
                 }
 
                 String url = cached == null || cached.isEmpty() ? null : cached;
+                if (isStopped()) {
+                    return finishCancelled(pool, notificationManager, recorder);
+                }
                 recorder.accept(s.id, s.name, s.syntaxIds, s.tagIds, s.languageIds, url);
 
                 done++;
@@ -244,6 +247,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     continue;
                 }
                 pending--;
+                if (isStopped()) {
+                    return finishCancelled(pool, notificationManager, recorder);
+                }
 
                 // Cache mapping (including negative cache as empty string)
                 prefsEditor.putString(KEY_URL_PREFIX + r.id, r.url == null ? "" : r.url);
