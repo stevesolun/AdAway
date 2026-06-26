@@ -9212,7 +9212,7 @@
 - [x] Keep the patch test-only unless evidence shows a production Home counter defect.
 - [x] Re-run the focused Home counter connected test, then the standard local gate and connected
   suite if the focused gate is green.
-- [ ] Update this review section with exact CI/local evidence, then commit, push, and recheck PR CI.
+- [x] Update this review section with exact CI/local evidence, then commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 45
 - Starting state: PR #6 failed only the `Connected Android tests` job after Loop 44. Build,
@@ -9241,3 +9241,45 @@
 - Full connected Android suite passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 154
   tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `0cc23f10 test: harden connected ui isolation` was pushed to PR #6. Rechecked PR CI
+  passed on head `0cc23f10`: Connected Android tests, Development build, Validate locales,
+  Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 46
+- [x] Re-ground `PREF-005` and adjacent `PREF-007` from the canonical story spreadsheet,
+  Preferences main navigation, `PrefsVpnFragment`, and `VpnBuilder`.
+- [x] Add a connected proof that active VPN users can open VPN settings from Preferences,
+  see explicit app-managed bypass risk copy, toggle bypass, and change system-app exclusion.
+- [x] Patch production if the proof exposes a real unreachable-settings or persistence defect.
+- [x] Run the focused connected VPN settings test, the standard local Gradle gate, and enough
+  connected coverage to protect the touched preference navigation.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 46
+- Starting state: `PREF-005` was `Partially covered`; security source tests proved
+  `VpnBuilder.allowBypass()` is guarded and off by default, but there was no connected proof that
+  users could reach the VPN bypass setting or see the leak-risk copy. `PREF-007` was `Not tested`
+  for system-app exclusion behavior.
+- Added `PrefsVpnSettingsInstrumentedTest`, which launches real `PrefsActivity`, uses active VPN
+  mode, opens the VPN settings row, asserts the app-managed bypass warning copy, toggles the
+  bypass switch, and changes system-app exclusion to `all`.
+- The first red connected runs exposed a real production navigation defect: `PrefsMainFragment`
+  installed click listeners on the root/VPN method rows that always consumed the XML fragment
+  navigation. Active VPN users saw an "already using this mode" toast instead of the VPN settings
+  screen.
+- Fixed `PrefsMainFragment` so the active method row opens its configuration fragment while
+  inactive method rows still launch onboarding to switch modes.
+- Focused connected VPN settings gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsVpnSettingsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 155
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Remaining boundary: `PREF-005` now has connected UI/persistence coverage. `PREF-007` has
+  connected settings persistence coverage, but direct proof that `VpnBuilder` calls
+  `addDisallowedApplication(...)` for the selected system-app policy remains open.

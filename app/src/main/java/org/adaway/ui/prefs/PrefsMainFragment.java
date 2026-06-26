@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.LocaleListCompat;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceFragmentCompat.OnPreferenceStartFragmentCallback;
 
 import android.net.Uri;
 
@@ -79,27 +80,39 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         // Show which mode is currently active
         rootPreference.setSummary(adBlockMethod == ROOT ? R.string.pref_ad_block_method_active : R.string.pref_ad_block_method_switch);
         vpnPreference.setSummary(adBlockMethod == VPN ? R.string.pref_ad_block_method_active : R.string.pref_ad_block_method_switch);
-        // Tap the active mode → toast; tap the other mode → launch onboarding to switch
+        // Tap the active mode to configure it; tap the other mode to launch onboarding.
         rootPreference.setOnPreferenceClickListener(preference -> {
             if (PreferenceHelper.getAdBlockMethod(requireContext()) == ROOT) {
-                Toast.makeText(requireContext(), R.string.pref_ad_block_method_already_active, Toast.LENGTH_SHORT).show();
+                openConfiguration(preference);
             } else {
-                Intent intent = new Intent(requireContext(), OnboardingActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
+                launchOnboarding();
             }
             return true;
         });
         vpnPreference.setOnPreferenceClickListener(preference -> {
             if (PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
-                Toast.makeText(requireContext(), R.string.pref_ad_block_method_already_active, Toast.LENGTH_SHORT).show();
+                openConfiguration(preference);
             } else {
-                Intent intent = new Intent(requireContext(), OnboardingActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
+                launchOnboarding();
             }
             return true;
         });
+    }
+
+    private void openConfiguration(Preference preference) {
+        if (requireActivity() instanceof OnPreferenceStartFragmentCallback) {
+            ((OnPreferenceStartFragmentCallback) requireActivity())
+                    .onPreferenceStartFragment(this, preference);
+        } else {
+            Toast.makeText(requireContext(), R.string.pref_ad_block_method_already_active,
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void launchOnboarding() {
+        Intent intent = new Intent(requireContext(), OnboardingActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
     }
 
     private void bindTelemetryPrefAction() {
