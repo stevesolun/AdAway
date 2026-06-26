@@ -9302,7 +9302,7 @@
 - [x] Commit `48e9864f test: cover preference method switching` and push PR #6.
 - [x] Triage the failed remote Connected Android tests job on `48e9864f`.
 - [x] Patch the exposed `PrefsRootFragment` detached-listener crash and verify locally.
-- [ ] Commit, push, and recheck PR CI for the lifecycle fix.
+- [x] Commit, push, and recheck PR CI for the lifecycle fix.
 
 ## Review - 2026-06-26 Story Fix Loop 47
 - Starting state: `PREF-002` was `Partially covered`; source-text/security tests covered pieces
@@ -9347,7 +9347,7 @@
   defect.
 - [x] Run the focused connected add-rule test and standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 48
 - Starting state: `LIST-003` was `Partially covered`; DB/runtime tests covered direct user-rule
@@ -9375,4 +9375,51 @@
   `test --dependency-verification=strict --stacktrace`.
 - Full connected Android suite passed locally with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 160
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `c8160146 fix: guard prefs lifecycle and cover list adds` was pushed to PR #6.
+- Final PR CI recheck for head `c8160146` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 49
+- [x] Re-ground `ONB-001` and `ONB-002` from the canonical story spreadsheet,
+  `HomeActivity`, `OnboardingActivity`, `DefaultListsSubscriber`, current source-contract tests,
+  and the default source database path.
+- [x] Add connected user-path proof for first-run Home redirect, deterministic chooser state,
+  no-root VPN auto-preselect without completing onboarding, and onboarding-complete default source
+  insertion.
+- [x] Patch production only if the proof exposes a real onboarding, DB, or UX defect.
+- [x] Run the focused connected onboarding test.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Run the standard local Gradle gate.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 49
+- Starting state: `ONB-001` and `ONB-002` were `Partially covered`; unit/source-contract tests
+  covered intent wiring and passive VPN preselection, but there was no connected proof that a fresh
+  Home launch routes to onboarding or that onboarding-complete Home launch writes default sources
+  into the DB.
+- A read-only explorer confirmed the expected contract: Home redirects only while the selected
+  method is `UNDEFINED`; onboarding auto-detect preselects VPN without calling Android VPN consent;
+  completion sends `HomeActivity.EXTRA_ONBOARDING_COMPLETE`; and Home calls
+  `DefaultListsSubscriber.subscribeDefaultsIfEmpty(...)` on disk IO before optionally starting the
+  update/apply pipeline.
+- Added `OnboardingFirstRunInstrumentedTest`, which swaps in a private Room DB with the production
+  user-source invariant, launches real `HomeActivity` and `OnboardingActivity`, and asserts:
+  first-run redirect to onboarding, skip-auto-detect chooser starts with Start disabled, unrooted
+  auto-detect preselects VPN without changing the stored method, and onboarding-complete Home
+  launch inserts all default catalog sources plus the WA/TG safety allowlist.
+- The first red run exposed a test DB fixture mismatch, not a production defect: without the
+  production user source at `id=1`, the first auto-generated default source took id 1 and was hidden
+  by `HostsSourceDao.getAll()`, which intentionally excludes the user source. The test now seeds
+  the user-source row before proving external defaults are empty.
+- No production patch was needed in this loop.
+- Focused connected onboarding gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed locally with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 164
   tests on `adaway-api34`, with 3 skipped and 0 failed.
