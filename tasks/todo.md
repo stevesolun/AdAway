@@ -9126,7 +9126,7 @@
   defect.
 - [x] Run the focused connected source add/edit test and the standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 43
 - Starting state: `SRC-003` and `SRC-004` were `Not tested`; the code showed the real add path is
@@ -9159,3 +9159,47 @@
 - Remaining boundary: custom HTTPS URL add and visible source-row edit are device-proven; file
   picker source selection and FilterLists manual-add metadata stay under their separate Discover
   and file-source stories.
+
+## Plan - 2026-06-26 Story Fix Loop 44
+- [x] Re-ground `SRC-006` and `SRC-007` from the canonical story spreadsheet, Sources toolbar
+  menu, `FilterSetStore`, and `FilterProfileDiff` code.
+- [x] Add a focused connected proof that seeds deterministic sources, opens the real Save filter
+  set dialog, validates empty-name rejection, saves the current enabled URLs under a user name,
+  then changes the current selection.
+- [x] Drive the real Apply filter set dialog and preview confirmation, then assert both
+  `hosts_sources` and downloaded `hosts_lists` rows match the saved profile.
+- [x] Patch production only if the proof exposes a real save/apply dialog, preview, or persistence
+  defect.
+- [x] Run the focused connected filter-set save/apply test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 44
+- Starting state: `SRC-006` and `SRC-007` were `Partially covered`; storage and diff semantics
+  had unit tests, but the real Sources toolbar dialogs had no connected proof that a saved set
+  captures current enabled sources and that applying it changes persisted source/list-row state.
+- Added `FilterSetSaveApplyInstrumentedTest`, a connected test that launches `HomeActivity`,
+  navigates to Sources, seeds three deterministic sources, opens the real Save filter set dialog,
+  verifies empty-name validation, saves the two enabled source URLs as `Travel Pack`, then changes
+  the current selection to a third source.
+- The same test drives the real Apply filter set dialog, selects `Travel Pack`, asserts the
+  preview title, enable/disable/keep counts, and disable warning, then confirms Apply and verifies
+  `hosts_sources`, downloaded `hosts_lists`, and the active profile all match the saved set.
+- Red/green note: the first focused run failed at the second toolbar action because
+  `ActivityScenario.onActivity()` waited for Android global idle after dialog interaction. The
+  final proof uses a bounded lifecycle lookup plus `runOnMainSync()` for toolbar menu actions,
+  matching the harness pattern already used in other Sources tests.
+- No production code changed for `SRC-006` or `SRC-007`; this slice device-proves existing
+  save/apply behavior for deterministic local sources.
+- Focused connected filter-set save/apply gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 154
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Remaining boundary: named profile save/apply is device-proven for local seeded source rows; saved
+  set rename/delete and scheduling remain tracked by their own Sources/schedule stories.
