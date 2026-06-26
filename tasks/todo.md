@@ -9663,3 +9663,42 @@
   tests on `adaway-api34`, with 3 skipped and 0 failed.
 - Diff hygiene passed with only existing CRLF conversion warnings:
   `git diff --check`.
+
+## Plan - 2026-06-27 RUNTIME-010 Fresh 5M Full Parse Proof
+- [x] Recheck PR #6 head/CI before spending emulator time on the scale run.
+- [x] Re-ground `RUNTIME-010` from `tasks/user-story-status.tsv`, the latest review block, and
+  `SourceLoaderPerformanceTest`.
+- [x] Run the fresh 5M full parse/import/sync/root-write connected benchmark on current head.
+- [x] Record the 5M result in this ledger and `tasks/user-story-status.tsv` without marking the
+  overall market-leading goal complete.
+- [x] Prepare only the verified evidence update for commit/push.
+
+## Review - 2026-06-27 RUNTIME-010 Fresh 5M Full Parse Proof
+- PR #6 head remained `b132bf71 perf: stage root export during source import`. The installed
+  `gh` CLI could not run `gh pr checks 6` without GitHub auth, so I rechecked public GitHub
+  check-runs for the head SHA: Connected Android tests, CodeQL, Development build, Validate
+  locales, Analyze (java), and Analyze (cpp) were all `completed/success`.
+- Provisioned this Mac-side proof environment with Temurin JDK 21, Android SDK platform tools,
+  API 34 and API 36 platforms, build-tools 36.0.0, NDK `27.2.12479018`, and an
+  `adaway-api34-16g` API 34 Google APIs ARM64 AVD with 15G free on `/data`.
+- Fresh 5M full parse/import/sync/root-write command:
+  `./gradlew --no-daemon --no-build-cache :app:connectedDebugAndroidTest
+  '-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceLoaderPerformanceTest#parseInsertSyncAndRootApply_requestedScale_recordsBenchmark'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayPerfLines=5000000'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayPerfSyncBudgetMs=300000'
+  '-Pandroid.testInstrumentationRunnerArguments.adawayPerfRootWriteBudgetMs=300000'
+  --dependency-verification=strict --stacktrace`.
+- Result: Gradle `BUILD SUCCESSFUL in 4m 56s`; instrumented test log reported `OK (1 test)`.
+  Raw stdout/stderr were preserved under
+  `tasks/benchmarks/2026-06-27-runtime010-5m-full-parse-gradle.out.log` and
+  `tasks/benchmarks/2026-06-27-runtime010-5m-full-parse-gradle.err.log`.
+- Final benchmark metric:
+  `SourceLoaderScaleBenchmark lines=5000000 inserted=4750000 runtimeRows=4500000
+  progressEvents=2375 parseMs=124749 syncMs=8739 rootRows=4500000 rootWriteMs=2476
+  rootWriteBytes=150601774`.
+- Root-export phase evidence: `HostEntryDao.root-export-stage perf: ... totalMs=6644
+  allowRules=false wildcardExactAllowRules=false stageBacked=true`; duplicate skip removed
+  `250000` rows before the final root write.
+- RUNTIME-010 now has fresh connected evidence for 100k, 1M, and 5M full parse/import/sync/root
+  write. The overall market-leading release goal remains open for non-performance P0 gates,
+  including release artifacts, physical/root/VPN smoke, UX sign-off, and legal/provenance review.
