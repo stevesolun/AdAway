@@ -9254,7 +9254,8 @@
 - [x] Run the focused connected VPN settings test, the standard local Gradle gate, and enough
   connected coverage to protect the touched preference navigation.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit `cef94783 fix: make active vpn settings reachable` and push PR #6.
+- [x] Recheck PR CI after the remote connected Android job finishes.
 
 ## Review - 2026-06-26 Story Fix Loop 46
 - Starting state: `PREF-005` was `Partially covered`; security source tests proved
@@ -9283,3 +9284,43 @@
 - Remaining boundary: `PREF-005` now has connected UI/persistence coverage. `PREF-007` has
   connected settings persistence coverage, but direct proof that `VpnBuilder` calls
   `addDisallowedApplication(...)` for the selected system-app policy remains open.
+- Commit `cef94783 fix: make active vpn settings reachable` was pushed to PR #6. At the first
+  recheck, Development build, Validate locales, Analyze (java), Analyze (cpp), and CodeQL had
+  passed; the remote Connected Android tests job was still running.
+- Final PR CI recheck for head `cef94783` passed: Connected Android tests, Development build,
+  Validate locales, Analyze (java), Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 47
+- [x] Re-ground `PREF-002` from the canonical story spreadsheet, Preferences method rows,
+  onboarding, and current connected preference coverage.
+- [x] Add a connected user-path proof that tapping the inactive method row opens onboarding
+  instead of the active method's settings screen, and that the stored method does not change before
+  onboarding completion.
+- [x] Patch production only if the proof exposes a real switch-flow or navigation defect.
+- [x] Run the focused connected switch-flow test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 47
+- Starting state: `PREF-002` was `Partially covered`; source-text/security tests covered pieces
+  of method persistence, but there was no connected proof that Preferences route active method rows
+  to configuration and inactive method rows to onboarding after the Loop 46 active-row fix.
+- A read-only explorer confirmed the code-level contract: both method rows stay enabled, summaries
+  reflect the stored method, active rows call `openConfiguration(...)`, inactive rows call generic
+  `OnboardingActivity`, and `OnboardingActivity.finishOnboarding(...)` is the point where
+  `PreferenceHelper.setAbBlockMethod(...)` changes the stored method.
+- Added `PrefsAdBlockMethodSwitchInstrumentedTest` with a four-route matrix:
+  root-active/root-row opens Root settings, root-active/VPN-row opens onboarding, VPN-active/VPN-row
+  opens VPN settings, and VPN-active/root-row opens onboarding.
+- The connected matrix also asserts that inactive-row onboarding does not immediately change the
+  stored method. This matches current product behavior: tapping the inactive row reopens the generic
+  protection-method chooser rather than preselecting the tapped target.
+- No production patch was needed in this loop; the Loop 46 `PrefsMainFragment` behavior already
+  satisfies the route contract.
+- Focused connected gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsAdBlockMethodSwitchInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
