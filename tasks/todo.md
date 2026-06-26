@@ -8796,7 +8796,7 @@
 - [x] Run the focused connected Home progress test, standard local Gradle gate, and full connected
   suite if the test mutates shared app state.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 36
 - Starting state: `HOME-007` was `Partially covered`; `FilterOperationState` unit tests and UX
@@ -8821,5 +8821,49 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 141
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Committed and pushed as `7672b3d4`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: `HOME-007` is now covered by connected UI flow; human visual release
   sign-off remains tracked under `REL-004`.
+
+## Plan - 2026-06-26 Story Fix Loop 37
+- [x] Re-ground `HOME-008` from the canonical story spreadsheet and the real
+  Home progress-control path.
+- [x] Add a focused connected proof that clicks the real Home pause/resume button while
+  `SourceModel` is in an active controllable update state.
+- [x] Assert the click goes through `HomeFragment -> HomeViewModel -> SourceModel` by observing
+  shared `FilterOperationState.paused` changes and the visible pause/resume affordance.
+- [x] Patch production only if the focused proof exposes a real pause/resume defect.
+- [x] Run the focused connected Home pause/resume test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 37
+- Starting state: `HOME-008` was `Needs connected behavior coverage`; source-level contracts
+  existed, but no connected test clicked the real Home pause/resume affordance and observed the
+  shared `SourceModel` operation state.
+- Added `HomeUpdateControlsInstrumentedTest`, a connected test that launches the real Home shell,
+  primes `SourceModel` into an active controllable source update state, clicks the real
+  `pauseResumeButton`, and waits for shared `FilterOperationState.paused` plus the visible
+  content description to flip from `Pause update` to `Resume update` and back.
+- The first candidate proof passed only because the test set a fake scheduler task name. The
+  expert review found the production defect: ordinary Home updates never set `schedulerTaskName`,
+  and `HomeFragment` hid the whole scheduler/control row when that name was empty.
+- Tightened the connected proof to require the pause/resume button to be actually shown and
+  enabled without a scheduler task name. The focused connected run then failed as expected:
+  `View 2131296817 did not become shown and enabled`.
+- Fixed `HomeFragment` so the progress control row is visible for every active source update and
+  only the scheduler label depends on `schedulerTaskName`.
+- Focused connected Home update-controls gate passed after the fix with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateControlsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` produced XML
+  summary `tests="142" failures="0" errors="0" skipped="3"` on `adaway-api34`.
+- Remaining boundary: ordinary Home pause/resume controls are fixed and device-proven, but
+  cooperative pause inside one long download or parser loop remains open as a worker-level
+  semantics gap.

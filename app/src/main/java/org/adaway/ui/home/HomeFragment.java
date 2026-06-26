@@ -448,14 +448,16 @@ public class HomeFragment extends Fragment {
             this.binding.content.parsePhasePercent
                     .setText(String.format(java.util.Locale.ROOT, "%.1f%%", parsePercent));
 
+            this.binding.content.schedulerTaskContainer.setVisibility(View.VISIBLE);
             if (progress.schedulerTaskName != null && !progress.schedulerTaskName.isEmpty()) {
-                this.binding.content.schedulerTaskContainer.setVisibility(View.VISIBLE);
+                this.binding.content.schedulerTaskName.setVisibility(View.VISIBLE);
                 this.binding.content.schedulerTaskName
                         .setText(getString(
                                 R.string.scheduled_update_task_label,
                                 progress.schedulerTaskName));
             } else {
-                this.binding.content.schedulerTaskContainer.setVisibility(View.GONE);
+                this.binding.content.schedulerTaskName.setVisibility(View.INVISIBLE);
+                this.binding.content.schedulerTaskName.setText("");
             }
 
             if (progress.paused) {
