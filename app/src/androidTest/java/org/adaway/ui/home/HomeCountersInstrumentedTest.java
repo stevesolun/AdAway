@@ -5,18 +5,23 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.os.SystemClock;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.lifecycle.MutableLiveData;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
+import org.adaway.model.source.FilterOperationState;
+import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -24,6 +29,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.time.ZonedDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,14 +46,16 @@ public class HomeCountersInstrumentedTest {
     private Context context;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         this.context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(this.context, "set up Home counters");
+        publishOperationState(this.context, FilterOperationState.idle());
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         if (this.context != null) {
+            publishOperationState(this.context, FilterOperationState.idle());
             clearCounterFixture(this.context);
             InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down Home counters");
         }
@@ -56,7 +65,7 @@ public class HomeCountersInstrumentedTest {
     public void homeCountersReflectSeededRuntimeAndSourceTruth() {
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
-            seedCounterFixture(scenario);
+            seedCounterFixture(this.context);
 
             waitForText(scenario, R.id.blockedHostCounterTextView, "3");
             waitForText(scenario, R.id.allowedHostCounterTextView, "2");
@@ -66,9 +75,44 @@ public class HomeCountersInstrumentedTest {
         }
     }
 
-    private static void seedCounterFixture(ActivityScenario<HomeActivity> scenario) {
-        runOnDiskIo(scenario, activity -> {
-            AppDatabase database = AppDatabase.getInstance(activity);
+    @Test
+    public void homeCountersFreezeDuringActiveUpdateAndRefreshAfterCompletion()
+            throws Exception {
+        try (ActivityScenario<HomeActivity> scenario =
+                     ActivityScenario.launch(HomeActivity.class)) {
+            seedCounterFixture(this.context);
+
+            waitForText(scenario, R.id.blockedHostCounterTextView, "3");
+            waitForText(scenario, R.id.allowedHostCounterTextView, "2");
+            waitForText(scenario, R.id.redirectHostCounterTextView, "1");
+
+            publishOperationState(this.context, operationState(
+                    FilterOperationState.Phase.PARSE,
+                    62,
+                    9L));
+            waitForVisibility(scenario, R.id.multiPhaseProgressContainer, View.VISIBLE);
+
+            seedUpdatedCounterFixture(this.context);
+
+            assertTextRemainsFor(scenario, R.id.blockedHostCounterTextView, "3", 800);
+            assertTextRemainsFor(scenario, R.id.allowedHostCounterTextView, "2", 800);
+            assertTextRemainsFor(scenario, R.id.redirectHostCounterTextView, "1", 800);
+
+            publishOperationState(this.context, operationState(
+                    FilterOperationState.Phase.COMPLETE,
+                    100,
+                    14L));
+
+            waitForText(scenario, R.id.blockedHostCounterTextView, "5");
+            waitForText(scenario, R.id.allowedHostCounterTextView, "4");
+            waitForText(scenario, R.id.redirectHostCounterTextView, "2");
+        } finally {
+            publishOperationState(this.context, FilterOperationState.idle());
+        }
+    }
+
+    private static void seedCounterFixture(Context context) {
+        runOnDiskIo(context, database -> {
             resetCounterTables(database);
 
             database.hostsSourceDao().insert(source(
@@ -90,6 +134,41 @@ public class HomeCountersInstrumentedTest {
             insertItem(database, "allow-one.example", ListType.ALLOWED, USER_SOURCE_ID);
             insertItem(database, "allow-two.example", ListType.ALLOWED, CURRENT_SOURCE_ID);
             insertItem(database, "redirect-one.example", ListType.REDIRECTED, OUTDATED_SOURCE_ID);
+
+            database.hostsSourceDao().updateActiveRuleStats(CURRENT_SOURCE_ID);
+            database.hostsSourceDao().updateActiveRuleStats(OUTDATED_SOURCE_ID);
+            database.hostEntryDao().sync();
+        });
+    }
+
+    private static void seedUpdatedCounterFixture(Context context) {
+        runOnDiskIo(context, database -> {
+            resetCounterTables(database);
+
+            database.hostsSourceDao().insert(source(
+                    CURRENT_SOURCE_ID,
+                    "Counter current source",
+                    "https://counter-current.test/hosts.txt",
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z"),
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z")));
+            database.hostsSourceDao().insert(source(
+                    OUTDATED_SOURCE_ID,
+                    "Counter outdated source",
+                    "https://counter-outdated.test/hosts.txt",
+                    ZonedDateTime.parse("2026-05-01T00:00:00Z"),
+                    ZonedDateTime.parse("2026-06-01T00:00:00Z")));
+
+            insertItem(database, "ads-one.example", ListType.BLOCKED, CURRENT_SOURCE_ID);
+            insertItem(database, "ads-two.example", ListType.BLOCKED, CURRENT_SOURCE_ID);
+            insertItem(database, "ads-three.example", ListType.BLOCKED, OUTDATED_SOURCE_ID);
+            insertItem(database, "ads-four.example", ListType.BLOCKED, CURRENT_SOURCE_ID);
+            insertItem(database, "ads-five.example", ListType.BLOCKED, OUTDATED_SOURCE_ID);
+            insertItem(database, "allow-one.example", ListType.ALLOWED, USER_SOURCE_ID);
+            insertItem(database, "allow-two.example", ListType.ALLOWED, CURRENT_SOURCE_ID);
+            insertItem(database, "allow-three.example", ListType.ALLOWED, CURRENT_SOURCE_ID);
+            insertItem(database, "allow-four.example", ListType.ALLOWED, OUTDATED_SOURCE_ID);
+            insertItem(database, "redirect-one.example", ListType.REDIRECTED, OUTDATED_SOURCE_ID);
+            insertItem(database, "redirect-two.example", ListType.REDIRECTED, CURRENT_SOURCE_ID);
 
             database.hostsSourceDao().updateActiveRuleStats(CURRENT_SOURCE_ID);
             database.hostsSourceDao().updateActiveRuleStats(OUTDATED_SOURCE_ID);
@@ -170,11 +249,7 @@ public class HomeCountersInstrumentedTest {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-            AtomicReference<String> actualText = new AtomicReference<>("");
-            scenario.onActivity(activity -> {
-                TextView view = activity.findViewById(viewId);
-                actualText.set(view == null ? "" : view.getText().toString());
-            });
+            AtomicReference<String> actualText = readText(scenario, viewId);
             if (expectedText.equals(actualText.get())) {
                 return;
             }
@@ -183,20 +258,120 @@ public class HomeCountersInstrumentedTest {
         throw new AssertionError("View " + viewId + " did not show \"" + expectedText + "\".");
     }
 
-    private static void runOnDiskIo(
+    private static void assertTextRemainsFor(
             ActivityScenario<HomeActivity> scenario,
-            ActivityWork work) {
+            int viewId,
+            String expectedText,
+            long durationMs) {
+        long deadline = SystemClock.uptimeMillis() + durationMs;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            String actualText = readText(scenario, viewId).get();
+            if (!expectedText.equals(actualText)) {
+                throw new AssertionError("View " + viewId + " changed from \""
+                        + expectedText + "\" to \"" + actualText
+                        + "\" while update progress was active.");
+            }
+            SystemClock.sleep(100);
+        }
+    }
+
+    private static void waitForVisibility(
+            ActivityScenario<HomeActivity> scenario,
+            int viewId,
+            int expectedVisibility) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            AtomicReference<Integer> actualVisibility = new AtomicReference<>(View.GONE);
+            scenario.onActivity(activity -> {
+                View view = activity.findViewById(viewId);
+                actualVisibility.set(view == null ? View.GONE : view.getVisibility());
+            });
+            if (actualVisibility.get() == expectedVisibility) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("View " + viewId + " did not reach visibility "
+                + expectedVisibility + ".");
+    }
+
+    private static AtomicReference<String> readText(
+            ActivityScenario<HomeActivity> scenario,
+            int viewId) {
+        AtomicReference<String> actualText = new AtomicReference<>("");
+        scenario.onActivity(activity -> {
+            TextView view = activity.findViewById(viewId);
+            actualText.set(view == null ? "" : view.getText().toString());
+        });
+        return actualText;
+    }
+
+    private static FilterOperationState operationState(
+            FilterOperationState.Phase phase,
+            int overallPercent,
+            long parsedHostCount) throws Exception {
+        Constructor<FilterOperationState> constructor =
+                FilterOperationState.class.getDeclaredConstructor(
+                        FilterOperationState.Kind.class,
+                        FilterOperationState.Phase.class,
+                        int.class,
+                        int.class,
+                        int.class,
+                        int.class,
+                        int.class,
+                        long.class,
+                        String.class,
+                        String.class,
+                        long.class,
+                        long.class,
+                        boolean.class,
+                        boolean.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(
+                FilterOperationState.Kind.SOURCE_UPDATE,
+                phase,
+                2,
+                2,
+                1,
+                phase == FilterOperationState.Phase.COMPLETE ? 2 : 1,
+                overallPercent,
+                parsedHostCount,
+                "Counter update",
+                null,
+                1L,
+                2L,
+                false,
+                false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void publishOperationState(Context context, FilterOperationState state)
+            throws Exception {
+        SourceModel sourceModel =
+                ((AdAwayApplication) context.getApplicationContext()).getSourceModel();
+        Field field = SourceModel.class.getDeclaredField("filterOperationState");
+        field.setAccessible(true);
+        MutableLiveData<FilterOperationState> liveData =
+                (MutableLiveData<FilterOperationState>) field.get(sourceModel);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> liveData.setValue(state));
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+    }
+
+    private static void runOnDiskIo(Context context, DatabaseWork work) {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        scenario.onActivity(activity -> AppExecutors.getInstance().diskIO().execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
-                work.run(activity);
+                work.run(AppDatabase.getInstance(context));
             } catch (Throwable throwable) {
                 failure.set(throwable);
             } finally {
                 latch.countDown();
             }
-        }));
+        });
         try {
             assertTrue(latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
         } catch (InterruptedException interruptedException) {
@@ -209,7 +384,7 @@ public class HomeCountersInstrumentedTest {
         }
     }
 
-    private interface ActivityWork {
-        void run(HomeActivity activity);
+    private interface DatabaseWork {
+        void run(AppDatabase database);
     }
 }

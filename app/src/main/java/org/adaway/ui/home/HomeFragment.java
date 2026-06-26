@@ -322,7 +322,7 @@ public class HomeFragment extends Fragment {
                 primeCountersOnceDuringImport();
             }
 
-            if (initialBlockedCount < 0) {
+            if (!isStopped && !isComplete && initialBlockedCount < 0) {
                 long cached = this.homeViewModel.getCachedInitialBlockedCount();
                 if (cached >= 0) {
                     initialBlockedCount = cached;
@@ -555,19 +555,16 @@ public class HomeFragment extends Fragment {
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().diskIO().execute(() -> {
             try {
+                int blockedNow = getBlockedEntryCountNow(appContext);
                 int allowedNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getAllowedHostCountNow();
                 int redirectNow = AppDatabase.getInstance(appContext)
                         .hostsListItemDao().getRedirectHostCountNow();
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (this.binding == null) return;
+                    this.binding.content.blockedHostCounterTextView.setText(formatCount(blockedNow));
                     this.binding.content.allowedHostCounterTextView.setText(formatCount(allowedNow));
                     this.binding.content.redirectHostCounterTextView.setText(formatCount(redirectNow));
-                    CharSequence blockedText =
-                            this.binding.content.blockedHostCounterTextView.getText();
-                    if (blockedText == null || blockedText.length() == 0) {
-                        this.binding.content.blockedHostCounterTextView.setText(formatCount(0));
-                    }
                 });
             } catch (Exception ignored) {
             }

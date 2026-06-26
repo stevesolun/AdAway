@@ -8667,7 +8667,7 @@
 - [x] Run the focused connected direct-entry test, standard local Gradle gate, and full connected
   suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 33
 - Starting state: `NAV-001` is `Partially covered`; source-text contracts and UX matrix coverage
@@ -8696,6 +8696,7 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 141
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Committed and pushed as `2bfd8052`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: FilterLists subscription progress text is still source-level covered as a
   Discover navigation entry point; this slice proves the launch extra and Home no-source CTA.
 
@@ -8709,7 +8710,7 @@
 - [x] Run the focused connected Home counters test, standard local Gradle gate, and full connected
   suite if the test mutates shared app data.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 34
 - Starting state: `HOME-004` is `Partially covered` with no visual/data device proof, and
@@ -8733,5 +8734,53 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 142
   tests on `adaway-api34` with 3 skipped and 0 failed.
+- Committed and pushed as `2753f2e2`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: `HOME-004` still needs a focused active-operation proof for the counter-freeze
   behavior during an in-progress update.
+
+## Plan - 2026-06-26 Story Fix Loop 35
+- [x] Re-ground `HOME-004` from the canonical story spreadsheet and current Home counter binding.
+- [x] Add a connected active-update proof that drives the real Home UI through an injected shared
+  `FilterOperationState` while database counters change underneath it.
+- [x] Assert visible blocked, allowed, and redirected counters freeze during active progress and
+  refresh after terminal completion.
+- [x] Patch production only if the focused proof exposes a real counter-freeze defect.
+- [x] Run the focused connected Home counter-freeze test, standard local Gradle gate, and full
+  connected suite if the test mutates shared app data.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 35
+- Starting state: `HOME-004` remained `Partially covered`; the post-sync counter path was proven,
+  but active update progress still lacked a device-level counter-freeze proof.
+- Added an active-update path to `HomeCountersInstrumentedTest`: it launches the real Home shell,
+  seeds visible blocked/allowed/redirected counts, injects the shared `FilterOperationState` that
+  `SourceModel` publishes in production, mutates the database to new counts while progress is
+  active, asserts the old counters stay visible during the active operation, then publishes
+  terminal `COMPLETE` and asserts the new counters appear.
+- The first focused connected run failed usefully:
+  `homeCountersFreezeDuringActiveUpdateAndRefreshAfterCompletion` kept showing blocked count `3`
+  instead of refreshing to `5` after terminal completion.
+- Root cause: after terminal `COMPLETE`, `HomeFragment` reset and reattached counter observers,
+  then the generic progress guard immediately re-read stale blocked-count LiveData and restored
+  `initialBlockedCount`, causing the later correct Room value to be ignored.
+- Fixed `HomeFragment` so terminal states do not re-prime the active-import blocked-count guard,
+  and so the terminal/one-shot counter refresh reads and renders the blocked count alongside
+  allowed and redirected counts.
+- The first pushed PR CI run exposed a test-isolation gap: the connected test did not reliably
+  reach the initial seeded blocked count on GitHub's full-suite order. The test now resets the
+  shared `FilterOperationState` to idle in setup and teardown while keeping fixture seeding after
+  Home launch so app database bootstrap can complete normally.
+- Focused connected Home counters gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeCountersInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 143
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: `HOME-004` is now covered by connected UI flow; broader Home progress visual
+  matrix coverage remains tracked under `HOME-007`.
