@@ -8922,3 +8922,51 @@
 - Remaining boundary: stopped full updates are now reported and handled as cancellation, but a
   deeper worker-level parse-cancellation cleanup audit remains open for a later source-pipeline
   hardening slice.
+
+## Plan - 2026-06-26 Story Fix Loop 39
+- [x] Re-ground `HOME-006` from the canonical story spreadsheet and the real Home action path.
+- [x] Add a focused connected proof that clicks the visible Home update/apply action and drives a
+  deterministic local file source through the shared `SourceModel` pipeline.
+- [x] Assert the user path updates runtime truth and reaches the apply boundary without requiring
+  root or VPN consent.
+- [x] Patch production only if the focused proof exposes a real Home action defect.
+- [x] Run the focused connected Home action test and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 39
+- Starting state: `HOME-006` was `Partially covered`; the visible Home action path had source
+  contract coverage and worker coverage, but no connected proof that the user could tap the real
+  Home check/update or update/apply controls and drive runtime truth before apply.
+- Added `HomeUpdateActionsInstrumentedTest`, a connected test that launches the real
+  `HomeActivity`, clicks `checkForUpdateImageView` and `updateImageView`, uses a deterministic
+  local `content://org.adaway.test.hosts/success.txt` source, injects a recording root-mode
+  `AdBlockModel`, and asserts `fresh-success.example` resolves as `BLOCKED` before the apply
+  boundary is accepted.
+- No production code changed for `HOME-006`; the slice device-proves the existing Home action
+  behavior.
+- First focused attempts failed before meaningful assertion because the Room database initializer
+  reinserted default HTTPS sources after fixture cleanup, which sent the source pipeline to real
+  network lists like `hosts.oisd.nl`. The test fixture now forces the writable DB open and drains
+  the app disk executor before cleanup and seeding.
+- Focused connected Home action gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateActionsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- The first full connected suite after adding the new test exposed the existing
+  `HomeCountersInstrumentedTest` teardown latch timeout on shared `AppExecutors.diskIO()` cleanup.
+  The counter fixture now uses a private single-use executor for fixture DB work.
+- Affected connected classes passed together with the same JDK:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateActionsInstrumentedTest,org.adaway.ui.home.HomeCountersInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 4 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 149
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: `HOME-006` is device-covered for the deterministic local source path; the
+  broader visual matrix remains under `REL-004`, and real network/update-source behavior remains
+  under `RUNTIME-001` and `RUNTIME-010`.

@@ -1,8 +1,6 @@
 package org.adaway.ui.home;
 
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
-import static org.junit.Assert.assertTrue;
-
 import android.content.Context;
 import android.os.SystemClock;
 import android.view.View;
@@ -23,7 +21,6 @@ import org.adaway.db.entity.ListType;
 import org.adaway.model.source.FilterOperationState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
-import org.adaway.util.AppExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,7 +29,9 @@ import org.junit.runner.RunWith;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.time.ZonedDateTime;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -112,7 +111,7 @@ public class HomeCountersInstrumentedTest {
     }
 
     private static void seedCounterFixture(Context context) {
-        runOnDiskIo(context, database -> {
+        runDatabaseWork(context, "seeding Home counter fixture", database -> {
             resetCounterTables(database);
 
             database.hostsSourceDao().insert(source(
@@ -142,7 +141,7 @@ public class HomeCountersInstrumentedTest {
     }
 
     private static void seedUpdatedCounterFixture(Context context) {
-        runOnDiskIo(context, database -> {
+        runDatabaseWork(context, "seeding updated Home counter fixture", database -> {
             resetCounterTables(database);
 
             database.hostsSourceDao().insert(source(
@@ -177,27 +176,8 @@ public class HomeCountersInstrumentedTest {
     }
 
     private static void clearCounterFixture(Context context) {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Throwable> failure = new AtomicReference<>();
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            try {
-                resetCounterTables(AppDatabase.getInstance(context));
-            } catch (Throwable throwable) {
-                failure.set(throwable);
-            } finally {
-                latch.countDown();
-            }
-        });
-        try {
-            assertTrue(latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
-        } catch (InterruptedException interruptedException) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while clearing Home counter fixture.",
-                    interruptedException);
-        }
-        if (failure.get() != null) {
-            throw new AssertionError("Failed to clear Home counter fixture.", failure.get());
-        }
+        runDatabaseWork(context, "clearing Home counter fixture",
+                HomeCountersInstrumentedTest::resetCounterTables);
     }
 
     private static void resetCounterTables(AppDatabase database) {
@@ -360,27 +340,19 @@ public class HomeCountersInstrumentedTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    private static void runOnDiskIo(Context context, DatabaseWork work) {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Throwable> failure = new AtomicReference<>();
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            try {
-                work.run(AppDatabase.getInstance(context));
-            } catch (Throwable throwable) {
-                failure.set(throwable);
-            } finally {
-                latch.countDown();
-            }
-        });
+    private static void runDatabaseWork(Context context, String description, DatabaseWork work) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<?> future = executor.submit(() -> work.run(AppDatabase.getInstance(context)));
         try {
-            assertTrue(latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while seeding Home counter fixture.",
+            throw new AssertionError("Interrupted while " + description + ".",
                     interruptedException);
-        }
-        if (failure.get() != null) {
-            throw new AssertionError("Failed to seed Home counter fixture.", failure.get());
+        } catch (Exception exception) {
+            throw new AssertionError("Failed while " + description + ".", exception);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
