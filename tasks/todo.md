@@ -8421,7 +8421,7 @@
   changing production list behavior.
 - [x] Rerun the focused connected list-tab test and standard local Gradle gate.
 - [x] Rerun the full local connected Android suite that failed in CI.
-- [ ] Push the fix and recheck PR CI.
+- [x] Push the fix and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 27
 - The failed PR check was `Connected Android tests` on `ccf571d2`. The log showed one failure:
@@ -8435,6 +8435,37 @@
   to the runtime list query, and restore the previous singleton in teardown.
 - Focused connected list-tab gate passed:
   `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsTabsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 135
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- PR CI recheck on `b3923958` moved past the list-tab failure and exposed a separate Discover
+  `UxDeviceMatrixTest` ellipsized-text failure, handled in Story Fix Loop 28.
+
+## Plan - 2026-06-26 Story Fix Loop 28
+- [x] Debug the branch-tip connected Android CI failure on `b3923958` before changing Discover UI.
+- [x] Confirm whether the failure is a production crash, native crash, ANR, emulator noise, or a
+  deterministic UX/accessibility issue.
+- [x] Patch the smallest production layout surface that caused the failure.
+- [x] Rerun the focused UX matrix connected test.
+- [x] Rerun the standard local Gradle gate and full local connected Android suite.
+- [ ] Push the fix and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 28
+- The failed PR check was `Connected Android tests` on `b3923958`. The prior list-tab failure was
+  gone; the new failure was `UxDeviceMatrixTest` reporting ellipsized `filterlistsItemDesc` text on
+  the Discover screen.
+- Root cause: FilterLists descriptions now include capability summaries, but
+  `filterlists_import_item.xml` still capped the description to three lines with `ellipsize=end`.
+  Long third-party descriptions could therefore be clipped in the directory UI.
+- Fixed the FilterLists row layout to let description and capability text wrap fully instead of
+  truncating.
+- Focused UX matrix gate passed:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.UxDeviceMatrixTest
   :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
   `adaway-api34`.
 - Standard local gate passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
