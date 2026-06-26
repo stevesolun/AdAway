@@ -31,7 +31,8 @@ public class HostsSourcesActionsContractTest {
         assertTrue("Update all must run the all-sources branch, not a stale single-source path.",
                 fragment.contains("public void updateAllSources()") &&
                         fragment.contains("runUpdateSources(null)") &&
-                        fragment.contains("sourceModel.checkAndRetrieveHostsSources();") &&
+                        fragment.contains("shouldApply = sourceModel.checkAndRetrieveHostsSources();") &&
+                        fragment.contains("if (shouldApply) {") &&
                         fragment.contains("adBlockModel.apply();"));
         assertTrue("Update all must show source-specific running feedback.",
                 fragment.contains("R.string.sources_apply_installing"));

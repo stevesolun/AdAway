@@ -260,10 +260,10 @@ public class HomeNavigationSourcesContractTest {
                         homeFragment.contains("updateImageView") &&
                         homeFragment.contains(".setOnClickListener(v -> " +
                                 "this.homeViewModel.sync())"));
-        assertTrue("HomeViewModel sync must retrieve sources and apply ad blocking.",
+        assertTrue("HomeViewModel sync must apply only after a completed source update.",
                 homeViewModel.contains("public void sync()") &&
                         homeViewModel.contains(
-                                "this.sourceModel.checkAndRetrieveHostsSources();") &&
+                                "if (this.sourceModel.checkAndRetrieveHostsSources())") &&
                         homeViewModel.contains("this.adBlockModel.apply();"));
     }
 

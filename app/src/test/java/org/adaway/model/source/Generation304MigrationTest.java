@@ -227,11 +227,11 @@ public class Generation304MigrationTest {
         assertTrue("Full update must use the shared update gate.",
                 sourceModel.contains("beginUpdateOperation(\"checkAndRetrieveHostsSources\")"));
         String legacyRetrieve = sourceModel.substring(
-                sourceModel.indexOf("public void retrieveHostsSources() throws HostErrorException"),
-                sourceModel.indexOf("public void checkAndRetrieveHostsSources()"));
+                sourceModel.indexOf("public boolean retrieveHostsSources() throws HostErrorException"),
+                sourceModel.indexOf("public boolean checkAndRetrieveHostsSources()"));
         assertTrue("Legacy all-source update must delegate directly to the staged full-update " +
                         "pipeline.",
-                legacyRetrieve.contains("checkAndRetrieveHostsSources();"));
+                legacyRetrieve.contains("return checkAndRetrieveHostsSources();"));
         assertFalse("Legacy all-source update must not keep the deleted pre-staged body.",
                 legacyRetrieve.contains("beginUpdateOperation(\"retrieveHostsSources\")") ||
                         legacyRetrieve.contains("useStagedPipelineForLegacyRetrieve()") ||
@@ -396,7 +396,7 @@ public class Generation304MigrationTest {
         String sourceModel = compact(readRepoFile(
                 "app/src/main/java/org/adaway/model/source/SourceModel.java"));
         String stagedUpdate = sourceModel.substring(
-                sourceModel.indexOf("public void checkAndRetrieveHostsSources() " +
+                sourceModel.indexOf("public boolean checkAndRetrieveHostsSources() " +
                         "throws HostErrorException"),
                 sourceModel.indexOf("private static int ensureAndGetActiveGeneration"));
 
@@ -430,7 +430,7 @@ public class Generation304MigrationTest {
                         "progressBuilder.setComplete(false); " +
                         "postMultiPhaseProgress(progressBuilder.build(), true); " +
                         "postIdleAfterTerminal(); " +
-                        "return; }"));
+                        "return false; }"));
         assertTrue("Stopped update workers must not publish a partial generation.",
                 sourceModel.indexOf("if (progressBuilder.isStopped()) { " +
                         "cleanupGeneration(writableDb, importGeneration);") <

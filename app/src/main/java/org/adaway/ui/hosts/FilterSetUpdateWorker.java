@@ -135,7 +135,9 @@ public class FilterSetUpdateWorker extends Worker {
             sourceModel.setSchedulerTaskName(taskName);
             if (globalScheduleDue) {
                 // Global schedule intentionally updates all enabled sources with adaptive batching.
-                sourceModel.checkAndRetrieveHostsSources();
+                if (!sourceModel.checkAndRetrieveHostsSources()) {
+                    return Result.failure();
+                }
             } else {
                 List<Integer> dueSourceIds = new ArrayList<>(dueSourcesByUrl.size());
                 for (HostsSource source : dueSourcesByUrl.values()) {

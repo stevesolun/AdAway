@@ -8835,7 +8835,7 @@
 - [x] Patch production only if the focused proof exposes a real pause/resume defect.
 - [x] Run the focused connected Home pause/resume test and the standard local Gradle gate.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 37
 - Starting state: `HOME-008` was `Needs connected behavior coverage`; source-level contracts
@@ -8864,6 +8864,61 @@
 - Full local connected gate passed with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` produced XML
   summary `tests="142" failures="0" errors="0" skipped="3"` on `adaway-api34`.
+- Committed and pushed as `9000bdce`; PR CI passed all required checks on the pushed head.
 - Remaining boundary: ordinary Home pause/resume controls are fixed and device-proven, but
   cooperative pause inside one long download or parser loop remains open as a worker-level
   semantics gap.
+
+## Plan - 2026-06-26 Story Fix Loop 38
+- [x] Re-ground `HOME-009` from the canonical story spreadsheet and current stop/cancel findings.
+- [x] Add a failing model-level connected proof that a stopped full source update reports
+  cancellation/non-success and preserves active-generation runtime truth.
+- [x] Patch `SourceModel` stop semantics so stopped updates are not indistinguishable from
+  successful updates.
+- [x] Patch apply callers to skip `AdBlockModel.apply()` when the source update reports
+  cancellation.
+- [x] Verify focused stop/cancel tests, standard local Gradle gate, and full connected suite if
+  singleton/database state is exercised.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 38
+- Starting state: `HOME-009` was `Needs connected behavior coverage`; the risk was concrete:
+  a stopped update could be reported like a successful update, and apply callers would still run
+  `AdBlockModel.apply()` after cancellation.
+- Added a connected model proof in `SourceModelHttpConditionalTest` that starts a full source
+  update, stops it during a delayed download, and asserts the update result is `false`, the active
+  generation remains unchanged, active runtime rows still resolve, staging rows are cleaned up,
+  and the partially downloaded replacement host is not active.
+- The first focused run failed as expected: the stopped update returned `null` instead of
+  `Boolean.FALSE`.
+- Fixed `SourceModel` so `retrieveHostsSources()` and `checkAndRetrieveHostsSources()` return a
+  boolean completion contract: normal/no-change paths return `true`, stopped updates clean staging
+  state and return `false`, and interrupted pause waits convert to stopped state instead of
+  bypassing cleanup.
+- Guarded source-update apply callers in Home, scheduled/immediate source workers, filter-set
+  workers, source-list update UI, and the apply snackbar so they only call `AdBlockModel.apply()`
+  after a completed source update.
+- Added a connected Home control proof that clicks the real stop button while `SourceModel` is in
+  an active controllable update state and waits for terminal `STOPPED` state plus disabled
+  pause/stop controls.
+- Focused connected model stop/cancel gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelHttpConditionalTest#checkAndRetrieveHostsSources_stopDuringDownloadReturnsCancelledAndKeepsRuntimeTruth
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace`.
+- Focused connected Home update-controls gate passed with the same JDK:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateControlsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- The first full connected run exposed a transient `HomeCountersInstrumentedTest` teardown latch
+  timeout on the shared DB cleanup path. The class passed when rerun focused, and a fresh full
+  connected rerun passed without changing that fixture.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 147
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: stopped full updates are now reported and handled as cancellation, but a
+  deeper worker-level parse-cancellation cleanup audit remains open for a later source-pipeline
+  hardening slice.

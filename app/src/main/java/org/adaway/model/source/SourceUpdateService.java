@@ -186,10 +186,11 @@ public final class SourceUpdateService {
             if (PreferenceHelper.getAutomaticUpdateDaily(application)) {
                 // Retrieve source updates with adaptive batching
                 SourceModel sourceModel = application.getSourceModel();
-                sourceModel.checkAndRetrieveHostsSources();
-                // Apply source updates
-                AdBlockModel adBlockModel = application.getAdBlockModel();
-                adBlockModel.apply();
+                if (sourceModel.checkAndRetrieveHostsSources()) {
+                    // Apply source updates
+                    AdBlockModel adBlockModel = application.getAdBlockModel();
+                    adBlockModel.apply();
+                }
             } else {
                 // Display update notification
                 NotificationHelper.showUpdateHostsNotification(application);
@@ -212,9 +213,10 @@ public final class SourceUpdateService {
             AdAwayApplication application = (AdAwayApplication) getApplicationContext();
             try {
                 SourceModel sourceModel = application.getSourceModel();
-                sourceModel.checkAndRetrieveHostsSources();
-                AdBlockModel adBlockModel = application.getAdBlockModel();
-                adBlockModel.apply();
+                if (sourceModel.checkAndRetrieveHostsSources()) {
+                    AdBlockModel adBlockModel = application.getAdBlockModel();
+                    adBlockModel.apply();
+                }
                 return success();
             } catch (HostErrorException exception) {
                 Timber.e(exception, "Failed to update/apply during immediate update-all.");

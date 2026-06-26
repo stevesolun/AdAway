@@ -531,8 +531,8 @@ public class SourceModel {
      *
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */
-    public void retrieveHostsSources() throws HostErrorException {
-        checkAndRetrieveHostsSources();
+    public boolean retrieveHostsSources() throws HostErrorException {
+        return checkAndRetrieveHostsSources();
     }
 
     /**
@@ -546,12 +546,12 @@ public class SourceModel {
      *
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */
-    public void checkAndRetrieveHostsSources() throws HostErrorException {
+    public boolean checkAndRetrieveHostsSources() throws HostErrorException {
         if (isDeviceOffline()) {
             throw new HostErrorException(NO_CONNECTION);
         }
         if (!beginUpdateOperation("checkAndRetrieveHostsSources")) {
-            return;
+            return false;
         }
         SupportSQLiteDatabase writableDb = null;
         final SqlUpdateDeduper[] sqlDeduperRef = new SqlUpdateDeduper[1];
@@ -609,7 +609,7 @@ public class SourceModel {
             this.updateAvailable.postValue(false);
             postProgress(0, 0, null, 10000, 100);
             postMultiPhaseProgress(MultiPhaseProgress.idle());
-            return;
+            return true;
         }
 
         // Initialize progress tracking
@@ -638,10 +638,20 @@ public class SourceModel {
         for (HostsSource source : enabledFileSources) {
             if (progressBuilder.isStopped()) {
                 Timber.i("Update stopped by user");
-                return;
+                break;
             }
             while (progressBuilder.isPaused()) {
-                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    progressBuilder.setStopped(true);
+                    break;
+                }
+            }
+            if (progressBuilder.isStopped()) {
+                Timber.i("Update stopped by user");
+                break;
             }
 
             progressBuilder.setCurrentLabel(source.getLabel());
@@ -674,7 +684,7 @@ public class SourceModel {
 
         // SIMPLIFIED 2-PHASE PIPELINE - no check phase, direct download with conditional GET
         // Download uses If-Modified-Since headers - server returns 304 if unchanged (fast, no body)
-        if (!enabledUrlSources.isEmpty()) {
+        if (!progressBuilder.isStopped() && !enabledUrlSources.isEmpty()) {
             long heapMB = MAX_MEMORY / (1024 * 1024);
 
             // Create DEDICATED thread pools for THIS update (not shared)
@@ -886,7 +896,7 @@ public class SourceModel {
             progressBuilder.setComplete(false);
             postMultiPhaseProgress(progressBuilder.build(), true);
             postIdleAfterTerminal();
-            return;
+            return false;
         }
 
         if (totalFailed == 0
@@ -911,7 +921,7 @@ public class SourceModel {
             progressBuilder.setComplete(true);
             postMultiPhaseProgress(progressBuilder.build(), true);
             postIdleAfterTerminal();
-            return;
+            return true;
         }
 
         progressBuilder.setFinalizing(true);
@@ -951,6 +961,7 @@ public class SourceModel {
         progressBuilder.setComplete(true);
         postMultiPhaseProgress(progressBuilder.build(), true);
         postIdleAfterTerminal();
+        return true;
         } finally {
             if (sqlDeduperRef[0] != null) {
                 sqlDeduperRef[0].drop();

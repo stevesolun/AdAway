@@ -27,7 +27,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.time.ZonedDateTime;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
@@ -241,6 +246,50 @@ public class SourceModelHttpConditionalTest {
         assertScratchTableAbsent();
     }
 
+    @Test
+    public void checkAndRetrieveHostsSources_stopDuringDownloadReturnsCancelledAndKeepsRuntimeTruth()
+            throws Exception {
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if ("/first.txt".equals(request.getPath())) {
+                    return new MockResponse()
+                            .setResponseCode(200)
+                            .setHeader("ETag", "\"first-new-etag\"")
+                            .setHeader("Last-Modified", "Sat, 13 Jun 2026 00:00:00 GMT")
+                            .setBody("0.0.0.0 " + UPDATED_FIRST_HOST + "\n")
+                            .setBodyDelay(5, TimeUnit.SECONDS);
+                }
+                if ("/second.txt".equals(request.getPath())) {
+                    return new MockResponse().setResponseCode(304);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        });
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<Object> updateResult = executor.submit(this::invokeCheckAndRetrieveHostsSources);
+        try {
+            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS));
+
+            sourceModel.requestStop();
+
+            assertEquals(Boolean.FALSE, updateResult.get(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals(ACTIVE_GENERATION, getActiveGeneration());
+        assertEquals(1, countRows(FIRST_SOURCE_ID, ACTIVE_GENERATION));
+        assertEquals(1, countRows(SECOND_SOURCE_ID, ACTIVE_GENERATION));
+        assertEquals(0, countRows(FIRST_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(0, countRows(SECOND_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(SECOND_HOST).getType());
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertScratchTableAbsent();
+    }
+
     private void insertHttpsSource(
             int sourceId,
             String label,
@@ -272,6 +321,19 @@ public class SourceModelHttpConditionalTest {
         Field field = SourceModel.class.getDeclaredField("cachedHttpClient");
         field.setAccessible(true);
         field.set(sourceModel, client);
+    }
+
+    private Object invokeCheckAndRetrieveHostsSources() throws Exception {
+        Method method = SourceModel.class.getMethod("checkAndRetrieveHostsSources");
+        try {
+            return method.invoke(sourceModel);
+        } catch (InvocationTargetException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            throw new AssertionError(cause);
+        }
     }
 
     private void setActiveGeneration(int generation) {

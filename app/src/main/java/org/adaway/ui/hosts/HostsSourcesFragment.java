@@ -719,12 +719,17 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
             AdBlockModel adBlockModel = app.getAdBlockModel();
             boolean ok = true;
             try {
+                boolean shouldApply = true;
                 if (source == null) {
-                    sourceModel.checkAndRetrieveHostsSources();
+                    shouldApply = sourceModel.checkAndRetrieveHostsSources();
                 } else {
                     sourceModel.retrieveHostsSource(source.getId());
                 }
-                adBlockModel.apply();
+                if (shouldApply) {
+                    adBlockModel.apply();
+                } else {
+                    ok = false;
+                }
             } catch (HostErrorException e) {
                 ok = false;
             }

@@ -189,8 +189,9 @@ public class HomeViewModel extends AndroidViewModel {
             try {
                 this.pending.postValue(true);
                 // Use adaptive pipeline: check + download in one pass
-                this.sourceModel.checkAndRetrieveHostsSources();
-                this.adBlockModel.apply();
+                if (this.sourceModel.checkAndRetrieveHostsSources()) {
+                    this.adBlockModel.apply();
+                }
             } catch (HostErrorException exception) {
                 Timber.w(exception, "Failed to update.");
                 this.error.postValue(exception.getError());
@@ -208,8 +209,9 @@ public class HomeViewModel extends AndroidViewModel {
             try {
                 this.pending.postValue(true);
                 // Sync also uses the full pipeline now for consistency
-                this.sourceModel.checkAndRetrieveHostsSources();
-                this.adBlockModel.apply();
+                if (this.sourceModel.checkAndRetrieveHostsSources()) {
+                    this.adBlockModel.apply();
+                }
             } catch (HostErrorException exception) {
                 Timber.w(exception, "Failed to sync.");
                 this.error.postValue(exception.getError());

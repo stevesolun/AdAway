@@ -84,6 +84,23 @@ public class HomeUpdateControlsInstrumentedTest {
         }
     }
 
+    @Test
+    public void stopButtonStopsActiveSourceUpdateAndDisablesControls() throws Exception {
+        primeActiveSourceUpdate(this.sourceModel);
+
+        try (ActivityScenario<HomeActivity> scenario =
+                     ActivityScenario.launch(HomeActivity.class)) {
+            waitForVisibility(scenario, R.id.multiPhaseProgressContainer, View.VISIBLE);
+            waitForShownAndEnabled(scenario, R.id.stopButton);
+
+            clickView(scenario, R.id.stopButton);
+
+            waitForStoppedState();
+            waitForEnabled(scenario, R.id.pauseResumeButton, false);
+            waitForEnabled(scenario, R.id.stopButton, false);
+        }
+    }
+
     private void waitForPausedState(boolean expectedPaused) {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
@@ -97,6 +114,22 @@ public class HomeUpdateControlsInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Source update paused state did not become " + expectedPaused);
+    }
+
+    private void waitForStoppedState() {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            FilterOperationState state = this.sourceModel.getFilterOperationState().getValue();
+            if (state != null
+                    && state.kind == FilterOperationState.Kind.SOURCE_UPDATE
+                    && state.stopped
+                    && state.phase == FilterOperationState.Phase.STOPPED) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Source update stopped state was not published.");
     }
 
     private static void clickView(ActivityScenario<HomeActivity> scenario, int viewId) {
@@ -146,6 +179,27 @@ public class HomeUpdateControlsInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("View " + viewId + " did not become shown and enabled.");
+    }
+
+    private static void waitForEnabled(
+            ActivityScenario<HomeActivity> scenario,
+            int viewId,
+            boolean expectedEnabled) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            AtomicReference<Boolean> actualEnabled = new AtomicReference<>(false);
+            scenario.onActivity(activity -> {
+                View view = activity.findViewById(viewId);
+                actualEnabled.set(view != null && view.isEnabled());
+            });
+            if (actualEnabled.get() == expectedEnabled) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("View " + viewId + " enabled state did not become "
+                + expectedEnabled + ".");
     }
 
     private static void waitForContentDescription(

@@ -142,13 +142,16 @@ public class ApplyConfigurationSnackbar {
             SourceModel sourceModel = application.getSourceModel();
             AdBlockModel adBlockModel = application.getAdBlockModel();
             try {
+                boolean shouldApply = true;
                 if (this.syncSources) {
-                    sourceModel.checkAndRetrieveHostsSources();
+                    shouldApply = sourceModel.checkAndRetrieveHostsSources();
                 } else {
                     sourceModel.syncHostEntries();
                 }
-                adBlockModel.apply();
-                endLoading(true);
+                if (shouldApply) {
+                    adBlockModel.apply();
+                }
+                endLoading(shouldApply);
             } catch (HostErrorException exception) {
                 endLoading(false);
             }
