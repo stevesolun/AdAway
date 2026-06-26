@@ -672,6 +672,8 @@ public class SourceDbTest extends DbTest {
         SupportSQLiteDatabase writableDb = this.db.getOpenHelper().getWritableDatabase();
         insertRootStageHost(writableDb, "stage-root.example", BLOCKED, null,
                 EXTERNAL_SOURCE_ID, 2);
+        insertRootStageHost(writableDb, "stage-root.example", BLOCKED, null,
+                EXTERNAL_SOURCE_ID, 2);
         insertRootStageHost(writableDb, "stage-allowed.example", BLOCKED, null,
                 EXTERNAL_SOURCE_ID, 2);
         insertRootStageHost(writableDb, "blocked.stage-allowed-suffix.example", BLOCKED, null,
@@ -688,7 +690,7 @@ public class SourceDbTest extends DbTest {
                 3, 2);
         insertRootStageFillerHosts(writableDb, LARGE_STAGE_REDIRECT_FILLER_ROWS,
                 EXTERNAL_SOURCE_ID, 2);
-        int externalBlockedRows = LARGE_STAGE_REDIRECT_FILLER_ROWS + 4;
+        int externalBlockedRows = LARGE_STAGE_REDIRECT_FILLER_ROWS + 5;
         int externalRedirectedRows = 3;
         this.hostsSourceDao.updateRuleStats(EXTERNAL_SOURCE_ID,
                 externalBlockedRows + externalRedirectedRows,

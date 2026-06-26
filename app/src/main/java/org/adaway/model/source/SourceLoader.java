@@ -152,7 +152,8 @@ class SourceLoader {
         AtomicReference<Throwable> sourceReadFailure = new AtomicReference<>();
         SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT, sourceReadFailure);
         ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db,
-                this.generation, PARSER_COUNT, onBatchInserted, sourceReadFailure, sqlDeduper);
+                this.source.getId(), this.generation, PARSER_COUNT, onBatchInserted,
+                sourceReadFailure, sqlDeduper);
 
         // Shared counter for malformed lines across all parser threads
         AtomicInteger skippedLines = new AtomicInteger(0);
@@ -661,6 +662,7 @@ class SourceLoader {
         private final HostListItemDao hostListItemDao;
         @Nullable
         private final SupportSQLiteDatabase db;
+        private final int sourceId;
         private final int generation;
         private final int parserCount;
         @Nullable
@@ -672,6 +674,7 @@ class SourceLoader {
         private ItemInserter(BlockingQueue<HostListItem> itemQueue,
                              HostListItemDao hostListItemDao,
                              @Nullable SupportSQLiteDatabase db,
+                             int sourceId,
                              int generation,
                              int parserCount, @Nullable LongConsumer onBatchInserted,
                              AtomicReference<Throwable> sourceReadFailure,
@@ -679,6 +682,7 @@ class SourceLoader {
             this.hostListItemQueue = itemQueue;
             this.hostListItemDao = hostListItemDao;
             this.db = db;
+            this.sourceId = sourceId;
             this.generation = generation;
             this.parserCount = parserCount;
             this.onBatchInserted = onBatchInserted;
@@ -836,6 +840,19 @@ class SourceLoader {
                     }
                     inserted = flushed;
                 } else {
+                    if (db != null) {
+                        long stageStartedNs = SystemClock.elapsedRealtimeNanos();
+                        int staged = stageRootExportCandidates(
+                                db, this.sourceId, this.generation);
+                        long stageMs =
+                                (SystemClock.elapsedRealtimeNanos() - stageStartedNs)
+                                        / 1_000_000L;
+                        totalDbInsertMs += stageMs;
+                        if (perfLog) {
+                            Timber.i("DB root-export stage flush: rows=%d accepted=%d " +
+                                    "flushMs=%d", staged, acceptedRows, stageMs);
+                        }
+                    }
                     inserted = acceptedRows;
                 }
                 if (db != null) {
@@ -900,6 +917,21 @@ class SourceLoader {
             return new BulkInsertResult(
                     (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000L,
                     inserted);
+        }
+
+        private static int stageRootExportCandidates(
+                @NonNull SupportSQLiteDatabase db,
+                int sourceId,
+                int generation) {
+            SupportSQLiteStatement statement = db.compileStatement(
+                    "INSERT INTO root_host_entries_stage " +
+                            "(host, reverse_host, type, redirection, source_id, generation) " +
+                            "SELECT host, reverse_host, type, redirection, source_id, " +
+                            "generation FROM hosts_lists WHERE source_id = ? " +
+                            "AND generation = ? AND enabled = 1 AND type IN (0, 2)");
+            statement.bindLong(1, sourceId);
+            statement.bindLong(2, generation);
+            return statement.executeUpdateDelete();
         }
 
         private static final class BulkInsertResult {

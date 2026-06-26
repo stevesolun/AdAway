@@ -197,6 +197,10 @@ public class SourceLoaderPerformanceTest {
         assertEquals(INSERTED_ROWS, scalarLong(
                 "SELECT COUNT(*) FROM hosts_lists WHERE source_id = ? AND generation = ?",
                 SOURCE_ID, GENERATION));
+        assertEquals(INSERTED_ROWS, scalarLong(
+                "SELECT COUNT(*) FROM root_host_entries_stage " +
+                        "WHERE source_id = ? AND generation = ?",
+                SOURCE_ID, GENERATION));
         assertTrue("SourceLoader progress events exceeded " + MAX_PROGRESS_EVENTS + ": "
                 + progressEvents.get(), progressEvents.get() <= MAX_PROGRESS_EVENTS);
         assertTrue("SourceLoader parse+insert exceeded " + PARSE_INSERT_BUDGET_MS
@@ -258,6 +262,10 @@ public class SourceLoaderPerformanceTest {
         assertEquals(fixture.insertedRows, insertedByCallback.get());
         assertEquals(fixture.insertedRows, scalarLong(
                 "SELECT COUNT(*) FROM hosts_lists WHERE source_id = ? AND generation = ?",
+                SOURCE_ID, GENERATION));
+        assertEquals(fixture.insertedRows, scalarLong(
+                "SELECT COUNT(*) FROM root_host_entries_stage " +
+                        "WHERE source_id = ? AND generation = ?",
                 SOURCE_ID, GENERATION));
         this.hostsSourceDao.updateSizeForGeneration(SOURCE_ID, GENERATION);
 

@@ -593,6 +593,9 @@ public interface HostEntryDao {
             prepareRootExportRedirectSkippedStageRows(db, activeGeneration);
         }
         if (useStageBackedRootExport) {
+            prepareRootExportDuplicateSkippedStageRows(db, activeGeneration);
+        }
+        if (useStageBackedRootExport) {
             long stageBackedMs = SystemClock.elapsedRealtime();
             setRootExportStageMaterialized(true);
             long finishedMs = SystemClock.elapsedRealtime();
@@ -1235,6 +1238,30 @@ public interface HostEntryDao {
                 loserMs - winnerMs,
                 shadowMs - loserMs,
                 finishedMs - shadowMs,
+                finishedMs - startedMs);
+    }
+
+    private void prepareRootExportDuplicateSkippedStageRows(
+            SupportSQLiteDatabase db, int activeGeneration) {
+        long startedMs = SystemClock.elapsedRealtime();
+        long existingSkippedRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+        db.execSQL("INSERT OR IGNORE INTO `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` " +
+                "SELECT entry.`id` FROM `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
+                "INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "WHERE entry.`type` = 0 AND " + activeStageSourceWhere(activeGeneration) +
+                " AND EXISTS (SELECT 1 FROM `" + ROOT_EXPORT_STAGE_TABLE + "` AS better " +
+                "INDEXED BY `" + ROOT_EXPORT_STAGE_REVERSE_HOST_INDEX_NAME + "` " +
+                "WHERE better.`reverse_host` = entry.`reverse_host` " +
+                "AND better.`type` = 0 AND better.`id` < entry.`id` AND " +
+                activeStageSourceWhere("better", activeGeneration) + ")");
+        long totalSkippedRows = queryLong(db,
+                "SELECT COUNT(*) FROM `" + TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "`");
+        long finishedMs = SystemClock.elapsedRealtime();
+        Timber.i("HostEntryDao.root-export-stage duplicate-skip addedSkippedRows=%d " +
+                        "totalSkippedRows=%d totalMs=%d",
+                totalSkippedRows - existingSkippedRows,
+                totalSkippedRows,
                 finishedMs - startedMs);
     }
 

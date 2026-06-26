@@ -9567,7 +9567,7 @@
 - [x] Run focused route/security JVM tests and the connected Home leak-status test.
 - [x] Run the standard local Gradle gate and the full connected suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 53
 - Starting state: `RUNTIME-012` was `Partially covered`; `SecurityHardeningTest` only scanned
@@ -9598,3 +9598,68 @@
 - Full connected Android suite passed locally with the same JDK:
   `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
   tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Commit `f0d6a7cd test: prove common DoH route coverage` was pushed to PR #6, and final PR CI
+  recheck passed: Connected Android tests, Development build, Validate locales, Analyze (java),
+  Analyze (cpp), and CodeQL.
+
+## Plan - 2026-06-26 Story Fix Loop 54
+- [x] Re-ground `RUNTIME-010` from `tasks/user-story-status.tsv`, prior benchmark artifacts,
+  `SourceLoaderPerformanceTest`, `SourceLoader`, and `HostEntryDao`.
+- [x] Run current-head 100k and 1M full parse/sync/root-write benchmarks before editing.
+- [x] Use the slow 1M result as root-cause evidence and add a red stage-coverage regression test.
+- [x] Patch the import/runtime path so large parsed updates can use the stage-backed root export
+  without duplicate hosts-file rows.
+- [x] Rerun focused correctness and current-head 100k/1M scale gates.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Run standard local Gradle gates, commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 54
+- Starting state: `RUNTIME-010` still said `Known gap` and `Needs benchmark rerun`, even though
+  older ledger artifacts contained 5M stage/root-writer evidence. I treated the current worktree
+  as authoritative and reran current-head full parse/sync/root-write benchmarks.
+- Baseline current-head 100k full pipeline passed before edits:
+  `SourceLoaderScaleBenchmark lines=100000 inserted=95000 runtimeRows=90000
+  progressEvents=48 parseMs=58123 syncMs=1519 rootRows=90000 rootWriteMs=495
+  rootWriteBytes=2857114`.
+- Baseline current-head 1M full pipeline passed but exposed the real bottleneck:
+  `SourceLoaderScaleBenchmark lines=1000000 inserted=950000 runtimeRows=900000
+  progressEvents=475 parseMs=535607 syncMs=450369 rootRows=900000 rootWriteMs=1870
+  rootWriteBytes=29476174`. Phase logs showed `HostEntryDao.root-export-direct` spent
+  `redirectedMs=374490`, because full parse/import had never populated
+  `root_host_entries_stage` and therefore could not use the fast stage-backed root-export path.
+- Added the regression test first by asserting parsed imports populate `root_host_entries_stage`.
+  The focused 10k connected test failed red with `expected:<9500> but was:<0>`.
+- Patched `SourceLoader` to copy root-export candidates into `root_host_entries_stage` set-wise
+  from `hosts_lists` at the end of the raw bulk import transaction. This keeps the stage copy
+  atomic with the import and avoids a per-row double-write in the hot insert loop.
+- The first staging proof exposed a correctness bug in the stage-backed path: duplicate blocked
+  candidates could leak as duplicate root hosts-file rows. Added stage-backed duplicate skipping
+  in `HostEntryDao` and extended `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage`
+  to include a duplicate blocked row while preserving redirect priority, allow filtering, and
+  cursor/list parity.
+- Focused connected 10k proof passed after the patch:
+  `SourceLoaderPerformanceTest lines=10000 inserted=9500 runtimeRows=9000 progressEvents=5
+  parseMs=11316 syncMs=699 rootRows=9000 rootWriteMs=101 rootWriteBytes=276558`.
+- Focused stage-backed DAO proof passed:
+  `SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage` on `adaway-api34`.
+- Current-head 100k full pipeline passed after the patch:
+  `SourceLoaderScaleBenchmark lines=100000 inserted=95000 runtimeRows=90000
+  progressEvents=48 parseMs=49670 syncMs=1484 rootRows=90000 rootWriteMs=282
+  rootWriteBytes=2857114`.
+- Current-head 1M full pipeline passed with explicit `adawayPerfSyncBudgetMs=120000` and
+  `adawayPerfRootWriteBudgetMs=30000`: stage flush was `rows=950000 flushMs=49477`,
+  stage-backed root export was `totalMs=13049`, duplicate skip removed `50000` duplicate rows,
+  and final output was `SourceLoaderScaleBenchmark lines=1000000 inserted=950000
+  runtimeRows=900000 progressEvents=475 parseMs=570278 syncMs=13361 rootRows=900000
+  rootWriteMs=2164 rootWriteBytes=29476174`.
+- Result: 1M sync improved from `450369ms` to `13361ms`, and total selected test time dropped
+  from `1094.876s` during the first staging attempt to `691.918s` with set-wise staging.
+  The full 5M parse/import path remains open; prior 5M stage/root evidence is not enough to close
+  `RUNTIME-010` as fully covered.
+- Standard local gate passed:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 167
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- Diff hygiene passed with only existing CRLF conversion warnings:
+  `git diff --check`.
