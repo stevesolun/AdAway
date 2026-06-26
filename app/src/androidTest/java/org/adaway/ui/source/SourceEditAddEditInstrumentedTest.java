@@ -76,7 +76,7 @@ public class SourceEditAddEditInstrumentedTest {
     public void customSourceAddRejectsInvalidUrlThenEditPersistsMetadata() throws Exception {
         ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
         navigateToSources(scenario);
-        HomeActivity homeActivity = getCurrentActivity(scenario);
+        HomeActivity homeActivity = waitForHomeActivity();
 
         clickViewById(homeActivity, R.id.hosts_sources_add);
         clickAccessibilityText(this.context.getString(R.string.filter_add_custom));
@@ -94,6 +94,7 @@ public class SourceEditAddEditInstrumentedTest {
         assertFalse(added.isAllowEnabled());
         assertFalse(added.isRedirectEnabled());
 
+        homeActivity = waitForHomeActivity();
         waitForSourceCard(homeActivity, ADD_LABEL);
         clickSourceCard(homeActivity, ADD_LABEL);
 
@@ -116,12 +117,26 @@ public class SourceEditAddEditInstrumentedTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    private static HomeActivity getCurrentActivity(ActivityScenario<HomeActivity> scenario) {
-        AtomicReference<HomeActivity> activityRef = new AtomicReference<>();
-        scenario.onActivity(activityRef::set);
-        HomeActivity activity = activityRef.get();
-        assertNotNull("Expected launched HomeActivity.", activity);
-        return activity;
+    private static HomeActivity waitForHomeActivity() {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Activity> resumed = new AtomicReference<>();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED)) {
+                    if (activity instanceof HomeActivity) {
+                        resumed.set(activity);
+                        return;
+                    }
+                }
+            });
+            Activity activity = resumed.get();
+            if (activity instanceof HomeActivity) {
+                return (HomeActivity) activity;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for HomeActivity.");
     }
 
     private static void saveSource(
@@ -169,7 +184,6 @@ public class SourceEditAddEditInstrumentedTest {
             View view = viewRef.get();
             if (view != null) {
                 InstrumentationRegistry.getInstrumentation().runOnMainSync(view::performClick);
-                InstrumentationRegistry.getInstrumentation().waitForIdleSync();
                 return;
             }
             SystemClock.sleep(100);
@@ -199,7 +213,6 @@ public class SourceEditAddEditInstrumentedTest {
             assertNotNull("Expected source card for " + label, card);
             assertTrue("Expected source card click to be handled.", card.performClick());
         });
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private static void clickAccessibilityText(String expectedText) throws Exception {
@@ -328,7 +341,6 @@ public class SourceEditAddEditInstrumentedTest {
             Class<SourceEditActivity> activityClass) throws Exception {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             AtomicReference<Activity> resumed = new AtomicReference<>();
             InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                 for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
@@ -426,7 +438,6 @@ public class SourceEditAddEditInstrumentedTest {
                 activity.finish();
             }
         });
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private interface DatabaseWork {

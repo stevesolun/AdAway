@@ -9203,3 +9203,41 @@
   tests on `adaway-api34`, with 3 skipped and 0 failed.
 - Remaining boundary: named profile save/apply is device-proven for local seeded source rows; saved
   set rename/delete and scheduling remain tracked by their own Sources/schedule stories.
+
+## Plan - 2026-06-26 Story Fix Loop 45
+- [x] Triage the red PR CI connected-test failure from head `bbefaf0b` with downloaded job
+  artifacts, not guesswork.
+- [x] Fix the test reset hole that lets an already-running singleton `SourceModel` update keep
+  parsing while passive UI tests assert seeded Home counter state.
+- [x] Keep the patch test-only unless evidence shows a production Home counter defect.
+- [x] Re-run the focused Home counter connected test, then the standard local gate and connected
+  suite if the focused gate is green.
+- [ ] Update this review section with exact CI/local evidence, then commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 45
+- Starting state: PR #6 failed only the `Connected Android tests` job after Loop 44. Build,
+  locale validation, CodeQL, Java analysis, and C++ analysis all passed.
+- CI artifact evidence showed
+  `HomeCountersInstrumentedTest.homeCountersFreezeDuringActiveUpdateAndRefreshAfterCompletion`
+  failed waiting for `blockedHostCounterTextView` to show `3`.
+- Logcat showed the Home counter test started while a real source update from earlier UI coverage
+  was still parsing default sources, including `StevenBlack Unified`. The failure is therefore a
+  passive UI test isolation/reset gap, not evidence that the new filter-set save/apply flow broke
+  Home counter math.
+- Patched `InstrumentedTestState.resetForPassiveRootUi(...)` to stop the singleton `SourceModel`,
+  shut down its current download/parse pools, wait for `updateInProgress` to clear, force idle
+  progress, and drain the `SourceModel` main handler before and after WorkManager cancellation.
+- Kept the fix test-only. Production Home counter logic was not changed for this loop; the only
+  Home test change is a sharper failure message that reports the last observed counter text.
+- During full-suite verification, the original CI failure moved: `SourcesUpdateAllInstrumentedTest`
+  passed, then the run exposed another idle-prone harness path in `SourceEditAddEditInstrumentedTest`.
+  The Sources and source-edit UI tests now use bounded lifecycle/main-thread polling instead of
+  unbounded `ActivityScenario.onActivity()` / `waitForIdleSync()` cleanup paths after UI actions.
+- Focused connected gates passed with `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `HomeCountersInstrumentedTest`, `SourcesUpdateAllInstrumentedTest`, and
+  `SourceEditAddEditInstrumentedTest` ran together as 4 tests on `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Full connected Android suite passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 154
+  tests on `adaway-api34`, with 3 skipped and 0 failed.

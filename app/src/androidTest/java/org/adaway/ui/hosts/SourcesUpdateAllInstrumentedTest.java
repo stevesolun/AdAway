@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
 import android.content.Context;
 import android.os.SystemClock;
 import android.view.View;
@@ -16,6 +17,8 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -87,6 +90,7 @@ public class SourcesUpdateAllInstrumentedTest {
         if (this.recordingSourceModel != null) {
             this.recordingSourceModel.releaseUpdate();
         }
+        finishResumedActivities();
         if (this.application != null) {
             injectAdBlockModel(this.application, null);
             injectSourceModel(this.application, this.originalSourceModel);
@@ -101,10 +105,10 @@ public class SourcesUpdateAllInstrumentedTest {
     public void updateAllToolbarActionSyncsSourcesThenAppliesProtection() {
         ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
         navigateToSources(scenario);
-        HomeActivity activity = getCurrentActivity(scenario);
-        waitForToolbarAction(scenario, R.id.action_hosts_update_all);
+        HomeActivity activity = waitForHomeActivity();
+        waitForToolbarAction(activity, R.id.action_hosts_update_all);
 
-        clickToolbarAction(scenario, R.id.action_hosts_update_all);
+        clickToolbarAction(activity, R.id.action_hosts_update_all);
 
         waitForSourceUpdateStarted(1);
         waitForText(activity, this.context.getString(R.string.sources_apply_installing));
@@ -124,21 +128,35 @@ public class SourcesUpdateAllInstrumentedTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    private static HomeActivity getCurrentActivity(ActivityScenario<HomeActivity> scenario) {
-        AtomicReference<HomeActivity> activityRef = new AtomicReference<>();
-        scenario.onActivity(activityRef::set);
-        HomeActivity activity = activityRef.get();
-        assertNotNull("Expected launched HomeActivity.", activity);
-        return activity;
+    private static HomeActivity waitForHomeActivity() {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Activity> resumed = new AtomicReference<>();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED)) {
+                    if (activity instanceof HomeActivity) {
+                        resumed.set(activity);
+                        return;
+                    }
+                }
+            });
+            Activity activity = resumed.get();
+            if (activity instanceof HomeActivity) {
+                return (HomeActivity) activity;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for HomeActivity.");
     }
 
     private static void waitForToolbarAction(
-            ActivityScenario<HomeActivity> scenario,
+            Activity activity,
             int menuItemId) {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
             AtomicReference<Boolean> found = new AtomicReference<>(false);
-            scenario.onActivity(activity -> {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                 MaterialToolbar toolbar = activity.findViewById(R.id.hosts_sources_toolbar);
                 found.set(toolbar != null && toolbar.getMenu().findItem(menuItemId) != null);
             });
@@ -151,9 +169,9 @@ public class SourcesUpdateAllInstrumentedTest {
     }
 
     private static void clickToolbarAction(
-            ActivityScenario<HomeActivity> scenario,
+            Activity activity,
             int menuItemId) {
-        scenario.onActivity(activity -> {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             MaterialToolbar toolbar = activity.findViewById(R.id.hosts_sources_toolbar);
             assertNotNull("Expected Sources toolbar.", toolbar);
             assertTrue("Expected Sources toolbar action to be handled.",
@@ -199,6 +217,16 @@ public class SourcesUpdateAllInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Sources update-all action did not reach AdBlockModel.apply().");
+    }
+
+    private static void finishResumedActivities() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)) {
+                activity.finish();
+            }
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private static boolean hasVisibleText(View view, String expectedText) {

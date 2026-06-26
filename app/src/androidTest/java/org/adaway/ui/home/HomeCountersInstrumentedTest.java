@@ -235,7 +235,8 @@ public class HomeCountersInstrumentedTest {
             }
             SystemClock.sleep(100);
         }
-        throw new AssertionError("View " + viewId + " did not show \"" + expectedText + "\".");
+        throw new AssertionError("View " + viewId + " did not show \"" + expectedText
+                + "\". Last value: \"" + readText(scenario, viewId).get() + "\".");
     }
 
     private static void assertTextRemainsFor(
