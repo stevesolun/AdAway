@@ -9055,3 +9055,62 @@
 - Remaining boundary: real tap dispatch on the source switch and real network update-all stay under
   `SRC-005` / runtime update stories; `ApplyConfigurationSnackbarContractTest` continues to cover
   the success and failure copy contract.
+
+## Plan - 2026-06-26 Story Fix Loop 42
+- [x] Re-ground `SRC-005` from the canonical story spreadsheet and the real Sources toolbar path.
+- [x] Add a focused connected proof that launches Home, navigates to Sources, triggers the toolbar
+  `Update all and apply protection` menu action, and observes the source-specific running copy.
+- [x] Keep the update deterministic with a local recording `SourceModel` so the test proves the UI
+  action reaches the all-sources branch without external network I/O.
+- [x] Assert the ad-blocking apply boundary is reached only after runtime truth is synced.
+- [x] Patch production only if the connected proof exposes a real Sources update-all defect.
+- [x] Run the focused connected Sources update-all test, the affected Home counters connected
+  test, the full connected Android suite, and the standard local Gradle gate.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [x] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 42
+- Starting state: `SRC-005` was `Partially covered`; source-level tests proved the menu id,
+  explicit copy, and handler branch, but the real Home/Sources toolbar action had no connected
+  proof for update-all dispatch, running feedback, runtime sync, and apply ordering.
+- Added `SourcesUpdateAllInstrumentedTest`, a connected test that launches `HomeActivity`,
+  navigates to Sources, finds `hosts_sources_toolbar`, triggers `action_hosts_update_all`, and
+  observes the source-specific `Updating sources and applying protection...` running snackbar.
+- The test injects a recording `SourceModel` that blocks the deterministic update until the
+  running snackbar is visible, then syncs `host_entries` from a seeded active source row. The
+  recording `AdBlockModel` asserts `apply()` is reached only after runtime truth resolves the
+  seeded host as blocked.
+- No production code changed for `SRC-005`; the slice adds connected coverage for existing
+  toolbar update-all behavior.
+- CI failure follow-up: PR Connected Android tests failed on the previous pushed commit in
+  `HomeCountersInstrumentedTest.homeCountersFreezeDuringActiveUpdateAndRefreshAfterCompletion`
+  because the test waited for the blocked counter to show `3`. The downloaded CI log showed a
+  `HostsSourcesImmediateUpdateWorker` still running during the Home fixture setup and mutating
+  the same Room tables after `cancelAllWork()`.
+- Patched `InstrumentedTestState.resetWorkManager()` to drain known WorkManager jobs after
+  cancellation before passive UI tests seed shared database tables. This keeps the fix in
+  androidTest isolation code and prevents cross-test update workers from racing Home/Sources
+  fixtures.
+- Red/green notes: the first run failed at compile because `HostErrorException` requires
+  `HostError`, not a string. The next run proved the behavior but timed out in
+  `ActivityScenario.close()` waiting for Android global idle after the update/apply UI. The final
+  proof avoids the idle-prone close path and passes with bounded behavior assertions.
+- Focused connected Sources update-all gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.SourcesUpdateAllInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `test --dependency-verification=strict --stacktrace`.
+- Focused Home counters connected gate passed with the same JDK:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeCountersInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 2 tests on
+  `adaway-api34`.
+- Full connected Android suite passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 152
+  tests on `adaway-api34`, with 3 skipped and 0 failed.
+- PR CI recheck passed after push: Connected Android tests, Development build, Validate locales,
+  Analyze (java), Analyze (cpp), and CodeQL.
+- Remaining boundary: the real toolbar update-all dispatch and apply ordering are device-proven
+  for a deterministic local source; real network download/parse/update-all scale remains under
+  `RUNTIME-001` and `RUNTIME-010`.

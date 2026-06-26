@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
+import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
 import org.adaway.R;
@@ -11,14 +12,26 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.model.update.ApkUpdateService;
+import org.adaway.ui.hosts.FilterListsSubscribeAllWorker;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.Constants;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public final class InstrumentedTestState {
     private static final int WORK_MANAGER_RESET_TIMEOUT_SECONDS = 30;
+    private static final int WORK_MANAGER_DRAIN_POLL_MS = 100;
+    private static final String SOURCE_PERIODIC_WORK_NAME = "HostsUpdateWork";
+    private static final String APK_PERIODIC_WORK_NAME = "ApkUpdateWork";
+    private static final String[] KNOWN_WORK_NAMES = {
+            SOURCE_PERIODIC_WORK_NAME,
+            SourceUpdateService.WORK_NAME_NOW,
+            APK_PERIODIC_WORK_NAME,
+            FilterSetUpdateService.WORK_NAME,
+            FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME
+    };
 
     private InstrumentedTestState() {
     }
@@ -47,11 +60,42 @@ public final class InstrumentedTestState {
             WorkManager workManager = WorkManager.getInstance(context);
             workManager.cancelAllWork().getResult()
                     .get(WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            waitForKnownWorkToDrain(workManager);
             workManager.pruneWork().getResult()
                     .get(WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception exception) {
             throw new AssertionError("Failed to reset WorkManager during " + phase, exception);
         }
+    }
+
+    private static void waitForKnownWorkToDrain(@NonNull WorkManager workManager)
+            throws Exception {
+        long deadline = System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(WORK_MANAGER_RESET_TIMEOUT_SECONDS);
+        while (System.nanoTime() < deadline) {
+            String activeWorkName = firstActiveWorkName(workManager);
+            if (activeWorkName == null) {
+                return;
+            }
+            Thread.sleep(WORK_MANAGER_DRAIN_POLL_MS);
+        }
+
+        throw new AssertionError("Timed out waiting for WorkManager jobs to stop. Active job: "
+                + firstActiveWorkName(workManager));
+    }
+
+    private static String firstActiveWorkName(@NonNull WorkManager workManager)
+            throws Exception {
+        for (String workName : KNOWN_WORK_NAMES) {
+            List<WorkInfo> workInfos = workManager.getWorkInfosForUniqueWork(workName)
+                    .get(WORK_MANAGER_RESET_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            for (WorkInfo workInfo : workInfos) {
+                if (!workInfo.getState().isFinished()) {
+                    return workName;
+                }
+            }
+        }
+        return null;
     }
 
     private static void putBackgroundUpdatePrefs(
