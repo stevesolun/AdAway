@@ -8570,7 +8570,7 @@
 - [x] Run the focused connected `DISC-010` test, standard local Gradle gate, and full connected
   suite.
 - [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 31
 - Starting state: `DISC-010` was `Partially covered`; its canonical row tracked
@@ -8605,3 +8605,52 @@
   tests on `adaway-api34` with 3 skipped and 0 failed.
 - Remaining boundary: the manual-add path is proven for an unsupported row with a usable resolved
   URL; no-URL unsupported review and broader visual matrix coverage remain separate stories.
+- Commit `b4e756ca` was pushed and PR #6 CI passed: Development build, Connected Android tests,
+  locale validation, CodeQL Java/C++ analysis, and CodeQL status all reported success.
+
+## Plan - 2026-06-26 Story Fix Loop 32
+- [x] Re-ground `DISC-007` and `DISC-008` from the canonical story spreadsheet and current
+  Discover bulk-action implementation.
+- [x] Confirm existing coverage boundary: worker and source-text contracts cover scope and durable
+  metadata, but no connected test drives visible bulk subscribe followed by visible bulk remove.
+- [x] Add a connected user-path proof that filters the directory, confirms the visible subscribe
+  dialog count, subscribes only the compatible visible row, and leaves hidden/unsupported rows
+  untouched.
+- [x] Extend the same proof to remove only the visible FilterLists source while preserving a
+  hidden subscribed FilterLists source.
+- [x] Patch production only if the focused proof exposes a real UX/logistical defect.
+- [x] Run the focused connected bulk visible-actions test, standard local Gradle gate, and full
+  connected suite.
+- [x] Update `tasks/user-story-status.tsv` and this review section with exact evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-26 Story Fix Loop 32
+- Starting state: `DISC-007` and `DISC-008` were `Partially covered`; their canonical rows
+  tracked missing device proof for filtered visible subscribe and visible remove.
+- Added `FilterListsVisibleBulkActionsInstrumentedTest`, a connected test that launches the real
+  Home shell, navigates to Discover, loads deterministic cached FilterLists data, filters to a
+  visible scope containing one DNS-safe list and one unsupported browser-rule list, and confirms
+  the bulk subscribe dialog counts only the DNS-safe row.
+- The test then taps `Subscribe`, verifies only the compatible visible source is inserted with
+  durable FilterLists ID/name/selected-URL metadata, verifies the unsupported visible row is not
+  inserted, verifies the hidden subscribed source is still present, and confirms the worker only
+  resolved the visible DNS-safe list before enqueueing one update.
+- The same test taps `Remove visible`, confirms the destructive dialog, and proves only the
+  visible source is removed while the hidden subscribed FilterLists source remains.
+- The first focused run failed in the test harness, not production behavior: the accessibility click
+  helper matched the dialog title containing `Subscribe` before the actual button. The helper now
+  uses exact text for dialog action buttons.
+- No production code was changed in this loop; the connected proof verified existing behavior.
+- Focused connected visible bulk-actions gate passed with
+  `JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.9.10-hotspot`:
+  `-Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest
+  :app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` ran 1 test on
+  `adaway-api34`.
+- Standard local gate passed with the same JDK:
+  `:app:testDebugUnitTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Full local connected gate passed with the same JDK:
+  `:app:connectedDebugAndroidTest --dependency-verification=strict --stacktrace` finished 139
+  tests on `adaway-api34` with 3 skipped and 0 failed.
+- Remaining boundary: this proves filtered visible subscribe/remove; all-sources destructive remove
+  remains covered by source contracts and should get its own device proof if prioritized.
