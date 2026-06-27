@@ -69,3 +69,12 @@
   one small verified commit instead of repeatedly rediscovering the same board.
 - Treat consent-, hardware-, legal-, or human-gated work as explicit product release gates, not as a
   reason to keep looping on locally unfinishable automation.
+
+## 2026-06-28 - Converge With Gate Boundaries
+
+- Split locally finishable app-owned behavior from external release smoke before starting a new
+  slice.
+- Close rows only when executable evidence proves the app-owned contract, and keep platform,
+  legal, hardware, consent, or human-review caveats visible in the tracker.
+- Add tracker guardrail tests when changing status language so CI protects the product boundary
+  from optimistic wording drift.

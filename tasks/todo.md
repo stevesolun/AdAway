@@ -31,6 +31,38 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 CTO Convergence Slice
+- [x] Re-ground PR #7 status, CI, and remaining P0/P1 rows before editing.
+- [x] Split expert lanes for Android system contracts, runtime/performance/root/VPN gates, and
+  release/CI guardrails.
+- [x] Promote only locally proven P1 system contracts while preserving external release-smoke
+  caveats.
+- [x] Add a tracker guardrail test so CI prevents accidental overclaiming of platform/OEM
+  boundaries.
+- [x] Run focused JVM and connected verification, then commit and push only if the slice is green.
+
+## Review - 2026-06-28 CTO Convergence Slice
+- Current PR #7 head `f48f2de7` was green before the slice: Analyze cpp, Analyze java, CodeQL,
+  Connected Android tests, and Development build all passed.
+- Kept true external P0 release gates open: rooted writable hosts apply, signed directRelease
+  install/update smoke, legal/provenance review, tagged release artifact proof, physical-device
+  release smoke, human UX review, and final real-artifact readiness.
+- Confirmed `RUNTIME-010` is already closed by the fresh 5M full parse/import/sync/root-write
+  benchmark. The old 4M/5M issue was the full parse/import path failing to populate
+  `root_host_entries_stage`, which forced slow direct root export; the stage-backed path now has
+  fresh 5M evidence in `tasks/benchmarks/2026-06-27-runtime010-5m-full-parse-evidence.md`.
+- Promoted `SYS-001` from partial to covered connected tile contract because the app-owned service
+  metadata, bind permission, action resolution, null tile guard, and conditional shell tile path
+  are device-proven; OEM/SystemUI dispatch remains manual release smoke.
+- Promoted `SYS-004` from partial to covered connected receiver contract because the receiver-level
+  `MY_PACKAGE_REPLACED` path repairs hosts update, app update, and filter-set WorkManager
+  schedules from persisted preferences; real signed app-upgrade broadcast delivery remains release
+  smoke.
+- Focused verification passed on 2026-06-28: `UserStoryStatusTrackerTest` JVM guardrail passed,
+  and connected `AdBlockingTileServiceInstrumentedTest` plus
+  `UpdateReceiverPackageReplaceInstrumentedTest` passed on `adaway-api34-16g` with the expected
+  Quick Settings SystemUI dispatch skip.
+
 ## Plan - 2026-06-14 Goal Continuation 60
 - [x] Answer the delay question with current benchmark evidence instead of hand-waving.
 - [x] Reduce the remaining root-export blocked-row copy cost without changing allow/redirect

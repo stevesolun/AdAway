@@ -123,6 +123,23 @@ public class UserStoryStatusTrackerTest {
                         row.retestStatus().contains("rootRows=4500000"));
     }
 
+    @Test
+    public void systemContractRowsStayClosedWithoutOverclaimingPlatformDispatch()
+            throws IOException {
+        Map<String, Row> rows = rowsById();
+
+        assertCoveredSystemContract(
+                rows,
+                "SYS-001",
+                "Covered by connected tile contract",
+                "systemui");
+        assertCoveredSystemContract(
+                rows,
+                "SYS-004",
+                "Covered by connected receiver contract",
+                "release-smoke");
+    }
+
     private static List<Row> readRows() throws IOException {
         Path tracker = repoDir().resolve("tasks/user-story-status.tsv");
         List<String> lines = Files.readAllLines(tracker, StandardCharsets.UTF_8);
@@ -158,6 +175,22 @@ public class UserStoryStatusTrackerTest {
                 isFullyCovered(row));
         assertTrue(storyId + " should name the remaining external proof.",
                 row.allEvidence().toLowerCase().contains(marker));
+    }
+
+    private static void assertCoveredSystemContract(
+            Map<String, Row> rows,
+            String storyId,
+            String expectedStatus,
+            String externalMarker) {
+        Row row = rows.get(storyId);
+
+        assertNotNull(storyId + " row should exist.", row);
+        assertEquals(storyId + " should stay a P1 system contract.", "P1", row.priority());
+        assertEquals(expectedStatus, row.status());
+        assertFalse(storyId + " needs concrete connected evidence.",
+                isPlaceholderEvidence(row.retestStatus()));
+        assertTrue(storyId + " should keep the external platform caveat.",
+                row.riskNotes().toLowerCase().contains(externalMarker));
     }
 
     private static boolean isFullyCovered(Row row) {
