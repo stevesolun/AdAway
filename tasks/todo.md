@@ -9998,3 +9998,32 @@
 - Advanced `SRC-009` to connected UI coverage in `tasks/user-story-status.tsv`. `SRC-010`
   destructive source deletion remains a separate gap, and external release/hardware gates remain
   separate.
+
+## Plan - 2026-06-27 Source Delete UI Proof
+- [x] Re-ground `SRC-010` against `SourceEditActivity`, the source list row navigation path, and
+  the Room cascade contract for downloaded rules.
+- [x] Add focused connected UI proof for delete cancel and confirm.
+- [x] Prove source row deletion cascades downloaded `hosts_lists` rows and removes the source card.
+- [x] Run focused connected verification on the API 34 emulator.
+- [x] Update canonical trackers without closing broader CI, release, root, VPN, or hardware gates.
+
+## Review - 2026-06-27 Source Delete UI Proof
+- Extended `SourceEditAddEditInstrumentedTest` with
+  `deleteSourceRequiresConfirmationAndRemovesDownloadedRules`.
+- The test seeds a custom source plus one downloaded blocked rule, opens the real Sources row and
+  source editor, clicks the Delete toolbar action, proves the confirmation title/message, cancels
+  and verifies the source plus downloaded row remain, then confirms removal and verifies the source
+  row, downloaded `hosts_lists` rows, and visible source card are gone.
+- Focused connected method proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.source.SourceEditAddEditInstrumentedTest#deleteSourceRequiresConfirmationAndRemovesDownloadedRules
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Full source-edit connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.source.SourceEditAddEditInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `2` tests on `adaway-api34-16g` with `0` failures.
+- Advanced `SRC-010` to connected UI coverage in `tasks/user-story-status.tsv`. PR CI connected
+  execution, external release, rooted-device, physical-device, VPN consent, and human UX sign-off
+  gates remain separate.

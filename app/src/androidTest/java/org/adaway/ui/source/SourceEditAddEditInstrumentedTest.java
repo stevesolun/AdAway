@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Context;
+import android.database.Cursor;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,7 +27,10 @@ import com.google.android.material.textfield.TextInputEditText;
 
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.ListType;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
@@ -51,6 +55,9 @@ public class SourceEditAddEditInstrumentedTest {
     private static final String EDIT_LABEL = "Custom edited proof source";
     private static final String EDIT_URL = "https://example.com/adaway-edited-proof.txt";
     private static final String INVALID_URL = "http://example.com/not-secure.txt";
+    private static final int DELETE_SOURCE_ID = 2210;
+    private static final String DELETE_LABEL = "Custom delete proof source";
+    private static final String DELETE_URL = "https://example.com/adaway-delete-proof.txt";
 
     private Context context;
 
@@ -110,6 +117,39 @@ public class SourceEditAddEditInstrumentedTest {
         assertTrue(edited.isAllowEnabled());
         assertFalse(edited.isRedirectEnabled());
         waitForSourceMissing(ADD_URL);
+    }
+
+    @Test(timeout = 120_000)
+    public void deleteSourceRequiresConfirmationAndRemovesDownloadedRules() throws Exception {
+        seedDownloadedSource(this.context);
+
+        ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
+        navigateToSources(scenario);
+        HomeActivity homeActivity = waitForHomeActivity();
+        waitForSourceCard(homeActivity, DELETE_LABEL);
+        clickSourceCard(homeActivity, DELETE_LABEL);
+
+        SourceEditActivity editActivity = waitForActivity(SourceEditActivity.class);
+        assertFieldText(editActivity, R.id.labelEditText, DELETE_LABEL);
+        assertFieldText(editActivity, R.id.location_edit_text, DELETE_URL);
+        assertEquals(1, countListRowsForSource(DELETE_SOURCE_ID));
+
+        clickAccessibilityText(this.context.getString(R.string.checkbox_list_context_delete));
+        assertAccessibilityText(this.context.getString(R.string.source_edit_delete_confirm_title));
+        assertAccessibilityText(this.context.getString(
+                R.string.source_edit_delete_confirm_message, DELETE_LABEL));
+        clickAccessibilityText(this.context.getString(R.string.button_cancel));
+        waitForSource(DELETE_URL);
+        assertEquals(1, countListRowsForSource(DELETE_SOURCE_ID));
+
+        clickAccessibilityText(this.context.getString(R.string.checkbox_list_context_delete));
+        clickAccessibilityText(this.context.getString(
+                R.string.source_edit_delete_confirm_action));
+
+        waitForSourceMissing(DELETE_URL);
+        waitForListRowsMissing(DELETE_SOURCE_ID);
+        homeActivity = waitForHomeActivity();
+        waitForSourceCardMissing(homeActivity, DELETE_LABEL);
     }
 
     private static void navigateToSources(ActivityScenario<HomeActivity> scenario) {
@@ -206,6 +246,21 @@ public class SourceEditAddEditInstrumentedTest {
         throw new AssertionError("Timed out waiting for source card: " + label);
     }
 
+    private static void waitForSourceCardMissing(Activity activity, String label) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<MaterialCardView> cardRef = new AtomicReference<>();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                    cardRef.set(findSourceCardByLabel(
+                            activity.getWindow().getDecorView(), label)));
+            if (cardRef.get() == null) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Source card remained visible: " + label);
+    }
+
     private static void clickSourceCard(Activity activity, String label) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             MaterialCardView card = findSourceCardByLabel(
@@ -240,6 +295,28 @@ public class SourceEditAddEditInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Text was not clickable: " + expectedText);
+    }
+
+    private static void assertAccessibilityText(String expectedText) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                    .getUiAutomation()
+                    .getRootInActiveWindow();
+            try {
+                AccessibilityNodeInfo node = root == null ? null : findText(root, expectedText);
+                if (node != null) {
+                    node.recycle();
+                    return;
+                }
+            } finally {
+                if (root != null) {
+                    root.recycle();
+                }
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Text was not visible: " + expectedText);
     }
 
     private static AccessibilityNodeInfo findText(
@@ -388,6 +465,48 @@ public class SourceEditAddEditInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Source remained present: " + url);
+    }
+
+    private static void waitForListRowsMissing(int sourceId) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (countListRowsForSource(sourceId) == 0) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Downloaded rules remained for source: " + sourceId);
+    }
+
+    private static int countListRowsForSource(int sourceId) {
+        try (Cursor cursor = AppDatabase.getInstance(ApplicationProvider.getApplicationContext())
+                .getOpenHelper()
+                .getReadableDatabase()
+                .query("SELECT COUNT(*) FROM hosts_lists WHERE source_id = ?",
+                        new Object[]{sourceId})) {
+            assertTrue(cursor.moveToFirst());
+            return cursor.getInt(0);
+        }
+    }
+
+    private static void seedDownloadedSource(Context context) {
+        runDatabaseWork(context, database -> {
+            HostsSource source = new HostsSource();
+            source.setId(DELETE_SOURCE_ID);
+            source.setLabel(DELETE_LABEL);
+            source.setUrl(DELETE_URL);
+            source.setEnabled(true);
+            database.hostsSourceDao().insert(source);
+
+            HostListItem item = new HostListItem();
+            item.setHost("ads.delete-proof.example");
+            item.setType(ListType.BLOCKED);
+            item.setKind(RuleKind.EXACT);
+            item.setEnabled(true);
+            item.setSourceId(DELETE_SOURCE_ID);
+            item.setGeneration(0);
+            database.hostsListItemDao().insert(item);
+        });
     }
 
     private static void resetSources(Context context) {
