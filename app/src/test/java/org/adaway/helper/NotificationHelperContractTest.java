@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 public class NotificationHelperContractTest {
     @Test
     public void appAndHostsUpdateNotificationsUseDistinctIds() throws Exception {
-        String source = readRepoFile("app/src/main/java/org/adaway/helper/NotificationHelper.java");
+        String source = readNotificationHelperSource();
         String hostsBlock = methodBlock(source, "showUpdateHostsNotification");
         String appBlock = methodBlock(source, "showUpdateApplicationNotification");
 
@@ -29,8 +29,34 @@ public class NotificationHelperContractTest {
     }
 
     @Test
+    public void updateNotificationsOpenExpectedScreensAndClearOnTap() throws Exception {
+        String source = readNotificationHelperSource();
+        String hostsBlock = methodBlock(source, "showUpdateHostsNotification");
+        String appBlock = methodBlock(source, "showUpdateApplicationNotification");
+
+        assertActionableUpdateNotification(hostsBlock,
+                "HomeActivity.class",
+                "notification_update_host_available_title",
+                "notification_update_host_available_text");
+        assertActionableUpdateNotification(appBlock,
+                "UpdateActivity.class",
+                "notification_update_app_available_title",
+                "notification_update_app_available_text");
+    }
+
+    @Test
+    public void updateNotificationsAreSkippedWhenSystemBlocksAlerts() throws Exception {
+        String source = readNotificationHelperSource();
+        String hostsBlock = methodBlock(source, "showUpdateHostsNotification");
+        String appBlock = methodBlock(source, "showUpdateApplicationNotification");
+
+        assertNotificationBlockHasPermissionGuard(hostsBlock);
+        assertNotificationBlockHasPermissionGuard(appBlock);
+    }
+
+    @Test
     public void vpnChannelReceivesVpnDescription() throws Exception {
-        String source = readRepoFile("app/src/main/java/org/adaway/helper/NotificationHelper.java");
+        String source = readNotificationHelperSource();
 
         assertTrue("VPN notification channel must receive the VPN channel description.",
                 source.contains("vpnServiceChannel.setDescription(context.getString(" +
@@ -38,6 +64,52 @@ public class NotificationHelperContractTest {
         assertFalse("Update notification channel must not receive the VPN description.",
                 source.contains("updateChannel.setDescription(context.getString(" +
                         "R.string.notification_vpn_channel_description))"));
+    }
+
+    private static void assertActionableUpdateNotification(String block, String targetActivity,
+            String titleResource, String textResource) {
+        assertTrue("Update notification must use the update notification channel.",
+                block.contains("new NotificationCompat.Builder(context, " +
+                        "UPDATE_NOTIFICATION_CHANNEL)"));
+        assertTrue("Update notification must open the expected screen.",
+                block.contains("new Intent(context, " + targetActivity + ")"));
+        assertTrue("Update notification must reset the opened task.",
+                block.contains("intent.setFlags(FLAG_ACTIVITY_NEW_TASK | " +
+                        "FLAG_ACTIVITY_CLEAR_TASK)"));
+        assertTrue("Update notification must use an immutable content pending intent.",
+                block.contains("PendingIntent pendingIntent = getActivity(context, 0, intent, " +
+                        "FLAG_IMMUTABLE)"));
+        assertTrue("Update notification must use the expected title resource.",
+                block.contains("String title = context.getString(R.string." +
+                        titleResource + ")"));
+        assertTrue("Update notification must use the expected text resource.",
+                block.contains("String text = context.getString(R.string." +
+                        textResource + ")"));
+        assertTrue("Update notification must attach the pending intent.",
+                block.contains(".setContentIntent(pendingIntent)"));
+        assertTrue("Update notification must remain low priority on pre-channel devices.",
+                block.contains(".setPriority(PRIORITY_LOW)"));
+        assertTrue("Update notification must clear after the user taps it.",
+                block.contains(".setAutoCancel(true)"));
+    }
+
+    private static void assertNotificationBlockHasPermissionGuard(String block) {
+        int guard = block.indexOf("if (notificationManager == null || " +
+                "!notificationManager.areNotificationsEnabled())");
+        int builder = block.indexOf("new NotificationCompat.Builder");
+        int notify = block.indexOf("notificationManager.notify(");
+
+        assertTrue("Update notification must check whether alerts can be posted.", guard >= 0);
+        assertTrue("Update notification must build only after the alert availability check.",
+                guard < builder);
+        assertTrue("Update notification must notify only after the alert availability check.",
+                guard < notify);
+        assertTrue("Update notification must return early when alerts are blocked.",
+                block.substring(guard, builder).contains("return;"));
+    }
+
+    private static String readNotificationHelperSource() throws Exception {
+        return readRepoFile("app/src/main/java/org/adaway/helper/NotificationHelper.java");
     }
 
     private static String methodBlock(String source, String methodName) {
