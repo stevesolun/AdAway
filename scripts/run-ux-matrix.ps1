@@ -8,17 +8,79 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($AndroidHome)) {
+    $AndroidHome = $env:ANDROID_SDK_ROOT
+}
+if ([string]::IsNullOrWhiteSpace($AndroidHome) -and
+        -not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
     $AndroidHome = Join-Path $env:LOCALAPPDATA "Android/Sdk"
 }
 if ([string]::IsNullOrWhiteSpace($JavaHome)) {
     $JavaHome = "C:/Program Files/Microsoft/jdk-21.0.9.10-hotspot"
 }
 
-$adb = Join-Path $AndroidHome "platform-tools/adb.exe"
-if (!(Test-Path $adb)) {
-    throw "adb not found at $adb"
+function Test-WindowsHost {
+    return [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
 }
 
+function Get-ExecutableSuffixes {
+    if (Test-WindowsHost) {
+        return @(".exe", ".bat", ".cmd", "")
+    }
+
+    return @("", ".exe", ".bat", ".cmd")
+}
+
+function Find-CommandOrSdkTool {
+    param(
+        [string]$CommandName,
+        [string]$SdkRelativePath
+    )
+
+    $roots = @($AndroidHome, $env:ANDROID_HOME, $env:ANDROID_SDK_ROOT) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique
+
+    foreach ($root in $roots) {
+        foreach ($suffix in Get-ExecutableSuffixes) {
+            $candidate = Join-Path $root ($SdkRelativePath + $suffix)
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                return (Resolve-Path -LiteralPath $candidate).Path
+            }
+        }
+    }
+
+    $command = Get-Command $CommandName -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    throw "$CommandName was not found. Set ANDROID_HOME or ANDROID_SDK_ROOT."
+}
+
+function Find-GradleWrapper {
+    $repoRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+        (Get-Location).Path
+    } else {
+        Split-Path -Parent $PSScriptRoot
+    }
+    $candidates = if (Test-WindowsHost) {
+        @("gradlew.bat", "gradlew.cmd", "gradlew")
+    } else {
+        @("gradlew", "gradlew.bat", "gradlew.cmd")
+    }
+
+    foreach ($candidateName in $candidates) {
+        $candidate = Join-Path $repoRoot $candidateName
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw "Gradle wrapper not found in $repoRoot"
+}
+
+$adb = Find-CommandOrSdkTool "adb" "platform-tools/adb"
+$gradle = Find-GradleWrapper
 $appPackage = "org.adaway"
 $testRunner = "org.adaway.test/androidx.test.runner.AndroidJUnitRunner"
 $appApk = "app/build/outputs/apk/debug/app-debug.apk"
@@ -72,8 +134,19 @@ $UxMatrixVariantSpecs = @(
 )
 
 $env:JAVA_HOME = $JavaHome
-$env:ANDROID_HOME = $AndroidHome
-$env:PATH = "$JavaHome/bin;$AndroidHome/platform-tools;$env:PATH"
+if (-not [string]::IsNullOrWhiteSpace($AndroidHome)) {
+    $env:ANDROID_HOME = $AndroidHome
+}
+$pathSeparator = [System.IO.Path]::PathSeparator
+$pathParts = New-Object System.Collections.Generic.List[string]
+if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
+    $pathParts.Add((Join-Path $JavaHome "bin"))
+}
+if (-not [string]::IsNullOrWhiteSpace($AndroidHome)) {
+    $pathParts.Add((Join-Path $AndroidHome "platform-tools"))
+}
+$pathParts.Add($env:PATH)
+$env:PATH = $pathParts -join $pathSeparator
 
 function Invoke-Adb {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
@@ -85,7 +158,7 @@ function Invoke-Adb {
 
 function Invoke-Gradle {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    .\gradlew.bat @Args
+    & $gradle @Args
     if ($LASTEXITCODE -ne 0) {
         throw "Gradle failed: $($Args -join ' ')"
     }

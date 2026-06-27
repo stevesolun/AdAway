@@ -105,6 +105,40 @@ public class UxMatrixScriptTest {
     }
 
     @Test
+    public void runnerDiscoversUnixAdbFromAndroidSdkRoot() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the UX matrix runner preflight.",
+                powershell != null);
+
+        Path fixture = Files.createTempDirectory("adaway-ux-matrix-unix-adb");
+        try {
+            Path androidHome = createFakeAndroidHome(fixture, "adb");
+            Path javaHome = fixture.resolve("java");
+            Files.createDirectories(javaHome);
+
+            ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                    "$env:ANDROID_HOME = '';" +
+                    "$env:ANDROID_SDK_ROOT = " + quote(androidHome) + ";" +
+                    ". " + quote(repoDir().resolve("scripts/run-ux-matrix.ps1")) +
+                    " -JavaHome " + quote(javaHome) + ";" +
+                    "$resolvedAdb = Get-Variable -Name adb -ValueOnly;" +
+                    "if ([System.IO.Path]::GetFileName($resolvedAdb) -ne 'adb') {" +
+                    " throw \"Expected unix adb, got $resolvedAdb\";" +
+                    "}" +
+                    "$resolvedGradle = Get-Variable -Name gradle -ValueOnly;" +
+                    "if ([System.IO.Path]::GetFileName($resolvedGradle) -notmatch " +
+                    "'^gradlew(\\.bat|\\.cmd)?$') {" +
+                    " throw \"Expected Gradle wrapper, got $resolvedGradle\";" +
+                    "}");
+
+            assertEquals("UX matrix preflight must accept macOS/Linux platform-tools/adb.\n" +
+                    result.stderr, 0, result.exitCode);
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
     public void runnerPullsScreenshotsOnlyAfterSuccessfulInstrumentationGate()
             throws IOException {
         String script = readUtf8(repoDir().resolve("scripts/run-ux-matrix.ps1"));
@@ -382,9 +416,13 @@ public class UxMatrixScriptTest {
     }
 
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
+        return createFakeAndroidHome(fixture, "adb.exe");
+    }
+
+    private static Path createFakeAndroidHome(Path fixture, String adbFileName) throws IOException {
         Path platformTools = fixture.resolve("android-sdk").resolve("platform-tools");
         Files.createDirectories(platformTools);
-        Path adb = platformTools.resolve("adb.exe");
+        Path adb = platformTools.resolve(adbFileName);
         Files.write(adb, new byte[0]);
         return fixture.resolve("android-sdk");
     }
