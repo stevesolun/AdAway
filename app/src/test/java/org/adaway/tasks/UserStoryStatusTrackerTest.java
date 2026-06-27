@@ -112,6 +112,17 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void releaseHandoffRowsKeepVerifierEvidenceWithoutClosingExternalGates()
+            throws IOException {
+        Map<String, Row> rows = rowsById();
+
+        assertReleaseHandoffGate(rows, "REL-002", "artifact verifier");
+        assertReleaseHandoffGate(rows, "REL-003", "physical-smoke");
+        assertReleaseHandoffGate(rows, "REL-004", "ux packet");
+        assertReleaseHandoffGate(rows, "REL-005", "readiness aggregator");
+    }
+
+    @Test
     public void runtime010StaysClosedWithFreshFiveMillionScaleEvidence() throws IOException {
         Row row = rowsById().get("RUNTIME-010");
 
@@ -197,6 +208,28 @@ public class UserStoryStatusTrackerTest {
                 isFullyCovered(row));
         assertTrue(storyId + " should name the remaining external proof.",
                 row.allEvidence().toLowerCase().contains(marker));
+    }
+
+    private static void assertReleaseHandoffGate(
+            Map<String, Row> rows,
+            String storyId,
+            String verifierMarker) {
+        Row row = rows.get(storyId);
+
+        assertNotNull(storyId + " row should exist.", row);
+        assertEquals(storyId + " should remain a P0 release gate.", "P0", row.priority());
+        assertFalse(storyId + " must not be marked fully covered before upstream reports exist.",
+                isFullyCovered(row));
+        assertTrue(storyId + " should point at the release-gate handoff evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
+        assertTrue(storyId + " should name the verifier contract.",
+                row.status().toLowerCase().contains(verifierMarker));
+        assertTrue(storyId + " should record the focused verifier retest.",
+                row.retestStatus().contains("ReleaseReadinessScriptTest") &&
+                        row.retestStatus().contains("UserStoryStatusTrackerTest"));
+        assertFalse(storyId + " should not regress to vague retest placeholders.",
+                isPlaceholderEvidence(row.retestStatus()));
     }
 
     private static void assertCoveredSystemContract(

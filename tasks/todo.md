@@ -31,6 +31,30 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 Release Gate Handoff Tightening
+- [x] Re-ground PR #7 CI and the remaining open P0 release board after `RUNTIME-009` closed.
+- [x] Inspect release artifact, physical-smoke, UX signoff, and final readiness workflows/scripts.
+- [x] Run the focused script/tracker JVM verifier batch.
+- [x] Update canonical tracker rows for `REL-002`, `REL-003`, `REL-004`, and `REL-005` without
+  closing external proof gates.
+
+## Review - 2026-06-28 Release Gate Handoff Tightening
+- PR #7 was green at `4dd9abc8` before this handoff slice: Analyze cpp/java, CodeQL,
+  Development build, and Connected Android tests all passed.
+- `pwsh 7.6.3` is available locally, so the script unit tests exercised the real PowerShell
+  release gates instead of skipping.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.scripts.ReleaseReadinessScriptTest --tests
+  org.adaway.scripts.UxMatrixScriptTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
+- Added `tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md` with exact owner inputs for
+  physical smoke, UX signoff, and final readiness workflow dispatch.
+- Updated `REL-002`, `REL-003`, `REL-004`, and `REL-005` from vague `Not started`/`Not retested`
+  wording to concrete verifier-contract evidence and exact external proof still required. These
+  rows intentionally remain `Partially covered`; they are not closed until real release artifacts,
+  physical-device smoke, human UX signoff, and legal/provenance reports exist.
+
 ## Plan - 2026-06-28 RUNTIME-009 Prepared VPN Lifecycle Proof
 - [x] Re-ground `RUNTIME-009` from the tracker, existing lifecycle test, and VPN consent evidence.
 - [x] Prepare the API 34 emulator into the required state: AdAway VPN consent granted and no active
