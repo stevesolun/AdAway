@@ -1,5 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <application android:label="Airpush Test Fixture">
+        <activity
+            android:name="com.airpush.fixture.AdwareFixtureActivity"
+            android:exported="true"
+            android:label="Airpush Test Fixture">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="org.adaway.model.source.TestHostsContentProvider"
             android:authorities="org.adaway.test.hosts"

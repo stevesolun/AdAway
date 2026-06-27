@@ -523,7 +523,7 @@ Responses are cached with a 24-hour TTL. No API key required.
 | `RECEIVE_BOOT_COMPLETED` | Restart VPN / hosts protection on device reboot |
 | `FOREGROUND_SERVICE` | Background subscribe-all worker notification |
 | `POST_NOTIFICATIONS` | Update completion notifications (Android 13+) |
-| `QUERY_ALL_PACKAGES` | Adware scanner — list installed apps |
+| Launcher package visibility query | Adware scanner — list launchable installed apps |
 | `BIND_VPN_SERVICE` | Local VPN mode (non-root) |
 
 Root mode additionally requires `su` access to write `/etc/hosts`.

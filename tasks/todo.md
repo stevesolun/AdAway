@@ -10477,3 +10477,39 @@
   physical-device release smoke; `REL-004` needs a generated UX packet plus human signoff; and
   `REL-005` closes only after those upstream artifacts agree on release tag, APK, cert, hashes,
   UX packet, and source commit.
+
+## Plan - 2026-06-27 ADW-001 Adware Scanner Device Fixture
+- [x] Re-ground the scanner path from `AdwareLiveData`, `AdwareFragment`, `MoreFragment`, package
+  visibility queries, and existing adware source contracts.
+- [x] Add an androidTest-only launchable fixture activity whose class name starts with a known
+  adware signature prefix.
+- [x] Add connected UI proof that the real scanner detects the installed instrumentation package
+  via the More tab without adding broad package visibility permissions.
+- [x] Run compile, focused adware JVM contracts, connected fixture proof, and tracker hygiene.
+- [x] Update `tasks/user-story-status.tsv` and this log; commit/push only after the slice passes.
+
+## Review - 2026-06-27 ADW-001 Adware Scanner Device Fixture
+- Added an androidTest-only launchable `com.airpush.fixture.AdwareFixtureActivity` and labeled the
+  instrumentation APK `Airpush Test Fixture`. The component class starts with the existing
+  `com.airpush.` adware prefix and is visible through the production app's existing
+  launcher-intent package-visibility query.
+- Added `AdwareScannerInstrumentedTest`, which first proves the target app can see the
+  instrumentation package and fixture activity through `PackageManager`, then opens Home -> More
+  -> Adware Scanner and waits for the real `AdwareFragment` list to show the fixture package and
+  label.
+- No production package-visibility permission was added. This closes the current launchable-app
+  scanner behavior while preserving the boundary that non-launcher package discovery would need a
+  separate product/privacy decision.
+- Updated `README.md` so the permissions table no longer claims `QUERY_ALL_PACKAGES`; it now
+  documents the launcher package-visibility query used by the manifest and scanner proof.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.adware.AdwareScannerInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `1` test on `adaway-api34-16g`;
+  focused JVM
+  `:app:testDebugUnitTest --tests org.adaway.ui.adware.AdwareLiveDataMatcherTest --tests
+  org.adaway.ui.adware.AdwareUninstallIntentContractTest --dependency-verification=strict
+  --stacktrace`.
