@@ -10920,3 +10920,32 @@
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsSearchInstrumentedTest
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 3 connected tests.
+
+## Plan - 2026-06-27 CTO Convergence Notification Slice
+- [x] Re-ground PR #7 CI, dirty state, and remaining partial tracker rows.
+- [x] Split the remaining question set across expert lanes: notifications, release/update gates,
+  runtime scale, and tracker triage.
+- [x] Close the strongest locally finishable slice without touching manual-only release gates:
+  `NOTIF-001` notification channel upgrade behavior.
+- [x] Run focused connected proof and update canonical evidence.
+
+## Review - 2026-06-27 NOTIF-001 Existing Channel Upgrade Proof
+- `NOTIF-001`: Strengthened `NotificationHelperChannelInstrumentedTest` from fresh metadata only to
+  two connected proofs: production Updates, FilterLists, and VPN channel metadata on a clean install;
+  and an Android channel-upgrade probe showing an existing low-importance FilterLists-style channel
+  is not silently upgraded to default importance by recreating the channel. This keeps the app-owned
+  behavior honest without mutating `POST_NOTIFICATIONS`.
+- The first overbroad assertion intentionally failed on device: Android allowed an app-created,
+  unmodified high-importance channel to be lowered to the app's requested low importance. The kept
+  proof was narrowed to the product risk that matters here: older/existing low-importance channels
+  cannot be upgraded silently, so users keep notification settings control through Android Settings.
+- Verification passed:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.helper.NotificationHelperChannelInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 2 connected tests.
+- CTO triage result: after this local slice, the convergence blockers are primarily release
+  operations and real devices/artifacts: signed direct-release/update artifacts, rooted writable
+  hosts apply, physical release smoke, legal/provenance signoff, human UX matrix signoff, and final
+  readiness aggregation.
