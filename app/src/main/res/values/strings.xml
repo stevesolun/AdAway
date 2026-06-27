@@ -61,6 +61,7 @@
     <string name="credit_line_home">Crafted with love by Steve Solun · Forked from AdAway</string>
     <string name="about_credits">Crafted with love by Steve Solun</string>
     <string name="about_attribution">Forked from AdAway · Open source, GPL-3.0</string>
+    <string name="about_license_boundary">Current app license: GPL-3.0 or later. MIT relicensing is not available until GPL-derived code, assets, and notices are cleared.</string>
     <!--Buttons-->
 
     <string name="button_close">Close</string>

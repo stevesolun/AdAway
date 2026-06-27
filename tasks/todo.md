@@ -10760,7 +10760,7 @@
   receiver signature-permission enforcement.
 - [x] ADA-P1-SYS-004 / `SYS-004`: strengthen real app-upgrade/package-replaced behavior proof if a
   non-release install flow can safely simulate it.
-- [ ] ADA-P1-ABOUT-001 / `ABOUT-001`: review license/about copy after the latest license-boundary
+- [x] ADA-P1-ABOUT-001 / `ABOUT-001`: review license/about copy after the latest license-boundary
   reports and keep GPL/provenance language honest.
 - [x] ADA-P2-LIST-007 / `LIST-007`: add device/visual proof for loading, empty, error, retry, and
   no-match custom-rules states.
@@ -10785,6 +10785,8 @@
   user-facing list area blank during initial refresh.
 - Product trust lead: closed `ADW-003` by making the scanner's static signature limit visible in
   the UI and executable in tests; this is intentionally not a claim of live adware intelligence.
+- License/product lead: closed local `ABOUT-001` by adding visible GPL/MIT-boundary copy and source
+  contracts. `REL-001` legal/provenance signoff remains the release gate.
 
 ### Verified Local Slices
 - `LIST-007`: Added a visible loading spinner/copy, kept retry visible only for load failure, and
@@ -10836,4 +10838,16 @@
   org.adaway.ui.adware.AdwareLiveDataMatcherTest --dependency-verification=strict --stacktrace` and
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.adware.AdwareScannerInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+- `ABOUT-001`: Added visible About copy stating the current app license is GPL-3.0-or-later and MIT
+  relicensing is unavailable until GPL-derived code, assets, and notices are cleared. Added
+  `AboutLicenseBoundaryContractTest` to guard About copy, `THIRD_PARTY_LICENSES.md`, and the MIT plan
+  against accidental current-MIT claims, and extended the connected About smoke to assert the new copy
+  through Preferences. Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.about.AboutLicenseBoundaryContractTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`,
+  `java .github/workflows/AndroidLocaleChecker.java app/src/main/res/values/strings.xml`, and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.about.AboutActivitySmokeInstrumentedTest
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.

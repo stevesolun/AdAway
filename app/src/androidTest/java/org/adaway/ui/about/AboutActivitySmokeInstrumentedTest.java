@@ -131,6 +131,16 @@ public class AboutActivitySmokeInstrumentedTest {
                 attributionText.contains("Open source"));
         assertTrue("About attribution should identify GPL license family: " + attributionText,
                 attributionText.contains("GPL-3.0"));
+
+        String licenseBoundaryText = visibleText(activity, R.id.aboutLicenseBoundary);
+        assertTrue("About license boundary should name GPL: " + licenseBoundaryText,
+                licenseBoundaryText.contains("GPL-3.0"));
+        assertTrue("About license boundary should block premature MIT claims: "
+                        + licenseBoundaryText,
+                licenseBoundaryText.contains("MIT relicensing is not available"));
+        assertTrue("About license boundary should name provenance conditions: "
+                        + licenseBoundaryText,
+                licenseBoundaryText.contains("GPL-derived code, assets, and notices"));
     }
 
     private static String visibleText(Activity activity, int viewId) {
