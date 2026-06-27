@@ -10305,7 +10305,7 @@
 - [x] Fix stale progress reset so a new update attempt cannot briefly show the previous complete
   `100%` bar before the next download progress event.
 - [x] Run compile and focused connected verification.
-- [ ] Commit, push, and recheck PR CI for this update-status slice.
+- [x] Commit, push, and recheck PR CI for this update-status slice.
 
 ## Review - 2026-06-27 Update Download Status UI Proof
 - Added `UpdateActivityDownloadStatusInstrumentedTest`. The test publishes a signed test
@@ -10325,3 +10325,5 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `1` test on `adaway-api34-16g` with `0` failures.
+- Pushed proof commit `0a037a74`; PR #6 CI passed on that head: Analyze (cpp),
+  Analyze (java), CodeQL, Connected Android tests, Development build, and Validate locales.
