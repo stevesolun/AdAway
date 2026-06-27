@@ -10542,3 +10542,40 @@
   `:app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsVpnSettingsInstrumentedTest
   --dependency-verification=strict --stacktrace` finished `1` test on `adaway-api34-16g`.
+
+## Plan - 2026-06-27 MORE-001 More Tools Entry Points
+- [x] Recheck the current branch, PR CI, `MORE-001` tracker row, and project cache state before
+  touching code.
+- [x] Re-ground `MoreFragment`, `fragment_more.xml`, `PrefsActivity` backup routing, and existing
+  connected lifecycle helpers.
+- [x] Add connected proof that every More row reaches its intended app-owned destination, while
+  keeping the external GitHub link guarded and non-flaky.
+- [x] Run compile, focused connected More proof, adjacent crash-surface JVM guard, and tracker
+  hygiene.
+- [x] Update `tasks/user-story-status.tsv` and this log with evidence; commit/push only after the
+  verified slice is clean.
+
+## Review - 2026-06-27 MORE-001 More Tools Entry Points
+- PR #6 CI was green before this slice: Analyze (cpp), Analyze (java), CodeQL, Connected Android
+  tests, Development build, and Validate locales all passed.
+- Added `MoreToolsEntryPointsInstrumentedTest`, a connected UI proof that launches the real
+  `HomeActivity`, navigates to More, clicks each row, and verifies the actual destination:
+  `DomainCheckerFragment`, `LogActivity`, `ListsActivity`, Sources tab,
+  `AdwareFragment`, `PrefsMainFragment`, `PrefsBackupRestoreFragment`, and `AboutActivity`.
+- The GitHub row is covered without depending on an external browser UI. The test intercepts
+  `ACTION_VIEW https://github.com/AdAway/AdAway` when the emulator has a handler; otherwise it
+  verifies Home remains resumed through the guarded no-handler path. The source-level
+  `CrashSurfaceHardeningTest` still guards the resolver and exception handling contract.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `9` tests on `adaway-api34-16g`;
+  and focused JVM
+  `:app:testDebugUnitTest --tests org.adaway.security.CrashSurfaceHardeningTest
+  --dependency-verification=strict --stacktrace`.
+- `MORE-001` is now covered by connected UI flow. The broader external release gates remain open
+  and unchanged: rooted hosts apply, direct signed self-update, release artifacts, physical smoke,
+  UX human signoff, legal/provenance, and final readiness aggregation.
