@@ -56,7 +56,9 @@ public final class VpnBuilder {
         // Configure VPN address and DNS servers
         dnsServerMapper.configureVpn(service, builder);
         // Exclude applications from VPN according user preferences (all applications goes through VPN by default)
-        excludeApplicationsFromVpn(service, builder);
+        excludeApplicationsFromVpn(
+                service,
+                packageName -> builder.addDisallowedApplication(packageName));
         if (PreferenceHelper.getVpnAllowAppBypass(service)) {
             // Compatibility escape hatch. When disabled (the default), apps cannot use
             // ConnectivityManager/VpnService APIs to route traffic around AdAway's VPN.
@@ -86,7 +88,9 @@ public final class VpnBuilder {
     }
 
     @SuppressLint("QueryPermissionsNeeded")
-    private static void excludeApplicationsFromVpn(Context context, VpnService.Builder builder) {
+    static void excludeApplicationsFromVpn(
+            Context context,
+            VpnApplicationExcluder applicationExcluder) {
         PackageManager packageManager = context.getPackageManager();
 
         ApplicationInfo self = context.getApplicationInfo();
@@ -114,12 +118,18 @@ public final class VpnBuilder {
             }
             if (excluded) {
                 try {
-                    builder.addDisallowedApplication(applicationInfo.packageName);
+                    applicationExcluder.addDisallowedApplication(applicationInfo.packageName);
                 } catch (PackageManager.NameNotFoundException e) {
                     Timber.w(e, "Failed to exclude application %s from VPN.", applicationInfo.packageName);
                 }
             }
         }
+    }
+
+    @FunctionalInterface
+    interface VpnApplicationExcluder {
+        void addDisallowedApplication(String packageName)
+                throws PackageManager.NameNotFoundException;
     }
 
     private static Set<String> getWebBrowserPackageName(PackageManager packageManager) {

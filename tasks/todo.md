@@ -10417,3 +10417,63 @@
   `:app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.log.LogRootExpectationInstrumentedTest
   --dependency-verification=strict --stacktrace` with `1` test on `adaway-api34-16g`.
+
+## Plan - 2026-06-27 CTO Practical Remaining-Gates Split
+- [x] Re-ground the branch from current PR CI and the canonical story TSV before doing more work.
+- [x] Close stale subagent context whose recommendation was already superseded by current tracker
+  evidence.
+- [x] Split independent specialist probes for the next local-testable gaps: `PREF-007`,
+  `ADW-001`, and release/external gate classification.
+- [x] Implement one narrow, verified local slice in the main PR worktree without touching rooted,
+  physical-device, signed-release, or legal/human gates that cannot be honestly closed here.
+- [x] Update `tasks/user-story-status.tsv` and this log with focused evidence, then commit and
+  push only if the slice is verified.
+
+## Review - 2026-06-27 CTO Practical Remaining-Gates Split
+- PR #6 CI is green on `cd95fa42`: Analyze (cpp), Analyze (java), CodeQL, Connected Android
+  tests, Development build, and Validate locales all passed.
+- Current canonical TSV already closes `RUNTIME-010` with fresh 100k, 1M, and 5M connected
+  benchmark evidence. The open P0 board is now mainly external release evidence:
+  `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`, `REL-004`, and
+  `REL-005`.
+- Practical local next slices are P1/P2 proof gaps that can reduce risk without pretending to
+  finish the release: `PREF-007` VPN builder system-app exclusions, `ADW-001` adware scanner
+  fixture/privacy proof, selected visual/large-font passes, and permission-safe notification
+  affordance evidence if a stable harness exists.
+- Added a package-private `VpnBuilder.excludeApplicationsFromVpn(Context, VpnApplicationExcluder)`
+  seam so the existing production path still calls Android's
+  `VpnService.Builder.addDisallowedApplication(...)`, while tests can record builder decisions
+  before VPN consent or tunnel establishment.
+- Added `VpnBuilderExcludedApplicationsInstrumentedTest` using the real connected-device
+  `PackageManager` and app preferences to prove system-app exclusion modes:
+  `none` keeps visible system apps inside the VPN, `all` disallows all visible system apps except
+  AdAway itself, and `allExceptBrowsers` preserves browser packages while disallowing the rest.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.worker.VpnBuilderExcludedApplicationsInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `3` tests on `adaway-api34-16g`.
+- Adjacent VPN guardrails passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsVpnSettingsInstrumentedTest,org.adaway.ui.home.HomeLeakStatusInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `2` tests on `adaway-api34-16g`.
+- Focused source-security guardrail passed:
+  `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
+  --dependency-verification=strict --stacktrace`.
+- `PREF-007` specialist agreed the package-private builder excluder seam is the smallest robust
+  slice, avoids VPN consent, and does not require a physical device. They called out package
+  visibility variability, so the test uses real visible package sets instead of fixed package
+  names.
+- `ADW-001` specialist recommended the next local slice: add a test-only launcher activity in the
+  instrumentation APK with a known adware-prefix class, then prove the scanner detects that
+  installed test package through the existing launcher package-visibility queries without adding
+  `QUERY_ALL_PACKAGES`.
+- Release-gate specialist classified the remaining P0 board:
+  `RUNTIME-007` needs rooted-device hosts-apply smoke; `UPDATE-002` and `UPDATE-004` need signed
+  APK/directRelease install evidence; `REL-001` can keep source/artifact reports current but still
+  needs legal/provenance signoff; `REL-002` needs signed/tagged artifacts; `REL-003` needs a
+  physical-device release smoke; `REL-004` needs a generated UX packet plus human signoff; and
+  `REL-005` closes only after those upstream artifacts agree on release tag, APK, cert, hashes,
+  UX packet, and source commit.
