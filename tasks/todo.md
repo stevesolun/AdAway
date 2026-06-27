@@ -10091,7 +10091,7 @@
 - [x] Replace the full-suite-sensitive final snackbar assertion with durable filter-set state
   proof.
 - [x] Run focused and affected connected verification.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-27 CI Fix: Filter Set Manage Full-Suite Assertion
 - PR CI failed only `Connected Android tests` on `49bb80d5`; static/build lanes passed. The log
@@ -10115,3 +10115,6 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest,org.adaway.ui.about.AboutActivitySmokeInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `4` tests on `adaway-api34-16g` with `0` failures.
+- Pushed hardening commit `f93a5142`; PR #6 CI passed on that head: Connected Android tests
+  `7m49s`, Development build `3m56s`, Validate locales `17s`, Analyze java `4m27s`,
+  Analyze cpp `1m39s`, and CodeQL `3s`.
