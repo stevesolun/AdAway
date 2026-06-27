@@ -31,6 +31,40 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 RUNTIME-009 Prepared VPN Lifecycle Proof
+- [x] Re-ground `RUNTIME-009` from the tracker, existing lifecycle test, and VPN consent evidence.
+- [x] Prepare the API 34 emulator into the required state: AdAway VPN consent granted and no active
+  VPN tunnel.
+- [x] Run the existing full `VpnLifecycleInstrumentedTest` start/stop/resume method without a
+  consent skip.
+- [x] If full lifecycle passes, update `RUNTIME-009` with connected prepared-device evidence while
+  keeping physical-device release smoke separate.
+- [x] Run focused JVM/tracker hygiene and connected lifecycle hygiene before pushing.
+
+## Review - 2026-06-28 RUNTIME-009 Prepared VPN Lifecycle Proof
+- Prepared `adaway-api34-16g` by manually installing the debug and androidTest APKs, driving the
+  Android VPN consent dialog for the current install, verifying `vpn_management` owner UID `10196`
+  and `VPN CONNECTED` on `tun0`, then force-stopping AdAway to leave consent granted with no active
+  tunnel.
+- The first full lifecycle run did not skip and reached stop/tunnel/heartbeat assertions, but
+  failed because `VpnService` persists `STOPPED` before the asynchronous `"VPN service stopped."`
+  log reached the test's `RecordingTree`.
+- Fixed `VpnLifecycleInstrumentedTest` to wait for lifecycle log messages before asserting them.
+- Direct instrumentation passed the full prepared-device lifecycle method:
+  `adb shell am instrument -w -r -e class
+  'org.adaway.vpn.VpnLifecycleInstrumentedTest#startStopResumeEstablishesTunnelStatusTunAndHeartbeatWhenVpnConsentExists'
+  org.adaway.test/androidx.test.runner.AndroidJUnitRunner`, result `OK (1 test)`.
+- Focused hygiene passed before commit:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`
+  and `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.VpnLifecycleInstrumentedTest
+  --dependency-verification=strict --stacktrace` with 2 connected tests on `adaway-api34-16g`.
+- Recorded the boundary in
+  `tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md`: Gradle connected
+  runs can reinstall the app and invalidate the prepared consent UID, so this is a connected
+  prepared-device proof; physical-device VPN release smoke remains under `REL-003`.
+
 ## Plan - 2026-06-28 CTO Convergence Slice
 - [x] Re-ground PR #7 status, CI, and remaining P0/P1 rows before editing.
 - [x] Split expert lanes for Android system contracts, runtime/performance/root/VPN gates, and

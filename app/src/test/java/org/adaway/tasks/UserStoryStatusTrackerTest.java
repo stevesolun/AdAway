@@ -124,6 +124,28 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void runtime009StaysClosedWithPreparedVpnLifecycleEvidence() throws IOException {
+        Row row = rowsById().get("RUNTIME-009");
+
+        assertNotNull("RUNTIME-009 row should exist.", row);
+        assertEquals("RUNTIME-009 should stay a P1 lifecycle proof.", "P1", row.priority());
+        assertEquals("Covered by connected prepared-device lifecycle proof", row.status());
+        assertTrue("RUNTIME-009 should point at the prepared-device evidence file.",
+                row.existingTestEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md"));
+        assertTrue("RUNTIME-009 evidence file should be present.",
+                Files.isRegularFile(repoDir().resolve(
+                        "tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md")));
+        assertTrue("RUNTIME-009 should name the prepared-device full lifecycle proof.",
+                row.testState().contains("prepared API 34") &&
+                        row.testState().contains("start stop resume") &&
+                        row.retestStatus().contains("am instrument") &&
+                        row.retestStatus().contains("OK (1 test)"));
+        assertTrue("RUNTIME-009 should keep physical release smoke separate.",
+                row.riskNotes().contains("REL-003"));
+    }
+
+    @Test
     public void systemContractRowsStayClosedWithoutOverclaimingPlatformDispatch()
             throws IOException {
         Map<String, Row> rows = rowsById();
