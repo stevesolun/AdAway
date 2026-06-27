@@ -9793,9 +9793,9 @@
   human-review gates.
 
 ## Review - 2026-06-27 Second-Wave Local Story Proofs
-- PR #6 remains green on pushed head `6cb4d35b`: Analyze (cpp), Analyze (java), CodeQL,
-  Connected Android tests, Development build, and Validate locales all pass. The local branch is
-  intentionally ahead with batched, unpushed evidence commits.
+- PR #6 remained green after the second-wave evidence batch was pushed to head `9e0f3574`:
+  Analyze (cpp), Analyze (java), CodeQL, Connected Android tests, Development build, and
+  Validate locales all passed.
 - `RUNTIME-009`: fixed `VpnConnectionMonitor.reset()` to re-arm the monitor after recovery stop.
   Focused JVM proof passed for `VpnConnectionMonitorTest`, `VpnWatchdogTest`, and
   `VpnWorkerIdleTimeoutTest`. Connected `VpnLifecycleInstrumentedTest` passed heartbeat
@@ -9824,3 +9824,28 @@
 - Hardware/release-smoke handoff remains external: `RUNTIME-007`, `REL-003`, `UPDATE-002`, and
   `UPDATE-004` require real rooted/non-root physical devices, release artifacts, signer cert hash,
   manifest keys, and safe restore procedures.
+
+## Plan - 2026-06-27 Home Update/Error UI Proof
+- [x] Re-ground `HOME-011` and `HOME-012` against current Home code and tracker status.
+- [x] Add focused connected UI proof for app-update manifest rendering and Home error Help flow.
+- [x] Run androidTest Java compile after adding the proof.
+- [x] Run the focused connected Home UI test on the API 34 emulator.
+- [x] Update canonical trackers without closing unrelated release or hardware gates.
+
+## Review - 2026-06-27 Home Update/Error UI Proof
+- Added `HomeUpdateSignalErrorInstrumentedTest` with no production-code changes.
+- `HOME-011`: injected a deterministic signed update manifest into the real `UpdateModel`, proved
+  the Home version label renders `Update available!` in bold, then clicked the label and verified
+  `UpdateActivity` resumed.
+- `HOME-012`: injected `HostError.NO_CONNECTION` into the real `HomeViewModel`, proved the dialog
+  shows the error title, details, and Help copy, then clicked Help while an
+  `Instrumentation.ActivityMonitor` blocked and counted the exact GitHub wiki `ACTION_VIEW` path.
+- Compile proof passed:
+  `:app:compileDebugAndroidTestJavaWithJavac`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest`
+  finished `2` tests on `adaway-api34-16g` with `0` failures.
+- Advanced `HOME-011` and `HOME-012` to connected UI coverage in
+  `tasks/user-story-status.tsv`. External release, hardware, root, VPN consent, direct-release
+  self-update, and human screenshot-review gates remain open.
