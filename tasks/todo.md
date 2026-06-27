@@ -9869,3 +9869,26 @@
   finished `1` test on `adaway-api34-16g` with `0` failures.
 - Advanced `LIST-002` to connected UI coverage in `tasks/user-story-status.tsv`. `LIST-004`,
   `LIST-005`, and `LIST-006` remain separate rule mutation/override gaps.
+
+## Plan - 2026-06-27 Discover Profile Status UI Proof
+- [x] Re-ground `DISC-003` against Discover profile status code and existing resolver tests.
+- [x] Add a focused connected UI proof for exact, extended, partial, and custom profile states.
+- [x] Run the focused Discover profile-status test on the API 34 emulator.
+- [x] Update canonical trackers without touching schedule/delete source stories.
+
+## Review - 2026-06-27 Discover Profile Status UI Proof
+- Added `DiscoverProfileStatusInstrumentedTest` with no production-code changes.
+- The test seeds three deterministic sources and a Safe profile URL set, navigates to the real
+  Discover tab, and proves `discoverProfileStatus` renders `Profile: Safe Mode`,
+  `Profile: Safe Mode + custom`, `Profile: Modified from Safe Mode`, and `Profile: Custom` as
+  enabled sources and the active profile change.
+- First focused run exposed a fixture race: the test cleared sources before
+  `AppDatabase.onCreate` finished its queued safety allowlist seed. The fixture now forces the DB
+  open and drains the disk executor before clearing sources, matching established Discover tests.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverProfileStatusInstrumentedTest#profileStatusReflectsExactExtendedPartialAndCustomState
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Advanced `DISC-003` to connected UI coverage in `tasks/user-story-status.tsv`. `SRC-009` and
+  `SRC-010` remain separate schedule/destructive-source gaps.
