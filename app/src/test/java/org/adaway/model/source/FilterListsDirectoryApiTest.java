@@ -3,8 +3,16 @@ package org.adaway.model.source;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 import static org.junit.Assert.*;
 
@@ -13,6 +21,7 @@ import static org.junit.Assert.*;
  * Tag, Language classes, tagIds/languageIds in ListSummary, parseTagsJson, parseLanguagesJson.
  */
 public class FilterListsDirectoryApiTest {
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     // Minimal /lists JSON with tagIds and languageIds arrays
     private static final String LISTS_JSON_WITH_TAGS = "[" +
@@ -134,6 +143,114 @@ public class FilterListsDirectoryApiTest {
     }
 
     @Test
+    public void directoryJsonFetchesExpectedHttpsEndpoints() throws IOException {
+        List<String> requestedPaths = new ArrayList<>();
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    Request request = chain.request();
+                    assertEquals("https", request.url().scheme());
+                    assertEquals("api.filterlists.com", request.url().host());
+                    requestedPaths.add(request.url().encodedPath());
+
+                    String body;
+                    switch (request.url().encodedPath()) {
+                        case "/lists":
+                            body = LISTS_JSON_WITH_TAGS;
+                            break;
+                        case "/syntaxes":
+                            body = "[{\"id\":1,\"name\":\"Hosts\"}]";
+                            break;
+                        case "/tags":
+                            body = TAGS_JSON;
+                            break;
+                        case "/languages":
+                            body = LANGUAGES_JSON;
+                            break;
+                        default:
+                            return jsonResponse(request, 404, "{}");
+                    }
+                    return jsonResponse(request, 200, body);
+                })
+                .build();
+
+        FilterListsDirectoryApi api = new FilterListsDirectoryApi(client);
+
+        assertEquals(LISTS_JSON_WITH_TAGS, api.getListsJson());
+        assertEquals("[{\"id\":1,\"name\":\"Hosts\"}]", api.getSyntaxesJson());
+        assertEquals(TAGS_JSON, api.getTagsJson());
+        assertEquals(LANGUAGES_JSON, api.getLanguagesJson());
+        assertEquals(Arrays.asList("/lists", "/syntaxes", "/tags", "/languages"),
+                requestedPaths);
+    }
+
+    @Test
+    public void getListDetailsFetchesAndParsesNetworkResponse() throws IOException {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    Request request = chain.request();
+                    assertEquals("https", request.url().scheme());
+                    assertEquals("api.filterlists.com", request.url().host());
+                    assertEquals("/lists/42", request.url().encodedPath());
+                    return jsonResponse(request, 200, "{"
+                            + "\"id\":42,"
+                            + "\"name\":\"Direct hosts\","
+                            + "\"description\":\"Network detail\","
+                            + "\"syntaxIds\":[1],"
+                            + "\"viewUrls\":["
+                            + "{\"segmentNumber\":0,\"primariness\":20,"
+                            + "\"url\":\"https://example.com/page.html\"},"
+                            + "{\"segmentNumber\":0,\"primariness\":10,"
+                            + "\"url\":\"https://raw.githubusercontent.com/example/list/hosts.txt\"}"
+                            + "]"
+                            + "}");
+                })
+                .build();
+
+        FilterListsDirectoryApi.ListDetails details =
+                new FilterListsDirectoryApi(client).getListDetails(42);
+
+        assertEquals(42, details.id);
+        assertEquals("Direct hosts", details.name);
+        assertEquals("Network detail", details.description);
+        assertArrayEquals(new int[]{1}, details.syntaxIds);
+        assertEquals(2, details.viewUrls.size());
+        assertEquals("https://raw.githubusercontent.com/example/list/hosts.txt",
+                details.pickBestDownloadUrl());
+    }
+
+    @Test
+    public void getListsJson_httpFailureThrowsIOException() {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(chain -> jsonResponse(chain.request(), 503, "{}"))
+                .build();
+
+        try {
+            new FilterListsDirectoryApi(client).getListsJson();
+            fail("Expected HTTP failure to throw");
+        } catch (IOException exception) {
+            assertTrue(exception.getMessage(),
+                    exception.getMessage().contains("HTTP 503 fetching "
+                            + "https://api.filterlists.com/lists"));
+        }
+    }
+
+    @Test
+    public void getListsJson_offlineFailurePropagatesIOException() {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    throw new IOException("simulated offline");
+                })
+                .build();
+
+        try {
+            new FilterListsDirectoryApi(client).getListsJson();
+            fail("Expected offline failure to throw");
+        } catch (IOException exception) {
+            assertEquals("simulated offline", exception.getMessage());
+        }
+    }
+
+    @Test
     public void pickBestDownloadUrl_ignoresUnusableUrls() {
         FilterListsDirectoryApi.ListDetails details = new FilterListsDirectoryApi.ListDetails(
                 1,
@@ -151,5 +268,15 @@ public class FilterListsDirectoryApiTest {
 
         assertEquals("https://raw.githubusercontent.com/example/repo/main/hosts.txt",
                 details.pickBestDownloadUrl());
+    }
+
+    private static Response jsonResponse(Request request, int code, String body) {
+        return new Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message(code == 200 ? "OK" : "Failure")
+                .body(ResponseBody.create(body, JSON))
+                .build();
     }
 }

@@ -10327,3 +10327,25 @@
   finished `1` test on `adaway-api34-16g` with `0` failures.
 - Pushed proof commit `0a037a74`; PR #6 CI passed on that head: Analyze (cpp),
   Analyze (java), CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 FilterLists Network/Offline Proof
+- [x] Recheck PR #6 CI and canonical tracker integrity before selecting the next slice.
+- [x] Split read-only expert probes for `LOG-003`, `PREF-007`, and adjacent local-testable gaps.
+- [x] Add deterministic `FilterListsDirectoryApi` network/offline contract coverage without
+  depending on live FilterLists.com.
+- [x] Run focused JVM verification and update the canonical story tracker.
+
+## Review - 2026-06-27 FilterLists Network/Offline Proof
+- PR #6 CI was green on head `00b1c1e7`: Analyze (cpp), Analyze (java), CodeQL,
+  Connected Android tests, Development build, and Validate locales all passed.
+- `tasks/user-story-status.tsv` still has `15` fields per row after the earlier structural fix.
+- Added `FilterListsDirectoryApiTest` coverage proving the directory client requests the expected
+  HTTPS host and `/lists`, `/syntaxes`, `/tags`, and `/languages` paths through its injected
+  `OkHttpClient`, parses `/lists/{id}` detail responses through the same network entry point,
+  throws on HTTP failure, and propagates a simulated offline `IOException`.
+- Focused JVM proof passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.source.FilterListsDirectoryApiTest
+  --dependency-verification=strict --stacktrace`.
+- `DISC-004` is no longer waiting on network/offline tests. It still records live
+  FilterLists.com availability and schema drift as an external-service risk, but the app behavior
+  now has deterministic fail-closed/offline proof without requiring live internet.
