@@ -10731,7 +10731,9 @@
 
 ### External-Blocked Release Gates
 - [ ] ADA-P0-ROOT-007 / `RUNTIME-007`: run rooted-device hosts apply smoke with real remount/write
-  evidence. Blocked until a rooted physical or trusted rooted emulator environment is available.
+  evidence. Fresh API 34 emulator probe had `adb root`/`su 0`, but `/system/etc/hosts` stayed
+  read-only and `-writable-system` did not yield a usable device, so closure remains blocked until
+  a rooted physical or trusted writable-system emulator environment is available.
 - [ ] ADA-P0-UPD-002 / `UPDATE-002`: run signed APK self-update install smoke with verified APK hash
   and signing certificate evidence. Blocked until signed release/test artifact exists.
 - [ ] ADA-P0-UPD-004 / `UPDATE-004`: run `directRelease` install/update gate proof. Blocked until
@@ -10879,3 +10881,9 @@
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#packageWithoutCommandPermissionCannotDeliverCommandBroadcast
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+- `RUNTIME-007`: Re-probed the local API 34 emulator for rooted hosts-file apply viability.
+  Evidence improved but still does not close the story: `adb root` and `su 0 id` worked, but
+  `adb remount` required bootloader unlock, `avbctl disable-verification` failed writing `vbmeta`,
+  direct write to `/system/etc/hosts` failed with `Read-only file system`, and restarting the AVD
+  with `-writable-system` did not produce a usable connected device. The rooted-hosts apply smoke
+  remains blocked until a rooted physical device or trusted writable-system emulator is available.
