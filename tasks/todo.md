@@ -10220,7 +10220,7 @@
 - [x] Add a connected HTTPS MockWebServer proof for valid manifest then failed manifest response.
 - [x] Run compile and focused connected verification.
 - [x] Run affected existing manifest and security hardening JVM contracts.
-- [ ] Commit, push, and recheck PR CI for this update slice.
+- [x] Commit, push, and recheck PR CI for this update slice.
 
 ## Review - 2026-06-27 Update Check Network Failure Proof
 - Added package-private `UpdateModel` construction parameters for test-controlled
@@ -10246,3 +10246,41 @@
 - Existing JVM regression contracts passed:
   `:app:testDebugUnitTest --tests org.adaway.model.update.ManifestTest --tests
   org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`.
+- Pushed proof commit `61103f66`; PR #6 CI passed on that head: Analyze (cpp), Analyze (java),
+  CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 Language Telemetry Preference Proof
+- [x] Re-ground `PREF-012` against `PrefsMainFragment`, `SentryLog`, preference resources, and
+  existing preference connected-test patterns.
+- [x] Add a focused connected preference proof for Force English locale side effects and crash
+  reporting support state.
+- [x] Fix unsupported telemetry so real-Sentry/no-DSN debug builds cannot crash when stale state
+  or UI interaction attempts to enable telemetry.
+- [x] Run compile, focused connected proof, and affected security hardening JVM contracts.
+- [ ] Commit, push, and recheck PR CI for this preference slice.
+
+## Review - 2026-06-27 Language Telemetry Preference Proof
+- Added `PrefsLanguageTelemetryInstrumentedTest` for the real Preferences screen. It proves the
+  Force English switch persists, applies app locales to `en`, clears app locales when disabled,
+  and verifies the crash-report preference is disabled with the unsupported-build summary when
+  this build has no usable Sentry DSN.
+- The first focused connected attempt failed red with a product crash:
+  `IllegalArgumentException: DSN is required` from `SentryAndroid.init(...)` after tapping
+  "Send crash reports" in a debug build using the real Sentry SDK without a configured DSN.
+- Fixed `SentryLog` to expose `isSupported(Application)`, require both a non-stub Sentry runtime
+  and configured `io.sentry.dsn` manifest metadata before initialization, and treat unsupported
+  or disabled telemetry as a no-op shutdown path. The shutdown uses reflection so the sentry stub
+  build remains source-compatible.
+- Updated `PrefsMainFragment` to clear stale telemetry preference state, uncheck the switch, and
+  disable the control with the unsupported-build summary whenever telemetry is not supported.
+- Compile proof passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsLanguageTelemetryInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Existing JVM hardening contracts passed:
+  `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
+  --dependency-verification=strict --stacktrace`.

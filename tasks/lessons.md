@@ -54,3 +54,14 @@
   can appear to succeed while `emulator -avd` cannot find the created AVD.
 - Always upload connected-test reports, emulator logs, logcat, and device state on failure before
   claiming the CI lane is understood.
+
+## 2026-06-27 - Keep CI Product-Oriented
+
+- Use focused local tests to protect the product behavior touched by a slice, then let PR CI prove
+  repository integration.
+- Do not turn release hardening into an endless loop; keep a finite gate list with explicit
+  evidence, owners, and external/manual blockers.
+- Prefer small verified commits over large unverified batches when the change can damage runtime
+  behavior, security posture, or user trust.
+- When a focused gate finds a real user-facing bug, fix the product behavior and keep the failing
+  proof as the regression guard.

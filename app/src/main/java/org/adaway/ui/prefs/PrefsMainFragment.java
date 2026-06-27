@@ -1,5 +1,6 @@
 package org.adaway.ui.prefs;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,6 +12,7 @@ import androidx.core.os.LocaleListCompat;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceFragmentCompat.OnPreferenceStartFragmentCallback;
+import androidx.preference.TwoStatePreference;
 
 import android.net.Uri;
 
@@ -118,14 +120,20 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
     private void bindTelemetryPrefAction() {
         Preference enableTelemetryPref = findPreference(getString(R.string.pref_enable_telemetry_key));
         assert enableTelemetryPref != null : PREFERENCE_NOT_FOUND;
-        enableTelemetryPref.setOnPreferenceChangeListener((preference, newValue) -> {
-            SentryLog.setEnabled(requireActivity().getApplication(), (boolean) newValue);
-            return true;
-        });
-        if (SentryLog.isStub()) {
+        Application application = requireActivity().getApplication();
+        if (!SentryLog.isSupported(application)) {
+            PreferenceHelper.setTelemetryEnabled(requireContext(), false);
+            if (enableTelemetryPref instanceof TwoStatePreference) {
+                ((TwoStatePreference) enableTelemetryPref).setChecked(false);
+            }
             enableTelemetryPref.setEnabled(false);
             enableTelemetryPref.setSummary(R.string.pref_enable_telemetry_disabled_summary);
+            return;
         }
+        enableTelemetryPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            SentryLog.setEnabled(application, (boolean) newValue);
+            return true;
+        });
     }
 
     private void bindLanguagePref() {
