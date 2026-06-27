@@ -10129,7 +10129,7 @@
   (`SYS-005`).
 - [x] Reject the unstable notification permission worker test and keep `PREF-010`/`NOTIF-003`
   open with evidence.
-- [ ] Commit, push, and recheck PR CI.
+- [x] Commit, push, and recheck PR CI.
 
 ## Review - 2026-06-27 Parallel Proof Slices
 - CTO coordinator verified PR #6 checks were green on `f93a5142` and reported that the remaining
@@ -10162,3 +10162,50 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerFragmentNormalizesPastedInputBeforeLookup,org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `4` tests on `adaway-api34-16g` with `0` failures.
+- Pushed proof commit `0ea2fb59`; PR #6 CI passed on that head: Analyze (cpp), Analyze (java),
+  CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 Startup Swarm Local Proofs
+- [x] Launch a CTO coordinator and specialist lanes for release gates, root/VPN/manual gates,
+  connected preference proof, and JVM-only source contracts.
+- [x] Integrate the verified `PREF-001` connected theme-mode proof.
+- [x] Integrate the verified `LOG-002` sort-action source contract.
+- [x] Integrate the verified `ADW-002` uninstall-intent source contract.
+- [x] Record external blockers without re-running already proven `RUNTIME-010`.
+- [x] Run integrated local verification for this swarm slice.
+- [ ] Commit, push, and recheck PR CI for this swarm slice.
+
+## Review - 2026-06-27 Startup Swarm Local Proofs
+- CTO/release/root-VPN audits agree with the current canonical evidence: `RUNTIME-010` already
+  has fresh 100k, 1M, and 5M full parse/import/sync/root-write proof; the remaining P0 release
+  board is mostly external, especially rooted-device hosts apply, signed release artifacts,
+  physical-device release smoke, human UX sign-off, final readiness aggregation, and
+  legal/provenance clearance.
+- `PREF-001`: added `PrefsThemeModeInstrumentedTest`, which opens the real Preferences screen,
+  proves Light, Dark, and System default are visible in the theme dialog, selects each option,
+  verifies the stored preference value, verifies `PreferenceHelper.getDarkThemeMode(...)` and
+  `AppCompatDelegate.getDefaultNightMode()`, and waits for a stable resumed `PrefsActivity`
+  after recreation.
+- `LOG-002`: added `LogSortActionContractTest` to guard the visible DNS log sort menu wiring:
+  `LogActivity` inflates `log_menu`, consumes `R.id.sort`, calls `LogViewModel.toggleSort()`,
+  and republishes the currently loaded rows through the selected comparator.
+- `ADW-002`: added `AdwareUninstallIntentContractTest` to prove `AdwareInstall` keeps display and
+  package names separate, row clicks call `uninstallAdware(...)`, and the uninstall intent uses
+  `Intent.ACTION_DELETE` with a `package:` URI built from the detected package-name key.
+- Worker-local verification passed before integration: focused `PrefsThemeModeInstrumentedTest`
+  connected proof finished `1` test on `adaway-api34-16g` with `0` failures; focused JVM contracts
+  for `LogSortActionContractTest` and `AdwareUninstallIntentContractTest`, plus the affected
+  existing log/adware tests, ended `BUILD SUCCESSFUL`.
+- Integrated JVM proof passed:
+  `:app:testDebugUnitTest --tests org.adaway.ui.log.LogEntrySortTest --tests
+  org.adaway.ui.log.LogSortActionContractTest --tests
+  org.adaway.ui.adware.AdwareLiveDataMatcherTest --tests
+  org.adaway.ui.adware.AdwareUninstallIntentContractTest --dependency-verification=strict
+  --stacktrace`.
+- Integrated android-test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Integrated connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsThemeModeInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
