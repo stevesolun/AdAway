@@ -7,6 +7,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.adaway.BuildConfig;
 import org.adaway.R;
 import org.adaway.helper.ThemeHelper;
 
@@ -26,10 +27,10 @@ public class AboutActivity extends AppCompatActivity {
             actionBar.setTitle(R.string.pref_about_title);
         }
 
-        // Show version string (reuse HomeViewModel source for consistency would be overkill here).
+        // Show the app summary with the generated build version.
         TextView version = findViewById(R.id.aboutVersion);
         if (version != null) {
-            version.setText(getString(R.string.app_description));
+            version.setText(getString(R.string.app_description) + " " + BuildConfig.VERSION_NAME);
         }
     }
 
@@ -39,8 +40,3 @@ public class AboutActivity extends AppCompatActivity {
         return true;
     }
 }
-
-
-
-
-

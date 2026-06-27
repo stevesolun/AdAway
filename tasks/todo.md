@@ -10060,3 +10060,28 @@
   finished `3` tests on `adaway-api34-16g` with `0` failures.
 - Advanced `SRC-008` to connected UI coverage in `tasks/user-story-status.tsv`. External release,
   rooted-device, physical-device, VPN consent, and human UX sign-off gates remain separate.
+
+## Plan - 2026-06-27 About UI Smoke
+- [x] Re-ground `ABOUT-001` against `AboutActivity`, `about_activity.xml`, and the Preferences
+  entrypoint.
+- [x] Show the generated build version on the visible About screen.
+- [x] Add connected UI smoke for app name, version, credits, and GPL/open-source attribution.
+- [x] Run focused android-test compile and connected verification on the API 34 emulator.
+- [x] Update canonical trackers without claiming legal/provenance or relicensing clearance.
+
+## Review - 2026-06-27 About UI Smoke
+- Updated `AboutActivity` so `aboutVersion` includes `BuildConfig.VERSION_NAME` alongside the app
+  description.
+- Added `AboutActivitySmokeInstrumentedTest`. The test opens Preferences, clicks the real About
+  preference, waits for `AboutActivity`, and verifies app name, app description, generated version
+  name, credits, AdAway attribution, Open source copy, and GPL-3.0 attribution are visible.
+- Focused compile proof passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.about.AboutActivitySmokeInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Advanced `ABOUT-001` to partial UI coverage in `tasks/user-story-status.tsv`. Legal/provenance
+  review, MIT relicensing clearance, external release, rooted-device, physical-device, VPN consent,
+  and human UX sign-off gates remain separate.
