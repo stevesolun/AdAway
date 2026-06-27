@@ -20,6 +20,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
@@ -184,6 +185,43 @@ public class DomainCheckerRuntimeTruthTest {
         }
     }
 
+    @Test(timeout = 120_000)
+    public void domainCheckerFragmentActionsMutateOnlyNormalizedUserRules() {
+        PreferenceHelper.setAbBlockMethod(application, ROOT);
+        String pastedBlockedInput =
+                " HTTPS://" + BLOCKED_HOST.toUpperCase(Locale.ROOT) + "./ad.js ";
+        String pastedUnknownInput =
+                " https://" + UNKNOWN_HOST.toUpperCase(Locale.ROOT) + ":443/path ";
+
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            HomeActivity activity = showDomainChecker(scenario);
+
+            checkDomainInUi(activity, pastedBlockedInput);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_blocked));
+            clickVisibleView(activity, R.id.unblockButton, "Add to Allow List");
+            waitForUserRule(BLOCKED_HOST, ALLOWED, true);
+            waitForRuntimeType(BLOCKED_HOST, ALLOWED);
+            waitForVisibleText(activity, context.getString(R.string.allowed_hosts_label));
+
+            clickVisibleView(activity, R.id.removeAllowButton, "Remove Allow List rule");
+            waitForUserRule(BLOCKED_HOST, ALLOWED, false);
+            waitForRuntimeType(BLOCKED_HOST, BLOCKED);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_blocked));
+
+            checkDomainInUi(activity, pastedUnknownInput);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_unknown));
+            clickVisibleView(activity, R.id.blockButton, "Add to Block List");
+            waitForUserRule(UNKNOWN_HOST, BLOCKED, true);
+            waitForRuntimeType(UNKNOWN_HOST, BLOCKED);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_blocked));
+
+            clickVisibleButtonText(activity, context.getString(R.string.domain_checker_delete_rule));
+            waitForUserRule(UNKNOWN_HOST, BLOCKED, false);
+            waitForRuntimeType(UNKNOWN_HOST, ALLOWED);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_unknown));
+        }
+    }
+
     private DomainCheckResult check(String host) throws InterruptedException {
         DomainCheckerViewModel viewModel = new DomainCheckerViewModel(application);
         CountDownLatch latch = new CountDownLatch(1);
@@ -309,6 +347,95 @@ public class DomainCheckerRuntimeTruthTest {
             domainEditText.setText(host);
             assertTrue("Expected check click to be handled.", checkButton.performClick());
         });
+    }
+
+    private void waitForUserRule(String host, ListType type, boolean expectedPresent) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            waitForDiskIoIdle();
+            boolean present = hasUserRule(host, type);
+            if (present == expectedPresent) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for user rule " + host + " type=" + type
+                + " present=" + expectedPresent);
+    }
+
+    private boolean hasUserRule(String host, ListType type) {
+        for (HostListItem item : hostListItemDao.getEntriesForHost(host)) {
+            if (item.getSourceId() == USER_SOURCE_ID
+                    && item.getType() == type
+                    && item.isEnabled()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void waitForRuntimeType(String host, @Nullable ListType expectedType) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            waitForDiskIoIdle();
+            ListType actualType = hostEntryDao.getRootTypeForHost(host);
+            if (expectedType == actualType) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for runtime type " + expectedType
+                + " for " + host + "; last=" + hostEntryDao.getRootTypeForHost(host));
+    }
+
+    private static void clickVisibleView(Activity activity, int viewId, String description) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Boolean> clicked = new AtomicReference<>(false);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                View view = activity.findViewById(viewId);
+                clicked.set(view != null && view.isShown() && view.performClick());
+            });
+            if (Boolean.TRUE.equals(clicked.get())) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Visible view was not clickable: " + description);
+    }
+
+    private static void clickVisibleButtonText(Activity activity, String expectedText) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Boolean> clicked = new AtomicReference<>(false);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                    clicked.set(clickVisibleButtonText(
+                            activity.getWindow().getDecorView(),
+                            expectedText)));
+            if (Boolean.TRUE.equals(clicked.get())) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Visible button text was not clickable: " + expectedText);
+    }
+
+    private static boolean clickVisibleButtonText(View view, String expectedText) {
+        if (view instanceof Button
+                && view.isShown()
+                && expectedText.contentEquals(((Button) view).getText())) {
+            return view.performClick();
+        }
+        if (!(view instanceof ViewGroup)) {
+            return false;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (clickVisibleButtonText(group.getChildAt(i), expectedText)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static HomeActivity waitForHomeActivity() {

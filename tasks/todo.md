@@ -10579,3 +10579,43 @@
 - `MORE-001` is now covered by connected UI flow. The broader external release gates remain open
   and unchanged: rooted hosts apply, direct signed self-update, release artifacts, physical smoke,
   UX human signoff, legal/provenance, and final readiness aggregation.
+
+## Plan - 2026-06-27 DOMAIN-003 Domain Checker Actions
+- [x] Wait for PR #6 CI to finish on the More entry-point commit before starting another slice.
+- [x] Re-ground Domain Checker UI, ViewModel mutation methods, runtime resolver semantics, and
+  existing no-AI removal contracts.
+- [x] Extend the connected runtime-truth test to click the visible Domain Checker actions and prove
+  normalized user-rule effects.
+- [x] Run compile, focused connected Domain Checker proof, no-AI/advice JVM contracts, and tracker
+  hygiene.
+- [x] Update `tasks/user-story-status.tsv` and this log with evidence; commit/push only after the
+  verified slice is clean.
+
+## Review - 2026-06-27 DOMAIN-003 Domain Checker Actions
+- PR #6 CI was fully green on `ea5c9553` before this slice, including full Connected Android tests
+  (`8m53s`) plus Analyze (cpp/java), CodeQL, Development build, and Validate locales.
+- Extended `DomainCheckerRuntimeTruthTest` with a connected action flow that opens the real
+  `DomainCheckerFragment`, enters messy pasted host strings, clicks Add to Allow List, Remove
+  Allow List rule, Add to Block List, and Delete rule, then polls Room/runtime truth and visible
+  status text for the expected result.
+- The proof keeps Domain Checker as a non-AI runtime-truth tool. `AiSurfaceContractTest` remains
+  the guard that the removed AI gate, AI UI/settings packages, AI layouts/resources, AI network
+  config, and default README AI copy do not return.
+- Red/green notes: the first action proof was too brittle because it expected exact rendered
+  user-source copy; the second expected a null runtime type for unknown hosts after deleting a
+  user block. The current resolver intentionally maps unknown/default-allowed runtime state to
+  `ALLOWED` internally while Domain Checker renders it as Unknown when there is no explicit allow
+  rule, so the final proof asserts the actual product contract.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest
+  --dependency-verification=strict --stacktrace` finished `4` tests on `adaway-api34-16g`;
+  and focused JVM
+  `:app:testDebugUnitTest --tests org.adaway.ui.domainchecker.DomainCheckerViewModelAdviceTest
+  --tests org.adaway.ui.home.AiSurfaceContractTest --dependency-verification=strict --stacktrace`.
+- `DOMAIN-003` is now covered by connected UI flow. The remaining P0 board is still external:
+  rooted hosts apply, direct signed self-update, release artifacts, physical smoke, UX human
+  signoff, legal/provenance, and final readiness aggregation.
