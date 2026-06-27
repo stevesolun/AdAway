@@ -58,6 +58,8 @@ public class ListsSearchInstrumentedTest {
     private static final int TEST_SOURCE_ID = 929292;
     private static final String MATCHING_HOST = "alpha-search-visible.invalid";
     private static final String HIDDEN_HOST = "beta-search-hidden.invalid";
+    private static final String HOSTS_LISTS_TABLE = "hosts_lists";
+    private static final String BROKEN_HOSTS_LISTS_TABLE = "hosts_lists_unavailable_for_test";
     private static final long UI_WAIT_TIMEOUT_MS = 10_000L;
 
     private Context context;
@@ -91,6 +93,7 @@ public class ListsSearchInstrumentedTest {
     @After
     public void tearDown() throws Exception {
         try {
+            restoreHostsListsTableIfNeeded();
             if (this.context != null) {
                 InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down lists search");
             }
@@ -148,6 +151,25 @@ public class ListsSearchInstrumentedTest {
         }
     }
 
+    @Test(timeout = 60_000)
+    public void pagingLoadFailureShowsRetryAndRecovers() throws Exception {
+        renameTable(HOSTS_LISTS_TABLE, BROKEN_HOSTS_LISTS_TABLE);
+
+        Intent intent = new Intent(this.context, ListsActivity.class)
+                .putExtra(TAB, BLOCKED_HOSTS_TAB);
+        try (ActivityScenario<ListsActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForStateContainer(
+                    scenario,
+                    this.context.getString(R.string.lists_state_load_failed_title),
+                    this.context.getString(R.string.lists_state_load_failed_message),
+                    true);
+
+            renameTable(BROKEN_HOSTS_LISTS_TABLE, HOSTS_LISTS_TABLE);
+            clickRetryButton(scenario);
+            waitForFragmentText(scenario, MATCHING_HOST);
+        }
+    }
+
     private static void setSearchQuery(
             @NonNull ActivityScenario<ListsActivity> scenario,
             @NonNull String query) {
@@ -158,6 +180,13 @@ public class ListsSearchInstrumentedTest {
             searchEditText.setText(query);
             searchEditText.setSelection(query.length());
         });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+    }
+
+    private static void clickRetryButton(@NonNull ActivityScenario<ListsActivity> scenario) {
+        scenario.onActivity(activity -> currentFragment(activity).requireView()
+                .findViewById(R.id.hostsListsStateRetryButton)
+                .performClick());
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
@@ -185,6 +214,36 @@ public class ListsSearchInstrumentedTest {
             SystemClock.sleep(100L);
         }
         fail("Timed out waiting for search state.");
+    }
+
+    private static void waitForStateContainer(
+            @NonNull ActivityScenario<ListsActivity> scenario,
+            @NonNull String expectedTitle,
+            @NonNull String expectedMessage,
+            boolean retryVisible) {
+        long deadline = SystemClock.uptimeMillis() + UI_WAIT_TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            final boolean[] matched = new boolean[1];
+            scenario.onActivity(activity -> {
+                View root = currentFragment(activity).requireView();
+                View stateContainer = root.findViewById(R.id.hostsListsStateContainer);
+                View recyclerView = root.findViewById(R.id.hosts_lists_list);
+                View progress = root.findViewById(R.id.hostsListsStateProgress);
+                View retryButton = root.findViewById(R.id.hostsListsStateRetryButton);
+                matched[0] = stateContainer.isShown()
+                        && !recyclerView.isShown()
+                        && !progress.isShown()
+                        && retryButton.isShown() == retryVisible
+                        && containsShownText(root, expectedTitle)
+                        && containsShownText(root, expectedMessage);
+            });
+            if (matched[0]) {
+                return;
+            }
+            SystemClock.sleep(100L);
+        }
+        fail("Timed out waiting for lists state container: " + expectedTitle);
     }
 
     private static void waitForFragmentText(
@@ -287,6 +346,28 @@ public class ListsSearchInstrumentedTest {
                         new Object[]{type.getValue()}))) {
             assertTrue(cursor.moveToFirst());
             assertEquals(expectedCount, cursor.getInt(0));
+        }
+    }
+
+    private void renameTable(@NonNull String fromTable, @NonNull String toTable) {
+        this.database.getOpenHelper().getWritableDatabase()
+                .execSQL("ALTER TABLE " + fromTable + " RENAME TO " + toTable);
+    }
+
+    private void restoreHostsListsTableIfNeeded() {
+        if (this.database == null || !tableExists(BROKEN_HOSTS_LISTS_TABLE)
+                || tableExists(HOSTS_LISTS_TABLE)) {
+            return;
+        }
+        renameTable(BROKEN_HOSTS_LISTS_TABLE, HOSTS_LISTS_TABLE);
+    }
+
+    private boolean tableExists(@NonNull String tableName) {
+        try (Cursor cursor = this.database.getOpenHelper().getReadableDatabase().query(
+                new SimpleSQLiteQuery("SELECT 1 FROM sqlite_master "
+                        + "WHERE type = 'table' AND name = ? LIMIT 1",
+                        new Object[]{tableName}))) {
+            return cursor.moveToFirst();
         }
     }
 

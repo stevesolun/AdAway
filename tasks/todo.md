@@ -10906,3 +10906,17 @@
   org.adaway.ui.onboarding.DefaultListsSubscriberTest --tests
   org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
   Current PR CI was green before this local commit; re-check CI after push.
+
+## Review - 2026-06-27 LIST-007 Paging Failure State Proof
+- `LIST-007`: Added a connected Your Lists proof for the remaining load-failure/retry visual path.
+  The test temporarily renames `hosts_lists` before the PagingSource refresh, waits for the visible
+  load-failed title/message and Retry button, restores the table, taps Retry, and verifies the
+  blocked list rows render again.
+- This closes the prior local proof gap for loading/empty/error/no-match states without changing
+  production UI behavior; the existing state resolver and layout remain the source of truth.
+- Verification passed:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsSearchInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 3 connected tests.
