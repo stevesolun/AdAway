@@ -70,6 +70,7 @@ public class UpdateActivity extends AppCompatActivity {
             if (progress == null) {
                 this.binding.updateButton.setVisibility(VISIBLE);
                 this.binding.downloadProgressBar.setVisibility(GONE);
+                this.binding.downloadProgressBar.setProgress(0);
                 this.binding.progressTextView.setText(null);
                 return;
             }
@@ -104,6 +105,8 @@ public class UpdateActivity extends AppCompatActivity {
     private void startUpdate(View view) {
         this.binding.updateButton.setVisibility(INVISIBLE);
         this.binding.downloadProgressBar.setVisibility(VISIBLE);
+        this.binding.downloadProgressBar.setProgress(0);
+        this.binding.progressTextView.setText(null);
         this.updateViewModel.update();
     }
 }

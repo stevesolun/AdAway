@@ -10257,7 +10257,7 @@
 - [x] Fix unsupported telemetry so real-Sentry/no-DSN debug builds cannot crash when stale state
   or UI interaction attempts to enable telemetry.
 - [x] Run compile, focused connected proof, and affected security hardening JVM contracts.
-- [ ] Commit, push, and recheck PR CI for this preference slice.
+- [x] Commit, push, and recheck PR CI for this preference slice.
 
 ## Review - 2026-06-27 Language Telemetry Preference Proof
 - Added `PrefsLanguageTelemetryInstrumentedTest` for the real Preferences screen. It proves the
@@ -10292,5 +10292,36 @@
   section before asserting or toggling the crash-report preference. Focused retest passed:
   `:app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsLanguageTelemetryInstrumentedTest#languageAndTelemetryPreferencesPersistAndApplyTheirSideEffects
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Pushed stabilization commit `ebedf9eb`; PR #6 CI passed on that head: Analyze (cpp),
+  Analyze (java), CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 Update Download Status UI Proof
+- [x] Re-ground `UPDATE-003` against `UpdateActivity`, `UpdateViewModel`,
+  `PendingDownloadStatus`, `CompleteDownloadStatus`, and the update activity layout.
+- [x] Add a focused connected proof for update-available, pending progress, complete progress,
+  and reset states in the real `UpdateActivity`.
+- [x] Fix stale progress reset so a new update attempt cannot briefly show the previous complete
+  `100%` bar before the next download progress event.
+- [x] Run compile and focused connected verification.
+- [ ] Commit, push, and recheck PR CI for this update-status slice.
+
+## Review - 2026-06-27 Update Download Status UI Proof
+- Added `UpdateActivityDownloadStatusInstrumentedTest`. The test publishes a signed test
+  manifest into the app `UpdateModel`, launches the real `UpdateActivity`, verifies the update
+  available header/changelog/button, then injects `PendingDownloadStatus`,
+  `CompleteDownloadStatus`, and `null` reset progress through the activity `UpdateViewModel`.
+- The first focused connected run failed red because `UpdateActivity` hid the progress bar on
+  reset but left its internal progress at `100` after completion. That could make the next update
+  attempt briefly show stale complete progress before the first new progress event.
+- Fixed `UpdateActivity` to reset `downloadProgressBar` to `0` when progress becomes `null` and
+  when a new update starts; starting a new update also clears stale progress text.
+- Compile proof passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `1` test on `adaway-api34-16g` with `0` failures.
