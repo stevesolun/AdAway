@@ -10770,7 +10770,7 @@
   preferences/rules, or document why platform backup remains manual.
 - [x] ADA-P2-NOTIF-001-002 / `NOTIF-001`, `NOTIF-002`: prove notification channel/update-alert
   contracts while leaving permission-state UX to the safer `PREF-010/NOTIF-003` harness.
-- [ ] ADA-P2-ADW-003 / `ADW-003`: define signature freshness ownership/cadence or document static
+- [x] ADA-P2-ADW-003 / `ADW-003`: define signature freshness ownership/cadence or document static
   confidence limits.
 
 ### CTO Subagent Dispatch Results
@@ -10783,6 +10783,8 @@
   until a safer API 33/34 harness exists.
 - Product UX lead: fix `LIST-007` first because loading resolved to a hidden state, leaving the
   user-facing list area blank during initial refresh.
+- Product trust lead: closed `ADW-003` by making the scanner's static signature limit visible in
+  the UI and executable in tests; this is intentionally not a claim of live adware intelligence.
 
 ### Verified Local Slices
 - `LIST-007`: Added a visible loading spinner/copy, kept retry visible only for load failure, and
@@ -10826,3 +10828,12 @@
   `./gradlew --no-daemon :app:testDebugUnitTest --tests
   org.adaway.helper.NotificationHelperContractTest --tests
   org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
+- `ADW-003`: Added visible scanner copy explaining that adware detection uses a static known-prefix
+  table, may miss newer SDKs, and requires signature review before each release. Guarded the copy and
+  layout with `AdwareLiveDataMatcherTest`, then extended the connected scanner proof to assert the
+  notice is visible while retaining the Airpush fixture detection proof. Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.adware.AdwareLiveDataMatcherTest --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.adware.AdwareScannerInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.

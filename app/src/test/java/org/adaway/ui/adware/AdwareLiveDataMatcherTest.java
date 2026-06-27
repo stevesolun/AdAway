@@ -60,6 +60,23 @@ public class AdwareLiveDataMatcherTest {
                 source.contains("componentName.contains(adPackagePrefix)"));
     }
 
+    @Test
+    public void scannerCopyDisclosesStaticSignatureFreshnessLimit() throws Exception {
+        String strings = readRepoFile("app/src/main/res/values/strings.xml");
+        String layout = readRepoFile("app/src/main/res/layout/adware_fragment.xml");
+
+        assertTrue("Adware scanner copy must disclose that signatures are static.",
+                strings.contains("Detection uses a static list of known adware " +
+                        "component prefixes"));
+        assertTrue("Adware scanner copy must warn that newer SDKs may be missed.",
+                strings.contains("It may miss newer SDKs"));
+        assertTrue("Adware scanner copy must define release-review ownership.",
+                strings.contains("review these signatures before each release"));
+        assertTrue("Adware scanner layout must render the static-signature notice.",
+                layout.contains("android:id=\"@+id/adware_signature_notice\"") &&
+                        layout.contains("android:text=\"@string/adware_signature_notice\""));
+    }
+
     private static void assertContains(String[] values, String expected) {
         for (String value : values) {
             if (expected.equals(value)) {

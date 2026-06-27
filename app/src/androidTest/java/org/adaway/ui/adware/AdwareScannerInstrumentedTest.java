@@ -11,6 +11,7 @@ import android.os.SystemClock;
 import android.view.View;
 import android.widget.ListAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -96,6 +97,13 @@ public class AdwareScannerInstrumentedTest {
             assertNotNull("Missing More > Adware Scanner row.", scannerRow);
             assertTrue("Adware Scanner row click failed.", scannerRow.performClick());
             activity.getSupportFragmentManager().executePendingTransactions();
+            TextView signatureNotice = activity.findViewById(R.id.adware_signature_notice);
+            assertNotNull("Missing adware signature freshness notice.", signatureNotice);
+            assertEquals("Static adware signature notice should match product copy.",
+                    activity.getString(R.string.adware_signature_notice),
+                    signatureNotice.getText().toString());
+            assertTrue("Static adware signature notice should be visible.",
+                    signatureNotice.isShown());
         });
     }
 

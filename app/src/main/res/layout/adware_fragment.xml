@@ -34,6 +34,16 @@
             android:text="@string/adware_description"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body1" />
 
+        <TextView
+            android:id="@+id/adware_signature_notice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="@dimen/card_inner_padding"
+            android:paddingEnd="@dimen/card_inner_padding"
+            android:paddingBottom="@dimen/card_inner_padding"
+            android:text="@string/adware_signature_notice"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2" />
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
