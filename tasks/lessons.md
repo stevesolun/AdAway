@@ -65,3 +65,7 @@
   behavior, security posture, or user trust.
 - When a focused gate finds a real user-facing bug, fix the product behavior and keep the failing
   proof as the regression guard.
+- When the remaining work is a finite set of local proof/documentation gaps, batch the closure into
+  one small verified commit instead of repeatedly rediscovering the same board.
+- Treat consent-, hardware-, legal-, or human-gated work as explicit product release gates, not as a
+  reason to keep looping on locally unfinishable automation.

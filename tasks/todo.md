@@ -10748,7 +10748,7 @@
   physical smoke, UX, and license artifacts exist.
 
 ### Locally Completable Proof Gaps
-- [ ] ADA-P1-VPN-009 / `RUNTIME-009`: prove full VPN lifecycle start/stop/resume when consent is
+- [x] ADA-P1-VPN-009 / `RUNTIME-009`: prove full VPN lifecycle start/stop/resume when consent is
   already granted, or document the remaining device-precondition boundary more tightly.
 - [x] ADA-P1-LOG-001 / `LOG-001`: prove DNS log rows from packet-processor/proxy traffic,
   beyond direct `VpnModel` log generation.
@@ -10756,7 +10756,7 @@
   source or JVM guard for binding/auth/availability assumptions.
 - [x] ADA-P1-SYS-001 / `SYS-001`: prove Quick Settings tile interaction with Android tile service,
   or add the strongest local source/connected boundary proof that avoids flaky system UI.
-- [ ] ADA-P1-SYS-003 / `SYS-003`: design hostile-sender/separately signed proof for exported command
+- [x] ADA-P1-SYS-003 / `SYS-003`: design hostile-sender/separately signed proof for exported command
   receiver signature-permission enforcement.
 - [x] ADA-P1-SYS-004 / `SYS-004`: strengthen real app-upgrade/package-replaced behavior proof if a
   non-release install flow can safely simulate it.
@@ -10774,10 +10774,13 @@
   confidence limits.
 
 ### CTO Subagent Dispatch Results
-- Runtime lead: kept `RUNTIME-009` as a prepared-emulator VPN-consent proof and completed the local
-  `LOG-001` packet-processor/proxy-to-LogActivity bridge proof without production changes.
-- System/security lead: completed `PREF-004`, `SYS-004`, and `SYS-001` local proofs. `SYS-003`
-  remains a heavier hostile-sender APK fixture, not part of this verified slice.
+- Runtime lead: closed the local `RUNTIME-009` paperwork by documenting the prepared-device VPN
+  consent boundary, while keeping the full live tunnel lifecycle as a manual release-smoke gate.
+  Also completed the local `LOG-001` packet-processor/proxy-to-LogActivity bridge proof without
+  production changes.
+- System/security lead: completed `PREF-004`, `SYS-004`, `SYS-001`, and `SYS-003` local proofs.
+  `SYS-003` now has connected denied-sender coverage; a separately signed fixture APK remains a
+  future release-smoke enhancement, not a local blocker.
 - Preferences/notifications/backup lead: closed the backup-agent eligibility contradiction earlier
   and strengthened `NOTIF-002`; notification permission mutation remains under `NOTIF-003/PREF-010`
   until a safer API 33/34 harness exists.
@@ -10862,4 +10865,17 @@
   org.adaway.ui.prefs.PrefsUpdateNotificationPermissionContractTest --dependency-verification=strict
   --stacktrace` and `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#notificationSettingsPreferenceMatchesCurrentPermissionStateWithoutMutation
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+- `RUNTIME-009`: Kept the automated proof boundary honest: JVM monitor/watchdog/idle lifecycle tests
+  cover monitor recovery, watchdog restart behavior, and idle timeout semantics; the connected
+  lifecycle test covers heartbeat start/stop and contains a full start/stop/resume path that runs
+  only on a prepared device with AdAway VPN consent already granted and no other active VPN. The
+  consent-gated boundary is documented in
+  `tasks/benchmarks/2026-06-27-runtime009-vpn-lifecycle-boundary.md`.
+- `SYS-003`: Added connected denied-sender proof for the exported command receiver. The test injects
+  a recording `AdBlockModel`, sends a direct command broadcast from the instrumentation package
+  without `org.adaway.permission.SEND_COMMAND`, accepts either platform `SecurityException` or
+  ignored delivery, and asserts `AdBlockModel.apply()` is not reached. Verification passed:
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#packageWithoutCommandPermissionCannotDeliverCommandBroadcast
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
