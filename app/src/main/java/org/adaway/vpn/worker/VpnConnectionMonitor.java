@@ -128,6 +128,7 @@ public class VpnConnectionMonitor {
      */
     void reset() {
         this.networkInterface = null;
+        this.running.set(true);
     }
 
     /**
