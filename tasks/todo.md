@@ -10949,3 +10949,32 @@
   operations and real devices/artifacts: signed direct-release/update artifacts, rooted writable
   hosts apply, physical release smoke, legal/provenance signoff, human UX matrix signoff, and final
   readiness aggregation.
+
+## Plan - 2026-06-28 Update Release Gate Preflight
+- [x] Re-ground the active PR worktree instead of editing the dirty `master` checkout.
+- [x] Re-check PR #7 CI before starting new work.
+- [x] Verify the local app-update release contracts for `UPDATE-002` and `UPDATE-004`.
+- [x] Run unsigned `assembleDirectRelease` as a fail-closed preflight.
+- [x] Update canonical release-gate evidence without claiming signed install smoke is done.
+
+## Review - 2026-06-28 UPDATE-002/UPDATE-004 Release Preflight
+- `UPDATE-002`: Revalidated the APK verifier unit contract and recorded that signed device install
+  smoke remains open until a real signed artifact exists. The row now points at
+  `tasks/benchmarks/2026-06-28-update-release-preflight-evidence.md` instead of saying the local
+  verifier retest was not started.
+- `UPDATE-004`: Revalidated the direct APK boundary source contract: normal builds do not declare
+  `REQUEST_INSTALL_PACKAGES`, `directRelease` owns that permission, runtime self-update is gated by
+  `BuildConfig.DIRECT_APK_UPDATES_ENABLED` and the AdAway store, and the APK receiver checks unknown
+  app install permission before launching install UI.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.update.ApkIntegrityVerifierTest --tests
+  org.adaway.security.SecurityHardeningTest.atk34_apkSelfUpdateRequiresInstallPermissionAndAdAwayStoreBoundary
+  --dependency-verification=strict --stacktrace`.
+- Fail-closed preflight passed by failing as expected: unsigned
+  `./gradlew --no-daemon :app:assembleDirectRelease --dependency-verification=strict --stacktrace`
+  exited `1` with `Release and release-SBOM builds require signingStoreLocation,
+  signingStorePassword, signingKeyAlias, and signingKeyPassword.`
+- Remaining release proof is external: produce a signed direct-release artifact, verify manifest/APK
+  hash/signing certificate evidence, run the install/update path on a target device, and feed those
+  reports into the release readiness aggregation.
