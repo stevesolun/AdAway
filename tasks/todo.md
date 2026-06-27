@@ -10513,3 +10513,32 @@
   `:app:testDebugUnitTest --tests org.adaway.ui.adware.AdwareLiveDataMatcherTest --tests
   org.adaway.ui.adware.AdwareUninstallIntentContractTest --dependency-verification=strict
   --stacktrace`.
+
+## Plan - 2026-06-27 PREF-006 VPN Excluded Apps Device List
+- [x] Re-ground `PrefsVpnExcludedAppsActivity`, `UserAppRecycleViewAdapter`, layout bindings, and
+  the existing instrumentation package fixture.
+- [x] Add connected proof that the real excluded-apps picker lists a visible non-system app and
+  persists row toggle changes to `PreferenceHelper.getVpnExcludedApps(...)`.
+- [x] Run compile, focused connected verification, and tracker hygiene.
+- [x] Update `tasks/user-story-status.tsv` and this log; commit/push only after verification.
+
+## Review - 2026-06-27 PREF-006 VPN Excluded Apps Device List
+- Added `PrefsVpnExcludedAppsInstrumentedTest`, which uses the existing androidTest-only
+  launchable fixture package as a real visible non-system app under the production app's launcher
+  package-visibility query.
+- The test launches the real `PrefsVpnExcludedAppsActivity`, verifies the fixture appears in the
+  RecyclerView data, clicks the rendered row, and waits for `PreferenceHelper.getVpnExcludedApps`
+  to include and then remove the fixture package after the second row toggle.
+- This proves the user-app picker, row binding, switch listener, and persisted selected package
+  names work together without adding broad package enumeration.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.exclusion.PrefsVpnExcludedAppsInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `1` test on `adaway-api34-16g`;
+  adjacent connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsVpnSettingsInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `1` test on `adaway-api34-16g`.
