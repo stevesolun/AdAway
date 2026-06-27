@@ -61,6 +61,7 @@ public class FilterSetSaveApplyInstrumentedTest {
     private static final String SOURCE_B_URL = "https://filter-set.test/b.txt";
     private static final String SOURCE_C_URL = "https://filter-set.test/c.txt";
     private static final String SAVED_SET_NAME = "Travel Pack";
+    private static final String RENAMED_SET_NAME = "Weekend Pack";
     private static final String FILTER_SETS_PREFS = "filter_sets";
 
     private Context context;
@@ -147,6 +148,66 @@ public class FilterSetSaveApplyInstrumentedTest {
         assertEquals(1, activeWork(this.context, FilterSetUpdateService.WORK_NAME).size());
     }
 
+    @Test(timeout = 120_000)
+    public void manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet()
+            throws Exception {
+        Set<String> savedUrls = setOf(SOURCE_A_URL, SOURCE_B_URL);
+        FilterSetStore.savePresetProfile(this.context,
+                FilterSetStore.PROFILE_SAFE, setOf(SOURCE_C_URL));
+        FilterSetStore.saveSet(this.context, SAVED_SET_NAME, savedUrls);
+        FilterSetStore.setSchedule(this.context,
+                SAVED_SET_NAME, FilterSetStore.SCHEDULE_WEEKLY, 2, 4, 30);
+        FilterSetStore.setActiveProfile(this.context, SAVED_SET_NAME);
+
+        ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
+        navigateToSources(scenario);
+        HomeActivity homeActivity = waitForHomeActivity();
+        waitForSourceRowsLoaded();
+
+        clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
+        assertAccessibilityText(this.context.getString(R.string.filter_set_manage_title));
+        assertAccessibilityText(SAVED_SET_NAME);
+        assertAccessibilityTextNotVisible(FilterSetStore.PROFILE_SAFE);
+
+        clickAccessibilityText(SAVED_SET_NAME);
+        assertAccessibilityText(
+                this.context.getString(R.string.filter_set_manage_actions_title, SAVED_SET_NAME));
+        clickAccessibilityText(this.context.getString(R.string.filter_set_rename));
+        assertAccessibilityText(this.context.getString(R.string.filter_set_rename_title));
+
+        setEditableAccessibilityText(FilterSetStore.PROFILE_SAFE);
+        clickAccessibilityText(this.context.getString(R.string.filter_set_rename));
+        assertAccessibilityText(this.context.getString(R.string.filter_set_name_reserved));
+        assertTrue(FilterSetStore.hasSet(this.context, SAVED_SET_NAME));
+        assertFalse(FilterSetStore.hasSet(this.context, RENAMED_SET_NAME));
+
+        setEditableAccessibilityText(RENAMED_SET_NAME);
+        clickAccessibilityText(this.context.getString(R.string.filter_set_rename));
+        waitForRenamedSet(SAVED_SET_NAME, RENAMED_SET_NAME, savedUrls);
+        assertEquals(RENAMED_SET_NAME, FilterSetStore.getActiveProfile(this.context));
+        assertEquals(FilterSetStore.SCHEDULE_WEEKLY,
+                FilterSetStore.getSchedule(this.context, RENAMED_SET_NAME));
+
+        clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
+        assertAccessibilityText(this.context.getString(R.string.filter_set_manage_title));
+        assertAccessibilityText(RENAMED_SET_NAME);
+        assertAccessibilityTextNotVisible(SAVED_SET_NAME);
+
+        clickAccessibilityText(RENAMED_SET_NAME);
+        clickAccessibilityText(this.context.getString(R.string.filter_set_delete));
+        assertAccessibilityText(this.context.getString(R.string.filter_set_delete_title));
+        assertAccessibilityText(
+                this.context.getString(R.string.filter_set_delete_message, RENAMED_SET_NAME));
+
+        clickAccessibilityText(this.context.getString(R.string.filter_set_delete));
+        waitForDeletedSet(RENAMED_SET_NAME);
+        assertEquals(FilterSetStore.PROFILE_CUSTOM, FilterSetStore.getActiveProfile(this.context));
+        assertTrue(FilterSetStore.hasSet(this.context, FilterSetStore.PROFILE_SAFE));
+
+        clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
+        assertAccessibilityText(this.context.getString(R.string.filter_set_manage_none));
+    }
+
     private static void navigateToSources(ActivityScenario<HomeActivity> scenario) {
         scenario.onActivity(activity -> activity.navigateTo(R.id.nav_sources));
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -207,6 +268,30 @@ public class FilterSetSaveApplyInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Saved filter set did not contain expected URLs.");
+    }
+
+    private void waitForRenamedSet(String oldName, String newName, Set<String> expectedUrls) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (!FilterSetStore.hasSet(this.context, oldName)
+                    && FilterSetStore.hasSet(this.context, newName)
+                    && FilterSetStore.getSetUrls(this.context, newName).equals(expectedUrls)) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Filter set rename did not persist expected URLs.");
+    }
+
+    private void waitForDeletedSet(String name) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (!FilterSetStore.hasSet(this.context, name)) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Filter set was not deleted: " + name);
     }
 
     private void waitForSchedule(String name, int expectedSchedule) {
@@ -283,6 +368,24 @@ public class FilterSetSaveApplyInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Text was not visible: " + expectedText);
+    }
+
+    private static void assertAccessibilityTextNotVisible(String unexpectedText) {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                .getUiAutomation()
+                .getRootInActiveWindow();
+        try {
+            AccessibilityNodeInfo node = root == null ? null : findText(root, unexpectedText);
+            if (node != null) {
+                node.recycle();
+                throw new AssertionError("Text was unexpectedly visible: " + unexpectedText);
+            }
+        } finally {
+            if (root != null) {
+                root.recycle();
+            }
+        }
     }
 
     private static void clickAccessibilityText(String expectedText) throws Exception {

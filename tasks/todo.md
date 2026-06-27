@@ -10024,6 +10024,39 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.source.SourceEditAddEditInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `2` tests on `adaway-api34-16g` with `0` failures.
-- Advanced `SRC-010` to connected UI coverage in `tasks/user-story-status.tsv`. PR CI connected
-  execution, external release, rooted-device, physical-device, VPN consent, and human UX sign-off
-  gates remain separate.
+- Advanced `SRC-010` to connected UI coverage in `tasks/user-story-status.tsv`. PR CI then passed
+  on `9b4a7b6f`: Connected Android tests, Development build, Validate locales, Analyze (java),
+  Analyze (cpp), and CodeQL. External release, rooted-device, physical-device, VPN consent, and
+  human UX sign-off gates remain separate.
+
+## Plan - 2026-06-27 Filter Set Manage UI Proof
+- [x] Re-ground `SRC-008` against `HostsSourcesFragment`, `FilterSetStore`, and the existing
+  filter-set connected harness.
+- [x] Add focused connected UI proof for Manage Filter Sets rename validation and delete.
+- [x] Prove rename preserves saved URLs, schedule, and active profile state.
+- [x] Run focused method and full filter-set connected verification on the API 34 emulator.
+- [x] Update canonical trackers without closing external release, hardware, root, VPN, or human
+  UX sign-off gates.
+
+## Review - 2026-06-27 Filter Set Manage UI Proof
+- Extended `FilterSetSaveApplyInstrumentedTest` with
+  `manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet`.
+- The test seeds a reserved Safe profile plus a manageable `Travel Pack`, opens the real Sources
+  toolbar Manage Filter Sets action, verifies reserved profiles are not listed, rejects a rename
+  to the reserved Safe profile name, renames to `Weekend Pack`, then verifies saved URL membership,
+  weekly schedule state, and active profile state moved to the new name.
+- The same flow then reopens Manage Filter Sets, selects `Weekend Pack`, confirms delete, verifies
+  the saved set is removed, active profile falls back to Custom, the reserved Safe profile remains,
+  and the manage action reports no manageable saved sets.
+- Focused connected method proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Full filter-set connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `3` tests on `adaway-api34-16g` with `0` failures.
+- Advanced `SRC-008` to connected UI coverage in `tasks/user-story-status.tsv`. External release,
+  rooted-device, physical-device, VPN consent, and human UX sign-off gates remain separate.
