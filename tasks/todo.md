@@ -9913,3 +9913,21 @@
   finished `1` test on `adaway-api34-16g` with `0` failures.
 - Advanced `PREF-008` to connected UI coverage in `tasks/user-story-status.tsv`. App self-update,
   release-update, and physical-device smoke gates remain separate.
+
+## Plan - 2026-06-27 Root Redirection Validation Proof
+- [x] Re-ground `PREF-003` against `PrefsRootFragment` and the root preferences XML.
+- [x] Extract the existing IPv4/IPv6 address-family policy into a small testable helper.
+- [x] Add focused JVM coverage for valid defaults, invalid strings, and cross-family addresses.
+- [x] Run the focused unit proof and update the canonical tracker row.
+
+## Review - 2026-06-27 Root Redirection Validation Proof
+- Added `RedirectionAddressValidator` and wired `PrefsRootFragment` through it without changing the
+  toast/error path or the accepted address-family policy.
+- Added `RedirectionAddressValidatorTest` covering IPv4 defaults, IPv6 defaults, cross-family
+  rejection, hostname/malformed/null rejection, and the generic `InetAddress` family case.
+- Focused JVM proof passed:
+  `:app:testDebugUnitTest --tests org.adaway.ui.prefs.RedirectionAddressValidatorTest
+  --dependency-verification=strict --stacktrace`.
+- Advanced `PREF-003` to unit validation coverage in `tasks/user-story-status.tsv`. Rooted hosts
+  apply, physical-device smoke, direct-release self-update, and human UX sign-off gates remain
+  separate.

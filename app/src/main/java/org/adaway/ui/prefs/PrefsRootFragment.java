@@ -30,8 +30,6 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 
-import com.google.common.net.InetAddresses;
-
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.ui.dialog.MissingAppDialog;
@@ -165,13 +163,7 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
     }
 
     private boolean validateRedirection(Class<? extends InetAddress> addressType, String redirection) {
-        boolean valid;
-        try {
-            InetAddress inetAddress = InetAddresses.forString(redirection);
-            valid = addressType.isAssignableFrom(inetAddress.getClass());
-        } catch (IllegalArgumentException exception) {
-            valid = false;
-        }
+        boolean valid = RedirectionAddressValidator.isValid(addressType, redirection);
         if (!valid) {
             Toast.makeText(requireContext(), R.string.pref_redirection_invalid, LENGTH_SHORT).show();
         }
