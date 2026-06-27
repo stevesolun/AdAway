@@ -10619,3 +10619,50 @@
 - `DOMAIN-003` is now covered by connected UI flow. The remaining P0 board is still external:
   rooted hosts apply, direct signed self-update, release artifacts, physical smoke, UX human
   signoff, legal/provenance, and final readiness aggregation.
+
+## Plan - 2026-06-27 PREF-011 Backup Provider Round Trip
+- [x] Re-ground backup/restore Preferences, `BackupExporter`, `BackupImporter`, the androidTest
+  provider fixture, and the existing SAF launch proof.
+- [x] Extend the androidTest provider with a backup JSON document URI that supports real
+  `ContentResolver` write/read streams without changing production backup code.
+- [x] Strengthen `PrefsBackupRestoreSafInstrumentedTest` so it keeps the UI SAF launch checks and
+  proves exporter/importer round-trip behavior through the provider URI.
+- [x] Run compile, focused backup JVM contracts, focused connected backup proof, adjacent provider
+  consumer proof, and tracker hygiene.
+- [x] Update `tasks/user-story-status.tsv` and this log with evidence; commit/push only after the
+  verified slice is clean.
+
+## Review - 2026-06-27 PREF-011 Backup Provider Round Trip
+- Added backup-document behavior to the androidTest-only `TestHostsContentProvider`. The existing
+  `/success.txt` source fixture remains intact, and the new `/backup.json` URI supports
+  cross-process `openOutputStream`, `openInputStream`, metadata query, and cleanup through the
+  provider boundary.
+- Extended `PrefsBackupRestoreSafInstrumentedTest` with a provider fixture smoke and a connected
+  export-clear-restore proof. The test seeds a source plus blocked, allowed, and redirected user
+  rules, exports them through `BackupExporter.exportToBackup(...)`, clears the seeded rows, imports
+  from the same provider URI through `BackupImporter.importFromBackup(...)`, and waits for Room to
+  show the restored source and user rules. It also asserts imported source redirects remain disabled
+  by the backup importer policy.
+- Red/green notes: a first attempt tried to make `Instrumentation.ActivityMonitor` return
+  `RESULT_OK` into the `ActivityResultLauncher`, but this runner proved that monitor hits are a
+  launch signal, not a reliable callback-delivery proof. The final slice keeps UI launch proof in
+  the two existing connected tests, keeps callback wiring covered by `BackupSafContractTest`, and
+  adds the missing runtime provider-stream proof through the public backup APIs.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused JVM
+  `:app:testDebugUnitTest --tests org.adaway.model.backup.BackupSafContractTest --tests
+  org.adaway.model.backup.BackupFormatSecurityTest --dependency-verification=strict --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsBackupRestoreSafInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `3` tests on `adaway-api34-16g`;
+  adjacent connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.home.HomeUpdateActionsInstrumentedTest
+  --dependency-verification=strict --stacktrace` finished `2` tests on `adaway-api34-16g`.
+- `PREF-011` is now covered by connected UI launch and provider stream proof. The remaining open
+  board is still practical release work: rooted hosts apply, signed direct-release install/update,
+  physical device smoke, release artifacts, legal/provenance, human UX signoff, and final readiness
+  aggregation.
