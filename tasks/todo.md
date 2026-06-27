@@ -10173,7 +10173,7 @@
 - [x] Integrate the verified `ADW-002` uninstall-intent source contract.
 - [x] Record external blockers without re-running already proven `RUNTIME-010`.
 - [x] Run integrated local verification for this swarm slice.
-- [ ] Commit, push, and recheck PR CI for this swarm slice.
+- [x] Commit, push, and recheck PR CI for this swarm slice.
 
 ## Review - 2026-06-27 Startup Swarm Local Proofs
 - CTO/release/root-VPN audits agree with the current canonical evidence: `RUNTIME-010` already
@@ -10209,3 +10209,40 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsThemeModeInstrumentedTest
   --dependency-verification=strict --stacktrace`
   finished `1` test on `adaway-api34-16g` with `0` failures.
+- Pushed proof commit `b23409be`; PR #6 CI passed on that head: Analyze (cpp), Analyze (java),
+  CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 Update Check Network Failure Proof
+- [x] Re-ground `UPDATE-001` against `UpdateModel`, `ManifestTest`, Home update-signal proof, and
+  existing release/update source contracts.
+- [x] Add a narrow test seam so connected tests can inject the manifest URL, HTTP client,
+  public key, update store, and direct-update gate without changing production defaults.
+- [x] Add a connected HTTPS MockWebServer proof for valid manifest then failed manifest response.
+- [x] Run compile and focused connected verification.
+- [x] Run affected existing manifest and security hardening JVM contracts.
+- [ ] Commit, push, and recheck PR CI for this update slice.
+
+## Review - 2026-06-27 Update Check Network Failure Proof
+- Added package-private `UpdateModel` construction parameters for test-controlled
+  `VersionInfo`, `OkHttpClient`, manifest URL, direct-update flag, store override, and manifest
+  public key. The public production constructor still uses the same constants, build flag, APK
+  store detection, app resource public key, and default OkHttp client.
+- Added `UpdateModelNetworkFailureInstrumentedTest`. The test starts a local HTTPS
+  `MockWebServer`, injects a client that trusts only the test certificate, serves a valid signed
+  `stable/adaway` manifest, verifies update availability and request query parameters, then serves
+  HTTP 500 and verifies the previously published manifest is cleared to `null`.
+- The first connected attempt failed red before the HTTPS harness change with
+  `UnknownServiceException: CLEARTEXT communication to localhost not permitted by network security
+  policy`. I kept the cleartext policy intact and switched the harness to HTTPS instead of
+  weakening app network security.
+- Compile proof passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.update.UpdateModelNetworkFailureInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Existing JVM regression contracts passed:
+  `:app:testDebugUnitTest --tests org.adaway.model.update.ManifestTest --tests
+  org.adaway.security.SecurityHardeningTest --dependency-verification=strict --stacktrace`.

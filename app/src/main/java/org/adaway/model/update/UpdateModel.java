@@ -43,6 +43,10 @@ public class UpdateModel {
     private final Context context;
     private final VersionInfo versionInfo;
     private final OkHttpClient client;
+    private final String manifestUrl;
+    private final boolean directApkUpdatesEnabled;
+    private final UpdateStore storeOverride;
+    private final String manifestPublicKeyBase64;
     private final MutableLiveData<Manifest> manifest;
     private ApkDownloadReceiver receiver;
 
@@ -52,11 +56,33 @@ public class UpdateModel {
      * @param context The application context.
      */
     public UpdateModel(Context context) {
-        this.context = context;
-        this.versionInfo = VersionInfo.get(context);
-        this.manifest = new MutableLiveData<>();
-        this.client = buildHttpClient();
+        this(
+                context,
+                VersionInfo.get(context),
+                buildHttpClient(),
+                MANIFEST_URL,
+                BuildConfig.DIRECT_APK_UPDATES_ENABLED,
+                null,
+                null);
         ApkUpdateService.syncPreferences(context);
+    }
+
+    UpdateModel(
+            Context context,
+            VersionInfo versionInfo,
+            OkHttpClient client,
+            String manifestUrl,
+            boolean directApkUpdatesEnabled,
+            UpdateStore storeOverride,
+            String manifestPublicKeyBase64) {
+        this.context = context;
+        this.versionInfo = versionInfo;
+        this.manifest = new MutableLiveData<>();
+        this.client = client;
+        this.manifestUrl = manifestUrl;
+        this.directApkUpdatesEnabled = directApkUpdatesEnabled;
+        this.storeOverride = storeOverride;
+        this.manifestPublicKeyBase64 = manifestPublicKeyBase64;
     }
 
     /**
@@ -92,6 +118,9 @@ public class UpdateModel {
      * @return The application update store.
      */
     public UpdateStore getStore() {
+        if (this.storeOverride != null) {
+            return this.storeOverride;
+        }
         return getApkStore(this.context);
     }
 
@@ -117,7 +146,7 @@ public class UpdateModel {
         }
     }
 
-    private OkHttpClient buildHttpClient() {
+    private static OkHttpClient buildHttpClient() {
         return new OkHttpClient.Builder().build();
     }
 
@@ -130,7 +159,8 @@ public class UpdateModel {
         }
         String channel = getChannel();
         UpdateStore store = getStore();
-        HttpUrl httpUrl = requireNonNull(HttpUrl.parse(MANIFEST_URL), "Failed to parse manifest URL")
+        HttpUrl httpUrl = requireNonNull(HttpUrl.parse(this.manifestUrl),
+                "Failed to parse manifest URL")
                 .newBuilder()
                 .addQueryParameter("versionCode", Integer.toString(this.versionInfo.code))
                 .addQueryParameter("sdkCode", Integer.toString(SDK_INT))
@@ -146,7 +176,9 @@ public class UpdateModel {
                 return new Manifest(
                         body.string(),
                         this.versionInfo.code,
-                        this.context.getString(R.string.update_manifest_public_key),
+                        this.manifestPublicKeyBase64 != null
+                                ? this.manifestPublicKeyBase64
+                                : this.context.getString(R.string.update_manifest_public_key),
                         channel,
                         store.getName());
             } else {
@@ -231,14 +263,14 @@ public class UpdateModel {
     }
 
     private boolean canSelfUpdate() {
-        return BuildConfig.DIRECT_APK_UPDATES_ENABLED && getStore() == ADAWAY;
+        return this.directApkUpdatesEnabled && getStore() == ADAWAY;
     }
 
-    private static class VersionInfo {
+    static final class VersionInfo {
         private final int code;
         private final String name;
 
-        private VersionInfo(int code, String name) {
+        VersionInfo(int code, String name) {
             this.code = code;
             this.name = name;
         }
