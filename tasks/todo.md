@@ -10408,6 +10408,8 @@
   keeps the existing recording instructions.
 - Added `LogRootExpectationInstrumentedTest`, which launches the real `LogActivity` in root mode
   and asserts the unavailable DNS logging empty-state copy is visible.
+- Accepted the follow-up automatic locale normalization commit `cb10e8fa`, which only changed the
+  `strings_log.xml` XML declaration casing; compile still passed after fast-forwarding it.
 - Verification passed:
   `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
   --dependency-verification=strict --stacktrace`;
