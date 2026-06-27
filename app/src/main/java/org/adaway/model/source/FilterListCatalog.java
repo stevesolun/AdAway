@@ -103,7 +103,7 @@ public class FilterListCatalog {
                 CATALOG.add(new CatalogEntry(
                                 "OISD Full",
                                 "https://hosts.oisd.nl/",
-                                ADS, true));  // default ON: covers Taboola, Outbrain, and 100k+ ad domains
+                                ADS, false)); // broad list, not safe as a first-run default
                 CATALOG.add(new CatalogEntry(
                                 "HaGeZi Multi PRO (Recommended)",
                                 "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/hosts/pro.txt",
@@ -348,16 +348,6 @@ public class FilterListCatalog {
                                 "https://blokada.org/mirror/v5/energized/regional/hosts.txt",
                                 REGIONAL, false));
 
-                // Israeli/Hebrew ad networks (for ynet.co.il and other Israeli sites)
-                CATALOG.add(new CatalogEntry(
-                                "AdGuard Israeli Filter",
-                                "https://raw.githubusercontent.com/AdguardTeam/FiltersRegistry/master/filters/filter_18_Israeli/filter.txt",
-                                REGIONAL, false));
-                CATALOG.add(new CatalogEntry(
-                                "EasyList Hebrew",
-                                "https://raw.githubusercontent.com/easylist/EasyListHebrew/master/EasyListHebrew.txt",
-                                REGIONAL, false));
-
                 // Other popular regional lists
                 CATALOG.add(new CatalogEntry(
                                 "AdGuard Russian Filter",
@@ -384,7 +374,7 @@ public class FilterListCatalog {
                                 "https://raw.githubusercontent.com/AdguardTeam/FiltersRegistry/master/filters/filter_7_Japanese/filter.txt",
                                 REGIONAL, false));
 
-                // Middle East Coverage (from 2024-2025 guide)
+                // Middle East hosts-format coverage.
                 CATALOG.add(new CatalogEntry(
                                 "EasyList Hebrew (hosts)",
                                 "https://raw.githubusercontent.com/easylist/EasyListHebrew/master/hosts.txt",
@@ -535,17 +525,12 @@ public class FilterListCatalog {
 
         /**
          * Get entries for the "Balanced" preset mode.
-         * Includes: Ads, Malware, Privacy basics, Crypto.
-         * Excludes: Social, Device, Service (may break things).
+         * Starts with safe defaults and adds moderate privacy/crypto coverage.
          */
         public static List<CatalogEntry> getBalancedPreset() {
                 List<CatalogEntry> result = new ArrayList<>();
                 for (CatalogEntry entry : CATALOG) {
-                        FilterListCategory cat = entry.category;
-                        if (cat == ADS || cat == MALWARE || cat == CRYPTO) {
-                                result.add(entry);
-                        } else if (cat == PRIVACY && (entry.label.contains("EasyPrivacy") ||
-                                        entry.label.contains("Disconnect Tracking"))) {
+                        if (entry.enabledByDefault || isBalancedExtra(entry)) {
                                 result.add(entry);
                         }
                 }
@@ -554,18 +539,34 @@ public class FilterListCatalog {
 
         /**
          * Get entries for the "Aggressive" preset mode.
-         * Includes everything except device-specific lists.
+         * Adds curated high-signal lists while keeping breakage-prone categories opt-in.
          * ⚠️ May break some services. Use with caution.
          */
         public static List<CatalogEntry> getAggressivePreset() {
                 List<CatalogEntry> result = new ArrayList<>();
                 for (CatalogEntry entry : CATALOG) {
-                        // Include everything except DEVICE and SERVICE (too risky)
-                        if (entry.category != DEVICE && entry.category != SERVICE && entry.category != REGIONAL) {
+                        if (entry.enabledByDefault || isAggressiveExtra(entry)) {
                                 result.add(entry);
                         }
                 }
                 return result;
+        }
+
+        private static boolean isBalancedExtra(CatalogEntry entry) {
+                return entry.label.equals("HaGeZi Light")
+                                || entry.label.equals("EasyPrivacy via Firebog")
+                                || entry.label.equals("Disconnect Tracking")
+                                || entry.label.equals("NoCoin Crypto Miners");
+        }
+
+        private static boolean isAggressiveExtra(CatalogEntry entry) {
+                return isBalancedExtra(entry)
+                                || entry.label.equals("HaGeZi Multi PRO (Recommended)")
+                                || entry.label.equals("HaGeZi TIF (Threat Intelligence)")
+                                || entry.label.equals("Phishing Army Extended")
+                                || entry.label.equals("DandelionSprout Anti-Malware")
+                                || entry.label.equals("CoinBlocker Lists")
+                                || entry.label.equals("Prigent Crypto via Firebog");
         }
 
         /**

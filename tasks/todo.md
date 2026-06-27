@@ -10887,3 +10887,22 @@
   direct write to `/system/etc/hosts` failed with `Read-only file system`, and restarting the AVD
   with `-writable-system` did not produce a usable connected device. The rooted-hosts apply smoke
   remains blocked until a rooted physical device or trusted writable-system emulator is available.
+
+## Review - 2026-06-27 Filter Catalog Preset Safety
+- CTO split this slice across three read-only expert lanes: catalog/product quality,
+  runtime/source-generation safety, and release tracker evidence. Runtime/DB review found the PR
+  branch already has the stronger active-generation carry-forward and active runtime-query proofs,
+  so no duplicate connected DB test was added in this catalog slice.
+- `DISC-001`/`DISC-002`/`ONB-002`: Made `OISD Full` opt-in instead of a first-run default,
+  removed stale/browser-syntax Israeli/Hebrew static catalog entries, kept `EasyList Hebrew
+  (hosts)`, and changed Balanced/Aggressive presets from broad category sweeps to curated sets.
+- Added `FilterListCatalogPresetTest` to guard that defaults exclude OISD, Balanced stays moderate,
+  Aggressive is curated instead of "everything", social/YouTube/device/service/regional lists stay
+  opt-in, and Hebrew regional coverage uses the hosts-compatible feed.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.source.FilterListCatalogPresetTest --tests
+  org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests
+  org.adaway.ui.onboarding.DefaultListsSubscriberTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
+  Current PR CI was green before this local commit; re-check CI after push.
