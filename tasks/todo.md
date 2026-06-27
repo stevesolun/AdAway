@@ -10752,7 +10752,7 @@
   already granted, or document the remaining device-precondition boundary more tightly.
 - [ ] ADA-P1-LOG-001 / `LOG-001`: prove DNS log rows from real packet-through-running-VPN traffic,
   beyond direct `VpnModel` log generation.
-- [ ] ADA-P1-PREF-004 / `PREF-004`: audit root web server settings/native exposure and add a focused
+- [x] ADA-P1-PREF-004 / `PREF-004`: audit root web server settings/native exposure and add a focused
   source or JVM guard for binding/auth/availability assumptions.
 - [ ] ADA-P1-SYS-001 / `SYS-001`: prove Quick Settings tile interaction with Android tile service,
   or add the strongest local source/connected boundary proof that avoids flaky system UI.
@@ -10799,3 +10799,11 @@
   `./gradlew --no-daemon :app:processDebugMainManifest :app:testDebugUnitTest
   --tests org.adaway.model.backup.AppBackupAgentContractTest --dependency-verification=strict
   --stacktrace`.
+- `PREF-004`: Added connected Preferences proof that the dormant root webserver controls render
+  disabled with unavailable copy, force both toggles off, and do not launch `https://localhost`
+  from the disabled test row. Verification passed:
+  `./gradlew --no-daemon :app:compileDebugJavaWithJavac
+  :app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsRootWebServerUnavailableInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
