@@ -9849,3 +9849,23 @@
 - Advanced `HOME-011` and `HOME-012` to connected UI coverage in
   `tasks/user-story-status.tsv`. External release, hardware, root, VPN consent, direct-release
   self-update, and human screenshot-review gates remain open.
+
+## Plan - 2026-06-27 Lists Search UI Proof
+- [x] Re-ground `LIST-002` against current Lists code, existing unit coverage, and connected
+  fixtures.
+- [x] Add a focused connected UI proof for the real list search field.
+- [x] Run the focused connected Lists search test on the API 34 emulator.
+- [x] Update canonical trackers without touching adjacent edit/delete/toggle stories.
+
+## Review - 2026-06-27 Lists Search UI Proof
+- Added `ListsSearchInstrumentedTest` with no production-code changes.
+- The test uses an isolated Room database fixture, opens the real blocked-rules tab, verifies both
+  seeded rules render, enters a search query in `hostsSearchEditText`, proves the matching row stays
+  visible while the non-matching row disappears, then searches a no-match term and verifies the
+  `No matching rules` empty state.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsSearchInstrumentedTest`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Advanced `LIST-002` to connected UI coverage in `tasks/user-story-status.tsv`. `LIST-004`,
+  `LIST-005`, and `LIST-006` remain separate rule mutation/override gaps.
