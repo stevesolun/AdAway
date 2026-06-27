@@ -9969,3 +9969,32 @@
 - Advanced `LIST-004`, `LIST-005`, and `LIST-006` to connected UI coverage in
   `tasks/user-story-status.tsv`. External release, rooted-device, physical-device, and human UX
   sign-off gates remain separate.
+
+## Plan - 2026-06-27 Filter Set Schedule UI Proof
+- [x] Re-ground `SRC-009` against `HostsSourcesFragment`, `FilterSetStore`, and the existing
+  WorkManager contract.
+- [x] Add a focused connected UI method to the existing filter-set save/apply test harness.
+- [x] Prove saved-set daily schedule persistence and unique `FilterSetUpdateWork` enqueue.
+- [x] Update canonical trackers without touching source-delete or release gates.
+
+## Review - 2026-06-27 Filter Set Schedule UI Proof
+- Extended `FilterSetSaveApplyInstrumentedTest` with
+  `scheduleSavedFilterSetDailyPersistsScheduleAndEnqueuesWorker`.
+- The test seeds a saved `Travel Pack`, opens the real Sources toolbar schedule action, selects the
+  saved set, chooses `Daily`, accepts the `TimePickerDialog`, then asserts
+  `FilterSetStore.getSchedule(...) == SCHEDULE_DAILY` and one active
+  `FilterSetUpdateService.WORK_NAME` WorkManager job.
+- The first focused schedule runs exposed a test-helper gap: the schedule dialogs rendered the
+  expected text but their list rows did not always expose a direct accessibility click action. The
+  helper now falls back to a real tap at the matching node's bounds, and the persisted schedule plus
+  WorkManager assertions prove the tap took effect.
+- Compile proof passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Final focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#scheduleSavedFilterSetDailyPersistsScheduleAndEnqueuesWorker
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Advanced `SRC-009` to connected UI coverage in `tasks/user-story-status.tsv`. `SRC-010`
+  destructive source deletion remains a separate gap, and external release/hardware gates remain
+  separate.

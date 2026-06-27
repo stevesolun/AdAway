@@ -8,8 +8,10 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import androidx.test.core.app.ActivityScenario;
@@ -18,6 +20,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -36,6 +40,7 @@ import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -44,6 +49,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
 public class FilterSetSaveApplyInstrumentedTest {
@@ -64,6 +70,7 @@ public class FilterSetSaveApplyInstrumentedTest {
         this.context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(this.context, "set up filter sets");
         clearFilterSets(this.context);
+        resetWorkManager(this.context);
         AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
         waitForDiskIoIdle();
         resetSources(this.context);
@@ -76,6 +83,7 @@ public class FilterSetSaveApplyInstrumentedTest {
         if (this.context != null) {
             resetSources(this.context);
             clearFilterSets(this.context);
+            resetWorkManager(this.context);
             InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down filter sets");
         }
     }
@@ -119,6 +127,24 @@ public class FilterSetSaveApplyInstrumentedTest {
         waitForListRowsEnabled(SOURCE_B_ID, true);
         waitForListRowsEnabled(SOURCE_C_ID, false);
         assertEquals(SAVED_SET_NAME, FilterSetStore.getActiveProfile(this.context));
+    }
+
+    @Test(timeout = 120_000)
+    public void scheduleSavedFilterSetDailyPersistsScheduleAndEnqueuesWorker() throws Exception {
+        FilterSetStore.saveSet(this.context, SAVED_SET_NAME, setOf(SOURCE_A_URL, SOURCE_B_URL));
+
+        ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
+        navigateToSources(scenario);
+        HomeActivity homeActivity = waitForHomeActivity();
+        waitForSourceRowsLoaded();
+
+        clickToolbarAction(homeActivity, R.id.action_hosts_schedule_filter_set);
+        clickAccessibilityText(SAVED_SET_NAME);
+        clickAccessibilityText(this.context.getString(R.string.filter_set_schedule_daily));
+        clickAccessibilityText(this.context.getString(android.R.string.ok));
+
+        waitForSchedule(SAVED_SET_NAME, FilterSetStore.SCHEDULE_DAILY);
+        assertEquals(1, activeWork(this.context, FilterSetUpdateService.WORK_NAME).size());
     }
 
     private static void navigateToSources(ActivityScenario<HomeActivity> scenario) {
@@ -181,6 +207,17 @@ public class FilterSetSaveApplyInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Saved filter set did not contain expected URLs.");
+    }
+
+    private void waitForSchedule(String name, int expectedSchedule) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (FilterSetStore.getSchedule(this.context, name) == expectedSchedule) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        assertEquals(expectedSchedule, FilterSetStore.getSchedule(this.context, name));
     }
 
     private void waitForSourceEnabled(int sourceId, boolean expectedEnabled) {
@@ -390,8 +427,12 @@ public class FilterSetSaveApplyInstrumentedTest {
         AccessibilityNodeInfo current = AccessibilityNodeInfo.obtain(node);
         try {
             while (current != null) {
-                if (current.isClickable()
-                        && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                if (current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        || (current.isClickable()
+                        && current.performAction(AccessibilityNodeInfo.ACTION_CLICK))) {
+                    return true;
+                }
+                if (tapNodeCenter(current)) {
                     return true;
                 }
                 AccessibilityNodeInfo parent = current.getParent();
@@ -404,6 +445,22 @@ public class FilterSetSaveApplyInstrumentedTest {
                 current.recycle();
             }
         }
+    }
+
+    private static boolean tapNodeCenter(AccessibilityNodeInfo node) {
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (bounds.isEmpty()) {
+            return false;
+        }
+        long downTime = SystemClock.uptimeMillis();
+        float x = bounds.centerX();
+        float y = bounds.centerY();
+        InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
+                downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0));
+        InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(
+                downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0));
+        return true;
     }
 
     private static void seedSources(Context context) {
@@ -469,6 +526,25 @@ public class FilterSetSaveApplyInstrumentedTest {
                 .commit()) {
             throw new AssertionError("Failed to clear filter set preferences.");
         }
+    }
+
+    private static void resetWorkManager(Context context) {
+        try {
+            WorkManager workManager = WorkManager.getInstance(context);
+            workManager.cancelAllWork().getResult().get(5, TimeUnit.SECONDS);
+            workManager.pruneWork().getResult().get(5, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new AssertionError("Failed to reset WorkManager.", exception);
+        }
+    }
+
+    private static List<WorkInfo> activeWork(Context context, String workName) throws Exception {
+        return WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(workName)
+                .get(5, TimeUnit.SECONDS)
+                .stream()
+                .filter(info -> !info.getState().isFinished())
+                .collect(Collectors.toList());
     }
 
     private static void runDatabaseWork(Context context, DatabaseWork work) {
