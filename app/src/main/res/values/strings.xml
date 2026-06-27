@@ -321,6 +321,7 @@
     <string name="tcpdump_menu_clear">Clear log</string>
     <string name="tcpdump_entry_add_blacklist">Add entry to black list</string>
     <string name="tcpdump_entry_add_whitelist">Add entry to white list</string>
+    <string name="tcpdump_entry_add_redirect">Add entry to redirects</string>
 
 
     <string name="pref_edit_text_value">Edit text preference value</string>

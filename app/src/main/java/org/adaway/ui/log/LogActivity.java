@@ -191,7 +191,7 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
                                 dialog.dismiss();
                                 // Check IP is valid
                                 String ip = redirectBinding.redirectIp.getText().toString();
-                                if (RegexUtils.isValidIP(ip)) {
+                                if (RegexUtils.isValidRedirectIp(ip)) {
                                     // Insert list item
                                     this.mViewModel.addListItem(hostName, type, ip);
                                     // Display snackbar notification
@@ -208,7 +208,7 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
             alertDialog.show();
             // Set button validation behavior
             redirectBinding.redirectIp.addTextChangedListener(
-                    new AlertDialogValidator(alertDialog, RegexUtils::isValidIP, false)
+                    new AlertDialogValidator(alertDialog, RegexUtils::isValidRedirectIp, false)
             );
         }
     }

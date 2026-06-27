@@ -1,6 +1,8 @@
 package org.adaway.ui.log;
 
+import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
@@ -9,13 +11,16 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.Context;
 import android.database.Cursor;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -24,6 +29,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 
 import org.adaway.AdAwayApplication;
+import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
@@ -41,6 +47,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +58,7 @@ public class LogRuntimeTruthTest {
     private static final int TIMEOUT_MS = 10_000;
     private static final int TEST_SOURCE_ID = 949494;
     private static final String LOG_HOST = "vpn-log-runtime-ci.invalid";
+    private static final String REDIRECT_IP = "93.184.216.34";
 
     private Context context;
     private AdAwayApplication application;
@@ -96,6 +105,32 @@ public class LogRuntimeTruthTest {
 
     @Test(timeout = 120_000)
     public void vpnGeneratedDnsLogAppearsInLogUi() {
+        recordFixtureDnsRequest();
+
+        try (ActivityScenario<LogActivity> scenario = ActivityScenario.launch(LogActivity.class)) {
+            LogActivity activity = waitForActivity(LogActivity.class);
+            waitForVisibleText(activity, LOG_HOST);
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void redirectActionStoresRedirectedUserRuleFromLog() throws Exception {
+        recordFixtureDnsRequest();
+
+        ActivityScenario.launch(LogActivity.class);
+        LogActivity activity = waitForActivity(LogActivity.class);
+        waitForVisibleText(activity, LOG_HOST);
+
+        clickRedirectActionForHost(activity, LOG_HOST);
+        waitForAccessibilityText(context.getString(R.string.log_redirect_dialog_title));
+        setEditTextValues(REDIRECT_IP);
+        clickAccessibilityText(context.getString(R.string.button_add));
+
+        waitForRedirectedUserRule();
+        finishResumedActivities();
+    }
+
+    private void recordFixtureDnsRequest() {
         AdBlockModel model = application.getAdBlockModel();
         assertTrue("Expected VPN model after selecting VPN mode.", model instanceof VpnModel);
         model.clearLogs();
@@ -107,11 +142,6 @@ public class LogRuntimeTruthTest {
         model.setRecordingLogs(false);
         assertTrue("VPN model must record generated DNS request.",
                 model.getLogs().contains(LOG_HOST));
-
-        try (ActivityScenario<LogActivity> scenario = ActivityScenario.launch(LogActivity.class)) {
-            LogActivity activity = waitForActivity(LogActivity.class);
-            waitForVisibleText(activity, LOG_HOST);
-        }
     }
 
     private void insertSource() {
@@ -156,6 +186,34 @@ public class LogRuntimeTruthTest {
         hostEntryDao.invalidateMaterializedRuntimeCaches();
     }
 
+    private void waitForRedirectedUserRule() {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (countRedirectedUserRules() == 1) {
+                return;
+            }
+            waitForDiskIoIdle();
+            SystemClock.sleep(100);
+        }
+        assertEquals("Expected one redirected user rule for " + LOG_HOST,
+                1, countRedirectedUserRules());
+    }
+
+    private int countRedirectedUserRules() {
+        try (Cursor cursor = database.getOpenHelper().getReadableDatabase().query(
+                "SELECT COUNT(*) FROM hosts_lists WHERE host = ? AND type = ? "
+                        + "AND enabled = 1 AND source_id = ? AND redirection = ?",
+                new Object[]{
+                        LOG_HOST,
+                        REDIRECTED.getValue(),
+                        USER_SOURCE_ID,
+                        REDIRECT_IP
+                })) {
+            assertTrue(cursor.moveToFirst());
+            return cursor.getInt(0);
+        }
+    }
+
     private static <T extends Activity> T waitForActivity(@NonNull Class<T> activityClass) {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
@@ -176,6 +234,35 @@ public class LogRuntimeTruthTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Timed out waiting for " + activityClass.getSimpleName() + ".");
+    }
+
+    private static void clickRedirectActionForHost(LogActivity activity, String host) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Boolean> clicked = new AtomicReference<>(false);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                RecyclerView recycler = activity.findViewById(R.id.log_list);
+                if (recycler == null) {
+                    return;
+                }
+                for (int i = 0; i < recycler.getChildCount(); i++) {
+                    View child = recycler.getChildAt(i);
+                    TextView hostname = child.findViewById(R.id.hostnameTextView);
+                    View redirect = child.findViewById(R.id.redirectionImageView);
+                    if (hostname != null
+                            && redirect != null
+                            && host.contentEquals(hostname.getText())) {
+                        clicked.set(redirect.performClick());
+                        return;
+                    }
+                }
+            });
+            if (Boolean.TRUE.equals(clicked.get())) {
+                return;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Could not click redirect action for " + host);
     }
 
     private static void waitForVisibleText(Activity activity, String expectedText) {
@@ -210,6 +297,196 @@ public class LogRuntimeTruthTest {
         return false;
     }
 
+    private static void waitForAccessibilityText(String expectedText) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                    .getUiAutomation()
+                    .getRootInActiveWindow();
+            try {
+                if (root != null && containsText(root, expectedText)) {
+                    return;
+                }
+            } finally {
+                if (root != null) {
+                    root.recycle();
+                }
+            }
+            SystemClock.sleep(100L);
+        }
+        throw new AssertionError("Text was not visible: " + expectedText);
+    }
+
+    private static void clickAccessibilityText(String expectedText) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                    .getUiAutomation()
+                    .getRootInActiveWindow();
+            try {
+                AccessibilityNodeInfo node = root == null ? null : findText(root, expectedText);
+                if (node != null) {
+                    try {
+                        if (clickNodeOrParent(node)) {
+                            return;
+                        }
+                    } finally {
+                        node.recycle();
+                    }
+                }
+            } finally {
+                if (root != null) {
+                    root.recycle();
+                }
+            }
+            SystemClock.sleep(100L);
+        }
+        throw new AssertionError("Text was not clickable: " + expectedText);
+    }
+
+    private static void setEditTextValues(String... values) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                    .getUiAutomation()
+                    .getRootInActiveWindow();
+            try {
+                List<AccessibilityNodeInfo> editTexts = new ArrayList<>();
+                if (root != null) {
+                    collectEditTexts(root, editTexts);
+                }
+                if (editTexts.size() >= values.length) {
+                    try {
+                        for (int index = 0; index < values.length; index++) {
+                            setNodeText(editTexts.get(index), values[index]);
+                        }
+                        return;
+                    } finally {
+                        for (AccessibilityNodeInfo editText : editTexts) {
+                            editText.recycle();
+                        }
+                    }
+                }
+                for (AccessibilityNodeInfo editText : editTexts) {
+                    editText.recycle();
+                }
+            } finally {
+                if (root != null) {
+                    root.recycle();
+                }
+            }
+            SystemClock.sleep(100L);
+        }
+        throw new AssertionError("Expected at least " + values.length + " edit fields");
+    }
+
+    private static void setNodeText(@NonNull AccessibilityNodeInfo node, @NonNull String text) {
+        Bundle arguments = new Bundle();
+        arguments.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                text);
+        if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
+            throw new AssertionError("Could not set dialog field text");
+        }
+    }
+
+    private static void collectEditTexts(
+            @NonNull AccessibilityNodeInfo node,
+            @NonNull List<AccessibilityNodeInfo> editTexts) {
+        CharSequence className = node.getClassName();
+        if (className != null && className.toString().endsWith("EditText")) {
+            editTexts.add(AccessibilityNodeInfo.obtain(node));
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            if (child == null) {
+                continue;
+            }
+            try {
+                collectEditTexts(child, editTexts);
+            } finally {
+                child.recycle();
+            }
+        }
+    }
+
+    private static boolean containsText(AccessibilityNodeInfo node, String expectedText) {
+        if (nodeTextContains(node, expectedText)) {
+            return true;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            if (child == null) {
+                continue;
+            }
+            try {
+                if (containsText(child, expectedText)) {
+                    return true;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+        return false;
+    }
+
+    private static AccessibilityNodeInfo findText(
+            AccessibilityNodeInfo node,
+            String expectedText) {
+        if (nodeTextMatches(node, expectedText)) {
+            return AccessibilityNodeInfo.obtain(node);
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            if (child == null) {
+                continue;
+            }
+            try {
+                AccessibilityNodeInfo result = findText(child, expectedText);
+                if (result != null) {
+                    return result;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+        return null;
+    }
+
+    private static boolean nodeTextMatches(AccessibilityNodeInfo node, String expectedText) {
+        CharSequence text = node.getText();
+        CharSequence description = node.getContentDescription();
+        return (text != null && expectedText.contentEquals(text))
+                || (description != null && expectedText.contentEquals(description));
+    }
+
+    private static boolean nodeTextContains(AccessibilityNodeInfo node, String expectedText) {
+        CharSequence text = node.getText();
+        CharSequence description = node.getContentDescription();
+        return (text != null && text.toString().contains(expectedText))
+                || (description != null && description.toString().contains(expectedText));
+    }
+
+    private static boolean clickNodeOrParent(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo current = AccessibilityNodeInfo.obtain(node);
+        try {
+            while (current != null) {
+                if (current.isClickable()
+                        && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    return true;
+                }
+                AccessibilityNodeInfo parent = current.getParent();
+                current.recycle();
+                current = parent;
+            }
+            return false;
+        } finally {
+            if (current != null) {
+                current.recycle();
+            }
+        }
+    }
+
     private static void finishResumedActivities() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
@@ -217,7 +494,6 @@ public class LogRuntimeTruthTest {
                 activity.finish();
             }
         });
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private static void waitForDiskIoIdle() {

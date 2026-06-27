@@ -10349,3 +10349,43 @@
 - `DISC-004` is no longer waiting on network/offline tests. It still records live
   FilterLists.com availability and schema drift as an external-service risk, but the app behavior
   now has deterministic fail-closed/offline proof without requiring live internet.
+
+## Plan - 2026-06-27 DNS Log Redirect Rule Proof
+- [x] Use the LOG-003 specialist finding to identify the narrow redirect-from-log path and
+  validator mismatch.
+- [x] Align the DNS-log redirect dialog with the shared public redirect-IP policy.
+- [x] Fix the redirect row action accessibility copy so it no longer announces allowlist behavior.
+- [x] Add connected UI proof that a real VPN-generated log row can create a redirected user rule.
+- [x] Run compile, JVM policy contract, and connected log verification.
+- [x] Update the canonical tracker with evidence.
+
+## Review - 2026-06-27 DNS Log Redirect Rule Proof
+- Fixed `LogActivity` so the DNS-log redirect dialog uses `RegexUtils.isValidRedirectIp(...)`
+  both for the positive-button action and for live dialog validation. This matches
+  `RedirectedHostsFragment` and rejects private/reserved redirect targets instead of accepting
+  every syntactically valid IP.
+- Fixed `log_entry.xml` so the redirect action uses distinct accessibility copy
+  (`tcpdump_entry_add_redirect`) instead of reusing the allowlist content description.
+- Extended `RedirectedHostsValidationContractTest` to guard the shared redirect-IP policy in the
+  redirected-host editor, backup import, and DNS-log redirect dialog, plus the redirect action
+  content description.
+- Extended `LogRuntimeTruthTest` with a connected flow that records a real VPN-model DNS log row,
+  clicks the row redirect action, enters a public redirect IP, and polls Room for one enabled
+  redirected user rule under the user source.
+- First focused connected run failed red only at `ActivityScenario.close()` after the assertion
+  path, because the rule action shows a persistent apply snackbar and the scenario waited forever
+  for idle. The harness now avoids try-with-resources for that snackbar-producing path and lets
+  test cleanup finish resumed activities without an idle wait.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  `:app:testDebugUnitTest --tests
+  org.adaway.ui.lists.type.RedirectedHostsValidationContractTest --dependency-verification=strict
+  --stacktrace`;
+  focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.log.LogRuntimeTruthTest#redirectActionStoresRedirectedUserRuleFromLog
+  --dependency-verification=strict --stacktrace`; and full connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.log.LogRuntimeTruthTest
+  --dependency-verification=strict --stacktrace` with `2` tests on `adaway-api34-16g`.
