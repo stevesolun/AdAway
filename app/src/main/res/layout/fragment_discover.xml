@@ -23,30 +23,32 @@
         android:textColor="@color/ui_text_secondary"
         android:textSize="13sp" />
 
-    <!-- Quick-start preset strip -->
-    <HorizontalScrollView
+    <!-- Quick-start preset actions -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="false"
-        android:scrollbars="none">
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="4dp">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/discoverQuickStartLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp">
+            android:text="@string/discover_quick_start"
+            android:textColor="@color/ui_text_secondary"
+            android:textSize="13sp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="@string/discover_quick_start"
-                android:textColor="@color/ui_text_secondary"
-                android:textSize="13sp" />
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/discoverPresetChipGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            app:chipSpacingHorizontal="4dp"
+            app:chipSpacingVertical="0dp"
+            app:singleLine="false">
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipDiscoverSafe"
@@ -62,7 +64,6 @@
                 style="@style/Widget.MaterialComponents.Chip.Action"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="@string/filter_preset_balanced"
                 android:textColor="@color/ui_text_primary"
                 app:chipBackgroundColor="@color/ui_glass" />
@@ -72,14 +73,13 @@
                 style="@style/Widget.MaterialComponents.Chip.Action"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:text="@string/filter_preset_aggressive"
                 android:textColor="@color/ui_text_primary"
                 app:chipBackgroundColor="@color/ui_glass" />
 
-        </LinearLayout>
+        </com.google.android.material.chip.ChipGroup>
 
-    </HorizontalScrollView>
+    </LinearLayout>
 
     <!-- Full FilterLists.com browser (search + tags + language + list) -->
     <FrameLayout

@@ -10693,3 +10693,36 @@
 - Focused verification passed:
   `:app:testDebugUnitTest --tests org.adaway.tasks.UserStoryStatusTrackerTest
   --dependency-verification=strict --stacktrace`.
+
+## Plan - 2026-06-27 Discover Sources UX Matrix
+- [x] Re-ground `DISC-001` and `SRC-001` from the canonical tracker and existing UX matrix harness.
+- [x] Run the scripted UX matrix before editing to get real screenshot evidence.
+- [x] Inspect the generated Discover and Sources large-font screenshots instead of relying only on
+  the automated text/touch-target audit.
+- [x] Fix any concrete visual/accessibility defect found in the Discover/Sources path.
+- [x] Run focused source contract, compile, and the full UX matrix again before recording evidence.
+
+## Review - 2026-06-27 Discover Sources UX Matrix
+- Baseline evidence run:
+  `scripts/run-ux-matrix.ps1 -OutputDir app/build/reports/ux-matrix-pr6
+  -InstrumentationTimeoutSeconds 360` passed all `5` variants and generated `40` screenshots, but
+  manual inspection of `font-1.6/ux-matrix/discover.png` and
+  `font-1.6-rtl/ux-matrix/discover.png` showed the quick-start preset strip clipping the
+  `Balanced Mode` chip at the right edge.
+- Fixed `fragment_discover.xml` by replacing the horizontal quick-start strip with a labeled
+  wrapping Material `ChipGroup`. This keeps Safe, Balanced, and Aggressive visible at 1.6 font
+  scale instead of asking users to discover a hidden horizontal scroll.
+- Strengthened `DiscoverPresetSubscriptionTest` so the persistent Discover header must use a
+  wrapping chip group and must not regress back to a horizontally clipped preset strip.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  focused JVM
+  `:app:testDebugUnitTest --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest
+  --dependency-verification=strict --stacktrace`;
+  and final UX matrix
+  `scripts/run-ux-matrix.ps1 -OutputDir app/build/reports/ux-matrix-pr6-discover-wrap
+  -InstrumentationTimeoutSeconds 360`, which passed all `5` variants.
+- Manual screenshot inspection after the fix confirmed the 1.6 LTR and 1.6 RTL Discover screenshots
+  show `Safe Mode`, `Balanced Mode`, and `Aggressive Mode` fully visible. The 1.6 Sources screenshot
+  remained readable; broader human UX signoff is still tracked under `REL-004`.

@@ -92,6 +92,11 @@ public class DiscoverPresetSubscriptionTest {
                 layout.contains("chipDiscoverAskAi"));
         assertTrue("Preset chips must stay in the persistent Discover header.",
                 safe < balanced && balanced < aggressive);
+        assertFalse("Discover quick actions must wrap at large font instead of looking clipped.",
+                layout.contains("<HorizontalScrollView"));
+        assertTrue("Discover preset chips must live in a wrapping ChipGroup.",
+                layout.contains("android:id=\"@+id/discoverPresetChipGroup\"") &&
+                        layout.contains("app:singleLine=\"false\""));
         assertTrue("Quick actions must appear before the loading/list browser body.",
                 aggressive < browser);
     }
