@@ -9892,3 +9892,24 @@
   finished `1` test on `adaway-api34-16g` with `0` failures.
 - Advanced `DISC-003` to connected UI coverage in `tasks/user-story-status.tsv`. `SRC-009` and
   `SRC-010` remain separate schedule/destructive-source gaps.
+
+## Plan - 2026-06-27 Preferences Hosts Scheduling UI Proof
+- [x] Re-ground `PREF-008` against Preferences update UI and SourceUpdateService WorkManager
+  behavior.
+- [x] Add a focused connected UI proof for hosts-update daily and unmetered-only toggles.
+- [x] Run the focused Preferences scheduling test on the API 34 emulator.
+- [x] Update canonical trackers without touching app-update or release-update stories.
+
+## Review - 2026-06-27 Preferences Hosts Scheduling UI Proof
+- Added `PrefsUpdateSchedulingInstrumentedTest` with no production-code changes.
+- The test opens real Preferences, enters the Updates screen, clicks the visible hosts-update
+  daily row, verifies one active `HostsUpdateWork` with `CONNECTED` network constraints, clicks
+  the visible unmetered-only row, verifies the same work updates to `UNMETERED`, then turns daily
+  scheduling off and verifies no active periodic work remains.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#hostsUpdatePreferenceTogglesPeriodicWorkAndUnmeteredConstraint
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Advanced `PREF-008` to connected UI coverage in `tasks/user-story-status.tsv`. App self-update,
+  release-update, and physical-device smoke gates remain separate.
