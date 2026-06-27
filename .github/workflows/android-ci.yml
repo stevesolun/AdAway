@@ -121,6 +121,13 @@ jobs:
           path: app/build/reports/license-boundary/license-boundary-report.md
           if-no-files-found: warn
 
+      - name: Validate user-story tracker
+        run: |
+          ./gradlew :app:testDebugUnitTest \
+            --tests org.adaway.tasks.UserStoryStatusTrackerTest \
+            --dependency-verification=strict \
+            --stacktrace
+
       - name: Run unit tests
         run: ./gradlew test --dependency-verification=strict --stacktrace
 

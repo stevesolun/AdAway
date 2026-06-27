@@ -10666,3 +10666,30 @@
   board is still practical release work: rooted hosts apply, signed direct-release install/update,
   physical device smoke, release artifacts, legal/provenance, human UX signoff, and final readiness
   aggregation.
+
+## Plan - 2026-06-27 CI Tracker Integrity Guard
+- [x] Recheck PR #6 CI after the backup round-trip commit and confirm it is pending or green before
+  touching another slice.
+- [x] Inspect existing CI/test conventions for the lightest tracker guard that still runs in PR CI.
+- [x] Add a focused JVM validator for `tasks/user-story-status.tsv` shape, unique IDs, P0 evidence,
+  release-gate honesty, and `RUNTIME-010` fresh 5M closure.
+- [x] Wire the validator into Android CI as a named fast gate.
+- [x] Run focused verification, update tracker evidence, and only then commit/push the slice.
+
+## Review - 2026-06-27 CI Tracker Integrity Guard
+- PR #6 CI was green on `d2369d24` before the backup slice; after pushing backup commit
+  `ae2b50d0`, PR checks were pending with no failures before this tracker-guard slice started.
+- Added `UserStoryStatusTrackerTest`, a fast JVM contract for the canonical
+  `tasks/user-story-status.tsv`. It guards the exact 15-column header, one row per unique story ID,
+  required evidence fields, valid priorities, P0 evidence state, the external release/root/update
+  gates that must remain open until real proof exists, and the fresh `RUNTIME-010` 5M benchmark
+  closure.
+- Wired Android CI to run the tracker validator as a named `Validate user-story tracker` step before
+  the full unit suite. The full `./gradlew test` step still reruns it as part of the normal JVM
+  gate, but the named step gives batched PRs a fast, obvious ledger failure.
+- `REL-005` remains partial. This slice protects the final readiness ledger against accidental
+  overclaiming; it does not replace tagged release artifacts, signed APK hashes, physical smoke,
+  UX signoff, or legal/provenance proof.
+- Focused verification passed:
+  `:app:testDebugUnitTest --tests org.adaway.tasks.UserStoryStatusTrackerTest
+  --dependency-verification=strict --stacktrace`.
