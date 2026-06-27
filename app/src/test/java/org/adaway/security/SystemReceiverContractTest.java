@@ -44,6 +44,37 @@ public class SystemReceiverContractTest {
                 hasFilterSetSync);
     }
 
+    @Test
+    public void launcherShortcutsUseGeneratedApplicationIdResource() throws IOException {
+        String build = read("app/build.gradle");
+        String shortcuts = read("app/src/main/res/xml/shortcuts.xml");
+
+        assertTrue("Application id should be explicit so launcher shortcut package is auditable.",
+                build.contains("applicationId = 'org.adaway'"));
+        assertTrue("Shortcut target package must be generated from the application id.",
+                build.contains("resValue \"string\", \"shortcut_target_package\", applicationId"));
+        assertTrue("Static shortcuts must not bake a literal package that can drift by build.",
+                !shortcuts.contains("android:targetPackage=\"org.adaway\""));
+        assertTrue("All three static shortcut intents should use the generated package resource.",
+                count(shortcuts, "android:targetPackage=\"@string/shortcut_target_package\"") == 3);
+        assertTrue("Preferences shortcut target must remain explicit.",
+                shortcuts.contains("android:targetClass=\"org.adaway.ui.prefs.PrefsActivity\""));
+        assertTrue("DNS requests shortcut target must remain explicit.",
+                shortcuts.contains("android:targetClass=\"org.adaway.ui.log.LogActivity\""));
+        assertTrue("Your lists shortcut target must remain explicit.",
+                shortcuts.contains("android:targetClass=\"org.adaway.ui.lists.ListsActivity\""));
+    }
+
+    private static int count(String haystack, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
     private static String read(String relativePath) throws IOException {
         Path path = repoDir().resolve(relativePath);
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);

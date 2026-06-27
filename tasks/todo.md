@@ -10118,3 +10118,47 @@
 - Pushed hardening commit `f93a5142`; PR #6 CI passed on that head: Connected Android tests
   `7m49s`, Development build `3m56s`, Validate locales `17s`, Analyze java `4m27s`,
   Analyze cpp `1m39s`, and CodeQL `3s`.
+
+## Plan - 2026-06-27 Parallel Proof Slices
+- [x] Ask the CTO coordinator to triage remaining release gates and split parallel lanes.
+- [x] Add verified proof for Domain Checker pasted-input normalization (`DOMAIN-002`).
+- [x] Add verified proof for app-update Preferences controls and startup checks
+  (`PREF-009`, `UPDATE-005`).
+- [x] Add verified JVM contract for adware matcher signatures (`ADW-003`).
+- [x] Fix launcher shortcut package drift with a generated application-id resource and contract
+  (`SYS-005`).
+- [x] Reject the unstable notification permission worker test and keep `PREF-010`/`NOTIF-003`
+  open with evidence.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-27 Parallel Proof Slices
+- CTO coordinator verified PR #6 checks were green on `f93a5142` and reported that the remaining
+  P0 board is now mostly external: rooted-device hosts apply, legal/provenance, signed release
+  artifacts, physical-device smoke, human UX matrix sign-off, and final release readiness.
+- `DOMAIN-002`: added a connected UI proof that pastes a messy URL with whitespace, uppercase
+  host, trailing root dot, port, path, query, and fragment into the real Domain Checker, then
+  verifies the normalized blocked host, blocked status, and source attribution render.
+- `PREF-009`/`UPDATE-005`: extended `PrefsUpdateSchedulingInstrumentedTest` to prove visible
+  app-update Preferences controls persist startup checks, enqueue/cancel daily `ApkUpdateService`
+  work, respect the beta/channel store gate, and call app update check on fresh Home launch only
+  when the startup preference is enabled.
+- `ADW-003`: added `AdwareLiveDataMatcherTest` to keep the static adware signature table
+  well-formed and prove the matcher scans activities, receivers, and services using package-prefix
+  boundaries rather than arbitrary substrings.
+- `SYS-005`: made `applicationId` explicit, generated `shortcut_target_package` from it, pointed
+  all static launcher shortcut intents at that resource, and added a contract that keeps the
+  Preferences, DNS requests, and Your lists shortcuts from drifting.
+- Rejected `PREF-010`/`NOTIF-003` worker output: changing `POST_NOTIFICATIONS` with
+  `UiAutomation.grantRuntimePermission()` / `revokeRuntimePermission()` killed the API 34
+  instrumentation process. No flaky notification permission test was kept; the gate remains open
+  for a safer harness or manual smoke.
+- Focused JVM proof passed:
+  `:app:testDebugUnitTest --tests org.adaway.ui.adware.AdwareLiveDataMatcherTest --tests
+  org.adaway.security.SystemReceiverContractTest --dependency-verification=strict --stacktrace`.
+- Android test compile passed:
+  `:app:compileDebugAndroidTestJavaWithJavac --dependency-verification=strict --stacktrace`.
+- Focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerFragmentNormalizesPastedInputBeforeLookup,org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `4` tests on `adaway-api34-16g` with `0` failures.

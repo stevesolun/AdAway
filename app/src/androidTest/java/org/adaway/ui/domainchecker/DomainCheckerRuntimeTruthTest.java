@@ -53,6 +53,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -162,6 +163,24 @@ public class DomainCheckerRuntimeTruthTest {
             assertDomainStatus(activity, UNKNOWN_HOST,
                     context.getString(R.string.domain_checker_status_unknown),
                     context.getString(R.string.domain_checker_not_blocked));
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void domainCheckerFragmentNormalizesPastedInputBeforeLookup() {
+        PreferenceHelper.setAbBlockMethod(application, ROOT);
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            HomeActivity activity = showDomainChecker(scenario);
+            String pastedInput = "  https://"
+                    + BLOCKED_HOST.toUpperCase(Locale.ROOT)
+                    + ".:443/path/to/ad.js?cache_bust=1#tracker  ";
+
+            checkDomainInUi(activity, pastedInput);
+
+            waitForVisibleText(activity, BLOCKED_HOST);
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_status_blocked));
+            waitForVisibleText(activity,
+                    context.getString(R.string.domain_checker_filter_source_format, SOURCE_LABEL));
         }
     }
 

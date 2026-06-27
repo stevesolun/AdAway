@@ -15,6 +15,7 @@ android {
     namespace = 'org.adaway'
 
     defaultConfig {
+        applicationId = 'org.adaway'
         minSdk = 26
         targetSdk = 34
         versionCode = libs.versions.appCode.get() as int
@@ -31,6 +32,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "boolean", "DIRECT_APK_UPDATES_ENABLED", "false"
+        resValue "string", "shortcut_target_package", applicationId
         resValue "string", "update_manifest_public_key",
                 project.findProperty('updateManifestPublicKeyBase64') ?: ""
     }
