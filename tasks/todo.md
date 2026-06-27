@@ -10284,3 +10284,13 @@
 - Existing JVM hardening contracts passed:
   `:app:testDebugUnitTest --tests org.adaway.security.SecurityHardeningTest
   --dependency-verification=strict --stacktrace`.
+- PR CI on pushed head `e015c78a` failed only in Connected Android tests. The downloaded CI
+  report showed `PrefsLanguageTelemetryInstrumentedTest` failed before reaching the product
+  assertion because the CI emulator viewport did not show the offscreen `Send crash reports`
+  preference row: `Text was not visible: Send crash reports`.
+- Stabilized the connected proof by scrolling the real Preferences `RecyclerView` to the debug
+  section before asserting or toggling the crash-report preference. Focused retest passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsLanguageTelemetryInstrumentedTest#languageAndTelemetryPreferencesPersistAndApplyTheirSideEffects
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.

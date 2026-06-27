@@ -22,6 +22,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.LocaleListCompat;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -78,7 +80,6 @@ public class PrefsLanguageTelemetryInstrumentedTest {
         try (ActivityScenario<PrefsActivity> ignored = ActivityScenario.launch(PrefsActivity.class)) {
             assertPrefsActivityResumed();
             assertAccessibilityTextExact(this.context.getString(R.string.pref_force_english));
-            assertAccessibilityTextExact(this.context.getString(R.string.pref_enable_telemetry));
 
             clickAccessibilityTextExact(this.context.getString(R.string.pref_force_english));
             waitForForceEnglish(true);
@@ -88,6 +89,8 @@ public class PrefsLanguageTelemetryInstrumentedTest {
             waitForForceEnglish(false);
             assertEquals("", AppCompatDelegate.getApplicationLocales().toLanguageTags());
 
+            scrollPreferencesToBottom(ignored);
+            assertAccessibilityTextExact(this.context.getString(R.string.pref_enable_telemetry));
             if (!SentryLog.isSupported(this.application)) {
                 assertAccessibilityTextExact(
                         this.context.getString(R.string.pref_enable_telemetry_disabled_summary));
@@ -193,6 +196,22 @@ public class PrefsLanguageTelemetryInstrumentedTest {
             SystemClock.sleep(100L);
         }
         throw new AssertionError("Text was not clickable: " + expectedText);
+    }
+
+    private static void scrollPreferencesToBottom(
+            @NonNull ActivityScenario<PrefsActivity> scenario) {
+        scenario.onActivity(activity -> {
+            for (Fragment fragment : activity.getSupportFragmentManager().getFragments()) {
+                if (fragment instanceof PrefsMainFragment) {
+                    RecyclerView listView = ((PrefsMainFragment) fragment).getListView();
+                    RecyclerView.Adapter<?> adapter = listView.getAdapter();
+                    if (adapter != null && adapter.getItemCount() > 0) {
+                        listView.scrollToPosition(adapter.getItemCount() - 1);
+                    }
+                }
+            }
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private static boolean containsExactText(
