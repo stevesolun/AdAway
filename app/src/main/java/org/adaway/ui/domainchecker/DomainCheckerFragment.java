@@ -25,6 +25,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
 import org.adaway.R;
+import org.adaway.ui.domainchecker.DomainCheckResult.Status;
 
 public class DomainCheckerFragment extends Fragment {
 
@@ -92,9 +93,10 @@ public class DomainCheckerFragment extends Fragment {
             notBlockedLabel.setVisibility(View.GONE);
             sourcesContainer.removeAllViews();
 
-            if (result.blocked) {
-                statusBadge.setText(R.string.domain_checker_status_blocked);
-                statusBadge.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
+            statusBadge.setText(statusText(result.status));
+            statusBadge.setTextColor(getResources().getColor(statusColor(result.status), null));
+
+            if (result.status == Status.BLOCKED || result.status == Status.REDIRECTED) {
                 sourcesLabel.setVisibility(View.VISIBLE);
                 sourcesContainer.setVisibility(View.VISIBLE);
 
@@ -144,9 +146,14 @@ public class DomainCheckerFragment extends Fragment {
                                 Snackbar.LENGTH_SHORT).show();
                     });
                 }
+            } else if (result.status == Status.ALLOWED && result.userAllowed) {
+                alreadyAllowedLabel.setVisibility(View.VISIBLE);
+                removeAllowButton.setVisibility(View.VISIBLE);
+                removeAllowButton.setOnClickListener(v -> {
+                    viewModel.removeUserAllowRule(result.domain);
+                    Snackbar.make(view, R.string.domain_checker_allow_removed, Snackbar.LENGTH_SHORT).show();
+                });
             } else {
-                statusBadge.setText(R.string.domain_checker_status_not_blocked);
-                statusBadge.setTextColor(getResources().getColor(android.R.color.holo_green_dark, null));
                 notBlockedLabel.setVisibility(View.VISIBLE);
                 blockButton.setVisibility(View.VISIBLE);
                 blockButton.setOnClickListener(v -> {
@@ -156,6 +163,32 @@ public class DomainCheckerFragment extends Fragment {
                 });
             }
         });
+    }
+
+    private static int statusText(Status status) {
+        if (status == Status.BLOCKED) {
+            return R.string.domain_checker_status_blocked;
+        }
+        if (status == Status.ALLOWED) {
+            return R.string.allowed_hosts_label;
+        }
+        if (status == Status.REDIRECTED) {
+            return R.string.redirect_hosts_label;
+        }
+        return R.string.domain_checker_status_unknown;
+    }
+
+    private static int statusColor(Status status) {
+        if (status == Status.BLOCKED) {
+            return android.R.color.holo_red_dark;
+        }
+        if (status == Status.REDIRECTED) {
+            return R.color.redirected;
+        }
+        if (status == Status.ALLOWED) {
+            return android.R.color.holo_green_dark;
+        }
+        return android.R.color.darker_gray;
     }
 
     private static void applyTopInsets(@NonNull View view) {

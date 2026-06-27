@@ -6,6 +6,12 @@ import java.util.List;
  * Immutable value holder returned by DomainCheckerViewModel after checking a domain.
  */
 public class DomainCheckResult {
+    public enum Status {
+        BLOCKED,
+        ALLOWED,
+        REDIRECTED,
+        UNKNOWN
+    }
 
     /** One entry per filter source that blocks the domain. */
     public static class BlockingSource {
@@ -21,6 +27,7 @@ public class DomainCheckResult {
     }
 
     public final String domain;
+    public final Status status;
     public final boolean blocked;
     public final boolean userAllowed;
     public final List<BlockingSource> blockingSources;
@@ -28,8 +35,15 @@ public class DomainCheckResult {
 
     public DomainCheckResult(String domain, boolean blocked, boolean userAllowed,
                              List<BlockingSource> blockingSources, String unblockAdvice) {
+        this(domain, blocked ? Status.BLOCKED : userAllowed ? Status.ALLOWED : Status.UNKNOWN,
+                userAllowed, blockingSources, unblockAdvice);
+    }
+
+    public DomainCheckResult(String domain, Status status, boolean userAllowed,
+                             List<BlockingSource> blockingSources, String unblockAdvice) {
         this.domain = domain;
-        this.blocked = blocked;
+        this.status = status;
+        this.blocked = status == Status.BLOCKED || status == Status.REDIRECTED;
         this.userAllowed = userAllowed;
         this.blockingSources = blockingSources;
         this.unblockAdvice = unblockAdvice;

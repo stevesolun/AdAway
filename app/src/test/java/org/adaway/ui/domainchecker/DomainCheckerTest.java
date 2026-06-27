@@ -40,6 +40,7 @@ public class DomainCheckerTest {
         );
 
         assertEquals("example.com", result.domain);
+        assertEquals(DomainCheckResult.Status.BLOCKED, result.status);
         assertTrue(result.blocked);
         assertFalse(result.userAllowed);
         assertEquals(1, result.blockingSources.size());
@@ -59,6 +60,7 @@ public class DomainCheckerTest {
         );
 
         assertFalse(result.blocked);
+        assertEquals(DomainCheckResult.Status.UNKNOWN, result.status);
         assertFalse(result.userAllowed);
         assertTrue(result.blockingSources.isEmpty());
     }
@@ -76,6 +78,20 @@ public class DomainCheckerTest {
 
         assertTrue(result.blocked);
         assertTrue(result.userAllowed);
+    }
+
+    @Test
+    public void domainCheckResult_redirectedStatusCountsAsBlocked() {
+        DomainCheckResult result = new DomainCheckResult(
+                "redirected.com",
+                DomainCheckResult.Status.REDIRECTED,
+                false,
+                Collections.emptyList(),
+                "Redirected by an active rule."
+        );
+
+        assertEquals(DomainCheckResult.Status.REDIRECTED, result.status);
+        assertTrue(result.blocked);
     }
 
     // ── URL-stripping logic tests ────────────────────────────────────────────

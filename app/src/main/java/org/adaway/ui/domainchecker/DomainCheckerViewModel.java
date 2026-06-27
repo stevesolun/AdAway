@@ -78,6 +78,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
 
             List<DomainCheckResult.BlockingSource> blockingSources = new ArrayList<>();
             boolean userAllowed = false;
+            boolean explicitlyAllowed = false;
             ListType runtimeType = rootMode
                     ? mHostEntryDao.getRootTypeForHost(domain)
                     : mHostEntryDao.getTypeForHost(domain);
@@ -93,13 +94,17 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                     String sourceName = resolveSourceName(allSources, item.getSourceId());
                     blockingSources.add(
                             new DomainCheckResult.BlockingSource(item.getId(), sourceName, isUserRule));
-                } else if (item.getType() == ListType.ALLOWED && item.getSourceId() == USER_SOURCE_ID) {
-                    userAllowed = true;
+                } else if (item.getType() == ListType.ALLOWED) {
+                    explicitlyAllowed = true;
+                    if (item.getSourceId() == USER_SOURCE_ID) {
+                        userAllowed = true;
+                    }
                 }
             }
 
             String advice = buildAdvice(blocked, userAllowed);
-            DomainCheckResult result = new DomainCheckResult(domain, blocked, userAllowed,
+            DomainCheckResult result = new DomainCheckResult(domain,
+                    resolveStatus(runtimeType, explicitlyAllowed), userAllowed,
                     blockingSources, advice);
 
             checkResult.postValue(result);
@@ -225,6 +230,21 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             }
         }
         return "Source " + sourceId;
+    }
+
+    private static DomainCheckResult.Status resolveStatus(
+            ListType runtimeType,
+            boolean explicitlyAllowed) {
+        if (runtimeType == ListType.BLOCKED) {
+            return DomainCheckResult.Status.BLOCKED;
+        }
+        if (runtimeType == ListType.REDIRECTED) {
+            return DomainCheckResult.Status.REDIRECTED;
+        }
+        if (explicitlyAllowed) {
+            return DomainCheckResult.Status.ALLOWED;
+        }
+        return DomainCheckResult.Status.UNKNOWN;
     }
 
     private void syncRuntimeRules() {
