@@ -62,7 +62,8 @@ public class PrefsUpdateFragment extends PreferenceFragmentCompat {
 
     private void bindNotificationPreferencesAction() {
         Context context = requireContext();
-        Preference openNotificationPref = findPreference(getString(R.string.pref_update_open_notification_preferences_key));
+        Preference openNotificationPref = findPreference(
+                getString(R.string.pref_update_open_notification_preferences_key));
         assert openNotificationPref != null : PREFERENCE_NOT_FOUND;
         openNotificationPref.setOnPreferenceClickListener(preference -> {
             Intent settingsIntent = new Intent(ACTION_APP_NOTIFICATION_SETTINGS)
@@ -75,7 +76,8 @@ public class PrefsUpdateFragment extends PreferenceFragmentCompat {
 
     private void bindAppUpdatePrefAction() {
         Context context = requireContext();
-        SwitchPreferenceCompat checkAppDailyPref = findPreference(getString(R.string.pref_update_check_app_daily_key));
+        SwitchPreferenceCompat checkAppDailyPref = findPreference(
+                getString(R.string.pref_update_check_app_daily_key));
         assert checkAppDailyPref != null : PREFERENCE_NOT_FOUND;
         checkAppDailyPref.setOnPreferenceChangeListener((preference, newValue) -> {
             if (Boolean.TRUE.equals(newValue)) {
@@ -91,14 +93,16 @@ public class PrefsUpdateFragment extends PreferenceFragmentCompat {
         Context context = requireContext();
         AdAwayApplication application = (AdAwayApplication) context.getApplicationContext();
         UpdateStore store = application.getUpdateModel().getStore();
-        Preference includeBetaReleasesPref = findPreference(getString(R.string.pref_update_include_beta_releases_key));
+        Preference includeBetaReleasesPref = findPreference(
+                getString(R.string.pref_update_include_beta_releases_key));
         assert includeBetaReleasesPref != null : PREFERENCE_NOT_FOUND;
         includeBetaReleasesPref.setEnabled(store == ADAWAY);
     }
 
     private void bindHostsUpdatePrefAction() {
         Context context = requireContext();
-        Preference checkHostsDailyPref = findPreference(getString(R.string.pref_update_check_hosts_daily_key));
+        Preference checkHostsDailyPref = findPreference(
+                getString(R.string.pref_update_check_hosts_daily_key));
         assert checkHostsDailyPref != null : PREFERENCE_NOT_FOUND;
         checkHostsDailyPref.setOnPreferenceChangeListener((preference, newValue) -> {
             if (Boolean.TRUE.equals(newValue)) {
@@ -109,7 +113,8 @@ public class PrefsUpdateFragment extends PreferenceFragmentCompat {
             }
             return true;
         });
-        Preference updateOnlyOnWifiPref = findPreference(this.getString(R.string.pref_update_only_on_wifi_key));
+        Preference updateOnlyOnWifiPref = findPreference(
+                this.getString(R.string.pref_update_only_on_wifi_key));
         assert updateOnlyOnWifiPref != null : PREFERENCE_NOT_FOUND;
         updateOnlyOnWifiPref.setOnPreferenceChangeListener((preference, newValue) -> {
             SourceUpdateService.enable(context, Boolean.TRUE.equals(newValue));
@@ -119,9 +124,16 @@ public class PrefsUpdateFragment extends PreferenceFragmentCompat {
 
     private void updateNotificationPreferencesState() {
         Context context = requireContext();
-        Preference openNotificationPref = findPreference(getString(R.string.pref_update_open_notification_preferences_key));
+        Preference openNotificationPref = findPreference(
+                getString(R.string.pref_update_open_notification_preferences_key));
         assert openNotificationPref != null : PREFERENCE_NOT_FOUND;
-        boolean notificationsDisabled = SDK_INT >= TIRAMISU && context.checkSelfPermission(POST_NOTIFICATIONS) != PERMISSION_GRANTED;
+        boolean notificationsDisabled = shouldShowNotificationPreferences(
+                SDK_INT,
+                context.checkSelfPermission(POST_NOTIFICATIONS));
         openNotificationPref.setVisible(notificationsDisabled);
+    }
+
+    static boolean shouldShowNotificationPreferences(int sdkInt, int postNotificationsPermission) {
+        return sdkInt >= TIRAMISU && postNotificationsPermission != PERMISSION_GRANTED;
     }
 }

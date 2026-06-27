@@ -10764,7 +10764,7 @@
   reports and keep GPL/provenance language honest.
 - [x] ADA-P2-LIST-007 / `LIST-007`: add device/visual proof for loading, empty, error, retry, and
   no-match custom-rules states.
-- [ ] ADA-P2-PREF-010-NOTIF-003 / `PREF-010`, `NOTIF-003`: design a safer API 33/34 notification
+- [x] ADA-P2-PREF-010-NOTIF-003 / `PREF-010`, `NOTIF-003`: design a safer API 33/34 notification
   permission proof that does not kill instrumentation.
 - [x] ADA-P2-PREF-013 / `PREF-013`: add Android backup-agent restore-side-effect contract for
   preferences/rules, or document why platform backup remains manual.
@@ -10781,6 +10781,8 @@
 - Preferences/notifications/backup lead: closed the backup-agent eligibility contradiction earlier
   and strengthened `NOTIF-002`; notification permission mutation remains under `NOTIF-003/PREF-010`
   until a safer API 33/34 harness exists.
+- Preferences/notifications lead: closed `PREF-010`/`NOTIF-003` with a safer non-mutating API 34
+  harness. The app-owned Settings affordance is now tested without grant/revoke permission changes.
 - Product UX lead: fix `LIST-007` first because loading resolved to a hidden state, leaving the
   user-facing list area blank during initial refresh.
 - Product trust lead: closed `ADW-003` by making the scanner's static signature limit visible in
@@ -10850,4 +10852,14 @@
   `java .github/workflows/AndroidLocaleChecker.java app/src/main/res/values/strings.xml`, and
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.about.AboutActivitySmokeInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+- `PREF-010`/`NOTIF-003`: Extracted a pure notification-settings visibility helper and added a
+  source/JVM contract proving Android 13+ denied-permission logic, package-scoped
+  `ACTION_APP_NOTIFICATION_SETTINGS` intent wiring, visible copy, and no runtime permission mutation.
+  Extended `PrefsUpdateSchedulingInstrumentedTest` with a non-mutating connected proof that the row
+  visibility matches the current API 34 permission state. Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.ui.prefs.PrefsUpdateNotificationPermissionContractTest --dependency-verification=strict
+  --stacktrace` and `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#notificationSettingsPreferenceMatchesCurrentPermissionStateWithoutMutation
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.

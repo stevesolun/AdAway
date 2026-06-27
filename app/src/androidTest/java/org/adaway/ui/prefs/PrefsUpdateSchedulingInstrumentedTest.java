@@ -8,6 +8,8 @@
  */
 package org.adaway.ui.prefs;
 
+import static android.Manifest.permission.POST_NOTIFICATIONS;
+import static android.os.Build.VERSION.SDK_INT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -129,6 +131,26 @@ public class PrefsUpdateSchedulingInstrumentedTest {
             assertNoActiveWork(this.apkUpdateWorkName);
 
             assertChannelPreferenceMatchesStore();
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void notificationSettingsPreferenceMatchesCurrentPermissionStateWithoutMutation()
+            throws Exception {
+        try (ActivityScenario<PrefsActivity> ignored =
+                     ActivityScenario.launch(PrefsActivity.class)) {
+            openUpdatePreferences();
+
+            boolean expectedVisible = PrefsUpdateFragment.shouldShowNotificationPreferences(
+                    SDK_INT,
+                    this.context.checkSelfPermission(POST_NOTIFICATIONS));
+            assertEquals(expectedVisible,
+                    isCurrentUpdatePreferenceVisible(
+                            R.string.pref_update_open_notification_preferences_key));
+            if (expectedVisible) {
+                assertAccessibilityText(
+                        this.context.getString(R.string.pref_update_enable_notifications));
+            }
         }
     }
 
@@ -281,6 +303,14 @@ public class PrefsUpdateSchedulingInstrumentedTest {
     }
 
     private static boolean isCurrentUpdatePreferenceEnabled(int keyResId) throws Exception {
+        return currentUpdatePreferenceFlag(keyResId, Flag.ENABLED);
+    }
+
+    private static boolean isCurrentUpdatePreferenceVisible(int keyResId) throws Exception {
+        return currentUpdatePreferenceFlag(keyResId, Flag.VISIBLE);
+    }
+
+    private static boolean currentUpdatePreferenceFlag(int keyResId, Flag flag) throws Exception {
         boolean[] enabled = new boolean[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             Activity activity = currentResumedActivity(PrefsActivity.class);
@@ -295,9 +325,14 @@ public class PrefsUpdateSchedulingInstrumentedTest {
             if (preference == null) {
                 throw new AssertionError("Update preference was not found.");
             }
-            enabled[0] = preference.isEnabled();
+            enabled[0] = flag == Flag.ENABLED ? preference.isEnabled() : preference.isVisible();
         });
         return enabled[0];
+    }
+
+    private enum Flag {
+        ENABLED,
+        VISIBLE
     }
 
     private static void assertAccessibilityText(String expectedText) throws Exception {
