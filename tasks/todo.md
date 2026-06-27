@@ -9782,3 +9782,45 @@
   --dependency-verification=strict --stacktrace`.
 - REL-001 is advanced with local source-report evidence, but remains open for legal review and
   release artifact boundary proof.
+
+## Plan - 2026-06-27 Second-Wave Local Story Proofs
+- [x] Dispatch parallel lanes for VPN lifecycle, external command security, diagnostics UI,
+  backup/notification proof, UX matrix portability, and hardware release-smoke handoff.
+- [x] Integrate only verified code/test slices from those lanes.
+- [x] Run focused JVM contracts for the edited source/test surfaces.
+- [x] Run focused connected Android tests for the emulator-runnable stories.
+- [x] Update `tasks/user-story-status.tsv` without closing external hardware, legal, release, or
+  human-review gates.
+
+## Review - 2026-06-27 Second-Wave Local Story Proofs
+- PR #6 remains green on pushed head `6cb4d35b`: Analyze (cpp), Analyze (java), CodeQL,
+  Connected Android tests, Development build, and Validate locales all pass. The local branch is
+  intentionally ahead with batched, unpushed evidence commits.
+- `RUNTIME-009`: fixed `VpnConnectionMonitor.reset()` to re-arm the monitor after recovery stop.
+  Focused JVM proof passed for `VpnConnectionMonitorTest`, `VpnWatchdogTest`, and
+  `VpnWorkerIdleTimeoutTest`. Connected `VpnLifecycleInstrumentedTest` passed heartbeat
+  start/stop proof on `adaway-api34-16g`; the full start/stop/resume tunnel proof skipped safely
+  because it requires pre-granted AdAway VPN consent and no active VPN.
+- `DOMAIN-001`: added explicit Domain Checker result states for blocked, allowed, redirected, and
+  unknown. Focused `DomainCheckerTest` passed, and connected `DomainCheckerRuntimeTruthTest`
+  passed in the 9-test diagnostics/system batch on `adaway-api34-16g`.
+- `LOG-001`: added connected `LogRuntimeTruthTest` proving a real `VpnModel.getEntry()` log
+  generation path appears in `LogActivity`. This strengthens the Log UI story, but packet-through
+  running-TUN DNS logging remains a later runtime smoke.
+- `PREF-011` and `NOTIF-001`: added `BackupSafContractTest`,
+  `PrefsBackupRestoreSafInstrumentedTest`, and `NotificationHelperChannelInstrumentedTest`.
+  Focused JVM contracts passed; connected SAF/channel proof passed in the same 9-test batch.
+  Real DocumentsUI/provider file round trip and notification upgrade/user-modified channel behavior
+  remain separate manual/release-smoke gaps.
+- `SYS-003`: added `CommandReceiverSecurityContractTest` and
+  `CommandReceiverSecurityInstrumentedTest`. Focused JVM and connected tests passed, proving the
+  external command API remains a single exported signature-permission receiver. A separately
+  signed hostile helper APK remains the stronger future proof; shell broadcasts on API 34 are not a
+  reliable hostile-app model.
+- `REL-004`: made `scripts/run-ux-matrix.ps1` discover Unix `adb`, `ANDROID_SDK_ROOT`, native path
+  separators, and the native Gradle wrapper. `UxMatrixScriptTest` passed with Unix adb/Gradle
+  discovery coverage. Human review of a checked screenshot packet is still required before the
+  release sign-off gate can close.
+- Hardware/release-smoke handoff remains external: `RUNTIME-007`, `REL-003`, `UPDATE-002`, and
+  `UPDATE-004` require real rooted/non-root physical devices, release artifacts, signer cert hash,
+  manifest keys, and safe restore procedures.
