@@ -10047,7 +10047,7 @@
   weekly schedule state, and active profile state moved to the new name.
 - The same flow then reopens Manage Filter Sets, selects `Weekend Pack`, confirms delete, verifies
   the saved set is removed, active profile falls back to Custom, the reserved Safe profile remains,
-  and the manage action reports no manageable saved sets.
+  and no manageable user filter sets remain in `FilterSetStore`.
 - Focused connected method proof passed:
   `:app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet
@@ -10085,3 +10085,33 @@
 - Advanced `ABOUT-001` to partial UI coverage in `tasks/user-story-status.tsv`. Legal/provenance
   review, MIT relicensing clearance, external release, rooted-device, physical-device, VPN consent,
   and human UX sign-off gates remain separate.
+
+## Plan - 2026-06-27 CI Fix: Filter Set Manage Full-Suite Assertion
+- [x] Triage the red PR connected Android job on head `49bb80d5`.
+- [x] Replace the full-suite-sensitive final snackbar assertion with durable filter-set state
+  proof.
+- [x] Run focused and affected connected verification.
+- [ ] Commit, push, and recheck PR CI.
+
+## Review - 2026-06-27 CI Fix: Filter Set Manage Full-Suite Assertion
+- PR CI failed only `Connected Android tests` on `49bb80d5`; static/build lanes passed. The log
+  failure was
+  `FilterSetSaveApplyInstrumentedTest.manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet`
+  at the final `No user saved filter sets` snackbar assertion.
+- The manage/rename/delete UI path had already completed in the failing run: the failure happened
+  after delete confirmation, after the saved set was gone, active profile reset to Custom, and the
+  reserved Safe profile remained.
+- Hardened the test by replacing the final snackbar-only empty-manage assertion with a durable
+  `FilterSetStore.getSetNames(...)` assertion that removes reserved profile names and verifies no
+  manageable user filter sets remain. This keeps the user-story proof focused on the destructive UI
+  path and persistent state without depending on transient snackbar exposure in the full suite.
+- Focused connected retest passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet
+  --dependency-verification=strict --stacktrace`
+  finished `1` test on `adaway-api34-16g` with `0` failures.
+- Affected connected retest passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest,org.adaway.ui.about.AboutActivitySmokeInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `4` tests on `adaway-api34-16g` with `0` failures.

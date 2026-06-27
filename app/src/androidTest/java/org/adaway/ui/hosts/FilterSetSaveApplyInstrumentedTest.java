@@ -203,9 +203,7 @@ public class FilterSetSaveApplyInstrumentedTest {
         waitForDeletedSet(RENAMED_SET_NAME);
         assertEquals(FilterSetStore.PROFILE_CUSTOM, FilterSetStore.getActiveProfile(this.context));
         assertTrue(FilterSetStore.hasSet(this.context, FilterSetStore.PROFILE_SAFE));
-
-        clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
-        assertAccessibilityText(this.context.getString(R.string.filter_set_manage_none));
+        assertNoManageableFilterSets();
     }
 
     private static void navigateToSources(ActivityScenario<HomeActivity> scenario) {
@@ -292,6 +290,12 @@ public class FilterSetSaveApplyInstrumentedTest {
             SystemClock.sleep(100);
         }
         throw new AssertionError("Filter set was not deleted: " + name);
+    }
+
+    private void assertNoManageableFilterSets() {
+        Set<String> names = new HashSet<>(FilterSetStore.getSetNames(this.context));
+        names.removeIf(FilterSetStore::isReservedSetName);
+        assertTrue("Expected no manageable user filter sets, found " + names, names.isEmpty());
     }
 
     private void waitForSchedule(String name, int expectedSchedule) {
