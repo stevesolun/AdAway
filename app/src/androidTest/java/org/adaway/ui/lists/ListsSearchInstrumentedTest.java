@@ -132,6 +132,22 @@ public class ListsSearchInstrumentedTest {
         }
     }
 
+    @Test(timeout = 60_000)
+    public void emptyListShowsNoRulesState() throws Exception {
+        this.hostListItemDao.clearSourceHosts(TEST_SOURCE_ID);
+        assertRuntimeRowCount(BLOCKED, 0);
+
+        Intent intent = new Intent(this.context, ListsActivity.class)
+                .putExtra(TAB, BLOCKED_HOSTS_TAB);
+        try (ActivityScenario<ListsActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForSearchState(
+                    scenario,
+                    this.context.getString(R.string.lists_state_no_rules_title),
+                    MATCHING_HOST,
+                    this.context.getString(R.string.lists_state_no_rules_message));
+        }
+    }
+
     private static void setSearchQuery(
             @NonNull ActivityScenario<ListsActivity> scenario,
             @NonNull String query) {
@@ -259,6 +275,18 @@ public class ListsSearchInstrumentedTest {
             assertTrue(cursor.moveToFirst());
             assertEquals("Seeded row must be visible to the lists runtime query: " + host,
                     1, cursor.getInt(0));
+        }
+    }
+
+    private void assertRuntimeRowCount(@NonNull ListType type, int expectedCount) {
+        try (Cursor cursor = this.database.getOpenHelper().getReadableDatabase().query(
+                new SimpleSQLiteQuery("SELECT COUNT(*) FROM hosts_lists "
+                        + "WHERE type = ? AND "
+                        + "(source_id = 1 OR generation = "
+                        + "(SELECT active_generation FROM hosts_meta WHERE id = 0))",
+                        new Object[]{type.getValue()}))) {
+            assertTrue(cursor.moveToFirst());
+            assertEquals(expectedCount, cursor.getInt(0));
         }
     }
 

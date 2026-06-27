@@ -12,6 +12,8 @@
     <string name="lists_search_domains_hint">Search domains…</string>
     <string name="lists_menu_toggle_sources">Toggle sources</string>
     <string name="lists_state_retry">Retry</string>
+    <string name="lists_state_loading_title">Loading rules</string>
+    <string name="lists_state_loading_message">Preparing your blocked, allowed, and redirected rules.</string>
     <string name="lists_state_load_failed_title">Rules could not load</string>
     <string name="lists_state_load_failed_message">Check storage and database state, then retry.</string>
     <string name="lists_state_no_rules_title">No rules yet</string>

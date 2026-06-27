@@ -11,6 +11,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.google.android.material.textfield.TextInputEditText;
@@ -215,13 +216,18 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
         View stateContainer = root.findViewById(R.id.hostsListsStateContainer);
         TextView stateTitle = root.findViewById(R.id.hostsListsStateTitle);
         TextView stateMessage = root.findViewById(R.id.hostsListsStateMessage);
+        ProgressBar stateProgress = root.findViewById(R.id.hostsListsStateProgress);
         View retryButton = root.findViewById(R.id.hostsListsStateRetryButton);
         boolean visible = state != ListsUiState.HIDDEN;
         stateContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
         recyclerView.setVisibility(visible ? View.GONE : View.VISIBLE);
+        stateProgress.setVisibility(state == ListsUiState.LOADING ? View.VISIBLE : View.GONE);
         retryButton.setVisibility(state == ListsUiState.LOAD_FAILED ? View.VISIBLE : View.GONE);
 
-        if (state == ListsUiState.LOAD_FAILED) {
+        if (state == ListsUiState.LOADING) {
+            stateTitle.setText(R.string.lists_state_loading_title);
+            stateMessage.setText(R.string.lists_state_loading_message);
+        } else if (state == ListsUiState.LOAD_FAILED) {
             stateTitle.setText(R.string.lists_state_load_failed_title);
             stateMessage.setText(R.string.lists_state_load_failed_message);
         } else if (state == ListsUiState.NO_RULES) {

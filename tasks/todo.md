@@ -10726,3 +10726,76 @@
 - Manual screenshot inspection after the fix confirmed the 1.6 LTR and 1.6 RTL Discover screenshots
   show `Safe Mode`, `Balanced Mode`, and `Aggressive Mode` fully visible. The 1.6 Sources screenshot
   remained readable; broader human UX signoff is still tracked under `REL-004`.
+
+## CTO Jira Board - 2026-06-27 Remaining Goal Work
+
+### External-Blocked Release Gates
+- [ ] ADA-P0-ROOT-007 / `RUNTIME-007`: run rooted-device hosts apply smoke with real remount/write
+  evidence. Blocked until a rooted physical or trusted rooted emulator environment is available.
+- [ ] ADA-P0-UPD-002 / `UPDATE-002`: run signed APK self-update install smoke with verified APK hash
+  and signing certificate evidence. Blocked until signed release/test artifact exists.
+- [ ] ADA-P0-UPD-004 / `UPDATE-004`: run `directRelease` install/update gate proof. Blocked until
+  signed directRelease artifact and install target exist.
+- [ ] ADA-P0-REL-001 / `REL-001`: complete legal/provenance signoff. Local source reports passed;
+  closure remains blocked on legal/license review.
+- [ ] ADA-P0-REL-002 / `REL-002`: run tagged release artifact verification. Blocked until a real
+  tagged release artifact set exists.
+- [ ] ADA-P0-REL-003 / `REL-003`: run physical-device release smoke. Blocked until physical device
+  and release APK are available.
+- [ ] ADA-P0-REL-004 / `REL-004`: collect human-reviewed UX matrix signoff. Local matrix scripts
+  work; closure requires checked screenshot packet and human approval.
+- [ ] ADA-P0-REL-005 / `REL-005`: aggregate final readiness report. Blocked until upstream release,
+  physical smoke, UX, and license artifacts exist.
+
+### Locally Completable Proof Gaps
+- [ ] ADA-P1-VPN-009 / `RUNTIME-009`: prove full VPN lifecycle start/stop/resume when consent is
+  already granted, or document the remaining device-precondition boundary more tightly.
+- [ ] ADA-P1-LOG-001 / `LOG-001`: prove DNS log rows from real packet-through-running-VPN traffic,
+  beyond direct `VpnModel` log generation.
+- [ ] ADA-P1-PREF-004 / `PREF-004`: audit root web server settings/native exposure and add a focused
+  source or JVM guard for binding/auth/availability assumptions.
+- [ ] ADA-P1-SYS-001 / `SYS-001`: prove Quick Settings tile interaction with Android tile service,
+  or add the strongest local source/connected boundary proof that avoids flaky system UI.
+- [ ] ADA-P1-SYS-003 / `SYS-003`: design hostile-sender/separately signed proof for exported command
+  receiver signature-permission enforcement.
+- [ ] ADA-P1-SYS-004 / `SYS-004`: strengthen real app-upgrade/package-replaced behavior proof if a
+  non-release install flow can safely simulate it.
+- [ ] ADA-P1-ABOUT-001 / `ABOUT-001`: review license/about copy after the latest license-boundary
+  reports and keep GPL/provenance language honest.
+- [x] ADA-P2-LIST-007 / `LIST-007`: add device/visual proof for loading, empty, error, retry, and
+  no-match custom-rules states.
+- [ ] ADA-P2-PREF-010-NOTIF-003 / `PREF-010`, `NOTIF-003`: design a safer API 33/34 notification
+  permission proof that does not kill instrumentation.
+- [x] ADA-P2-PREF-013 / `PREF-013`: add Android backup-agent restore-side-effect contract for
+  preferences/rules, or document why platform backup remains manual.
+- [ ] ADA-P2-NOTIF-001-002 / `NOTIF-001`, `NOTIF-002`: prove notification channel/update-alert
+  behavior under denied/allowed permission states without relying on flaky permission mutation.
+- [ ] ADA-P2-ADW-003 / `ADW-003`: define signature freshness ownership/cadence or document static
+  confidence limits.
+
+### CTO Subagent Dispatch Results
+- Runtime lead: keep `RUNTIME-009` as a prepared-emulator VPN-consent proof; no production code
+  change recommended unless the focused lifecycle test fails. Add a local `LOG-001` bridge test
+  later for packet-processor-to-log UI proof.
+- System/security lead: safest local order is `PREF-004`, `SYS-004`, `SYS-001`, then the heavier
+  `SYS-003` hostile-sender fixture. Avoid reviving the native root webserver without a separate
+  C/native audit.
+- Preferences/notifications/backup lead: close the backup-agent eligibility contradiction first;
+  leave notification permission mutation open until a safer API 33/34 harness exists.
+- Product UX lead: fix `LIST-007` first because loading resolved to a hidden state, leaving the
+  user-facing list area blank during initial refresh.
+
+### Verified Local Slices
+- `LIST-007`: Added a visible loading spinner/copy, kept retry visible only for load failure, and
+  added connected proof for empty/no-match list states. Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests org.adaway.ui.lists.type.ListsUiStateTest
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsSearchInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 2 connected tests.
+- `PREF-013`: Enabled the declared `AppBackupAgent` by setting `allowBackup=true` and added a
+  source/XML contract for manifest eligibility, constrained backup XML, helper registration, and
+  export/restore ordering. Verification passed:
+  `./gradlew --no-daemon :app:processDebugMainManifest :app:testDebugUnitTest
+  --tests org.adaway.model.backup.AppBackupAgentContractTest --dependency-verification=strict
+  --stacktrace`.
