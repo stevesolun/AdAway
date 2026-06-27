@@ -10978,3 +10978,28 @@
 - Remaining release proof is external: produce a signed direct-release artifact, verify manifest/APK
   hash/signing certificate evidence, run the install/update path on a target device, and feed those
   reports into the release readiness aggregation.
+
+## Plan - 2026-06-28 PREF-004 Dormant Webserver Closure
+- [x] Re-read the current `PREF-004` row, `PrefsRootFragment`, connected test, and webserver
+  hardening contracts.
+- [x] Convert the row from partial to covered for the current product behavior: dormant and
+  unavailable unless a future webserver product/security project reintroduces it.
+- [x] Re-run focused JVM hardening contracts and connected Preferences proof.
+- [x] Re-run tracker guard and hygiene.
+
+## Review - 2026-06-28 PREF-004 Dormant Webserver Closure
+- `PREF-004`: The current app-owned behavior is not a half-enabled webserver; it is an intentionally
+  dormant unavailable feature. `PrefsRootFragment` disables the switch, test row, and icon toggle,
+  forces the toggles off, and avoids launching `https://localhost` while the native executable is
+  absent.
+- The tracker now says `Covered by connected dormant-boundary proof` and keeps the security
+  caveat explicit: re-enabling a native localhost webserver would be a new product/security project,
+  not an open bug in current behavior.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest.atk30_noPackagedWebServerCredentialMaterial --tests
+  org.adaway.security.SecurityHardeningTest.atk30_bootAndRootDoNotStartDormantWebServer
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsRootWebServerUnavailableInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
