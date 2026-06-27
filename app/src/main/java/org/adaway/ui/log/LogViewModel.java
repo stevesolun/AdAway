@@ -48,7 +48,7 @@ public class LogViewModel extends AndroidViewModel {
         this.sort = LogEntrySort.TOP_LEVEL_DOMAIN;
     }
 
-    public boolean areBlockedRequestsIgnored() {
+    public boolean isDnsRequestLoggingUnavailable() {
         return this.adBlockModel.getMethod() == AdBlockMethod.ROOT;
     }
 

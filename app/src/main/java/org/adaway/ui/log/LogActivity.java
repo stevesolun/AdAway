@@ -90,8 +90,8 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
         /*
          * Configure empty view.
          */
-        if (this.mViewModel.areBlockedRequestsIgnored()) {
-            this.binding.emptyTextView.append(getString(R.string.log_blocked_requests_ignored));
+        if (this.mViewModel.isDnsRequestLoggingUnavailable()) {
+            this.binding.emptyTextView.setText(R.string.log_root_recording_unavailable);
         }
         /*
          * Configure recycler view.

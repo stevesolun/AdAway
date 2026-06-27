@@ -10389,3 +10389,29 @@
   `:app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.log.LogRuntimeTruthTest
   --dependency-verification=strict --stacktrace` with `2` tests on `adaway-api34-16g`.
+- Pushed proof commit `dc732e24`; PR #6 CI passed on that head: Analyze (cpp),
+  Analyze (java), CodeQL, Connected Android tests, Development build, and Validate locales.
+
+## Plan - 2026-06-27 Root DNS Log Expectation Copy
+- [x] Re-ground `LOG-004` against disabled root tcpdump capture and the current Log screen copy.
+- [x] Replace generic recording guidance with root-mode unavailable copy when the active blocking
+  method is root.
+- [x] Add a focused connected proof for the root-mode Log empty state.
+- [x] Run compile and connected verification.
+- [x] Update the canonical tracker with evidence.
+
+## Review - 2026-06-27 Root DNS Log Expectation Copy
+- `TcpdumpUtils` keeps root DNS capture hard-disabled (`TCPDUMP_CAPTURE_ENABLED = false`) and
+  `getLogs(...)` returns an empty list in that mode.
+- Renamed the Log view-model helper to `isDnsRequestLoggingUnavailable()` and changed
+  `LogActivity` to set `log_root_recording_unavailable` when the active model is root. VPN mode
+  keeps the existing recording instructions.
+- Added `LogRootExpectationInstrumentedTest`, which launches the real `LogActivity` in root mode
+  and asserts the unavailable DNS logging empty-state copy is visible.
+- Verification passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`;
+  and focused connected
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.log.LogRootExpectationInstrumentedTest
+  --dependency-verification=strict --stacktrace` with `1` test on `adaway-api34-16g`.
