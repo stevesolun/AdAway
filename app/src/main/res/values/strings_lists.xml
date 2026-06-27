@@ -26,6 +26,7 @@
     <string name="list_edit_dialog_white">Edit whitelisted host</string>
     <string name="list_edit_dialog_redirect">Edit redirect</string>
     <string name="checkbox_list_context_move">Move</string>
+    <string name="checkbox_list_override_downloaded_message">This rule comes from a downloaded source. Create a user rule to override it?</string>
     <string name="list_delete_confirm_title">Delete rule?</string>
     <string name="list_delete_confirm_message">Delete "%1$s" from your rules?</string>
     <string name="list_delete_confirm_action">Delete</string>

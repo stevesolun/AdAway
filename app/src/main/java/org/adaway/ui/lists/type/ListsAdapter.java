@@ -89,6 +89,11 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
         if (this.twoRows) {
             holder.redirectionTextView.setText(item.getRedirection());
         }
+        holder.itemView.setOnClickListener(view -> {
+            boolean checked = !holder.enabledCheckBox.isChecked();
+            holder.enabledCheckBox.setChecked(checked);
+            this.viewCallback.onToggleListItem(item, checked);
+        });
         holder.itemView.setOnLongClickListener(view -> this.viewCallback.startAction(item, holder.itemView));
     }
 
@@ -122,6 +127,7 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
             if (this.redirectionTextView != null) {
                 this.redirectionTextView.setText("");
             }
+            this.itemView.setOnClickListener(null);
             this.itemView.setOnLongClickListener(null);
         }
     }

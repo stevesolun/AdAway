@@ -9931,3 +9931,41 @@
 - Advanced `PREF-003` to unit validation coverage in `tasks/user-story-status.tsv`. Rooted hosts
   apply, physical-device smoke, direct-release self-update, and human UX sign-off gates remain
   separate.
+
+## Plan - 2026-06-27 Lists Rule Actions UI Proof
+- [x] Re-ground `LIST-004`, `LIST-005`, and `LIST-006` against the current list fragments,
+  adapter, and ViewModel mutation paths.
+- [x] Fix the ordinary row-click toggle path so non-clickable row switches are still reachable by
+  users.
+- [x] Move the downloaded-rule override prompt copy from hardcoded English into resources.
+- [x] Add focused connected UI proof for user-rule toggle, edit, cancel-delete, confirm-delete, and
+  downloaded-rule override creation.
+- [x] Run focused compile and connected verification on the API 34 emulator.
+
+## Review - 2026-06-27 Lists Rule Actions UI Proof
+- Fixed `ListsAdapter` so tapping a list row toggles the row switch and routes through
+  `AbstractListFragment.onToggleListItem`. Before this fix, the embedded switch was marked
+  non-clickable in XML and the row had only long-click behavior, leaving ordinary toggle behavior
+  unreachable.
+- Replaced the downloaded-rule override dialog's hardcoded English message with
+  `checkbox_list_override_downloaded_message`.
+- Added `ListsRuleActionsInstrumentedTest`. The connected test uses an isolated Room database,
+  opens the real blocked-rules tab, proves user-row disable/enable, edits one user rule through
+  action mode, proves cancel leaves a second user rule intact, proves confirm delete removes it,
+  then proves turning off a downloaded blocked row shows the override prompt, disables the
+  downloaded row, and creates an enabled user `ALLOWED` override.
+- First focused run failed in `ActivityScenario.close()` after assertions completed, so the harness
+  was aligned with existing list tests by finishing activities in teardown. A later focused run
+  showed the downloaded override path passing and the edited-row reuse was split from destructive
+  delete so edit persistence and delete confirmation are proven independently.
+- Compile proof passed:
+  `:app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- Final focused connected proof passed:
+  `:app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsRuleActionsInstrumentedTest
+  --dependency-verification=strict --stacktrace`
+  finished `2` tests on `adaway-api34-16g` with `0` failures.
+- Advanced `LIST-004`, `LIST-005`, and `LIST-006` to connected UI coverage in
+  `tasks/user-story-status.tsv`. External release, rooted-device, physical-device, and human UX
+  sign-off gates remain separate.

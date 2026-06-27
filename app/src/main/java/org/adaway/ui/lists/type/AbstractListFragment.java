@@ -268,8 +268,7 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
                 // User turned it OFF -> Prompt to override (whitelist)
                 new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                         .setTitle(R.string.checkbox_list_context_move)
-                        .setMessage(
-                                "This item is from a downloaded source. Do you want to create a rule to override it?")
+                        .setMessage(R.string.checkbox_list_override_downloaded_message)
                         .setPositiveButton(android.R.string.yes, (dialog, which) -> {
                             mViewModel.moveListItem(item);
                         })
