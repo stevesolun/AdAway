@@ -123,6 +123,26 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void rel004StaysOpenWithFreshUxMatrixPacketEvidence() throws IOException {
+        Row row = rowsById().get("REL-004");
+
+        assertNotNull("REL-004 row should exist.", row);
+        assertEquals("REL-004 should remain a P0 release gate.", "P0", row.priority());
+        assertFalse("REL-004 must not be marked covered until human signoff exists.",
+                isFullyCovered(row));
+        assertTrue("REL-004 should point at the fresh UX matrix evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel004-ux-matrix-packet-evidence.md"));
+        assertTrue("REL-004 should record the fresh packet size and hash.",
+                row.testState().contains("40 screenshots") &&
+                        row.testState().contains(
+                                "a28fa2dc5740c603ae37fc358746a31773cb9d8384927871948de6abf311db19"));
+        assertTrue("REL-004 should keep the human-review boundary explicit.",
+                row.retestStatus().contains("Unchecked items 45") &&
+                        row.retestStatus().contains("human UX signoff"));
+    }
+
+    @Test
     public void runtime010StaysClosedWithFreshFiveMillionScaleEvidence() throws IOException {
         Row row = rowsById().get("RUNTIME-010");
 
@@ -225,9 +245,12 @@ public class UserStoryStatusTrackerTest {
                         "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
         assertTrue(storyId + " should name the verifier contract.",
                 row.status().toLowerCase().contains(verifierMarker));
+        boolean hasScriptRetest = row.retestStatus().contains("ReleaseReadinessScriptTest") &&
+                row.retestStatus().contains("UserStoryStatusTrackerTest");
+        boolean hasUxPacketRetest = row.retestStatus().contains("run-ux-matrix") &&
+                row.retestStatus().contains("verify-ux-signoff");
         assertTrue(storyId + " should record the focused verifier retest.",
-                row.retestStatus().contains("ReleaseReadinessScriptTest") &&
-                        row.retestStatus().contains("UserStoryStatusTrackerTest"));
+                hasScriptRetest || hasUxPacketRetest);
         assertFalse(storyId + " should not regress to vague retest placeholders.",
                 isPlaceholderEvidence(row.retestStatus()));
     }

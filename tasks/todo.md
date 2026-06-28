@@ -31,6 +31,27 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 REL-004 Fresh UX Matrix Packet
+- [x] Re-ground available devices and confirm no physical release device/artifact gate is locally
+  closeable.
+- [x] Start the local `adaway-api34-16g` emulator and run a fresh UX matrix into a dated output
+  directory.
+- [x] Hash/count the generated packet and run signoff preflight to prove the human-review boundary.
+- [x] Update `REL-004` without marking it covered.
+
+## Review - 2026-06-28 REL-004 Fresh UX Matrix Packet
+- `scripts/run-ux-matrix.ps1` passed all five variants on `adaway-api34-16g`: baseline,
+  `font-1.3`, `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`.
+- The run generated `40` screenshots and
+  `app/build/reports/ux-matrix-2026-06-28-rel004/ux-matrix-review.md`.
+- Review packet SHA-256:
+  `a28fa2dc5740c603ae37fc358746a31773cb9d8384927871948de6abf311db19`.
+- `verify-ux-signoff.ps1` preflight failed as expected with `Status: failed`, `Checked items: 0`,
+  `Unchecked items: 45`, and `Review packet still has unchecked items.`
+- Spot-checked worst-case `font-1.6-rtl` Discover/Home/Sources and `font-1.6` More screenshots;
+  no obvious clipping, hidden bottom navigation, or unreachable primary action was found. This is
+  still not human release signoff.
+
 ## Plan - 2026-06-28 Release Gate Handoff Tightening
 - [x] Re-ground PR #7 CI and the remaining open P0 release board after `RUNTIME-009` closed.
 - [x] Inspect release artifact, physical-smoke, UX signoff, and final readiness workflows/scripts.
