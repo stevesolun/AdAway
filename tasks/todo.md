@@ -11507,3 +11507,25 @@
 - `RUNTIME-007` remains a real external gate, but now the ask is precise: provide a rooted physical
   device, Magisk/root-manager emulator, or trusted target where `org.adaway` gets app-granted root,
   then rerun the opt-in smoke.
+
+## Plan - 2026-06-28 Android Release Candidate Scope
+- [x] Decide whether rooted-hosts apply remains blocking for the Android release candidate.
+- [x] Clarify iPhone/iOS support boundary before promising cross-platform installation.
+- [x] Bump the Android app version for owner device testing.
+- [x] Run focused version/release verification and push the release-candidate bump.
+
+## Review - 2026-06-28 Android Release Candidate Scope
+- Product decision: do not block the Android release candidate on `RUNTIME-007` because root usage
+  is a niche path and the remaining blocker is external app-granted root, not an observed Android
+  VPN-mode defect. Keep the opt-in `RootModelApplyInstrumentedTest` ready for any later rooted
+  physical/Magisk target.
+- iPhone/iOS is out of scope for this repository and release. This project builds an Android APK and
+  depends on Android package, VPN service, WorkManager, notification, backup, and root/libsu APIs.
+  An iPhone product would need a separate iOS implementation using Safari content blockers,
+  DNS/VPN-style Network Extension approaches, or another Apple-approved architecture.
+- Bumped the Android fork release-candidate version from `13.5.0`/`130500` to
+  `13.5.1`/`130501` in `gradle/libs.versions.toml` and added a `13.5.1` changelog entry.
+- Verification passed: `git diff --check`, `:app:processDebugMainManifest`,
+  focused `ManifestTest`, `ReleaseReadinessScriptTest`, `UserStoryStatusTrackerTest`,
+  `:app:assembleDebug`, and APK badging showed package `org.adaway`, versionCode `130501`,
+  versionName `13.5.1`.
