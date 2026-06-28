@@ -260,6 +260,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
 
     private static void waitForRecyclerRowText(ActivityScenario<HomeActivity> scenario, int viewId,
             String expectedText) throws Exception {
+        AtomicInteger nextScrollPosition = new AtomicInteger(0);
         waitForCondition("row text " + expectedText, scenario, activity -> {
             RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
             if (recycler == null) {
@@ -272,6 +273,12 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                         && text.getText().toString().contains(expectedText)) {
                     return true;
                 }
+            }
+            RecyclerView.Adapter<?> adapter = recycler.getAdapter();
+            int count = adapter == null ? 0 : adapter.getItemCount();
+            if (count > 0) {
+                int target = nextScrollPosition.getAndUpdate(position -> (position + 1) % count);
+                recycler.scrollToPosition(target);
             }
             return false;
         });

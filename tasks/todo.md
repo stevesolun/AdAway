@@ -11613,6 +11613,11 @@
 - Verification passed with OpenJDK 21 from `/opt/homebrew/opt/openjdk@21`:
   `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
   `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
+- First PR connected run caught one test-helper fragility after the new bulk-action row reduced
+  visible RecyclerView space: `FilterListsVisibleBulkActionsInstrumentedTest` timed out waiting
+  for the unsupported row. The helper now cycles RecyclerView adapter positions while waiting for
+  row text instead of assuming every seeded row is attached in the first viewport; Android test APK
+  compilation passed again with `./gradlew assembleDebugAndroidTest`.
 - A fresh debug APK was copied to
   `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-bulk-actions.apk`
   with SHA-256 `4766e62e3a6ea86ce69d2f5e9dff83a2838a8cfffa2097e3e1faff873411ce9b`.
