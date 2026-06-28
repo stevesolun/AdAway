@@ -11281,3 +11281,28 @@
   AdGuard/browser-syntax Israeli lists are guarded against by catalog tests.
 - Verification for this evidence-only slice passed: `git diff --check` and focused
   `UserStoryStatusTrackerTest` with strict dependency verification.
+
+## Plan - 2026-06-28 REL-004 Current-Head UX Packet Refresh
+- [x] Re-ground PR #7 head and confirm the remaining `REL-004` boundary is human signoff rather
+  than missing local packet generation.
+- [x] Boot `adaway-api34-16g` and run `scripts/run-ux-matrix.ps1` against current head
+  `e762f2b4`.
+- [x] Hash/count the packet, run `verify-ux-signoff.ps1` preflight, and spot-check high-risk
+  large-font/RTL screenshots.
+- [x] Update canonical REL-004 evidence while keeping the release gate open for checked human
+  review.
+
+## Review - 2026-06-28 REL-004 Current-Head UX Packet Refresh
+- `REL-004`: Fresh current-head UX matrix passed all five variants on `adaway-api34-16g`:
+  baseline, `font-1.3`, `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`.
+- Generated `40` screenshots and
+  `app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-matrix-review.md` from source
+  commit `e762f2b4f73bcd1e20342572a2285c23d9c3c52b`.
+- Review packet SHA-256:
+  `0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf`.
+- `verify-ux-signoff.ps1` preflight failed as expected with matching current/review packet source
+  commits, `Status: failed`, `Checked items: 0`, `Unchecked items: 45`, and
+  `Review packet still has unchecked items.`
+- Spot-checked `font-1.6-rtl` Home, Discover, Sources, and `font-1.6` More; no obvious clipping,
+  hidden bottom navigation, or unreachable primary action was found. This remains a non-human
+  sanity check and does not close human UX signoff.

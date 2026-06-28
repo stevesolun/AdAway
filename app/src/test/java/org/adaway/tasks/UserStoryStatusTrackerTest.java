@@ -242,7 +242,9 @@ public class UserStoryStatusTrackerTest {
         assertTrue("REL-004 should record the fresh packet size and hash.",
                 row.testState().contains("40 screenshots") &&
                         row.testState().contains(
-                                "a28fa2dc5740c603ae37fc358746a31773cb9d8384927871948de6abf311db19"));
+                                "e762f2b4f73bcd1e20342572a2285c23d9c3c52b") &&
+                        row.testState().contains(
+                                "0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf"));
         assertTrue("REL-004 should keep the human-review boundary explicit.",
                 row.retestStatus().contains("Unchecked items 45") &&
                         row.retestStatus().contains("human UX signoff"));
