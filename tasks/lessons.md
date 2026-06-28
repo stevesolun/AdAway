@@ -96,3 +96,12 @@
   only the adjacent row-click or dialog path.
 - Keep bulk-safety gates separate from explicit single-item user actions so conservative automation
   does not make intentional controls feel disabled or broken.
+
+## 2026-06-28 - Site Compatibility Without Broad Unblocking
+
+- When a user reports a site breaking under filtering, separate core browsing/media hosts from
+  ad/tracker infrastructure before adding any allowlist rule.
+- Prefer exact-host compatibility entries over wildcard site allowlists; prove that known tracking
+  hosts still block under the same broad suffix-block scenario.
+- For existing-install allowlist backfills, rebuild runtime truth only when new rows were actually
+  inserted so VPN users feel the fix without adding startup churn.

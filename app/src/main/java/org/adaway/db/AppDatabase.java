@@ -26,6 +26,7 @@ import org.adaway.db.entity.RootHostEntry;
 import org.adaway.db.entity.RootHostSkipEntry;
 import org.adaway.db.entity.RootHostStageEntry;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.WaTgSafetyAllowlist;
 import org.adaway.util.AppExecutors;
 
@@ -116,6 +117,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppExecutors.getInstance().diskIO().execute(() -> {
                                 AppDatabase.initialize(context, instance);
                                 WaTgSafetyAllowlist.ensureAllowlistSync(context);
+                                SiteCompatibilityAllowlist.ensureAllowlistSync(context);
                             });
                         }
                     }).addMigrations(

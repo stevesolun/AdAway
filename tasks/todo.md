@@ -11554,3 +11554,34 @@
   `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest`.
 - Focused JVM proof passed:
   `./gradlew testDebugUnitTest --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.model.source.FilterListCompatibilityTest --tests org.adaway.ui.hosts.CategorizedSourcesAdapterTest`.
+
+## Plan - 2026-06-28 Ynet Browsing Compatibility
+- [x] Investigate the reported `ynet.co.il` intermittent connection-lost behavior under AdAway.
+- [x] Determine whether the risk is parser over-flattening, selected-list overblocking, VPN DNS
+  handling, or a missing product allowlist for an essential browsing domain.
+- [x] Add a focused regression proof before/with any behavior change.
+- [x] Preserve ad-blocking value while avoiding full-site breakage.
+- [x] Run focused verification, update canonical evidence, and commit/push only if verified.
+
+## Review - 2026-06-28 Ynet Browsing Compatibility
+- Live `https://www.ynet.co.il/` was externally reachable, so the user-visible intermittent
+  connection-loss report is most consistent with local VPN/filter runtime overblocking rather than
+  a site outage.
+- Regional list inspection found intentional ad/tracker blocks such as `stats.ynet.co.il` and
+  `totalmedia2.ynet.co.il`; the fix therefore adds exact allow entries only for core first-party
+  Ynet browsing/media hosts and intentionally avoids `*.ynet.co.il`, `stats.ynet.co.il`,
+  `p.ynet.co.il`, and `totalmedia2.ynet.co.il`.
+- Existing installs are backfilled at app startup; when new site-compatibility rows are inserted,
+  `SourceModel.syncHostEntries()` rebuilds runtime truth and invalidates the VPN rules cache.
+- Fresh database creation and onboarding default-list subscription seed the same compatibility
+  allowlist together with the existing WhatsApp/Telegram safety allowlist.
+- Added a connected packet regression in `DnsPacketProxyRuntimeTruthTest`: a broad suffix block on
+  `ynet.co.il` must still forward `www.ynet.co.il`, while `stats.ynet.co.il` remains locally
+  blocked. The test compiles locally; execution is pending a working connected device.
+- Verification passed with OpenJDK 21: full `./gradlew testDebugUnitTest`,
+  `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-ynet-compat.apk`.
+- Local connected execution was blocked by environment, not app code: after cold and wiped
+  `adaway-api34-16g` launches, the emulator reached startup logging but never registered in
+  `adb devices`; no emulator process was left running afterward.

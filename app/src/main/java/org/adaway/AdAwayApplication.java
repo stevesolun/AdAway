@@ -10,11 +10,13 @@ import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
+import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.model.vpn.VpnModel;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
+import org.adaway.util.AppExecutors;
 import org.adaway.util.Constants;
 import org.adaway.util.log.ApplicationLog;
 
@@ -56,6 +58,11 @@ public class AdAwayApplication extends Application {
         // Create models
         this.sourceModel = new SourceModel(this);
         this.updateModel = new UpdateModel(this);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            if (SiteCompatibilityAllowlist.ensureAllowlistSync(this)) {
+                this.sourceModel.syncHostEntries();
+            }
+        });
 
         // Default: enable global daily update schedule for all enabled sources
         // (configurable in UI).

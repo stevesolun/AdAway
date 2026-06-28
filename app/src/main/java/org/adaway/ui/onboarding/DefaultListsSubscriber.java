@@ -6,6 +6,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.FilterListCatalog;
+import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.WaTgSafetyAllowlist;
 
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ public final class DefaultListsSubscriber {
         // async task would queue AFTER this method returns, creating a window with no
         // WA/TG protection entries in the allowlist on fresh installs.
         WaTgSafetyAllowlist.ensureAllowlistSync(context);
+        SiteCompatibilityAllowlist.ensureAllowlistSync(context);
         return true;
     }
 }
