@@ -11250,3 +11250,34 @@
   release SBOM SHA-256
   `e99220606350d95ae2be18b1c001a3f327d3b4ef463041e5397347daced92861`,
   847 APK entries, 202 APK resources, 105 SBOM components, Issues 0.
+
+## Plan - 2026-06-28 CTO Expert Swarm Convergence Audit
+- [x] Re-check PR #7 from the pushed head instead of restarting the plan.
+- [x] Split the remaining work into expert lanes: CI/release workflow, release-gate challenger,
+  and product/runtime Hebrew plus large-import audit.
+- [x] Classify every open P0 gate as locally closable, locally strengthenable, or truly
+  external/manual before taking more slices.
+- [x] Accept the CTO board rule: do not spend more local churn on `RUNTIME-007` or `REL-003`
+  without a real writable rooted target, physical device, and release artifact.
+- [x] Wait for the latest PR connected Android test job to finish.
+- [x] Record final CI evidence and commit only if the canonical task files change with verified
+  facts.
+
+## Review - 2026-06-28 CTO Expert Swarm Convergence Audit
+- CI lane: PR #7 head `9d4b9d24` is green. CodeQL, Analyze cpp, Analyze java, Development
+  build, and Connected Android tests passed. GitHub Actions run `28310433209` completed
+  successfully; Development build passed in `6m17s`, Connected Android tests passed in `9m8s`,
+  and the new `Run directRelease packaging dry run` plus strict dry-run artifact-boundary steps
+  passed before the connected suite ran.
+- Release-gate lane: no remaining P0 can be honestly closed by local-only work. `RUNTIME-007`
+  requires a writable rooted `/system/etc/hosts` target; `REL-003` requires a physical release
+  device. `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-004`, and `REL-005` are only
+  locally strengthenable until real signed artifacts, legal/provenance review, human UX signoff,
+  and upstream readiness reports exist.
+- Product/runtime lane: the old large-entry issue was missing `root_host_entries_stage`
+  population on the full parse/import path, forcing slow direct root export. It is already closed
+  by the stage-backed import/export fix and fresh 5M connected benchmark evidence. Hebrew regional
+  coverage is intentionally kept to the valid hosts-compatible EasyList Hebrew feed; stale
+  AdGuard/browser-syntax Israeli lists are guarded against by catalog tests.
+- Verification for this evidence-only slice passed: `git diff --check` and focused
+  `UserStoryStatusTrackerTest` with strict dependency verification.

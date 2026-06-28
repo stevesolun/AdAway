@@ -119,6 +119,17 @@ Android CI now repeats the directRelease dry-run with an ephemeral signing key a
 of pull-request CI while still catching release-only packaging, minification, SBOM, and artifact
 boundary regressions before tag time.
 
+PR #7 CI proof:
+
+```text
+Head commit: 9d4b9d2455c2b7893f3bb55ede4089ab8ecdf02f
+Run: 28310433209
+Development build: passed in 6m17s
+Run directRelease packaging dry run: passed
+Check directRelease dry-run artifact boundary: passed
+Connected Android tests: passed in 9m8s
+```
+
 ## Still Open
 
 - Production signed `directRelease` artifact verification.
