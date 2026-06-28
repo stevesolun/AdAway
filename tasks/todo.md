@@ -31,15 +31,32 @@
 
 # Market-Leading Quality Plan
 
-## Plan - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+## Plan - 2026-06-28 CTO Evidence Guardrail Slice
+- [x] Resolve the REL-001 "current head" wording caught by the release subagent by recording the
+  exact source-baseline commit under test.
+- [x] Add a tracker guardrail proving benchmark evidence paths referenced by the spreadsheet exist.
+- [x] Add a catalog URL validity sweep so future static catalog edits cannot reintroduce malformed
+  or non-HTTPS list URLs.
+
+## Review - 2026-06-28 CTO Evidence Guardrail Slice
+- Corrected REL-001 evidence wording from "current head" to source-baseline commit
+  `72b64e6f4c848a4667adcab115d432e9dad32376`. The final release gate still requires
+  legal/provenance signoff and release artifact APK/SBOM boundary reports from a real release
+  attempt.
+- Added `UserStoryStatusTrackerTest` coverage for repo-relative `tasks/benchmarks/...` evidence
+  paths and the REL-001 exitcode artifacts.
+- Added `FilterListCatalogPresetTest` coverage for parseable HTTPS URLs across the catalog,
+  defaults, balanced preset, and aggressive preset.
+
+## Plan - 2026-06-28 REL-001 Source-Baseline License Boundary Refresh
 - [x] Confirm no signed release APK, SBOM, physical device, or rooted writable target is locally
   available.
 - [x] Re-run GitTracked, WorkingTree, and GitTracked strict source-archive license-boundary reports
-  at the current pushed head.
+  at the source-baseline commit before recording evidence.
 - [x] Record fresh source-side evidence while keeping legal/provenance and artifact APK/SBOM gates
   open.
 
-## Review - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+## Review - 2026-06-28 REL-001 Source-Baseline License Boundary Refresh
 - `scripts/check-license-boundary.ps1 -SourceMode GitTracked` passed with `2474` source entries,
   `Issues: 0`, and source commit `72b64e6f4c848a4667adcab115d432e9dad32376`.
 - `scripts/check-license-boundary.ps1 -SourceMode WorkingTree` passed with `2170` source entries
@@ -48,7 +65,7 @@
   `2474` source entries, `2180` source archive entries, and `Issues: 0`.
 - All reports still say `MIT release status: blocked until GPL-derived material is cleared` and
   have `APK: not-provided`, `SBOM: not-provided`, and `Strict artifacts: false`.
-- `REL-001` remains partial: current-head source checks are fresh, but legal/provenance signoff and
+- `REL-001` remains partial: source-baseline checks are fresh, but legal/provenance signoff and
   release artifact APK/SBOM boundary checks still require external inputs.
 
 ## Plan - 2026-06-28 REL-004 Fresh UX Matrix Packet

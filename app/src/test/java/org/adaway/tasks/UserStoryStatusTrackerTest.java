@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
@@ -39,6 +40,8 @@ public class UserStoryStatusTrackerTest {
             "retest_status"
     );
     private static final Pattern STORY_ID = Pattern.compile("[A-Z]+-[0-9]{3}");
+    private static final Pattern BENCHMARK_EVIDENCE_PATH =
+            Pattern.compile("tasks/benchmarks/[A-Za-z0-9._/-]+");
     private static final Set<String> VALID_PRIORITIES = Set.of("P0", "P1", "P2");
 
     @Test
@@ -112,6 +115,21 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void trackerBenchmarkEvidencePathsExist() throws IOException {
+        Path repo = repoDir();
+
+        for (Row row : readRows()) {
+            Matcher matcher = BENCHMARK_EVIDENCE_PATH.matcher(row.allEvidence());
+            while (matcher.find()) {
+                String relativePath = trimTrailingPunctuation(matcher.group());
+                assertTrue("Tracker evidence path should exist for " + row.storyId() +
+                                ": " + relativePath,
+                        Files.exists(repo.resolve(relativePath)));
+            }
+        }
+    }
+
+    @Test
     public void rel001StaysOpenWithFreshSourceBoundaryReports() throws IOException {
         Row row = rowsById().get("REL-001");
 
@@ -121,11 +139,19 @@ public class UserStoryStatusTrackerTest {
                 isFullyCovered(row));
         assertTrue("REL-001 should point at the fresh source-boundary evidence.",
                 row.allEvidence().contains(
-                        "tasks/benchmarks/2026-06-28-rel001-license-boundary-current-head-evidence.md"));
-        assertTrue("REL-001 should record current-head source report counts.",
-                row.testState().contains("2474 tracked entries") &&
+                        "tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
+                                "source-baseline-evidence.md"));
+        assertTrue("REL-001 should record source-baseline report counts.",
+                row.testState().contains("source-baseline") &&
+                        row.testState().contains("2474 tracked entries") &&
                         row.testState().contains("2170 working-tree entries") &&
                         row.testState().contains("2180 strict archive entries"));
+        assertExitCode(
+                "tasks/benchmarks/2026-06-28-rel001-license-boundary-gittracked.exitcode");
+        assertExitCode(
+                "tasks/benchmarks/2026-06-28-rel001-license-boundary-workingtree.exitcode");
+        assertExitCode("tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
+                "gittracked-strict-source-archive.exitcode");
         assertTrue("REL-001 should keep MIT and artifact/legal boundaries open.",
                 row.riskNotes().contains("MIT remains blocked") &&
                         row.riskNotes().contains("APK/SBOM") &&
@@ -320,6 +346,25 @@ public class UserStoryStatusTrackerTest {
                 lower.equals("not started") ||
                 lower.startsWith("needs ") ||
                 lower.contains("none found");
+    }
+
+    private static String trimTrailingPunctuation(String value) {
+        String trimmed = value;
+        while (trimmed.endsWith(".") || trimmed.endsWith(",") || trimmed.endsWith(";") ||
+                trimmed.endsWith(":") || trimmed.endsWith(")") || trimmed.endsWith("`")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private static void assertExitCode(String relativePath) throws IOException {
+        Path path = repoDir().resolve(relativePath);
+
+        assertTrue("Exitcode artifact should exist: " + relativePath,
+                Files.isRegularFile(path));
+        String value = new String(Files.readAllBytes(path), StandardCharsets.UTF_8).trim();
+        assertEquals("Exitcode artifact should record success: " + relativePath,
+                "0", value);
     }
 
     private static void assertRequired(Row row, String fieldName, String value) {

@@ -1,10 +1,13 @@
 package org.adaway.model.source;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 
 public class FilterListCatalogPresetTest {
@@ -111,6 +114,37 @@ public class FilterListCatalogPresetTest {
                 containsUrl(all, HEBREW_BROWSER_URL));
         assertFalse("Removed AdGuard Israeli URL should stay absent",
                 containsUrl(all, ADGUARD_ISRAELI_URL));
+    }
+
+    @Test
+    public void catalogAndPresetUrlsAreParseableHttpsSources() {
+        assertValidSourceUrls("catalog", FilterListCatalog.getAll());
+        assertValidSourceUrls("defaults", FilterListCatalog.getDefaults());
+        assertValidSourceUrls("balanced preset", FilterListCatalog.getBalancedPreset());
+        assertValidSourceUrls("aggressive preset", FilterListCatalog.getAggressivePreset());
+    }
+
+    private static void assertValidSourceUrls(String source,
+            List<FilterListCatalog.CatalogEntry> entries) {
+        for (FilterListCatalog.CatalogEntry entry : entries) {
+            URI uri = parseUri(source, entry);
+
+            assertEquals(source + " entry should use HTTPS: " + entry.label,
+                    "https", uri.getScheme());
+            assertFalse(source + " entry should include a host: " + entry.label,
+                    uri.getHost() == null || uri.getHost().isEmpty());
+            assertFalse(source + " entry should not contain spaces: " + entry.label,
+                    entry.url.contains(" "));
+        }
+    }
+
+    private static URI parseUri(String source, FilterListCatalog.CatalogEntry entry) {
+        try {
+            return new URI(entry.url);
+        } catch (URISyntaxException exception) {
+            throw new AssertionError(source + " entry has invalid URL syntax: " +
+                    entry.label + " -> " + entry.url, exception);
+        }
     }
 
     private static boolean containsLabel(List<FilterListCatalog.CatalogEntry> entries,
