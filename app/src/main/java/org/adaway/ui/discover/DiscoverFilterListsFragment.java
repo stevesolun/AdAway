@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -87,6 +88,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     private final Map<Integer, String> resolvedUrlCache = new HashMap<>();
     private final Map<Integer, String> existingFilterListUrlsById = new HashMap<>();
     private final Set<String> existingUrls = new HashSet<>();
+    private final Set<Integer> selectedListIds = new HashSet<>();
     private HostsSourceDao hostsSourceDao;
 
     // Tag/language/compat filter state
@@ -514,6 +516,7 @@ public class DiscoverFilterListsFragment extends Fragment {
             if (mCompatibleOnly && !isAdAwayCompatible(s.syntaxIds)) continue;
             nextFiltered.add(s);
         }
+        pruneSelectedListIdsToVisible(nextFiltered);
         updateFilteredRows(nextFiltered);
         refreshBulkActionsState();
         updateFilterListsState();
@@ -571,6 +574,27 @@ public class DiscoverFilterListsFragment extends Fragment {
         if (adapter != null) {
             diff.dispatchUpdatesTo(adapter);
         }
+    }
+
+    private void pruneSelectedListIdsToVisible(
+            @NonNull List<FilterListsDirectoryApi.ListSummary> visibleRows) {
+        Set<Integer> visibleIds = new HashSet<>();
+        for (FilterListsDirectoryApi.ListSummary summary : visibleRows) {
+            visibleIds.add(summary.id);
+        }
+        selectedListIds.retainAll(visibleIds);
+    }
+
+    private void setFilterListSelected(
+            @NonNull FilterListsDirectoryApi.ListSummary summary,
+            boolean selected) {
+        if (selected) {
+            selectedListIds.add(summary.id);
+        } else {
+            selectedListIds.remove(summary.id);
+        }
+        refreshBulkActionsState();
+        notifyFilterListRowChanged(summary.id);
     }
 
     private void notifyFilterListRowsChanged() {
@@ -863,7 +887,12 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void confirmSubscribeAll(boolean allDirectory) {
         if (binding == null) return;
-        List<FilterListsDirectoryApi.ListSummary> scope = allDirectory ? all : filtered;
+        List<FilterListsDirectoryApi.ListSummary> scope =
+                allDirectory ? all : getSelectedSummariesForBulkScope();
+        if (!allDirectory && scope.isEmpty()) {
+            showSnackbar(getString(R.string.filterlists_no_selected_lists));
+            return;
+        }
         int safeCount = countCompatible(scope);
         if (safeCount == 0) {
             showSnackbar(getString(R.string.filterlists_no_dns_safe_lists_in_scope));
@@ -884,6 +913,11 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void subscribeAll(boolean allDirectory) {
         if (binding == null) return;
+        int[] selectedIds = allDirectory ? null : getSelectedIdsForBulkScope();
+        if (!allDirectory && selectedIds.length == 0) {
+            showSnackbar(getString(R.string.filterlists_no_selected_lists));
+            return;
+        }
         Context appContext = requireContext().getApplicationContext();
         FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
         binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
@@ -911,7 +945,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                 allDirectory ? 0 : selectedTagId,
                 allDirectory ? 0 : selectedLanguageId,
                 !allDirectory && mCompatibleOnly,
-                allDirectory ? null : getFilteredIdsForBulkScope());
+                selectedIds);
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
@@ -923,6 +957,10 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void confirmUnsubscribeAll(boolean allDirectory) {
         if (binding == null) return;
+        if (!allDirectory && getSelectedSummariesForBulkScope().isEmpty()) {
+            showSnackbar(getString(R.string.filterlists_no_selected_lists));
+            return;
+        }
         int titleId = !allDirectory
                 ? R.string.filterlists_confirm_unsubscribe_filtered_title
                 : R.string.filterlists_confirm_unsubscribe_all_title;
@@ -987,7 +1025,13 @@ public class DiscoverFilterListsFragment extends Fragment {
         refreshBulkActionsState();
         final Context appContext = requireContext().getApplicationContext();
         final List<FilterListsDirectoryApi.ListSummary> listSnapshot =
-                allDirectory ? new ArrayList<>() : new ArrayList<>(filtered);
+                allDirectory ? new ArrayList<>() : getSelectedSummariesForBulkScope();
+        if (!allDirectory && listSnapshot.isEmpty()) {
+            bulkOperationRunning = false;
+            refreshBulkActionsState();
+            showSnackbar(getString(R.string.filterlists_no_selected_lists));
+            return;
+        }
         final Map<Integer, String> urlSnapshot;
         synchronized (resolvedUrlCache) {
             urlSnapshot = new HashMap<>(resolvedUrlCache);
@@ -1061,25 +1105,35 @@ public class DiscoverFilterListsFragment extends Fragment {
         showSnackbar(getString(R.string.filterlists_subscribe_all_stopping));
     }
 
-    @Nullable
-    private int[] getFilteredIdsForBulkScope() {
-        if (!hasActiveFilters()) {
-            return null;
+    @NonNull
+    private List<FilterListsDirectoryApi.ListSummary> getSelectedSummariesForBulkScope() {
+        List<FilterListsDirectoryApi.ListSummary> selected = new ArrayList<>();
+        for (FilterListsDirectoryApi.ListSummary summary : filtered) {
+            if (selectedListIds.contains(summary.id)) {
+                selected.add(summary);
+            }
         }
-        int[] ids = new int[filtered.size()];
-        for (int i = 0; i < filtered.size(); i++) {
-            ids[i] = filtered.get(i).id;
+        return selected;
+    }
+
+    @NonNull
+    private int[] getSelectedIdsForBulkScope() {
+        List<FilterListsDirectoryApi.ListSummary> selected = getSelectedSummariesForBulkScope();
+        int[] ids = new int[selected.size()];
+        for (int i = 0; i < selected.size(); i++) {
+            ids[i] = selected.get(i).id;
         }
         return ids;
     }
 
     private void refreshBulkActionsState() {
         if (binding == null) return;
+        List<FilterListsDirectoryApi.ListSummary> selected = getSelectedSummariesForBulkScope();
         int selectedState = FilterListsSubscriptionState.resolve(
-                filtered, this::getCachedUrlForId, existingUrls);
+                selected, this::getCachedUrlForId, existingUrls);
         int allState = FilterListsSubscriptionState.resolve(
                 all, this::getCachedUrlForId, existingUrls);
-        int compatibleSelected = countCompatible(filtered);
+        int compatibleSelected = countCompatible(selected);
         int compatibleAll = countCompatible(all);
         boolean busy = directoryLoading || bulkOperationRunning;
         binding.filterlistsBulkActionsRow.setVisibility(
@@ -1088,9 +1142,11 @@ public class DiscoverFilterListsFragment extends Fragment {
         binding.filterlistsSelectedActionsRow.setVisibility(
                 filtered.isEmpty() && !bulkOperationRunning ? View.GONE : View.VISIBLE);
         binding.filterlistsSubscribeVisibleButton.setEnabled(
-                !busy && compatibleSelected > 0 && selectedState != FilterListsSubscriptionState.ALL);
+                !busy && !selected.isEmpty() && compatibleSelected > 0
+                        && selectedState != FilterListsSubscriptionState.ALL);
         binding.filterlistsRemoveVisibleButton.setEnabled(
-                !busy && selectedState != FilterListsSubscriptionState.NONE);
+                !busy && !selected.isEmpty()
+                        && selectedState != FilterListsSubscriptionState.NONE);
         binding.filterlistsSubscribeAllButton.setEnabled(
                 !busy && compatibleAll > 0 && allState != FilterListsSubscriptionState.ALL);
         binding.filterlistsRemoveAllButton.setEnabled(
@@ -1467,6 +1523,15 @@ public class DiscoverFilterListsFragment extends Fragment {
             boolean isSubscribed = cachedUrl != null && existingUrls.contains(cachedUrl);
             boolean compatible = isAdAwayCompatible(s.syntaxIds);
             String capabilitySummary = FilterListCompatibility.capabilitySummary(s.syntaxIds);
+            boolean isSelected = selectedListIds.contains(s.id);
+
+            holder.selectionCheckBox.setOnCheckedChangeListener(null);
+            holder.selectionCheckBox.setEnabled(!bulkOperationRunning);
+            holder.selectionCheckBox.setChecked(isSelected);
+            holder.selectionCheckBox.setContentDescription(
+                    getString(R.string.filterlists_source_select_description, s.name));
+            holder.selectionCheckBox.setOnCheckedChangeListener(
+                    (buttonView, checked) -> setFilterListSelected(s, checked));
 
             holder.switchView.setOnCheckedChangeListener(null);
             holder.switchView.setEnabled(true);
@@ -1526,6 +1591,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     }
 
     static class RowVH extends RecyclerView.ViewHolder {
+        final MaterialCheckBox selectionCheckBox;
         final MaterialSwitch switchView;
         final TextView name;
         final TextView syntax;
@@ -1534,6 +1600,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
         RowVH(@NonNull View itemView) {
             super(itemView);
+            selectionCheckBox = itemView.findViewById(R.id.filterlistsItemSelectionCheckBox);
             switchView = itemView.findViewById(R.id.filterlistsItemSwitch);
             name = itemView.findViewById(R.id.filterlistsItemName);
             syntax = itemView.findViewById(R.id.filterlistsItemSyntax);

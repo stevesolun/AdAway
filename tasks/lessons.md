@@ -105,3 +105,12 @@
   hosts still block under the same broad suffix-block scenario.
 - For existing-install allowlist backfills, rebuild runtime truth only when new rows were actually
   inserted so VPN users feel the fix without adding startup churn.
+
+## 2026-06-28 - Selected Means Checked
+
+- In product UI, labels like `Subscribe selected` must be backed by explicit row selection controls,
+  not by an inferred filtered or visible scope.
+- Keep selection controls separate from mutation controls; checking rows should prepare a bulk
+  command, while subscribe/unsubscribe still requires an explicit command and confirmation.
+- When filters can hide rows, prune or clearly surface hidden selections before destructive bulk
+  actions so the user never mutates invisible state by surprise.

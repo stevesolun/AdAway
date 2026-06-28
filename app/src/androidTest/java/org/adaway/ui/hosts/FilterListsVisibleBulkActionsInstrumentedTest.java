@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -109,11 +110,16 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             setSearchQuery(scenario, SEARCH_QUERY);
             waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_SAFE_NAME);
             waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_UNSUPPORTED_NAME);
-            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
+            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
+            clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
+                    R.id.filterlistsItemSelectionCheckBox);
+            clickRowChildForText(scenario, VISIBLE_UNSUPPORTED_NAME,
+                    R.id.filterlistsItemSelectionCheckBox);
+            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
 
             clickButton(scenario, R.id.filterlistsSubscribeVisibleButton);
-            waitForAccessibilityText("AdAway will add 1 DNS-safe lists from the current view");
+            waitForAccessibilityText("AdAway will add 1 DNS-safe selected lists");
             clickExactAccessibilityText("Subscribe");
 
             HostsSource subscribed = waitForSource(VISIBLE_SAFE_URL, true)
@@ -136,7 +142,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                     .isPresent());
 
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
-            waitForAccessibilityText("This removes FilterLists.com sources that match the current view");
+            waitForAccessibilityText("This removes selected FilterLists.com sources");
             clickExactAccessibilityText("Unsubscribe selected");
 
             waitForSource(VISIBLE_SAFE_URL, false);
@@ -273,6 +279,42 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                         && text.getText().toString().contains(expectedText)) {
                     return true;
                 }
+            }
+            RecyclerView.Adapter<?> adapter = recycler.getAdapter();
+            int count = adapter == null ? 0 : adapter.getItemCount();
+            if (count > 0) {
+                int target = nextScrollPosition.getAndUpdate(position -> (position + 1) % count);
+                recycler.scrollToPosition(target);
+            }
+            return false;
+        });
+    }
+
+    private static void clickRowChildForText(ActivityScenario<HomeActivity> scenario, String rowText,
+            int childId) throws Exception {
+        AtomicInteger nextScrollPosition = new AtomicInteger(0);
+        waitForCondition("click row child " + childId + " for " + rowText, scenario, activity -> {
+            RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+            if (recycler == null) {
+                return false;
+            }
+            for (int i = 0; i < recycler.getChildCount(); i++) {
+                View child = recycler.getChildAt(i);
+                TextView text = child.findViewById(R.id.filterlistsItemName);
+                if (text == null || text.getText() == null
+                        || !text.getText().toString().contains(rowText)) {
+                    continue;
+                }
+                View target = child.findViewById(childId);
+                if (target instanceof CompoundButton) {
+                    CompoundButton button = (CompoundButton) target;
+                    if (!button.isEnabled()) {
+                        return false;
+                    }
+                    button.setChecked(!button.isChecked());
+                    return true;
+                }
+                return target != null && target.performClick();
             }
             RecyclerView.Adapter<?> adapter = recycler.getAdapter();
             int count = adapter == null ? 0 : adapter.getItemCount();

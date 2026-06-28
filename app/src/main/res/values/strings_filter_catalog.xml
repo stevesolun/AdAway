@@ -93,13 +93,13 @@
     <string name="filterlists_stop_subscribing">Stop subscribing to FilterLists sources</string>
     <string name="filterlists_confirm_subscribe_all_title">Subscribe DNS-safe lists?</string>
     <string name="filterlists_confirm_subscribe_all_message">AdAway will add %1$d DNS-safe lists from the directory and skip unsupported browser-rule lists.</string>
-    <string name="filterlists_confirm_subscribe_filtered_message">AdAway will add %1$d DNS-safe lists from the current view and skip unsupported browser-rule lists.</string>
+    <string name="filterlists_confirm_subscribe_filtered_message">AdAway will add %1$d DNS-safe selected lists and skip unsupported browser-rule lists.</string>
     <string name="filterlists_confirm_subscribe_all_action">Subscribe</string>
     <string name="filterlists_confirm_unsubscribe_all_title">Remove all FilterLists sources?</string>
     <string name="filterlists_confirm_unsubscribe_all_message">This removes every source imported from FilterLists.com. Existing protection changes after the next update.</string>
     <string name="filterlists_confirm_unsubscribe_all_action">Remove all</string>
     <string name="filterlists_confirm_unsubscribe_filtered_title">Unsubscribe selected FilterLists sources?</string>
-    <string name="filterlists_confirm_unsubscribe_filtered_message">This removes FilterLists.com sources that match the current view. Existing protection changes after the next update.</string>
+    <string name="filterlists_confirm_unsubscribe_filtered_message">This removes selected FilterLists.com sources. Existing protection changes after the next update.</string>
     <string name="filterlists_confirm_unsubscribe_filtered_action">Unsubscribe selected</string>
     <string name="filterlists_subscribe_all_cancelled">FilterLists subscription cancelled</string>
     <string name="filterlists_subscribe_all_stopping">Stopping FilterLists subscription…</string>
@@ -129,6 +129,7 @@
     <string name="filterlists_unsubscribe_done">Unsubscribed</string>
     <string name="filterlists_not_subscribed">Not subscribed</string>
     <string name="filterlists_source_toggle_description">Toggle %1$s FilterLists source</string>
+    <string name="filterlists_source_select_description">Select %1$s for bulk actions</string>
     <string name="filterlists_source_row_description">%1$s. %2$s.</string>
     <string name="filterlists_compatible_only">DNS-safe only</string>
     <string name="filterlists_compatible_only_summary">Hosts and domain lists only</string>
@@ -137,6 +138,7 @@
     <string name="filterlists_language_all">All languages</string>
     <string name="filterlists_language_filter_description">Filter by language</string>
     <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in this scope</string>
+    <string name="filterlists_no_selected_lists">Select one or more FilterLists first</string>
     <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
     <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>
     <string name="filterlists_resolve_url_failed">Failed to resolve list URL</string>

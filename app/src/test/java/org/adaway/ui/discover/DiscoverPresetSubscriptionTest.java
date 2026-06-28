@@ -353,6 +353,8 @@ public class DiscoverPresetSubscriptionTest {
                 "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
         String layout = readRepoFile(
                 "app/src/main/res/layout/fragment_discover_filterlists.xml");
+        String rowLayout = readRepoFile(
+                "app/src/main/res/layout/filterlists_import_item.xml");
         String strings = readRepoFile("app/src/main/res/values/strings_filter_catalog.xml");
 
         assertTrue("Selected-scope bulk actions must be grouped together.",
@@ -374,6 +376,10 @@ public class DiscoverPresetSubscriptionTest {
                         && strings.contains("Unsubscribe selected")
                         && strings.contains("Subscribe all")
                         && strings.contains("Unsubscribe all"));
+        assertTrue("Selected bulk actions must be backed by row checkboxes.",
+                rowLayout.contains("filterlistsItemSelectionCheckBox")
+                        && source.contains("selectedListIds")
+                        && source.contains("setFilterListSelected(s, checked)"));
         assertFalse("Bulk add/remove must not be represented as one destructive switch.",
                 layout.contains("filterlistsSubscribeAllSwitch"));
         assertTrue("Selected add button must call selected subscribe confirmation.",
@@ -388,9 +394,10 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("All remove button must call all-directory remove confirmation.",
                 source.contains("filterlistsRemoveAllButton.setOnClickListener")
                         && source.contains("confirmUnsubscribeAll(true)"));
-        assertTrue("Selected bulk command enablement must still use filtered subscription state.",
+        assertTrue("Selected bulk command enablement must use checked row state.",
                 source.contains("int selectedState = FilterListsSubscriptionState.resolve(")
-                        && source.contains("filtered, this::getCachedUrlForId, existingUrls)"));
+                        && source.contains("getSelectedSummariesForBulkScope()")
+                        && source.contains("getSelectedIdsForBulkScope()"));
         assertTrue("Bulk actions must hide when the directory has no rows to act on.",
                 source.contains("filterlistsBulkActionsRow.setVisibility") &&
                         source.contains("all.isEmpty() && filtered.isEmpty()"));
@@ -464,25 +471,26 @@ public class DiscoverPresetSubscriptionTest {
 
         assertTrue("Bulk subscribe worker must receive an explicit scope.",
                 source.contains("FilterListsSubscribeAllWorker.buildScopeInput("));
-        assertTrue("Selected subscribe must pass exact visible list ids when filters are active.",
-                source.contains("allDirectory ? null : getFilteredIdsForBulkScope()"));
+        assertTrue("Selected subscribe must pass exact checked row ids.",
+                source.contains("int[] selectedIds = allDirectory ? null : getSelectedIdsForBulkScope()")
+                        && source.contains("selectedIds);"));
         assertTrue("All-directory subscribe must clear text, tag, language, and id filters.",
                 source.contains("allDirectory ? null : getCurrentSearchQuery()")
                         && source.contains("allDirectory ? 0 : selectedTagId")
                         && source.contains("allDirectory ? 0 : selectedLanguageId")
                         && source.contains("!allDirectory && mCompatibleOnly"));
         assertTrue("Subscribe confirmation must count the selected scope for that command.",
-                source.contains("List<FilterListsDirectoryApi.ListSummary> scope = "
-                        + "allDirectory ? all : filtered")
+                source.contains("List<FilterListsDirectoryApi.ListSummary> scope ="
+                        + "\n                allDirectory ? all : getSelectedSummariesForBulkScope()")
                         && source.contains("int safeCount = countCompatible(scope)"));
-        assertTrue("Selected bulk action state must resolve against filtered rows.",
+        assertTrue("Selected bulk action state must resolve against checked rows.",
                 source.contains("int selectedState = FilterListsSubscriptionState.resolve(")
-                        && source.contains("filtered, this::getCachedUrlForId, existingUrls)"));
+                        && source.contains("selected, this::getCachedUrlForId, existingUrls)"));
         assertTrue("All-directory bulk action state must resolve against all loaded rows.",
                 source.contains("FilterListsSubscriptionState.resolve(" + "\n"
                         + "                all, this::getCachedUrlForId, existingUrls)"));
-        assertTrue("Selected unsubscribe must remove sources from the visible scope.",
-                source.contains("allDirectory ? new ArrayList<>() : new ArrayList<>(filtered)"));
+        assertTrue("Selected unsubscribe must remove sources from the checked-row scope.",
+                source.contains("allDirectory ? new ArrayList<>() : getSelectedSummariesForBulkScope()"));
         assertTrue("All unsubscribe must remove every stored FilterLists-derived source.",
                 source.contains("for (HostsSource source : hostsSourceDao.getAll())")
                         && source.contains("isFilterListsSource(source)"));

@@ -11621,3 +11621,34 @@
 - A fresh debug APK was copied to
   `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-bulk-actions.apk`
   with SHA-256 `4766e62e3a6ea86ce69d2f5e9dff83a2838a8cfffa2097e3e1faff873411ce9b`.
+
+## Plan - 2026-06-28 FilterLists Checked Selection
+- [x] Replace the ambiguous selected/current-view behavior with explicit row checkboxes.
+- [x] Keep the existing one-row subscription switch separate from bulk row selection.
+- [x] Route Subscribe selected and Unsubscribe selected through checked FilterLists IDs only.
+- [x] Update source-contract and connected UI proof to require row selection before bulk actions.
+- [x] Run focused JVM/APK verification, update canonical evidence, and push only if verified.
+
+## Review - 2026-06-28 FilterLists Checked Selection
+- User clarified that `Subscribe selected` should mean a visible tick/checkbox selection, not the
+  currently filtered view. The previous scope split was functionally safe but product-ambiguous.
+- `filterlists_import_item.xml` now includes `filterlistsItemSelectionCheckBox`; this checkbox
+  controls bulk selection only. The existing row switch still controls the individual
+  subscribe/unsubscribe path.
+- `DiscoverFilterListsFragment` tracks checked IDs in `selectedListIds`, prunes hidden selections
+  when search/tag/language/DNS-safe filters change, and enables selected bulk commands only when
+  rows are checked.
+- Selected subscribe now passes exact checked IDs into `FilterListsSubscribeAllWorker`; selected
+  unsubscribe resolves only checked-row FilterLists source URLs. All-directory commands remain
+  separate and explicit.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- First focused connected attempt exposed a test-helper issue: `performClick()` on the checkbox
+  did not report success from the helper. The helper now toggles `CompoundButton` state directly
+  on the UI thread, which fires the real row-selection listener; the rerun passed.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-checkbox-selection.apk`
+  with SHA-256 `35689a24ce47ad41c1889b5cb0a0661003c27b9dacac3d6da4e4d94016e6b6a5`.
