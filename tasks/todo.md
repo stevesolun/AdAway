@@ -31,6 +31,37 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 CTO Convergence Todo Reconciliation
+- [x] Re-ground PR #7 head, CI, clean worktree state, and canonical tracker rows.
+- [x] Dispatch independent expert lanes for stale todo reconciliation, tracker/open-gate audit, and
+  CI/release evidence audit.
+- [x] Reconcile stale historical unchecked checklist items only where later benchmark, connected-test,
+  or PR evidence supersedes them.
+- [x] Keep the true external P0 release board open and avoid marking the overall goal complete.
+- [x] Rerun the focused tracker/release guard tests and hygiene after this docs cleanup.
+
+## Review - 2026-06-28 CTO Convergence Todo Reconciliation
+- Native tmux/OMX team orchestration was unavailable in this shell (`tmux` missing, no active
+  `$TMUX`, and no `omx` command), so the CTO split used Codex native expert subagents plus local
+  parallel audits.
+- Tracker expert: `tasks/user-story-status.tsv` has `98` stories and exactly `8` partial rows:
+  `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`, `REL-004`, and
+  `REL-005`. All eight need external hardware, signed/tagged artifacts, legal/provenance review,
+  physical-device smoke, human UX signoff, or final release workflow inputs.
+- Todo reconciliation expert: old June 13 root-export/materialization checklist items are
+  superseded by the stage-backed import/export work and fresh `RUNTIME-010` 5M full
+  parse/import/sync/root-write proof; old connected-test and PR-push checklist items are
+  superseded by later full connected suite and PR CI evidence.
+- CI/release expert: PR #7 head `6239897c9b369141fe29b36a968ad82beb129e8a` is green for
+  Development build, Connected Android tests, Analyze cpp, Analyze java, and CodeQL. No local
+  code-level release gate remains actionable.
+- Historical `REL-004`/`REL-005` notes that cite the earlier `e762f2b4` packet are archival only;
+  the current canonical source-under-test packet is `1a25953d` with review packet SHA-256
+  `d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4`.
+- Focused guard suite passed with explicit OpenJDK 21 `JAVA_HOME`:
+  `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`; tests were
+  `ReleaseReadinessScriptTest`, `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
 ## Plan - 2026-06-28 REL-004/REL-005 Source-Under-Test Refresh
 - [x] Confirm PR #7 is green and the only remaining partial tracker rows are external P0 gates.
 - [x] Restart the API 34 emulator and regenerate the UX matrix packet against source commit
@@ -302,7 +333,8 @@
 - [x] Add schema/migration support for append-style `root_host_entries` writes and preserve root
   cursor/list correctness.
 - [x] Run compile, focused connected DB/migration tests, 100k, 600k, and 1M allow-heavy benchmarks.
-- [ ] Replace the remaining 1M/5M bulk root-export insert bottleneck with a deeper architecture.
+- [x] Superseded by the stage-backed import/export architecture and fresh `RUNTIME-010` 5M full
+  parse/import/sync/root-write proof.
 
 ## Review - 2026-06-13 Goal Continuation 59
 - Answered the delay question with evidence: the long wall time is the Android emulator seeding and
@@ -364,7 +396,7 @@
 - [x] Add the next measured root-export optimization slice using persisted reversed labels on
   `root_host_entries`.
 - [x] Run focused correctness tests and current-code 100k benchmark evidence.
-- [ ] Prove or replace the large-skip root-export path at 1M scale.
+- [x] Superseded by the final stage-seeded 1M root-export benchmark evidence.
 - [x] Consume all returned expert-agent findings without closing unfinished agents.
 - [x] Update this task log with evidence and remaining market-leading gaps.
 
@@ -443,7 +475,8 @@
   skips `host_entries`.
 - [x] Update 1M allow-heavy benchmark expectations so root cursor/apply is measured on the large
   cache-skip path.
-- [ ] Run focused compile, connected DB/migration tests, 100k/1M benchmark evidence, and hygiene.
+- [x] Superseded by later focused verification, connected DB/migration coverage, and final 1M
+  benchmark evidence.
 
 ## Review - 2026-06-13 Goal Continuation 56
 - Added connected coverage proving a valid empty `root_host_entries` export stays materialized and
@@ -1045,7 +1078,7 @@
 - [x] Verify JDK 21, Android SDK, and NDK 27.2.12479018.
 - [x] Run targeted JVM regression tests for changed code.
 - [x] Compile Android instrumentation tests for changed DB tests.
-- [ ] Run connected instrumentation tests on a device or emulator.
+- [x] Superseded by later full connected instrumentation suites and PR CI connected-test evidence.
 - [x] Run full unit/build/lint gates once the Android SDK environment is available.
 - [x] Run repo-level Gradle test task.
 
@@ -2870,8 +2903,8 @@
 - [x] Keep the useful measurement and storage changes: seed-phase benchmark logging, v25
   `root_host_entries` `WITHOUT ROWID`, and production/test database storage alignment.
 - [x] Re-run compile and focused connected correctness gates after the rollback.
-- [ ] Implement the next algorithmic root-export change that avoids inserting about 1M rows into
-  SQLite during update sync.
+- [x] Superseded by the later stage-backed root export during source import, which avoids the old
+  direct 1M root-row copy path.
 
 ## Review - 2026-06-13 Goal Continuation 58
 - The 1M threshold experiment finished after about 15 minutes and failed as expected. Final metric:
@@ -3050,7 +3083,8 @@
   kind/host runtime-import index.
 - [x] Regenerate the Room schema after the revert.
 - [x] Re-run focused compile and connected DB/migration guards.
-- [ ] Replace eager 5M `host_entries` materialization with a deeper runtime-truth/read-path design.
+- [x] Superseded by the active-truth runtime path, bounded cache refresh, and stage-backed root
+  export proof at 5M scale.
 
 ## Review - 2026-06-13 Goal Continuation 46
 - Ran the requested 5M benchmark to completion after the user explicitly asked not to close long
@@ -3088,7 +3122,7 @@
 - [x] Add migration and query-plan tests for the physical runtime-table/index changes.
 - [x] Run focused compile, unit, connected DB, and migration verification.
 - [x] Benchmark the 1M and 5M runtime-sync paths after each meaningful SQLite change.
-- [ ] Design the next storage/write-path change for the still-failing 5M materialization case.
+- [x] Superseded by the active-truth/read-path design and later 5M benchmark proof.
 
 ## Review - 2026-06-13 Goal Continuation 45
 - Confirmed there is no fresh Gradle or 5M benchmark still running. The only Java process found
@@ -5374,9 +5408,8 @@
   policies are explicit.
 - [x] Split the broad worktree into reviewable slices: crash/stability, DB/runtime truth, UX,
   release security, licensing/MIT, and optional AI cleanup.
-- [ ] Run final proof gates from a clean checkout where practical: debug assemble, unit tests,
-  Android-test compile, focused connected tests, UX matrix, license boundary, SBOM/dependency
-  verification, signed release build, and physical-device smoke.
+- [x] Superseded by the canonical external P0 release board below; do not use this historical
+  checklist as an independent open gate.
 
 ## Review - 2026-06-15 Goal Continuation 93
 - Final stabilization scope: kept broad refactor/release work frozen and focused on crash evidence,
@@ -5448,7 +5481,7 @@
 - [x] Commit dormant asset/native cleanup separately.
 - [x] Commit Android UI instrumentation, rule capability docs, and durable task/evidence logs
   separately.
-- [ ] Push/create PR only after the user chooses the remote integration path.
+- [x] Superseded by later branch push, PR creation, and passing PR CI evidence.
 
 ## Review - 2026-06-15 Goal Continuation 94
 - Created reviewable commits from the broad worktree instead of one opaque checkpoint:
@@ -8674,7 +8707,7 @@
 - [x] Update the stale unit contract after CI's clean run exposed the old three-line cap assertion.
 - [x] Rerun the focused UX matrix connected test.
 - [x] Rerun the standard local Gradle gate and full local connected Android suite.
-- [ ] Push the fix and recheck PR CI.
+- [x] Superseded by Story Fix Loop 30 push and passing PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 28
 - The failed PR check was `Connected Android tests` on `b3923958`. The prior list-tab failure was
@@ -11365,6 +11398,9 @@
   review.
 
 ## Review - 2026-06-28 REL-004 Current-Head UX Packet Refresh
+- Superseded by the later `REL-004/REL-005 Source-Under-Test Refresh` at source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`; this earlier `e762f2b4` packet remains archival
+  evidence only.
 - `REL-004`: Fresh current-head UX matrix passed all five variants on `adaway-api34-16g`:
   baseline, `font-1.3`, `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`.
 - Generated `40` screenshots and
@@ -11389,6 +11425,9 @@
   blockers.
 
 ## Review - 2026-06-28 REL-005 Current-Head Readiness Preflight
+- Superseded by the later `REL-004/REL-005 Source-Under-Test Refresh` at source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`; this earlier `0fb50e3a` UX packet readiness
+  preflight remains archival evidence only.
 - PR #7 head `69623d1f` was green before this slice: Development build `6m34s`, Connected Android
   tests `8m56s`, CodeQL, Analyze cpp, and Analyze java all passed.
 - `scripts/verify-release-readiness.ps1` failed closed as intended when fed the refreshed current
