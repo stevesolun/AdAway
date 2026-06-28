@@ -31,6 +31,53 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- [x] Re-ground the active PR worktree and confirm PR #7 is green at
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`.
+- [x] Re-run GitTracked, WorkingTree, and GitTracked strict source-archive license-boundary
+  reports at the current PR head.
+- [x] Rebuild the debug APK/SBOM and re-run strict artifact-boundary checking against the current
+  PR head.
+- [x] Update canonical REL-001 evidence without closing legal/provenance or signed-release gates.
+
+## Review - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- PR #7 was green before the slice at `c03030f8`: Analyze cpp, Analyze java, CodeQL,
+  Connected Android tests, and Development build all passed.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked` passed with source commit
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`, `2492` source entries, and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode WorkingTree` passed with source commit
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`, `2170` source entries, and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive` passed with
+  `2492` source entries, `2199` source archive entries, and `Issues: 0`.
+- `:app:assembleDebug :app:cyclonedxBom` passed, then strict artifact-boundary checking passed
+  for `app-debug.apk` and `bom.json`: `1119` APK entries, `265` APK resources, `116` SBOM
+  components, and `Issues: 0`.
+- Debug artifact hashes at this head: APK
+  `cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771`, SBOM
+  `a75b7111dd87229a6c93541dd51190fb3f0ef1d7e785a290777269c7aa2706d1`, report
+  `21027e77758de52edfde32651dfee2a1532c40c46ef1276a1617db2bf7044038`.
+- `REL-001` remains partial: MIT/provenance legal clearance, signed release APK/SBOM artifact
+  boundary reports, release attestation, and directRelease install/update smoke still require the
+  real release inputs.
+
+## CTO Expert Findings - 2026-06-28
+- Release-gate expert: the remaining P0 board is external-input gated, not locally code-gated:
+  `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`, `REL-004`, and
+  `REL-005` still require rooted writable hardware, signed/tagged artifacts, physical-device
+  smoke, human UX signoff, or legal/provenance signoff.
+- Runtime/performance expert: the old 4M/5M import issue was the full parse/import path missing
+  `root_host_entries_stage` population, which forced slow direct root export. Current evidence
+  shows fresh 5M parse/import/sync/root-write proof is already recorded under `RUNTIME-010`; no
+  further code fix is indicated there.
+- Android connected-test expert: package-replaced WorkManager repair, Quick Settings installed
+  service contract, DNS packet-to-visible-log bridge, prepared VPN lifecycle, notification
+  harnesses, induced Paging failure proof, and local backup transport smoke are already locally
+  closed or correctly bounded by manual/OEM consent. No production patch is recommended for those
+  named items.
+- Tracker/CI expert: the stale local issue was `REL-001` rollup wording and hashes, not the
+  license-boundary scripts. This slice refreshes the current-head evidence and keeps final release
+  readiness blocked until real release inputs exist.
+
 ## Plan - 2026-06-28 CTO Evidence Guardrail Slice
 - [x] Resolve the REL-001 "current head" wording caught by the release subagent by recording the
   exact source-baseline commit under test.

@@ -1,13 +1,13 @@
 # License Boundary Report
 
 - Status: passed
-- Source commit: 72b64e6f4c848a4667adcab115d432e9dad32376
+- Source commit: c03030f89ec2337bb9213949cec2e2c3db69f309
 - Source mode: GitTracked
 - Strict source archive: false
 - Strict artifacts: false
 - APK: not-provided
 - SBOM: not-provided
-- Source entries inspected: 2474
+- Source entries inspected: 2492
 - Source archive entries inspected: 0
 - APK entries inspected: 0
 - APK resources inspected: 0

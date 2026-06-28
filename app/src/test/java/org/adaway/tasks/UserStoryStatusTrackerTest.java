@@ -140,13 +140,16 @@ public class UserStoryStatusTrackerTest {
         assertTrue("REL-001 should point at the fresh source-boundary evidence.",
                 row.allEvidence().contains(
                         "tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
-                                "source-baseline-evidence.md"));
+                                "current-head-evidence.md"));
         assertTrue("REL-001 should point at the debug artifact-boundary evidence.",
                 row.allEvidence().contains(
                         "tasks/benchmarks/2026-06-28-rel001-" +
                                 "debug-artifact-boundary-evidence.md"));
         assertTrue("REL-001 should record debug APK/SBOM artifact-boundary counts.",
-                row.testState().contains("development CycloneDX SBOM") &&
+                row.testState().contains("Current-head GitTracked") &&
+                        row.testState().contains("2492 tracked source entries") &&
+                        row.testState().contains("2199 source archive entries") &&
+                        row.testState().contains("development CycloneDX SBOM") &&
                         row.testState().contains("artifact-boundary checking") &&
                         row.testState().contains("1119 APK entries") &&
                         row.testState().contains("265 APK resources") &&
@@ -166,7 +169,8 @@ public class UserStoryStatusTrackerTest {
                 row.retestStatus().contains(
                         "cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771") &&
                         row.retestStatus().contains(
-                                "5aedaeef2b7137c6bce331d549a6815accb9c51b7a4bf0d758631711b3bbf8f4"));
+                                "a75b7111dd87229a6c93541dd51190fb3f0ef1d7e785a290777269c7aa2706d1") &&
+                        row.retestStatus().contains("c03030f8"));
     }
 
     @Test

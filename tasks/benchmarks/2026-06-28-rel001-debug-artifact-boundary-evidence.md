@@ -35,7 +35,7 @@ Command:
 Result:
 
 ```text
-BUILD SUCCESSFUL in 44s
+BUILD SUCCESSFUL in 5s
 42 actionable tasks: 2 executed, 40 up-to-date
 ```
 
@@ -43,7 +43,8 @@ Artifact hashes:
 
 ```text
 cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771  app/build/outputs/apk/debug/app-debug.apk
-5aedaeef2b7137c6bce331d549a6815accb9c51b7a4bf0d758631711b3bbf8f4  app/build/reports/cyclonedx/bom.json
+a75b7111dd87229a6c93541dd51190fb3f0ef1d7e785a290777269c7aa2706d1  app/build/reports/cyclonedx/bom.json
+21027e77758de52edfde32651dfee2a1532c40c46ef1276a1617db2bf7044038  app/build/reports/license-boundary/debug-artifact-license-boundary-report.md
 ```
 
 SBOM summary:
@@ -77,7 +78,7 @@ Report summary:
 
 ```text
 - Status: passed
-- Source commit: 824c44d33cabc64cdd05400f5220c85efc86de9c
+- Source commit: c03030f89ec2337bb9213949cec2e2c3db69f309
 - Strict artifacts: true
 - APK: app-debug.apk
 - SBOM: bom.json
