@@ -11652,3 +11652,28 @@
 - A fresh debug APK was copied to
   `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-checkbox-selection.apk`
   with SHA-256 `35689a24ce47ad41c1889b5cb0a0661003c27b9dacac3d6da4e4d94016e6b6a5`.
+
+## Plan - 2026-06-28 FilterLists Selected Button Responsiveness
+- [x] Remove DNS-safe-count gating from the `Subscribe selected` enabled state.
+- [x] Keep bulk safety checks on click so unsupported-only selected rows explain the boundary.
+- [x] Add a connected regression for unsupported-only row selection enabling the button.
+- [x] Run focused verification, refresh APK, update status evidence, and push.
+
+## Review - 2026-06-28 FilterLists Selected Button Responsiveness
+- User reported `Subscribe selected` stayed grey after checking multiple filters.
+- Root cause: the selected subscribe button was enabled only when checked rows included at least
+  one DNS-safe row and were not already all subscribed. Unsupported-only or already-covered
+  selections therefore looked like the app ignored the checkbox.
+- `Subscribe selected` now enables whenever one or more visible rows are checked and the UI is not
+  busy. The click path still prevents unsafe bulk import and shows `No DNS-safe selected lists`
+  for unsupported-only selections.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- The connected proof now first checks only an unsupported row, verifies `Subscribe selected`
+  becomes enabled, and verifies tapping it shows `No DNS-safe selected lists` instead of leaving
+  the button grey.
+- A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
+  with SHA-256 `7b2b212528dbd3bbe61b0f20c4a55c7b63862909cc7043f1ad61b56ba80fd224`.

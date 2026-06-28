@@ -397,7 +397,9 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("Selected bulk command enablement must use checked row state.",
                 source.contains("int selectedState = FilterListsSubscriptionState.resolve(")
                         && source.contains("getSelectedSummariesForBulkScope()")
-                        && source.contains("getSelectedIdsForBulkScope()"));
+                        && source.contains("getSelectedIdsForBulkScope()")
+                        && source.contains("filterlistsSubscribeVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())"));
         assertTrue("Bulk actions must hide when the directory has no rows to act on.",
                 source.contains("filterlistsBulkActionsRow.setVisibility") &&
                         source.contains("all.isEmpty() && filtered.isEmpty()"));
@@ -495,7 +497,8 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("for (HostsSource source : hostsSourceDao.getAll())")
                         && source.contains("isFilterListsSource(source)"));
         assertTrue("Bulk subscribe must not queue a background job for zero DNS-safe rows.",
-                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope"));
+                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope")
+                        && source.contains("R.string.filterlists_no_dns_safe_selected_lists"));
     }
 
     @Test

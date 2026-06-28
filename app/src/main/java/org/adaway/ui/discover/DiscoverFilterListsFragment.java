@@ -895,7 +895,9 @@ public class DiscoverFilterListsFragment extends Fragment {
         }
         int safeCount = countCompatible(scope);
         if (safeCount == 0) {
-            showSnackbar(getString(R.string.filterlists_no_dns_safe_lists_in_scope));
+            showSnackbar(getString(allDirectory
+                    ? R.string.filterlists_no_dns_safe_lists_in_scope
+                    : R.string.filterlists_no_dns_safe_selected_lists));
             return;
         }
         int messageId = allDirectory
@@ -1133,7 +1135,6 @@ public class DiscoverFilterListsFragment extends Fragment {
                 selected, this::getCachedUrlForId, existingUrls);
         int allState = FilterListsSubscriptionState.resolve(
                 all, this::getCachedUrlForId, existingUrls);
-        int compatibleSelected = countCompatible(selected);
         int compatibleAll = countCompatible(all);
         boolean busy = directoryLoading || bulkOperationRunning;
         binding.filterlistsBulkActionsRow.setVisibility(
@@ -1142,8 +1143,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         binding.filterlistsSelectedActionsRow.setVisibility(
                 filtered.isEmpty() && !bulkOperationRunning ? View.GONE : View.VISIBLE);
         binding.filterlistsSubscribeVisibleButton.setEnabled(
-                !busy && !selected.isEmpty() && compatibleSelected > 0
-                        && selectedState != FilterListsSubscriptionState.ALL);
+                !busy && !selected.isEmpty());
         binding.filterlistsRemoveVisibleButton.setEnabled(
                 !busy && !selected.isEmpty()
                         && selectedState != FilterListsSubscriptionState.NONE);

@@ -114,3 +114,5 @@
   command, while subscribe/unsubscribe still requires an explicit command and confirmation.
 - When filters can hide rows, prune or clearly surface hidden selections before destructive bulk
   actions so the user never mutates invisible state by surprise.
+- Do not disable a selected-row command just because the selected rows are unsupported or already
+  subscribed; keep the action responsive and explain the no-op or skipped semantics on click.

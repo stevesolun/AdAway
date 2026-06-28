@@ -138,6 +138,7 @@
     <string name="filterlists_language_all">All languages</string>
     <string name="filterlists_language_filter_description">Filter by language</string>
     <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in this scope</string>
+    <string name="filterlists_no_dns_safe_selected_lists">No DNS-safe selected lists</string>
     <string name="filterlists_no_selected_lists">Select one or more FilterLists first</string>
     <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
     <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>

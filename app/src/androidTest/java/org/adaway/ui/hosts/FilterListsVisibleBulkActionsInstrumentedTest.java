@@ -112,9 +112,13 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_UNSUPPORTED_NAME);
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
-            clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
-                    R.id.filterlistsItemSelectionCheckBox);
             clickRowChildForText(scenario, VISIBLE_UNSUPPORTED_NAME,
+                    R.id.filterlistsItemSelectionCheckBox);
+            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
+            clickButton(scenario, R.id.filterlistsSubscribeVisibleButton);
+            waitForAccessibilityText("No DNS-safe selected lists");
+
+            clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
                     R.id.filterlistsItemSelectionCheckBox);
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
 
