@@ -145,8 +145,14 @@ public class DiscoverFilterListsFragment extends Fragment {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        binding.filterlistsSubscribeVisibleButton.setOnClickListener(v -> confirmSubscribeAll());
-        binding.filterlistsRemoveVisibleButton.setOnClickListener(v -> confirmUnsubscribeAll());
+        binding.filterlistsSubscribeVisibleButton.setOnClickListener(
+                v -> confirmSubscribeAll(false));
+        binding.filterlistsRemoveVisibleButton.setOnClickListener(
+                v -> confirmUnsubscribeAll(false));
+        binding.filterlistsSubscribeAllButton.setOnClickListener(
+                v -> confirmSubscribeAll(true));
+        binding.filterlistsRemoveAllButton.setOnClickListener(
+                v -> confirmUnsubscribeAll(true));
         binding.filterlistsCancelBulkButton.setOnClickListener(v -> cancelSubscribeAll());
         binding.filterlistsStateRetryButton.setOnClickListener(v -> load());
         binding.filterlistsReviewLastRunButton.setOnClickListener(v -> showLastRunReviewDialog());
@@ -630,9 +636,9 @@ public class DiscoverFilterListsFragment extends Fragment {
         return hasQuery || selectedTagId != 0 || selectedLanguageId != 0 || mCompatibleOnly;
     }
 
-    private int countCompatibleVisible() {
+    private int countCompatible(@NonNull List<FilterListsDirectoryApi.ListSummary> summaries) {
         int count = 0;
-        for (FilterListsDirectoryApi.ListSummary summary : filtered) {
+        for (FilterListsDirectoryApi.ListSummary summary : summaries) {
             if (isAdAwayCompatible(summary.syntaxIds)) {
                 count++;
             }
@@ -855,32 +861,28 @@ public class DiscoverFilterListsFragment extends Fragment {
         });
     }
 
-    private void confirmSubscribeAll() {
+    private void confirmSubscribeAll(boolean allDirectory) {
         if (binding == null) return;
-        int safeCount = 0;
-        for (FilterListsDirectoryApi.ListSummary summary : filtered) {
-            if (isAdAwayCompatible(summary.syntaxIds)) {
-                safeCount++;
-            }
-        }
+        List<FilterListsDirectoryApi.ListSummary> scope = allDirectory ? all : filtered;
+        int safeCount = countCompatible(scope);
         if (safeCount == 0) {
             showSnackbar(getString(R.string.filterlists_no_dns_safe_lists_in_scope));
             return;
         }
-        int messageId = hasActiveFilters()
-                ? R.string.filterlists_confirm_subscribe_filtered_message
-                : R.string.filterlists_confirm_subscribe_all_message;
+        int messageId = allDirectory
+                ? R.string.filterlists_confirm_subscribe_all_message
+                : R.string.filterlists_confirm_subscribe_filtered_message;
 
         new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.filterlists_confirm_subscribe_all_title)
                 .setMessage(getString(messageId, safeCount))
                 .setNegativeButton(R.string.button_cancel, null)
                 .setPositiveButton(R.string.filterlists_confirm_subscribe_all_action,
-                        (dialog, which) -> subscribeAll())
+                        (dialog, which) -> subscribeAll(allDirectory))
                 .show();
     }
 
-    private void subscribeAll() {
+    private void subscribeAll(boolean allDirectory) {
         if (binding == null) return;
         Context appContext = requireContext().getApplicationContext();
         FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
@@ -905,11 +907,11 @@ public class DiscoverFilterListsFragment extends Fragment {
         }
 
         Data inputData = FilterListsSubscribeAllWorker.buildScopeInput(
-                getCurrentSearchQuery(),
-                selectedTagId,
-                selectedLanguageId,
-                mCompatibleOnly,
-                getFilteredIdsForBulkScope());
+                allDirectory ? null : getCurrentSearchQuery(),
+                allDirectory ? 0 : selectedTagId,
+                allDirectory ? 0 : selectedLanguageId,
+                !allDirectory && mCompatibleOnly,
+                allDirectory ? null : getFilteredIdsForBulkScope());
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
@@ -919,15 +921,15 @@ public class DiscoverFilterListsFragment extends Fragment {
         showSnackbar(getString(R.string.filterlists_running_in_background));
     }
 
-    private void confirmUnsubscribeAll() {
+    private void confirmUnsubscribeAll(boolean allDirectory) {
         if (binding == null) return;
-        int titleId = hasActiveFilters()
+        int titleId = !allDirectory
                 ? R.string.filterlists_confirm_unsubscribe_filtered_title
                 : R.string.filterlists_confirm_unsubscribe_all_title;
-        int messageId = hasActiveFilters()
+        int messageId = !allDirectory
                 ? R.string.filterlists_confirm_unsubscribe_filtered_message
                 : R.string.filterlists_confirm_unsubscribe_all_message;
-        int actionId = hasActiveFilters()
+        int actionId = !allDirectory
                 ? R.string.filterlists_confirm_unsubscribe_filtered_action
                 : R.string.filterlists_confirm_unsubscribe_all_action;
         new AlertDialog.Builder(requireContext())
@@ -936,7 +938,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                 .setNegativeButton(R.string.button_cancel,
                         (dialog, which) -> refreshBulkActionsState())
                 .setPositiveButton(actionId,
-                        (dialog, which) -> unsubscribeAll())
+                        (dialog, which) -> unsubscribeAll(allDirectory))
                 .setOnCancelListener(dialog -> refreshBulkActionsState())
                 .show();
     }
@@ -979,12 +981,13 @@ public class DiscoverFilterListsFragment extends Fragment {
         startActivity(intent);
     }
 
-    private void unsubscribeAll() {
+    private void unsubscribeAll(boolean allDirectory) {
         if (binding == null) return;
         bulkOperationRunning = true;
         refreshBulkActionsState();
         final Context appContext = requireContext().getApplicationContext();
-        final List<FilterListsDirectoryApi.ListSummary> listSnapshot = new ArrayList<>(filtered);
+        final List<FilterListsDirectoryApi.ListSummary> listSnapshot =
+                allDirectory ? new ArrayList<>() : new ArrayList<>(filtered);
         final Map<Integer, String> urlSnapshot;
         synchronized (resolvedUrlCache) {
             urlSnapshot = new HashMap<>(resolvedUrlCache);
@@ -992,16 +995,28 @@ public class DiscoverFilterListsFragment extends Fragment {
         AppExecutors.getInstance().diskIO().execute(() -> {
             SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             Set<String> filterListUrls = new HashSet<>();
-            for (FilterListsDirectoryApi.ListSummary summary : listSnapshot) {
-                String url = getSourceUrlForFilterListId(summary.id);
-                if (url == null) {
-                    url = urlSnapshot.get(summary.id);
+            if (allDirectory) {
+                for (HostsSource source : hostsSourceDao.getAll()) {
+                    if (isFilterListsSource(source)) {
+                        String url = normalizeCachedUrl(source.getUrl());
+                        if (url != null) {
+                            filterListUrls.add(url);
+                        }
+                    }
                 }
-                if (url == null) {
-                    url = prefs.getString(KEY_URL_PREFIX + summary.id, null);
-                }
-                if (url != null && !url.isEmpty()) {
-                    filterListUrls.add(url);
+            } else {
+                for (FilterListsDirectoryApi.ListSummary summary : listSnapshot) {
+                    String url = getSourceUrlForFilterListId(summary.id);
+                    if (url == null) {
+                        url = urlSnapshot.get(summary.id);
+                    }
+                    if (url == null) {
+                        url = prefs.getString(KEY_URL_PREFIX + summary.id, null);
+                    }
+                    url = normalizeCachedUrl(url);
+                    if (url != null) {
+                        filterListUrls.add(url);
+                    }
                 }
             }
 
@@ -1024,6 +1039,11 @@ public class DiscoverFilterListsFragment extends Fragment {
                 showSnackbar(getString(R.string.filterlists_unsubscribe_all_done, removedCount));
             });
         });
+    }
+
+    private static boolean isFilterListsSource(@NonNull HostsSource source) {
+        return source.getFilterListId() != null
+                || normalizeCachedUrl(source.getFilterListSelectedUrl()) != null;
     }
 
     private void cancelSubscribeAll() {
@@ -1055,15 +1075,32 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void refreshBulkActionsState() {
         if (binding == null) return;
-        int state = FilterListsSubscriptionState.resolve(filtered, this::getCachedUrlForId, existingUrls);
-        int compatibleVisible = countCompatibleVisible();
+        int selectedState = FilterListsSubscriptionState.resolve(
+                filtered, this::getCachedUrlForId, existingUrls);
+        int allState = FilterListsSubscriptionState.resolve(
+                all, this::getCachedUrlForId, existingUrls);
+        int compatibleSelected = countCompatible(filtered);
+        int compatibleAll = countCompatible(all);
         boolean busy = directoryLoading || bulkOperationRunning;
         binding.filterlistsBulkActionsRow.setVisibility(
+                all.isEmpty() && filtered.isEmpty() && !bulkOperationRunning
+                        ? View.GONE : View.VISIBLE);
+        binding.filterlistsSelectedActionsRow.setVisibility(
                 filtered.isEmpty() && !bulkOperationRunning ? View.GONE : View.VISIBLE);
         binding.filterlistsSubscribeVisibleButton.setEnabled(
-                !busy && compatibleVisible > 0 && state != FilterListsSubscriptionState.ALL);
+                !busy && compatibleSelected > 0 && selectedState != FilterListsSubscriptionState.ALL);
         binding.filterlistsRemoveVisibleButton.setEnabled(
-                !busy && state != FilterListsSubscriptionState.NONE);
+                !busy && selectedState != FilterListsSubscriptionState.NONE);
+        binding.filterlistsSubscribeAllButton.setEnabled(
+                !busy && compatibleAll > 0 && allState != FilterListsSubscriptionState.ALL);
+        binding.filterlistsRemoveAllButton.setEnabled(
+                !busy && hasExistingFilterListSubscriptions());
+    }
+
+    private boolean hasExistingFilterListSubscriptions() {
+        synchronized (existingFilterListUrlsById) {
+            return !existingFilterListUrlsById.isEmpty();
+        }
     }
 
     private void showSnackbar(String message) {

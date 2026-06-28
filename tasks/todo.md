@@ -11589,3 +11589,30 @@
 - Local connected execution was blocked by environment, not app code: after cold and wiped
   `adaway-api34-16g` launches, the emulator reached startup logging but never registered in
   `adb devices`; no emulator process was left running afterward.
+
+## Plan - 2026-06-28 FilterLists Selected/All Bulk Actions
+- [x] Split FilterLists bulk commands into explicit selected/current-view and all-directory actions.
+- [x] Keep bulk subscribe DNS-safe-only while leaving unsupported rows to explicit single-row or
+  manual-review paths.
+- [x] Make destructive unsubscribe scope visible before mutation and support removing every
+  FilterLists-derived source, not only rows currently loaded in the visible directory cache.
+- [x] Add focused source/UI regression coverage and run local verification before pushing.
+
+## Review - 2026-06-28 FilterLists Selected/All Bulk Actions
+- Discover FilterLists now exposes two separate bulk scopes: `Subscribe selected` /
+  `Unsubscribe selected` for the current filtered view, and `Subscribe all` / `Unsubscribe all`
+  for the full loaded directory or all stored FilterLists-derived sources.
+- Bulk subscribe remains DNS-safe-only. Unsupported browser-rule rows are still skipped by the
+  worker and remain available through the explicit single-row review/add path.
+- Selected subscribe passes the current search/tag/language/compatible filters plus exact visible
+  IDs to `FilterListsSubscribeAllWorker`; all-directory subscribe clears those filters before
+  enqueueing the worker.
+- Selected unsubscribe resolves only sources matching the current view. All unsubscribe scans
+  stored sources and removes every source carrying FilterLists provenance, including sources no
+  longer visible in the current directory cache.
+- Verification passed with OpenJDK 21 from `/opt/homebrew/opt/openjdk@21`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-bulk-actions.apk`
+  with SHA-256 `4766e62e3a6ea86ce69d2f5e9dff83a2838a8cfffa2097e3e1faff873411ce9b`.

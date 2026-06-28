@@ -137,7 +137,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
 
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
             waitForAccessibilityText("This removes FilterLists.com sources that match the current view");
-            clickExactAccessibilityText("Remove visible");
+            clickExactAccessibilityText("Unsubscribe selected");
 
             waitForSource(VISIBLE_SAFE_URL, false);
             assertTrue("Hidden FilterLists source must survive visible remove",
