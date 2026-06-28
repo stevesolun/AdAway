@@ -11529,3 +11529,28 @@
   focused `ManifestTest`, `ReleaseReadinessScriptTest`, `UserStoryStatusTrackerTest`,
   `:app:assembleDebug`, and APK badging showed package `org.adaway`, versionCode `130501`,
   versionName `13.5.1`.
+
+## Plan - 2026-06-28 FilterLists Row Toggle Fix
+- [x] Reproduce the user-reported toggle issue from code: unsupported FilterLists row switches were
+  disabled or bounced through the bulk-safe/manual-review gate.
+- [x] Keep bulk subscribe DNS-safe while allowing explicit single-row toggles to resolve a direct
+  URL and subscribe a limited-support source.
+- [x] Update user-facing compatibility copy from `Manual review` to `Limited support` where the row
+  can now be explicitly subscribed.
+- [x] Add JVM and connected regression coverage for the actual switch path.
+- [x] Update canonical task evidence and lessons.
+
+## Review - 2026-06-28 FilterLists Row Toggle Fix
+- Root cause: `DiscoverFilterListsFragment` reused the bulk-subscribe compatibility gate for the
+  single-row switch. Unsupported/browser-syntax rows could be disabled in the UI, and the
+  subscription method still returned `filterlists_manual_review_required` instead of adding the
+  user-selected source.
+- Fix: single-row toggles now stay enabled, resolve `FilterListsDirectoryApi` details, insert an
+  enabled `HostsSource` with FilterLists provenance, and enqueue the normal source update. Bulk
+  subscribe remains DNS-safe-only through `FilterListCompatibility.isBulkSafe(...)` and the worker.
+- UX copy now labels these rows as `Limited support` and the review dialog says bulk subscribe skips
+  the row by default, avoiding the old implication that the switch is a dead end.
+- Connected proof passed on `adaway-api34-16g`:
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest`.
+- Focused JVM proof passed:
+  `./gradlew testDebugUnitTest --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.model.source.FilterListCompatibilityTest --tests org.adaway.ui.hosts.CategorizedSourcesAdapterTest`.

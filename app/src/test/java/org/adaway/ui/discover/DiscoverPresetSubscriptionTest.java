@@ -583,8 +583,33 @@ public class DiscoverPresetSubscriptionTest {
         assertFalse("Unsupported row tap must not be only a dead-end snackbar.",
                 source.contains("showSnackbar(getString(R.string.filterlists_manual_review_required));\n"
                         + "            return;"));
-        assertTrue("Unsupported review copy must avoid claiming browser-rule compatibility.",
-                strings.contains("does not subscribe it automatically"));
+        assertTrue("Unsupported review copy must keep the safety boundary on bulk subscribe.",
+                strings.contains("bulk subscribe skips it by default"));
+    }
+
+    @Test
+    public void filterListsSingleToggleCanSubscribeLimitedSupportRows()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        int methodStart = source.indexOf("private void updateSubscription");
+        int methodEnd = source.indexOf("private void confirmSubscribeAll", methodStart);
+        String method = source.substring(methodStart, methodEnd);
+
+        assertTrue("Single-list toggle must still resolve the FilterLists direct URL.",
+                method.contains("api.getListDetails(summary.id)"));
+        assertTrue("Single-list toggle must insert a normal enabled source.",
+                method.contains("hostsSourceDao.insert(src)") &&
+                        method.contains("SourceUpdateService.enqueueUpdateNow(appContext)"));
+        assertFalse("Single-list toggle must not be blocked by the bulk-safe compatibility gate.",
+                method.contains("!isAdAwayCompatible(summary.syntaxIds)"));
+        assertFalse("Single-list toggle must not bounce the user to manual review.",
+                method.contains("filterlists_manual_review_required"));
+        assertTrue("Row switches must remain available for explicit single-list subscription.",
+                source.contains("holder.switchView.setEnabled(true);"));
+        assertFalse("Row switches must not be disabled just because bulk subscribe skips a syntax.",
+                source.contains("holder.switchView.setEnabled(isSubscribed || compatible);"));
     }
 
     @Test
@@ -599,7 +624,7 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("formatDescriptionWithCapabilities(s.description, s.syntaxIds)"));
         assertTrue("Rows must include capability detail in accessibility copy.",
                 source.contains("rowState + \". \" + capabilitySummary"));
-        assertTrue("Unsupported rows must show manual-review status copy.",
+        assertTrue("Limited-support rows must show status copy.",
                 source.contains("FilterListCompatibility.rowSummary(s.syntaxIds)"));
         String descriptionView = xmlTagById(layout, "filterlistsItemDesc");
         assertFalse("Capability disclosure must wrap instead of clipping the description.",

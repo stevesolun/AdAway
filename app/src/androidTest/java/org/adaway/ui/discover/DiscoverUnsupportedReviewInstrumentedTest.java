@@ -24,6 +24,7 @@ import androidx.test.runner.lifecycle.Stage;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.db.entity.HostsSource;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
@@ -103,11 +104,11 @@ public class DiscoverUnsupportedReviewInstrumentedTest {
             });
             waitForRowText(scenario, R.id.filterlistsItemName, UNSUPPORTED_NAME);
             waitForRowText(scenario, R.id.filterlistsItemStatus,
-                    "Manual review: browser semantics skipped");
+                    "Limited support: browser semantics skipped");
 
             clickRowByName(scenario, UNSUPPORTED_NAME);
 
-            waitForAccessibilityText("AdAway does not subscribe it automatically");
+            waitForAccessibilityText("bulk subscribe skips it by default");
             waitForAccessibilityText("Domain extraction only");
             waitForAccessibilityText("Exceptions, redirects, path/options rules");
             waitForAccessibilityText(DETAILS_URL);
@@ -128,6 +129,36 @@ public class DiscoverUnsupportedReviewInstrumentedTest {
                 assertEquals(DETAILS_URL, editActivity.getIntent()
                         .getStringExtra(SourceEditActivity.EXTRA_FILTER_LIST_SELECTED_URL));
             });
+        }
+    }
+
+    @Test
+    public void unsupportedRowSwitchSubscribesWithoutManualReview()
+            throws Exception {
+        try (ActivityScenario<HomeActivity> scenario =
+                     ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForScenarioCondition("Discover FilterLists view", scenario,
+                    activity -> activity.findViewById(R.id.filterlistsRecyclerView) != null);
+            reloadSeededDirectory(scenario);
+            scenario.onActivity(activity -> {
+                EditText search = activity.findViewById(R.id.filterlistsSearchEditText);
+                assertNotNull(search);
+                search.setText(UNSUPPORTED_NAME);
+            });
+            waitForRowText(scenario, R.id.filterlistsItemName, UNSUPPORTED_NAME);
+            waitForRowText(scenario, R.id.filterlistsItemStatus,
+                    "Limited support: browser semantics skipped");
+
+            clickSwitchByName(scenario, UNSUPPORTED_NAME);
+
+            HostsSource source = waitForSource(context, DETAILS_URL);
+            assertTrue(source.isEnabled());
+            assertEquals(Integer.valueOf(UNSUPPORTED_ID), source.getFilterListId());
+            assertEquals(UNSUPPORTED_NAME, source.getFilterListName());
+            assertEquals(DETAILS_URL, source.getFilterListSelectedUrl());
+            assertEquals("Domain extraction only", source.getFilterListCompatibility());
+            assertEquals(0, source.getFilterListCompatibilityScore());
         }
     }
 
@@ -236,6 +267,45 @@ public class DiscoverUnsupportedReviewInstrumentedTest {
             }
             return false;
         });
+    }
+
+    private static void clickSwitchByName(ActivityScenario<HomeActivity> scenario, String rowName)
+            throws Exception {
+        waitForScenarioCondition("click switch " + rowName, scenario, activity -> {
+            RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+            if (recycler == null) {
+                return false;
+            }
+            for (int i = 0; i < recycler.getChildCount(); i++) {
+                View child = recycler.getChildAt(i);
+                TextView name = child.findViewById(R.id.filterlistsItemName);
+                if (name == null || name.getText() == null
+                        || !name.getText().toString().contains(rowName)) {
+                    continue;
+                }
+                View switchView = child.findViewById(R.id.filterlistsItemSwitch);
+                if (switchView == null || !switchView.isEnabled()) {
+                    return false;
+                }
+                switchView.performClick();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private static HostsSource waitForSource(Context context, String url) throws Exception {
+        long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            HostsSource source = AppDatabase.getInstance(context).hostsSourceDao()
+                    .getByUrl(url)
+                    .orElse(null);
+            if (source != null) {
+                return source;
+            }
+            SystemClock.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for source " + url);
     }
 
     private static void waitForScenarioCondition(String description,

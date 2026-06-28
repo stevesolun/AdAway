@@ -778,11 +778,6 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void updateSubscription(FilterListsDirectoryApi.ListSummary summary, boolean subscribed) {
         if (binding == null) return;
-        if (subscribed && !isAdAwayCompatible(summary.syntaxIds)) {
-            showSnackbar(getString(R.string.filterlists_manual_review_required));
-            notifyFilterListRowChanged(summary.id);
-            return;
-        }
         binding.filterlistsProgress.setVisibility(View.VISIBLE);
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
@@ -1437,7 +1432,7 @@ public class DiscoverFilterListsFragment extends Fragment {
             String capabilitySummary = FilterListCompatibility.capabilitySummary(s.syntaxIds);
 
             holder.switchView.setOnCheckedChangeListener(null);
-            holder.switchView.setEnabled(isSubscribed || compatible);
+            holder.switchView.setEnabled(true);
             holder.switchView.setChecked(isSubscribed);
             holder.switchView.setOnCheckedChangeListener((buttonView, checked) -> setSubscribed(s, checked));
 

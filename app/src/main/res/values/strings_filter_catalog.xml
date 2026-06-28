@@ -113,7 +113,7 @@
     <string name="filterlists_review_unsupported_not_loaded">Load the FilterLists directory before reviewing unsupported rows</string>
     <string name="filterlists_review_unsupported_title">Review unsupported list</string>
     <string name="filterlists_review_unsupported_choices_title">Unsupported lists</string>
-    <string name="filterlists_review_unsupported_message">This list uses %1$s. AdAway does not subscribe it automatically.\n\n%2$s%3$s</string>
+    <string name="filterlists_review_unsupported_message">This list uses %1$s. AdAway bulk subscribe skips it by default.\n\n%2$s%3$s</string>
     <string name="filterlists_review_unsupported_url">\n\nDirect URL found:\n%1$s</string>
     <string name="filterlists_review_unsupported_no_url">\n\nNo direct DNS-safe download URL was found.</string>
     <string name="filterlists_add_manually">Add manually</string>
@@ -134,7 +134,6 @@
     <string name="filterlists_tag_all">All</string>
     <string name="filterlists_language_all">All languages</string>
     <string name="filterlists_language_filter_description">Filter by language</string>
-    <string name="filterlists_manual_review_required">This list needs manual review before DNS blocking</string>
     <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in the current view</string>
     <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
     <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>

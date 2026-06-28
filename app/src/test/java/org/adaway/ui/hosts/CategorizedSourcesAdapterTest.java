@@ -55,12 +55,12 @@ public class CategorizedSourcesAdapterTest {
     }
 
     @Test
-    public void provenanceSummaryShowsManualReviewForUnsupportedFilterListsSyntax() {
+    public void provenanceSummaryShowsLimitedSupportForUnsupportedFilterListsSyntax() {
         HostsSource source = source("https://browser-rules.test/easylist.txt");
         FilterListsSourceMetadata.apply(source, 42, "Browser rules", new int[]{3},
                 new int[]{7}, new int[]{2}, "https://browser-rules.test/easylist.txt");
 
-        assertEquals("FilterLists.com \u2022 Manual review: browser semantics skipped",
+        assertEquals("FilterLists.com \u2022 Limited support: browser semantics skipped",
                 CategorizedSourcesAdapter.buildSourceProvenanceSummary(
                         new FilterListItem.SourceItem(source, false)));
     }
@@ -71,7 +71,7 @@ public class CategorizedSourcesAdapterTest {
         source.setFilterListId(42);
         source.setFilterListName("Unknown directory row");
 
-        assertEquals("FilterLists.com \u2022 Manual review: unknown syntax",
+        assertEquals("FilterLists.com \u2022 Limited support: unknown syntax",
                 CategorizedSourcesAdapter.buildSourceProvenanceSummary(
                         new FilterListItem.SourceItem(source, false)));
     }

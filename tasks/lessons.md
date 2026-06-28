@@ -89,3 +89,10 @@
   write/restore, then run the real app-owned path behind an explicit opt-in guard.
 - Do not close a root-hosts gate from `adb root` alone; close it only when the app/libsu path
   writes the generated hosts file and restores the original system file afterward.
+
+## 2026-06-28 - Exercise The Reported Control
+
+- When the user reports that a visible toggle is broken, test the actual switch/toggle path, not
+  only the adjacent row-click or dialog path.
+- Keep bulk-safety gates separate from explicit single-item user actions so conservative automation
+  does not make intentional controls feel disabled or broken.
