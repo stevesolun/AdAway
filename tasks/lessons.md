@@ -69,3 +69,53 @@
   one small verified commit instead of repeatedly rediscovering the same board.
 - Treat consent-, hardware-, legal-, or human-gated work as explicit product release gates, not as a
   reason to keep looping on locally unfinishable automation.
+
+## 2026-06-28 - Converge With Gate Boundaries
+
+- Split locally finishable app-owned behavior from external release smoke before starting a new
+  slice.
+- Close rows only when executable evidence proves the app-owned contract, and keep platform,
+  legal, hardware, consent, or human-review caveats visible in the tracker.
+- Add tracker guardrail tests when changing status language so CI protects the product boundary
+  from optimistic wording drift.
+- When the user calls out looping, stop rediscovering the same release board: pick the strongest
+  locally finishable row, finish it with proof, and leave external gates explicitly blocked.
+
+## 2026-06-28 - Re-Probe Stale Blockers
+
+- When the user challenges an external blocker, re-probe the current device/emulator capability
+  before repeating old evidence.
+- Treat a newly writable rooted emulator as a new proof surface: first prove controlled shell
+  write/restore, then run the real app-owned path behind an explicit opt-in guard.
+- Do not close a root-hosts gate from `adb root` alone; close it only when the app/libsu path
+  writes the generated hosts file and restores the original system file afterward.
+
+## 2026-06-28 - Exercise The Reported Control
+
+- When the user reports that a visible toggle is broken, test the actual switch/toggle path, not
+  only the adjacent row-click or dialog path.
+- Keep bulk-safety gates separate from explicit single-item user actions so conservative automation
+  does not make intentional controls feel disabled or broken.
+
+## 2026-06-28 - Site Compatibility Without Broad Unblocking
+
+- When a user reports a site breaking under filtering, separate core browsing/media hosts from
+  ad/tracker infrastructure before adding any allowlist rule.
+- Prefer exact-host compatibility entries over wildcard site allowlists; prove that known tracking
+  hosts still block under the same broad suffix-block scenario.
+- For existing-install allowlist backfills, rebuild runtime truth only when new rows were actually
+  inserted so VPN users feel the fix without adding startup churn.
+
+## 2026-06-28 - Selected Means Checked
+
+- In product UI, labels like `Subscribe selected` must be backed by explicit row selection controls,
+  not by an inferred filtered or visible scope.
+- Keep selection controls separate from mutation controls; checking rows should prepare a bulk
+  command, while subscribe/unsubscribe still requires an explicit command and confirmation.
+- When filters can hide rows, prune or clearly surface hidden selections before destructive bulk
+  actions so the user never mutates invisible state by surprise.
+- Do not disable a selected-row command just because the selected rows are unsupported or already
+  subscribed; keep the action responsive and explain the no-op or skipped semantics on click.
+- Treat paired selected actions consistently: if subscribe-selected responds to checked rows,
+  unsubscribe-selected must respond to checked rows too, with no-op feedback when nothing selected
+  is subscribed.

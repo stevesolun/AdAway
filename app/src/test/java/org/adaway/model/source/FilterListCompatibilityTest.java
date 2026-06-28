@@ -54,7 +54,7 @@ public class FilterListCompatibilityTest {
         assertTrue(FilterListCompatibility.capabilitySummary(new int[]{1, 2})
                 .contains("not claimed"));
 
-        assertEquals("Manual review: browser semantics skipped",
+        assertEquals("Limited support: browser semantics skipped",
                 FilterListCompatibility.rowSummary(new int[]{3}));
         assertTrue(FilterListCompatibility.capabilitySummary(new int[]{3})
                 .contains("Domain extraction only"));
@@ -63,7 +63,7 @@ public class FilterListCompatibilityTest {
         assertTrue(FilterListCompatibility.capabilitySummary(new int[]{3})
                 .contains("unsafe-to-flatten"));
 
-        assertEquals("Manual review: unknown syntax",
+        assertEquals("Limited support: unknown syntax",
                 FilterListCompatibility.rowSummary(null));
         assertTrue(FilterListCompatibility.capabilitySummary(null)
                 .contains("Unknown syntax"));
@@ -76,13 +76,13 @@ public class FilterListCompatibilityTest {
 
         assertFalse(FilterListCompatibility.isBulkSafe(
                 FilterListCompatibility.decodeSyntaxIds("3")));
-        assertEquals("Manual review: unknown syntax",
+        assertEquals("Limited support: unknown syntax",
                 FilterListCompatibility.rowSummary(
                         FilterListCompatibility.decodeSyntaxIds("1,,2")));
-        assertEquals("Manual review: unknown syntax",
+        assertEquals("Limited support: unknown syntax",
                 FilterListCompatibility.rowSummary(
                         FilterListCompatibility.decodeSyntaxIds("not-a-syntax")));
-        assertEquals("Manual review: unknown syntax",
+        assertEquals("Limited support: unknown syntax",
                 FilterListCompatibility.rowSummary(
                         FilterListCompatibility.decodeSyntaxIds("0")));
     }

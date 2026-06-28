@@ -20,30 +20,37 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/filterlistsItemSelectionCheckBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:buttonTint="@color/status_red"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/filterlistsItemSwitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:layout_marginEnd="16dp"
             app:thumbTint="@color/status_red"
             app:trackTint="@color/ui_glass_stroke"
-            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintEnd_toEndOf="parent" />
 
         <TextView
             android:id="@+id/filterlistsItemName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle2"
             android:textColor="@color/ui_text_primary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/filterlistsItemSwitch"
             tools:text="StevenBlack Unified" />
 
         <TextView
@@ -56,7 +63,7 @@
             android:maxLines="1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemName"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Hosts (IPv4)" />
@@ -70,7 +77,7 @@
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_neon_start"
             android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemSyntax"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Subscribed"
@@ -84,11 +91,10 @@
             android:layout_marginTop="4dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSwitch"
+            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemStatus"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Unified hosts with base extensions" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>
-

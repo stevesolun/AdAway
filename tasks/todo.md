@@ -31,6 +31,346 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-29 Branch and CI/CD Protection
+- [x] Inspect current repo admin permission, default branch, PR check contexts, branch protection,
+  and Actions repository settings.
+- [x] Protect `master` with required release-gate CI contexts, strict up-to-date checks, admin
+  enforcement, conversation resolution, and blocked force-push/delete.
+- [x] Harden GitHub Actions defaults to read-only tokens and immutable action references.
+- [x] Patch workflow definitions so required checks always report and CI jobs request only needed
+  token permissions.
+- [x] Verify workflow syntax/hygiene and record current evidence without claiming PR #7 is green.
+
+## Review - 2026-06-29 Branch and CI/CD Protection
+- GitHub reports `stevesolun/AdAway` default branch `master` and this operator has `ADMIN`
+  permission.
+- `master` branch protection is now enabled with strict required status checks:
+  `Analyze (cpp)`, `Analyze (java)`, `CodeQL`, `Connected Android tests`, `Development build`,
+  and `Validate locales`.
+- Protection also enforces admins, requires conversation resolution, and blocks force pushes and
+  branch deletion.
+- Repository Actions settings now use read-only default workflow tokens, disallow Actions tokens
+  from approving pull requests, and require SHA-pinned action references.
+- Workflow hardening in this slice: Android CI declares `contents: read`, CodeQL and locale
+  validation cancel stale duplicate runs, locale validation always emits the required check and
+  fails with a diff instead of auto-committing to PR branches, and the issue checker explicitly
+  requests `issues: write`.
+- Verification passed: `git diff --check`, YAML parse over all `.github/workflows/*.yml`, source-file
+  execution of `AndroidLocaleChecker.java` with JDK 21, no floating `uses: ...@v*`/`@main`/`@master`
+  workflow action refs, and live GitHub API reads for branch protection plus Actions permissions.
+- Current PR #7 is intentionally not declared green by this slice; before these changes,
+  `Connected Android tests` was red and the protected branch would block merging until the fresh
+  head passes required checks.
+
+## Plan - 2026-06-29 Connected UX Touch Target Gate
+- [x] Watch the fresh protected-branch CI run after the workflow-hardening push.
+- [x] Inspect the failed connected Android job and identify whether it came from CI hardening or
+  product UX coverage.
+- [x] Fix the Discover filter-list switch touch target regression caught by `UxDeviceMatrixTest`.
+- [x] Add a focused static guard so the switch controls cannot shrink below the connected-test
+  threshold again.
+- [x] Run focused local verification before pushing the fix.
+
+## Review - 2026-06-29 Connected UX Touch Target Gate
+- Fresh PR #7 head `a7880320` passed `Validate locales`, `Analyze (cpp)`, `Analyze (java)`,
+  `CodeQL`, and `Development build`, then failed `Connected Android tests`.
+- The connected failure was `UxDeviceMatrixTest` on the Discover screen:
+  `filterlistsCompatibleOnlySwitch` measured `519x105`, below the test's 48dp touch-target floor
+  on the CI emulator.
+- The root cause was `fragment_discover_filterlists.xml` explicitly setting both filter-list
+  `MaterialSwitch` controls to `android:minHeight="40dp"`.
+- Fixed both filter-list switches to `48dp` and extended `DiscoverPresetSubscriptionTest` to guard
+  `filterlistsCompatibleOnlySwitch` and `filterlistsShowSubscribedSwitch`.
+- Local verification passed with JDK 21: `git diff --check`, focused
+  `DiscoverPresetSubscriptionTest` plus `UserStoryStatusTrackerTest`, and
+  `:app:processDebugResources`.
+
+## Plan - 2026-06-28 Durable CI Evidence Wording
+- [x] Re-check the latest PR #7 state after the previous evidence refresh.
+- [x] Replace self-staling `latest pushed head` wording with durable CI-evidence wording.
+- [x] Keep exact source-under-test evidence for the UX packet/readiness preflight at `1a25953d`.
+- [x] Run focused tracker/release guard verification and hygiene.
+
+## Review - 2026-06-28 Durable CI Evidence Wording
+- PR #7 was green at branch tip `0e5bc25a` before this wording cleanup: Analyze cpp, Analyze java,
+  CodeQL, Development build, and Connected Android tests all passed.
+- The release-gate handoff now records the `63eaa749` check set as reusable CI evidence rather
+  than a live-head invariant. Release decisions must still re-run `gh pr checks 7` at the branch tip.
+- This avoids a docs-only evidence refresh loop while preserving the canonical `REL-005` boundary:
+  final readiness still needs real release artifact, physical smoke, checked UX signoff, and
+  release-grade license-boundary reports.
+- Focused guard bundle passed with explicit OpenJDK 21 `JAVA_HOME`: `ReleaseReadinessScriptTest`,
+  `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
+## Plan - 2026-06-28 REL-005 Current PR CI Ledger Refresh
+- [x] Re-check pushed PR #7 CI after the docs-only convergence reconciliation.
+- [x] Preserve the `REL-004`/`REL-005` source-under-test distinction: UX packet and readiness
+  preflight remain tied to `1a25953d`, while a captured PR CI head is green at `63eaa749`.
+- [x] Update the canonical `REL-005` retest ledger and guard test so captured CI evidence is not
+  presented as a live-head invariant.
+- [x] Run focused tracker/release guard verification and hygiene.
+
+## Review - 2026-06-28 REL-005 Current PR CI Ledger Refresh
+- Captured PR #7 pushed head `63eaa749e84a2872d42e82b34e61e61e0d84f789` was green: Analyze cpp
+  `1m13s`, Analyze java `4m3s`, CodeQL `5s`, Development build `6m9s`, and Connected Android
+  tests `9m16s`.
+- This is an evidence-led docs refresh only. It does not change the app source-under-test for the
+  refreshed UX matrix packet or readiness preflight, which remain recorded at
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`.
+- Focused guard bundle passed with explicit OpenJDK 21 `JAVA_HOME`: `ReleaseReadinessScriptTest`,
+  `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
+## Plan - 2026-06-28 CTO Convergence Todo Reconciliation
+- [x] Re-ground PR #7 head, CI, clean worktree state, and canonical tracker rows.
+- [x] Dispatch independent expert lanes for stale todo reconciliation, tracker/open-gate audit, and
+  CI/release evidence audit.
+- [x] Reconcile stale historical unchecked checklist items only where later benchmark, connected-test,
+  or PR evidence supersedes them.
+- [x] Keep the true external P0 release board open and avoid marking the overall goal complete.
+- [x] Rerun the focused tracker/release guard tests and hygiene after this docs cleanup.
+
+## Review - 2026-06-28 CTO Convergence Todo Reconciliation
+- Native tmux/OMX team orchestration was unavailable in this shell (`tmux` missing, no active
+  `$TMUX`, and no `omx` command), so the CTO split used Codex native expert subagents plus local
+  parallel audits.
+- Tracker expert: `tasks/user-story-status.tsv` has `98` stories and exactly `8` partial rows:
+  `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`, `REL-004`, and
+  `REL-005`. All eight need external hardware, signed/tagged artifacts, legal/provenance review,
+  physical-device smoke, human UX signoff, or final release workflow inputs.
+- Todo reconciliation expert: old June 13 root-export/materialization checklist items are
+  superseded by the stage-backed import/export work and fresh `RUNTIME-010` 5M full
+  parse/import/sync/root-write proof; old connected-test and PR-push checklist items are
+  superseded by later full connected suite and PR CI evidence.
+- CI/release expert: PR #7 head `6239897c9b369141fe29b36a968ad82beb129e8a` is green for
+  Development build, Connected Android tests, Analyze cpp, Analyze java, and CodeQL. No local
+  code-level release gate remains actionable.
+- Historical `REL-004`/`REL-005` notes that cite the earlier `e762f2b4` packet are archival only;
+  the current canonical source-under-test packet is `1a25953d` with review packet SHA-256
+  `d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4`.
+- Focused guard suite passed with explicit OpenJDK 21 `JAVA_HOME`:
+  `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`; tests were
+  `ReleaseReadinessScriptTest`, `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
+## Plan - 2026-06-28 REL-004/REL-005 Source-Under-Test Refresh
+- [x] Confirm PR #7 is green and the only remaining partial tracker rows are external P0 gates.
+- [x] Restart the API 34 emulator and regenerate the UX matrix packet against source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`.
+- [x] Run UX signoff and final readiness preflights, expecting fail-closed results until human
+  UX signoff, release artifacts, physical smoke, and release-grade license-boundary reports exist.
+- [x] Update canonical evidence without marking `REL-004`, `REL-005`, or the overall goal done.
+
+## Review - 2026-06-28 REL-004/REL-005 Source-Under-Test Refresh
+- PR #7 was green before this slice at `1a25953d`: Analyze cpp, Analyze java, CodeQL,
+  Development build, and Connected Android tests all passed.
+- `scripts/run-ux-matrix.ps1` passed all five variants on `adaway-api34-16g` and pulled
+  `40` screenshots to `app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d`.
+- The refreshed review packet records source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65` and SHA-256
+  `d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4`.
+- `verify-ux-signoff.ps1` failed as expected with `Status: failed`, `Checked items: 0`,
+  `Unchecked items: 45`, and `Issues: 1`; source commit and review packet source commit matched.
+- Spot-checked `font-1.6-rtl` Home/Discover/Sources and `font-1.6` More; no obvious clipping,
+  hidden bottom navigation, or unreachable primary action was found. This is still not human
+  release signoff.
+- `verify-release-readiness.ps1` failed closed with `Issues: 7`: missing release artifact report,
+  missing physical smoke report, failed UX signoff, and debug/preflight license-boundary evidence
+  that is not acceptable for final release readiness.
+
+## Plan - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- [x] Re-ground the active PR worktree and confirm PR #7 is green at
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`.
+- [x] Re-run GitTracked, WorkingTree, and GitTracked strict source-archive license-boundary
+  reports at the current PR head.
+- [x] Rebuild the debug APK/SBOM and re-run strict artifact-boundary checking against the current
+  PR head.
+- [x] Update canonical REL-001 evidence without closing legal/provenance or signed-release gates.
+
+## Review - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- PR #7 was green before the slice at `c03030f8`: Analyze cpp, Analyze java, CodeQL,
+  Connected Android tests, and Development build all passed.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked` passed with source commit
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`, `2492` source entries, and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode WorkingTree` passed with source commit
+  `c03030f89ec2337bb9213949cec2e2c3db69f309`, `2170` source entries, and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive` passed with
+  `2492` source entries, `2199` source archive entries, and `Issues: 0`.
+- `:app:assembleDebug :app:cyclonedxBom` passed, then strict artifact-boundary checking passed
+  for `app-debug.apk` and `bom.json`: `1119` APK entries, `265` APK resources, `116` SBOM
+  components, and `Issues: 0`.
+- Debug artifact hashes at this head: APK
+  `cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771`, SBOM
+  `a75b7111dd87229a6c93541dd51190fb3f0ef1d7e785a290777269c7aa2706d1`, report
+  `21027e77758de52edfde32651dfee2a1532c40c46ef1276a1617db2bf7044038`.
+- `REL-001` remains partial: MIT/provenance legal clearance, signed release APK/SBOM artifact
+  boundary reports, release attestation, and directRelease install/update smoke still require the
+  real release inputs.
+
+## CTO Expert Findings - 2026-06-28
+- Release-gate expert: the remaining P0 board is external-input gated, not locally code-gated:
+  `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`, `REL-004`, and
+  `REL-005` still require rooted writable hardware, signed/tagged artifacts, physical-device
+  smoke, human UX signoff, or legal/provenance signoff.
+- Runtime/performance expert: the old 4M/5M import issue was the full parse/import path missing
+  `root_host_entries_stage` population, which forced slow direct root export. Current evidence
+  shows fresh 5M parse/import/sync/root-write proof is already recorded under `RUNTIME-010`; no
+  further code fix is indicated there.
+- Android connected-test expert: package-replaced WorkManager repair, Quick Settings installed
+  service contract, DNS packet-to-visible-log bridge, prepared VPN lifecycle, notification
+  harnesses, induced Paging failure proof, and local backup transport smoke are already locally
+  closed or correctly bounded by manual/OEM consent. No production patch is recommended for those
+  named items.
+- Tracker/CI expert: the stale local issue was `REL-001` rollup wording and hashes, not the
+  license-boundary scripts. This slice refreshes the current-head evidence and keeps final release
+  readiness blocked until real release inputs exist.
+
+## Plan - 2026-06-28 CTO Evidence Guardrail Slice
+- [x] Resolve the REL-001 "current head" wording caught by the release subagent by recording the
+  exact source-baseline commit under test.
+- [x] Add a tracker guardrail proving benchmark evidence paths referenced by the spreadsheet exist.
+- [x] Add a catalog URL validity sweep so future static catalog edits cannot reintroduce malformed
+  or non-HTTPS list URLs.
+
+## Review - 2026-06-28 CTO Evidence Guardrail Slice
+- Corrected REL-001 evidence wording from "current head" to source-baseline commit
+  `72b64e6f4c848a4667adcab115d432e9dad32376`. The final release gate still requires
+  legal/provenance signoff and release artifact APK/SBOM boundary reports from a real release
+  attempt.
+- Added `UserStoryStatusTrackerTest` coverage for repo-relative `tasks/benchmarks/...` evidence
+  paths and the REL-001 exitcode artifacts.
+- Added `FilterListCatalogPresetTest` coverage for parseable HTTPS URLs across the catalog,
+  defaults, balanced preset, and aggressive preset.
+
+## Plan - 2026-06-28 REL-001 Source-Baseline License Boundary Refresh
+- [x] Confirm no signed release APK, SBOM, physical device, or rooted writable target is locally
+  available.
+- [x] Re-run GitTracked, WorkingTree, and GitTracked strict source-archive license-boundary reports
+  at the source-baseline commit before recording evidence.
+- [x] Record fresh source-side evidence while keeping legal/provenance and artifact APK/SBOM gates
+  open.
+
+## Review - 2026-06-28 REL-001 Source-Baseline License Boundary Refresh
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked` passed with `2474` source entries,
+  `Issues: 0`, and source commit `72b64e6f4c848a4667adcab115d432e9dad32376`.
+- `scripts/check-license-boundary.ps1 -SourceMode WorkingTree` passed with `2170` source entries
+  and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive` passed with
+  `2474` source entries, `2180` source archive entries, and `Issues: 0`.
+- All reports still say `MIT release status: blocked until GPL-derived material is cleared` and
+  have `APK: not-provided`, `SBOM: not-provided`, and `Strict artifacts: false`.
+- `REL-001` remains partial: source-baseline checks are fresh, but legal/provenance signoff and
+  release artifact APK/SBOM boundary checks still require external inputs.
+
+## Plan - 2026-06-28 REL-004 Fresh UX Matrix Packet
+- [x] Re-ground available devices and confirm no physical release device/artifact gate is locally
+  closeable.
+- [x] Start the local `adaway-api34-16g` emulator and run a fresh UX matrix into a dated output
+  directory.
+- [x] Hash/count the generated packet and run signoff preflight to prove the human-review boundary.
+- [x] Update `REL-004` without marking it covered.
+
+## Review - 2026-06-28 REL-004 Fresh UX Matrix Packet
+- `scripts/run-ux-matrix.ps1` passed all five variants on `adaway-api34-16g`: baseline,
+  `font-1.3`, `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`.
+- The run generated `40` screenshots and
+  `app/build/reports/ux-matrix-2026-06-28-rel004/ux-matrix-review.md`.
+- Review packet SHA-256:
+  `a28fa2dc5740c603ae37fc358746a31773cb9d8384927871948de6abf311db19`.
+- `verify-ux-signoff.ps1` preflight failed as expected with `Status: failed`, `Checked items: 0`,
+  `Unchecked items: 45`, and `Review packet still has unchecked items.`
+- Spot-checked worst-case `font-1.6-rtl` Discover/Home/Sources and `font-1.6` More screenshots;
+  no obvious clipping, hidden bottom navigation, or unreachable primary action was found. This is
+  still not human release signoff.
+
+## Plan - 2026-06-28 Release Gate Handoff Tightening
+- [x] Re-ground PR #7 CI and the remaining open P0 release board after `RUNTIME-009` closed.
+- [x] Inspect release artifact, physical-smoke, UX signoff, and final readiness workflows/scripts.
+- [x] Run the focused script/tracker JVM verifier batch.
+- [x] Update canonical tracker rows for `REL-002`, `REL-003`, `REL-004`, and `REL-005` without
+  closing external proof gates.
+
+## Review - 2026-06-28 Release Gate Handoff Tightening
+- PR #7 was green at `4dd9abc8` before this handoff slice: Analyze cpp/java, CodeQL,
+  Development build, and Connected Android tests all passed.
+- `pwsh 7.6.3` is available locally, so the script unit tests exercised the real PowerShell
+  release gates instead of skipping.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.scripts.ReleaseReadinessScriptTest --tests
+  org.adaway.scripts.UxMatrixScriptTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
+- Added `tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md` with exact owner inputs for
+  physical smoke, UX signoff, and final readiness workflow dispatch.
+- Updated `REL-002`, `REL-003`, `REL-004`, and `REL-005` from vague `Not started`/`Not retested`
+  wording to concrete verifier-contract evidence and exact external proof still required. These
+  rows intentionally remain `Partially covered`; they are not closed until real release artifacts,
+  physical-device smoke, human UX signoff, and legal/provenance reports exist.
+
+## Plan - 2026-06-28 RUNTIME-009 Prepared VPN Lifecycle Proof
+- [x] Re-ground `RUNTIME-009` from the tracker, existing lifecycle test, and VPN consent evidence.
+- [x] Prepare the API 34 emulator into the required state: AdAway VPN consent granted and no active
+  VPN tunnel.
+- [x] Run the existing full `VpnLifecycleInstrumentedTest` start/stop/resume method without a
+  consent skip.
+- [x] If full lifecycle passes, update `RUNTIME-009` with connected prepared-device evidence while
+  keeping physical-device release smoke separate.
+- [x] Run focused JVM/tracker hygiene and connected lifecycle hygiene before pushing.
+
+## Review - 2026-06-28 RUNTIME-009 Prepared VPN Lifecycle Proof
+- Prepared `adaway-api34-16g` by manually installing the debug and androidTest APKs, driving the
+  Android VPN consent dialog for the current install, verifying `vpn_management` owner UID `10196`
+  and `VPN CONNECTED` on `tun0`, then force-stopping AdAway to leave consent granted with no active
+  tunnel.
+- The first full lifecycle run did not skip and reached stop/tunnel/heartbeat assertions, but
+  failed because `VpnService` persists `STOPPED` before the asynchronous `"VPN service stopped."`
+  log reached the test's `RecordingTree`.
+- Fixed `VpnLifecycleInstrumentedTest` to wait for lifecycle log messages before asserting them.
+- Direct instrumentation passed the full prepared-device lifecycle method:
+  `adb shell am instrument -w -r -e class
+  'org.adaway.vpn.VpnLifecycleInstrumentedTest#startStopResumeEstablishesTunnelStatusTunAndHeartbeatWhenVpnConsentExists'
+  org.adaway.test/androidx.test.runner.AndroidJUnitRunner`, result `OK (1 test)`.
+- Focused hygiene passed before commit:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`
+  and `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.vpn.VpnLifecycleInstrumentedTest
+  --dependency-verification=strict --stacktrace` with 2 connected tests on `adaway-api34-16g`.
+- Recorded the boundary in
+  `tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md`: Gradle connected
+  runs can reinstall the app and invalidate the prepared consent UID, so this is a connected
+  prepared-device proof; physical-device VPN release smoke remains under `REL-003`.
+
+## Plan - 2026-06-28 CTO Convergence Slice
+- [x] Re-ground PR #7 status, CI, and remaining P0/P1 rows before editing.
+- [x] Split expert lanes for Android system contracts, runtime/performance/root/VPN gates, and
+  release/CI guardrails.
+- [x] Promote only locally proven P1 system contracts while preserving external release-smoke
+  caveats.
+- [x] Add a tracker guardrail test so CI prevents accidental overclaiming of platform/OEM
+  boundaries.
+- [x] Run focused JVM and connected verification, then commit and push only if the slice is green.
+
+## Review - 2026-06-28 CTO Convergence Slice
+- Current PR #7 head `f48f2de7` was green before the slice: Analyze cpp, Analyze java, CodeQL,
+  Connected Android tests, and Development build all passed.
+- Kept true external P0 release gates open: rooted writable hosts apply, signed directRelease
+  install/update smoke, legal/provenance review, tagged release artifact proof, physical-device
+  release smoke, human UX review, and final real-artifact readiness.
+- Confirmed `RUNTIME-010` is already closed by the fresh 5M full parse/import/sync/root-write
+  benchmark. The old 4M/5M issue was the full parse/import path failing to populate
+  `root_host_entries_stage`, which forced slow direct root export; the stage-backed path now has
+  fresh 5M evidence in `tasks/benchmarks/2026-06-27-runtime010-5m-full-parse-evidence.md`.
+- Promoted `SYS-001` from partial to covered connected tile contract because the app-owned service
+  metadata, bind permission, action resolution, null tile guard, and conditional shell tile path
+  are device-proven; OEM/SystemUI dispatch remains manual release smoke.
+- Promoted `SYS-004` from partial to covered connected receiver contract because the receiver-level
+  `MY_PACKAGE_REPLACED` path repairs hosts update, app update, and filter-set WorkManager
+  schedules from persisted preferences; real signed app-upgrade broadcast delivery remains release
+  smoke.
+- Focused verification passed on 2026-06-28: `UserStoryStatusTrackerTest` JVM guardrail passed,
+  and connected `AdBlockingTileServiceInstrumentedTest` plus
+  `UpdateReceiverPackageReplaceInstrumentedTest` passed on `adaway-api34-16g` with the expected
+  Quick Settings SystemUI dispatch skip.
+
 ## Plan - 2026-06-14 Goal Continuation 60
 - [x] Answer the delay question with current benchmark evidence instead of hand-waving.
 - [x] Reduce the remaining root-export blocked-row copy cost without changing allow/redirect
@@ -82,7 +422,8 @@
 - [x] Add schema/migration support for append-style `root_host_entries` writes and preserve root
   cursor/list correctness.
 - [x] Run compile, focused connected DB/migration tests, 100k, 600k, and 1M allow-heavy benchmarks.
-- [ ] Replace the remaining 1M/5M bulk root-export insert bottleneck with a deeper architecture.
+- [x] Superseded by the stage-backed import/export architecture and fresh `RUNTIME-010` 5M full
+  parse/import/sync/root-write proof.
 
 ## Review - 2026-06-13 Goal Continuation 59
 - Answered the delay question with evidence: the long wall time is the Android emulator seeding and
@@ -144,7 +485,7 @@
 - [x] Add the next measured root-export optimization slice using persisted reversed labels on
   `root_host_entries`.
 - [x] Run focused correctness tests and current-code 100k benchmark evidence.
-- [ ] Prove or replace the large-skip root-export path at 1M scale.
+- [x] Superseded by the final stage-seeded 1M root-export benchmark evidence.
 - [x] Consume all returned expert-agent findings without closing unfinished agents.
 - [x] Update this task log with evidence and remaining market-leading gaps.
 
@@ -223,7 +564,8 @@
   skips `host_entries`.
 - [x] Update 1M allow-heavy benchmark expectations so root cursor/apply is measured on the large
   cache-skip path.
-- [ ] Run focused compile, connected DB/migration tests, 100k/1M benchmark evidence, and hygiene.
+- [x] Superseded by later focused verification, connected DB/migration coverage, and final 1M
+  benchmark evidence.
 
 ## Review - 2026-06-13 Goal Continuation 56
 - Added connected coverage proving a valid empty `root_host_entries` export stays materialized and
@@ -825,7 +1167,7 @@
 - [x] Verify JDK 21, Android SDK, and NDK 27.2.12479018.
 - [x] Run targeted JVM regression tests for changed code.
 - [x] Compile Android instrumentation tests for changed DB tests.
-- [ ] Run connected instrumentation tests on a device or emulator.
+- [x] Superseded by later full connected instrumentation suites and PR CI connected-test evidence.
 - [x] Run full unit/build/lint gates once the Android SDK environment is available.
 - [x] Run repo-level Gradle test task.
 
@@ -2650,8 +2992,8 @@
 - [x] Keep the useful measurement and storage changes: seed-phase benchmark logging, v25
   `root_host_entries` `WITHOUT ROWID`, and production/test database storage alignment.
 - [x] Re-run compile and focused connected correctness gates after the rollback.
-- [ ] Implement the next algorithmic root-export change that avoids inserting about 1M rows into
-  SQLite during update sync.
+- [x] Superseded by the later stage-backed root export during source import, which avoids the old
+  direct 1M root-row copy path.
 
 ## Review - 2026-06-13 Goal Continuation 58
 - The 1M threshold experiment finished after about 15 minutes and failed as expected. Final metric:
@@ -2830,7 +3172,8 @@
   kind/host runtime-import index.
 - [x] Regenerate the Room schema after the revert.
 - [x] Re-run focused compile and connected DB/migration guards.
-- [ ] Replace eager 5M `host_entries` materialization with a deeper runtime-truth/read-path design.
+- [x] Superseded by the active-truth runtime path, bounded cache refresh, and stage-backed root
+  export proof at 5M scale.
 
 ## Review - 2026-06-13 Goal Continuation 46
 - Ran the requested 5M benchmark to completion after the user explicitly asked not to close long
@@ -2868,7 +3211,7 @@
 - [x] Add migration and query-plan tests for the physical runtime-table/index changes.
 - [x] Run focused compile, unit, connected DB, and migration verification.
 - [x] Benchmark the 1M and 5M runtime-sync paths after each meaningful SQLite change.
-- [ ] Design the next storage/write-path change for the still-failing 5M materialization case.
+- [x] Superseded by the active-truth/read-path design and later 5M benchmark proof.
 
 ## Review - 2026-06-13 Goal Continuation 45
 - Confirmed there is no fresh Gradle or 5M benchmark still running. The only Java process found
@@ -5154,9 +5497,8 @@
   policies are explicit.
 - [x] Split the broad worktree into reviewable slices: crash/stability, DB/runtime truth, UX,
   release security, licensing/MIT, and optional AI cleanup.
-- [ ] Run final proof gates from a clean checkout where practical: debug assemble, unit tests,
-  Android-test compile, focused connected tests, UX matrix, license boundary, SBOM/dependency
-  verification, signed release build, and physical-device smoke.
+- [x] Superseded by the canonical external P0 release board below; do not use this historical
+  checklist as an independent open gate.
 
 ## Review - 2026-06-15 Goal Continuation 93
 - Final stabilization scope: kept broad refactor/release work frozen and focused on crash evidence,
@@ -5228,7 +5570,7 @@
 - [x] Commit dormant asset/native cleanup separately.
 - [x] Commit Android UI instrumentation, rule capability docs, and durable task/evidence logs
   separately.
-- [ ] Push/create PR only after the user chooses the remote integration path.
+- [x] Superseded by later branch push, PR creation, and passing PR CI evidence.
 
 ## Review - 2026-06-15 Goal Continuation 94
 - Created reviewable commits from the broad worktree instead of one opaque checkpoint:
@@ -8454,7 +8796,7 @@
 - [x] Update the stale unit contract after CI's clean run exposed the old three-line cap assertion.
 - [x] Rerun the focused UX matrix connected test.
 - [x] Rerun the standard local Gradle gate and full local connected Android suite.
-- [ ] Push the fix and recheck PR CI.
+- [x] Superseded by Story Fix Loop 30 push and passing PR CI.
 
 ## Review - 2026-06-26 Story Fix Loop 28
 - The failed PR check was `Connected Android tests` on `b3923958`. The prior list-tab failure was
@@ -10731,9 +11073,10 @@
 
 ### External-Blocked Release Gates
 - [ ] ADA-P0-ROOT-007 / `RUNTIME-007`: run rooted-device hosts apply smoke with real remount/write
-  evidence. Fresh API 34 emulator probe had `adb root`/`su 0`, but `/system/etc/hosts` stayed
-  read-only and `-writable-system` did not yield a usable device, so closure remains blocked until
-  a rooted physical or trusted writable-system emulator environment is available.
+  evidence. Fresh API 34 `-writable-system` emulator probe now proves `adb root`, `adb remount`,
+  and shell-level `/system/etc/hosts` write/restore, but the app/libsu path still runs as the
+  `u0_a` app UID. Closure remains blocked until a rooted physical, Magisk/root-manager emulator, or
+  trusted target grants root to `org.adaway`.
 - [ ] ADA-P0-UPD-002 / `UPDATE-002`: run signed APK self-update install smoke with verified APK hash
   and signing certificate evidence. Blocked until signed release/test artifact exists.
 - [ ] ADA-P0-UPD-004 / `UPDATE-004`: run `directRelease` install/update gate proof. Blocked until
@@ -10882,8 +11225,538 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#packageWithoutCommandPermissionCannotDeliverCommandBroadcast
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
 - `RUNTIME-007`: Re-probed the local API 34 emulator for rooted hosts-file apply viability.
-  Evidence improved but still does not close the story: `adb root` and `su 0 id` worked, but
-  `adb remount` required bootloader unlock, `avbctl disable-verification` failed writing `vbmeta`,
-  direct write to `/system/etc/hosts` failed with `Read-only file system`, and restarting the AVD
-  with `-writable-system` did not produce a usable connected device. The rooted-hosts apply smoke
-  remains blocked until a rooted physical device or trusted writable-system emulator is available.
+  Superseded evidence now shows `adb root`, `adb remount`, and shell-level `/system/etc/hosts`
+  write/restore work on a fresh `-writable-system` `adaway-api34-16g` launch. The remaining blocker
+  is app-granted root: the opt-in `RootModelApplyInstrumentedTest` compiled, but
+  `Shell.getShell()`/`Shell.cmd("id")` still ran as `u0_a` before any app-level hosts mutation; a
+  temporary `/system/xbin/su` mode bootstrap from `4750` to `4755` did not change that. The hosts
+  hash and `su` mode were restored. The rooted-hosts apply smoke remains blocked until a rooted
+  physical device, Magisk/root-manager emulator, or trusted target grants root to `org.adaway`.
+
+## Review - 2026-06-27 Filter Catalog Preset Safety
+- CTO split this slice across three read-only expert lanes: catalog/product quality,
+  runtime/source-generation safety, and release tracker evidence. Runtime/DB review found the PR
+  branch already has the stronger active-generation carry-forward and active runtime-query proofs,
+  so no duplicate connected DB test was added in this catalog slice.
+- `DISC-001`/`DISC-002`/`ONB-002`: Made `OISD Full` opt-in instead of a first-run default,
+  removed stale/browser-syntax Israeli/Hebrew static catalog entries, kept `EasyList Hebrew
+  (hosts)`, and changed Balanced/Aggressive presets from broad category sweeps to curated sets.
+- Added `FilterListCatalogPresetTest` to guard that defaults exclude OISD, Balanced stays moderate,
+  Aggressive is curated instead of "everything", social/YouTube/device/service/regional lists stay
+  opt-in, and Hebrew regional coverage uses the hosts-compatible feed.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.source.FilterListCatalogPresetTest --tests
+  org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests
+  org.adaway.ui.onboarding.DefaultListsSubscriberTest --tests
+  org.adaway.tasks.UserStoryStatusTrackerTest --dependency-verification=strict --stacktrace`.
+  Current PR CI was green before this local commit; re-check CI after push.
+
+## Review - 2026-06-27 LIST-007 Paging Failure State Proof
+- `LIST-007`: Added a connected Your Lists proof for the remaining load-failure/retry visual path.
+  The test temporarily renames `hosts_lists` before the PagingSource refresh, waits for the visible
+  load-failed title/message and Retry button, restores the table, taps Retry, and verifies the
+  blocked list rows render again.
+- This closes the prior local proof gap for loading/empty/error/no-match states without changing
+  production UI behavior; the existing state resolver and layout remain the source of truth.
+- Verification passed:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.lists.ListsSearchInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 3 connected tests.
+
+## Plan - 2026-06-27 CTO Convergence Notification Slice
+- [x] Re-ground PR #7 CI, dirty state, and remaining partial tracker rows.
+- [x] Split the remaining question set across expert lanes: notifications, release/update gates,
+  runtime scale, and tracker triage.
+- [x] Close the strongest locally finishable slice without touching manual-only release gates:
+  `NOTIF-001` notification channel upgrade behavior.
+- [x] Run focused connected proof and update canonical evidence.
+
+## Review - 2026-06-27 NOTIF-001 Existing Channel Upgrade Proof
+- `NOTIF-001`: Strengthened `NotificationHelperChannelInstrumentedTest` from fresh metadata only to
+  two connected proofs: production Updates, FilterLists, and VPN channel metadata on a clean install;
+  and an Android channel-upgrade probe showing an existing low-importance FilterLists-style channel
+  is not silently upgraded to default importance by recreating the channel. This keeps the app-owned
+  behavior honest without mutating `POST_NOTIFICATIONS`.
+- The first overbroad assertion intentionally failed on device: Android allowed an app-created,
+  unmodified high-importance channel to be lowered to the app's requested low importance. The kept
+  proof was narrowed to the product risk that matters here: older/existing low-importance channels
+  cannot be upgraded silently, so users keep notification settings control through Android Settings.
+- Verification passed:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.helper.NotificationHelperChannelInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 2 connected tests.
+- CTO triage result: after this local slice, the convergence blockers are primarily release
+  operations and real devices/artifacts: signed direct-release/update artifacts, rooted writable
+  hosts apply, physical release smoke, legal/provenance signoff, human UX matrix signoff, and final
+  readiness aggregation.
+
+## Plan - 2026-06-28 Update Release Gate Preflight
+- [x] Re-ground the active PR worktree instead of editing the dirty `master` checkout.
+- [x] Re-check PR #7 CI before starting new work.
+- [x] Verify the local app-update release contracts for `UPDATE-002` and `UPDATE-004`.
+- [x] Run unsigned `assembleDirectRelease` as a fail-closed preflight.
+- [x] Update canonical release-gate evidence without claiming signed install smoke is done.
+
+## Review - 2026-06-28 UPDATE-002/UPDATE-004 Release Preflight
+- `UPDATE-002`: Revalidated the APK verifier unit contract and recorded that signed device install
+  smoke remains open until a real signed artifact exists. The row now points at
+  `tasks/benchmarks/2026-06-28-update-release-preflight-evidence.md` instead of saying the local
+  verifier retest was not started.
+- `UPDATE-004`: Revalidated the direct APK boundary source contract: normal builds do not declare
+  `REQUEST_INSTALL_PACKAGES`, `directRelease` owns that permission, runtime self-update is gated by
+  `BuildConfig.DIRECT_APK_UPDATES_ENABLED` and the AdAway store, and the APK receiver checks unknown
+  app install permission before launching install UI.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.model.update.ApkIntegrityVerifierTest --tests
+  org.adaway.security.SecurityHardeningTest.atk34_apkSelfUpdateRequiresInstallPermissionAndAdAwayStoreBoundary
+  --dependency-verification=strict --stacktrace`.
+- Fail-closed preflight passed by failing as expected: unsigned
+  `./gradlew --no-daemon :app:assembleDirectRelease --dependency-verification=strict --stacktrace`
+  exited `1` with `Release and release-SBOM builds require signingStoreLocation,
+  signingStorePassword, signingKeyAlias, and signingKeyPassword.`
+- Remaining release proof is external: produce a signed direct-release artifact, verify manifest/APK
+  hash/signing certificate evidence, run the install/update path on a target device, and feed those
+  reports into the release readiness aggregation.
+
+## Plan - 2026-06-28 PREF-004 Dormant Webserver Closure
+- [x] Re-read the current `PREF-004` row, `PrefsRootFragment`, connected test, and webserver
+  hardening contracts.
+- [x] Convert the row from partial to covered for the current product behavior: dormant and
+  unavailable unless a future webserver product/security project reintroduces it.
+- [x] Re-run focused JVM hardening contracts and connected Preferences proof.
+- [x] Re-run tracker guard and hygiene.
+
+## Review - 2026-06-28 PREF-004 Dormant Webserver Closure
+- `PREF-004`: The current app-owned behavior is not a half-enabled webserver; it is an intentionally
+  dormant unavailable feature. `PrefsRootFragment` disables the switch, test row, and icon toggle,
+  forces the toggles off, and avoids launching `https://localhost` while the native executable is
+  absent.
+- The tracker now says `Covered by connected dormant-boundary proof` and keeps the security
+  caveat explicit: re-enabling a native localhost webserver would be a new product/security project,
+  not an open bug in current behavior.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.security.SecurityHardeningTest.atk30_noPackagedWebServerCredentialMaterial --tests
+  org.adaway.security.SecurityHardeningTest.atk30_bootAndRootDoNotStartDormantWebServer
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsRootWebServerUnavailableInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+
+## Plan - 2026-06-28 NOTIF-002 Non-Mutating Alert Proof
+- [x] Use the clean PR worktree and avoid the dirty `master` checkout.
+- [x] Split the work across expert lanes for notification proof, release-tracker triage, and
+  environment/CI risk.
+- [x] Strengthen the update-alert builder so the notification object can be inspected without
+  posting or mutating runtime notification permission.
+- [x] Add connected proof for distinct actionable hosts/app alerts and current permission-state
+  posting behavior.
+- [x] Update tracker evidence only after focused JVM and connected proofs pass.
+
+## Review - 2026-06-28 NOTIF-002 Non-Mutating Alert Proof
+- `NOTIF-002`: Refactored `NotificationHelper` so hosts/app update alert builders are inspectable
+  package-private contracts while the public posting methods still guard on
+  `NotificationManager.areNotificationsEnabled()` before notifying.
+- Extended `NotificationHelperChannelInstrumentedTest` from channel-only coverage to four connected
+  proofs: channel metadata, existing-channel upgrade immutability, distinct actionable hosts/app
+  update notification builders, and current permission-state posting/no-post behavior without
+  `POST_NOTIFICATIONS` grant/revoke mutation.
+- The canonical tracker now marks `NOTIF-002` covered for the app-owned alert/channel contract while
+  keeping Android notification permission UX under `NOTIF-003`/`PREF-010`.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.helper.NotificationHelperContractTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.helper.NotificationHelperChannelInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 4 connected tests.
+
+## Plan - 2026-06-28 PREF-013 Platform Backup Restore Smoke
+- [x] Re-check whether the API 34 emulator exposes a usable Android backup transport before
+  leaving `PREF-013` as manual-only.
+- [x] Add a phase-gated instrumentation proof that seeds backup state and later asserts restored
+  state without pretending normal CI alone proves platform restore.
+- [x] Run the real shell sequence: enable Backup Manager, select local transport, `bmgr backupnow`,
+  clear app data, restore from the local restore set, and assert the restored app state.
+- [x] Update the canonical tracker with exact evidence and keep cloud/OEM transport availability as
+  an OS-owned boundary.
+
+## Review - 2026-06-28 PREF-013 Platform Backup Restore Smoke
+- `PREF-013`: Added `AppBackupAgentPlatformInstrumentedTest`, a phase-gated connected proof for
+  Android Backup Manager restore. The seed phase writes a SharedPreferences probe plus source,
+  blocked, allowed, and redirected user rules. The assert phase verifies the preference and rules
+  after platform restore.
+- The accepted proof uses manual APK install and `adb shell am instrument`, because Gradle
+  `connectedDebugAndroidTest` cleans up the target package before shell `bmgr backupnow` can run.
+- Verification passed on `adaway-api34-16g`: `bmgr enable true`, selected
+  `com.android.localtransport/.LocalTransport`, seed phase `OK (1 test)`, `bmgr backupnow
+  org.adaway` succeeded for `@pm@` and `org.adaway`, `pm clear org.adaway` succeeded,
+  `bmgr restore 1 org.adaway` finished with status `0`, and assert phase `OK (1 test)`.
+- The canonical tracker now marks `PREF-013` covered for the app-owned BackupAgent contract while
+  keeping cloud account availability and OEM transport behavior as OS-owned boundaries.
+
+## Plan - 2026-06-28 REL-001 Debug Artifact Boundary CI Guard
+- [x] Check whether any remaining release gate can be locally strengthened without pretending debug
+  artifacts are signed release artifacts.
+- [x] Prove a debug-safe CycloneDX SBOM path with `:app:cyclonedxBom` while preserving the
+  release-gated `:app:generateSbom` fail-closed behavior.
+- [x] Add Android CI steps that inspect the built debug APK plus development SBOM using
+  `check-license-boundary.ps1 -StrictArtifacts`.
+- [x] Add JVM workflow guards and update the canonical tracker/evidence without closing legal,
+  signed-release, physical-device, or root gates.
+
+## Review - 2026-06-28 REL-001 Debug Artifact Boundary CI Guard
+- `REL-001`: Android CI now generates a development CycloneDX SBOM, checks
+  `app/build/outputs/apk/debug/app-debug.apk` plus `app/build/reports/cyclonedx/bom.json` with
+  strict artifact mode, and uploads both the boundary report and SBOM.
+- The release boundary remains honest: unsigned `:app:generateSbom` still fails closed on missing
+  release trust material, and this debug artifact proof does not replace signed release APK/SBOM,
+  attestation, or legal/provenance clearance.
+- Local verification passed: `:app:assembleDebug :app:cyclonedxBom` succeeded; strict artifact
+  boundary report inspected 1119 APK entries, 265 APK resources, 116 SBOM components, and found
+  Issues 0 for debug APK SHA-256
+  `cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771`.
+
+## Plan - 2026-06-28 UPDATE-004 DirectRelease Dry-Run CI Guard
+- [x] Probe whether `directRelease` packaging can be exercised locally without production signing
+  secrets.
+- [x] Reject the mismatched store/key password dry-run and use a shared ephemeral password that
+  Android packaging can read.
+- [x] Add Android CI directRelease dry-run packaging with a temporary keystore and public key
+  derived from the dry-run certificate.
+- [x] Run strict artifact-boundary checking against the dry-run `app-directRelease.apk` plus release
+  CycloneDX SBOM while keeping production signed artifact/device gates open.
+
+## Review - 2026-06-28 UPDATE-004 DirectRelease Dry-Run CI Guard
+- `UPDATE-004` / `REL-002`: Added a pull-request CI dry-run that builds
+  `:app:assembleDirectRelease :app:generateSbom` with an ephemeral keystore. This exercises
+  directRelease manifest merge, release signing configuration, R8/minification, lint-vital, and
+  release SBOM generation without production secrets.
+- The first local attempt with different store/key passwords failed at `:app:packageDirectRelease`,
+  so the workflow deliberately uses one `DRY_RUN_SIGNING_PASSWORD` for keytool and Gradle signing
+  properties.
+- Local verification passed for the shared-password dry-run and strict artifact boundary:
+  `app-directRelease.apk` SHA-256
+  `287b535363e1c1672978ff94117d1a129e6f12654c4ff6cb0f5d4ee1fd73722e`,
+  release SBOM SHA-256
+  `e99220606350d95ae2be18b1c001a3f327d3b4ef463041e5397347daced92861`,
+  847 APK entries, 202 APK resources, 105 SBOM components, Issues 0.
+
+## Plan - 2026-06-28 CTO Expert Swarm Convergence Audit
+- [x] Re-check PR #7 from the pushed head instead of restarting the plan.
+- [x] Split the remaining work into expert lanes: CI/release workflow, release-gate challenger,
+  and product/runtime Hebrew plus large-import audit.
+- [x] Classify every open P0 gate as locally closable, locally strengthenable, or truly
+  external/manual before taking more slices.
+- [x] Accept the CTO board rule: do not spend more local churn on `RUNTIME-007` or `REL-003`
+  without a real writable rooted target, physical device, and release artifact.
+- [x] Wait for the latest PR connected Android test job to finish.
+- [x] Record final CI evidence and commit only if the canonical task files change with verified
+  facts.
+
+## Review - 2026-06-28 CTO Expert Swarm Convergence Audit
+- CI lane: PR #7 head `9d4b9d24` is green. CodeQL, Analyze cpp, Analyze java, Development
+  build, and Connected Android tests passed. GitHub Actions run `28310433209` completed
+  successfully; Development build passed in `6m17s`, Connected Android tests passed in `9m8s`,
+  and the new `Run directRelease packaging dry run` plus strict dry-run artifact-boundary steps
+  passed before the connected suite ran.
+- Release-gate lane: no remaining P0 can be honestly closed by local-only work. `RUNTIME-007`
+  requires an app-granted root target for `org.adaway`/libsu; `REL-003` requires a physical release
+  device. `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-004`, and `REL-005` are only
+  locally strengthenable until real signed artifacts, legal/provenance review, human UX signoff,
+  and upstream readiness reports exist.
+- Product/runtime lane: the old large-entry issue was missing `root_host_entries_stage`
+  population on the full parse/import path, forcing slow direct root export. It is already closed
+  by the stage-backed import/export fix and fresh 5M connected benchmark evidence. Hebrew regional
+  coverage is intentionally kept to the valid hosts-compatible EasyList Hebrew feed; stale
+  AdGuard/browser-syntax Israeli lists are guarded against by catalog tests.
+- Verification for this evidence-only slice passed: `git diff --check` and focused
+  `UserStoryStatusTrackerTest` with strict dependency verification.
+
+## Plan - 2026-06-28 REL-004 Current-Head UX Packet Refresh
+- [x] Re-ground PR #7 head and confirm the remaining `REL-004` boundary is human signoff rather
+  than missing local packet generation.
+- [x] Boot `adaway-api34-16g` and run `scripts/run-ux-matrix.ps1` against current head
+  `e762f2b4`.
+- [x] Hash/count the packet, run `verify-ux-signoff.ps1` preflight, and spot-check high-risk
+  large-font/RTL screenshots.
+- [x] Update canonical REL-004 evidence while keeping the release gate open for checked human
+  review.
+
+## Review - 2026-06-28 REL-004 Current-Head UX Packet Refresh
+- Superseded by the later `REL-004/REL-005 Source-Under-Test Refresh` at source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`; this earlier `e762f2b4` packet remains archival
+  evidence only.
+- `REL-004`: Fresh current-head UX matrix passed all five variants on `adaway-api34-16g`:
+  baseline, `font-1.3`, `font-1.6`, `font-1.3-rtl`, and `font-1.6-rtl`.
+- Generated `40` screenshots and
+  `app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-matrix-review.md` from source
+  commit `e762f2b4f73bcd1e20342572a2285c23d9c3c52b`.
+- Review packet SHA-256:
+  `0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf`.
+- `verify-ux-signoff.ps1` preflight failed as expected with matching current/review packet source
+  commits, `Status: failed`, `Checked items: 0`, `Unchecked items: 45`, and
+  `Review packet still has unchecked items.`
+- Spot-checked `font-1.6-rtl` Home, Discover, Sources, and `font-1.6` More; no obvious clipping,
+  hidden bottom navigation, or unreachable primary action was found. This remains a non-human
+  sanity check and does not close human UX signoff.
+
+## Plan - 2026-06-28 REL-005 Current-Head Readiness Preflight
+- [x] Re-ground PR #7 after the current-head UX packet refresh.
+- [x] Run the release-readiness verifier with missing release/smoke reports, the failed UX
+  signoff preflight, the current UX review packet, and the dry-run license-boundary report.
+- [x] Record the expected fail-closed readiness output without treating it as final release
+  readiness.
+- [x] Add a tracker guard so `REL-005` keeps naming the current-head packet hash and upstream
+  blockers.
+
+## Review - 2026-06-28 REL-005 Current-Head Readiness Preflight
+- Superseded by the later `REL-004/REL-005 Source-Under-Test Refresh` at source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`; this earlier `0fb50e3a` UX packet readiness
+  preflight remains archival evidence only.
+- PR #7 head `69623d1f` was green before this slice: Development build `6m34s`, Connected Android
+  tests `8m56s`, CodeQL, Analyze cpp, and Analyze java all passed.
+- `scripts/verify-release-readiness.ps1` failed closed as intended when fed the refreshed current
+  UX packet plus non-final inputs: missing `release-artifacts/verification-report.md`, missing
+  `release-smoke/release-smoke-report.md`, failed UX signoff preflight, and dry-run
+  license-boundary report.
+- The generated preflight report recorded matching UX packet hashes
+  `0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf`, failed release artifact,
+  failed physical smoke, failed UX signoff, failed license boundary, and `Issues: 7`.
+- `REL-005` remains open. It still requires real release artifact, physical smoke, checked human UX
+  signoff, and release artifact license-boundary reports from one source commit and release
+  identity.
+
+## Plan - 2026-06-28 RUNTIME-007 Writable Emulator Re-Probe
+- [x] Launch `adaway-api34-16g` with `-writable-system` and verify boot/root/remount state.
+- [x] Prove controlled shell-level `/system/etc/hosts` write and exact restoration.
+- [x] Add an opt-in connected `RootModel.apply()` smoke that is skipped in normal CI and only runs
+  with `rootHostsApplySmoke=true`.
+- [x] Run the app-level smoke and document whether the emulator provides app-granted root.
+- [x] Update the canonical tracker without closing `RUNTIME-007` from shell-only evidence.
+
+## Review - 2026-06-28 RUNTIME-007 Writable Emulator Re-Probe
+- The old read-only conclusion is stale. A fresh writable-system emulator launch reached
+  `boot_completed=1`, accepted `adb root`, remounted `/system` with overlayfs read/write, and
+  allowed a controlled shell write of `codex-root-write-smoke.local` into `/system/etc/hosts`.
+  Restoring the backup returned the hosts SHA-256 to
+  `425c3e713d5bae19b031bc8639c20c6a23e311a54647ba1824cbf45969a11ff4`.
+- Added `RootModelApplyInstrumentedTest`, an explicit opt-in connected harness that seeds one
+  blocked host, calls the real `RootModel.apply()` path, and restores `/system/etc/hosts` in
+  teardown if it reaches mutation. Normal connected suites skip this test unless
+  `rootHostsApplySmoke=true` is supplied.
+- Verification passed for the harness compile:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- The opt-in smoke failed before mutation because this AOSP emulator does not grant root to the app:
+  after `Shell.getShell()`, `Shell.cmd("id")` reported `u0_a194`/`u0_a196`, not `uid=0`.
+  `/system/xbin/su` was shell-only (`4750 root:shell`); temporarily changing it to `4755` still
+  left libsu in an untrusted app shell. `su` mode and `/system/etc/hosts` were restored.
+- `RUNTIME-007` remains a real external gate, but now the ask is precise: provide a rooted physical
+  device, Magisk/root-manager emulator, or trusted target where `org.adaway` gets app-granted root,
+  then rerun the opt-in smoke.
+
+## Plan - 2026-06-28 Android Release Candidate Scope
+- [x] Decide whether rooted-hosts apply remains blocking for the Android release candidate.
+- [x] Clarify iPhone/iOS support boundary before promising cross-platform installation.
+- [x] Bump the Android app version for owner device testing.
+- [x] Run focused version/release verification and push the release-candidate bump.
+
+## Review - 2026-06-28 Android Release Candidate Scope
+- Product decision: do not block the Android release candidate on `RUNTIME-007` because root usage
+  is a niche path and the remaining blocker is external app-granted root, not an observed Android
+  VPN-mode defect. Keep the opt-in `RootModelApplyInstrumentedTest` ready for any later rooted
+  physical/Magisk target.
+- iPhone/iOS is out of scope for this repository and release. This project builds an Android APK and
+  depends on Android package, VPN service, WorkManager, notification, backup, and root/libsu APIs.
+  An iPhone product would need a separate iOS implementation using Safari content blockers,
+  DNS/VPN-style Network Extension approaches, or another Apple-approved architecture.
+- Bumped the Android fork release-candidate version from `13.5.0`/`130500` to
+  `13.5.1`/`130501` in `gradle/libs.versions.toml` and added a `13.5.1` changelog entry.
+- Verification passed: `git diff --check`, `:app:processDebugMainManifest`,
+  focused `ManifestTest`, `ReleaseReadinessScriptTest`, `UserStoryStatusTrackerTest`,
+  `:app:assembleDebug`, and APK badging showed package `org.adaway`, versionCode `130501`,
+  versionName `13.5.1`.
+
+## Plan - 2026-06-28 FilterLists Row Toggle Fix
+- [x] Reproduce the user-reported toggle issue from code: unsupported FilterLists row switches were
+  disabled or bounced through the bulk-safe/manual-review gate.
+- [x] Keep bulk subscribe DNS-safe while allowing explicit single-row toggles to resolve a direct
+  URL and subscribe a limited-support source.
+- [x] Update user-facing compatibility copy from `Manual review` to `Limited support` where the row
+  can now be explicitly subscribed.
+- [x] Add JVM and connected regression coverage for the actual switch path.
+- [x] Update canonical task evidence and lessons.
+
+## Review - 2026-06-28 FilterLists Row Toggle Fix
+- Root cause: `DiscoverFilterListsFragment` reused the bulk-subscribe compatibility gate for the
+  single-row switch. Unsupported/browser-syntax rows could be disabled in the UI, and the
+  subscription method still returned `filterlists_manual_review_required` instead of adding the
+  user-selected source.
+- Fix: single-row toggles now stay enabled, resolve `FilterListsDirectoryApi` details, insert an
+  enabled `HostsSource` with FilterLists provenance, and enqueue the normal source update. Bulk
+  subscribe remains DNS-safe-only through `FilterListCompatibility.isBulkSafe(...)` and the worker.
+- UX copy now labels these rows as `Limited support` and the review dialog says bulk subscribe skips
+  the row by default, avoiding the old implication that the switch is a dead end.
+- Connected proof passed on `adaway-api34-16g`:
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest`.
+- Focused JVM proof passed:
+  `./gradlew testDebugUnitTest --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.model.source.FilterListCompatibilityTest --tests org.adaway.ui.hosts.CategorizedSourcesAdapterTest`.
+
+## Plan - 2026-06-28 Ynet Browsing Compatibility
+- [x] Investigate the reported `ynet.co.il` intermittent connection-lost behavior under AdAway.
+- [x] Determine whether the risk is parser over-flattening, selected-list overblocking, VPN DNS
+  handling, or a missing product allowlist for an essential browsing domain.
+- [x] Add a focused regression proof before/with any behavior change.
+- [x] Preserve ad-blocking value while avoiding full-site breakage.
+- [x] Run focused verification, update canonical evidence, and commit/push only if verified.
+
+## Review - 2026-06-28 Ynet Browsing Compatibility
+- Live `https://www.ynet.co.il/` was externally reachable, so the user-visible intermittent
+  connection-loss report is most consistent with local VPN/filter runtime overblocking rather than
+  a site outage.
+- Regional list inspection found intentional ad/tracker blocks such as `stats.ynet.co.il` and
+  `totalmedia2.ynet.co.il`; the fix therefore adds exact allow entries only for core first-party
+  Ynet browsing/media hosts and intentionally avoids `*.ynet.co.il`, `stats.ynet.co.il`,
+  `p.ynet.co.il`, and `totalmedia2.ynet.co.il`.
+- Existing installs are backfilled at app startup; when new site-compatibility rows are inserted,
+  `SourceModel.syncHostEntries()` rebuilds runtime truth and invalidates the VPN rules cache.
+- Fresh database creation and onboarding default-list subscription seed the same compatibility
+  allowlist together with the existing WhatsApp/Telegram safety allowlist.
+- Added a connected packet regression in `DnsPacketProxyRuntimeTruthTest`: a broad suffix block on
+  `ynet.co.il` must still forward `www.ynet.co.il`, while `stats.ynet.co.il` remains locally
+  blocked. The test compiles locally; execution is pending a working connected device.
+- First pushed PR connected run caught a real startup race before tests executed:
+  `SQLiteConstraintException: FOREIGN KEY constraint failed` from inserting site-compatibility user
+  rows before the user source row existed. The allowlist now inserts/ignores the user source first,
+  matching the normal `AppDatabase` user-list defaults.
+- Verification passed with OpenJDK 21: full `./gradlew testDebugUnitTest`,
+  `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-ynet-compat.apk`.
+- Local connected execution was blocked by environment, not app code: after cold and wiped
+  `adaway-api34-16g` launches, the emulator reached startup logging but never registered in
+  `adb devices`; no emulator process was left running afterward.
+
+## Plan - 2026-06-28 FilterLists Selected/All Bulk Actions
+- [x] Split FilterLists bulk commands into explicit selected/current-view and all-directory actions.
+- [x] Keep bulk subscribe DNS-safe-only while leaving unsupported rows to explicit single-row or
+  manual-review paths.
+- [x] Make destructive unsubscribe scope visible before mutation and support removing every
+  FilterLists-derived source, not only rows currently loaded in the visible directory cache.
+- [x] Add focused source/UI regression coverage and run local verification before pushing.
+
+## Review - 2026-06-28 FilterLists Selected/All Bulk Actions
+- Discover FilterLists now exposes two separate bulk scopes: `Subscribe selected` /
+  `Unsubscribe selected` for the current filtered view, and `Subscribe all` / `Unsubscribe all`
+  for the full loaded directory or all stored FilterLists-derived sources.
+- Bulk subscribe remains DNS-safe-only. Unsupported browser-rule rows are still skipped by the
+  worker and remain available through the explicit single-row review/add path.
+- Selected subscribe passes the current search/tag/language/compatible filters plus exact visible
+  IDs to `FilterListsSubscribeAllWorker`; all-directory subscribe clears those filters before
+  enqueueing the worker.
+- Selected unsubscribe resolves only sources matching the current view. All unsubscribe scans
+  stored sources and removes every source carrying FilterLists provenance, including sources no
+  longer visible in the current directory cache.
+- Verification passed with OpenJDK 21 from `/opt/homebrew/opt/openjdk@21`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
+- First PR connected run caught one test-helper fragility after the new bulk-action row reduced
+  visible RecyclerView space: `FilterListsVisibleBulkActionsInstrumentedTest` timed out waiting
+  for the unsupported row. The helper now cycles RecyclerView adapter positions while waiting for
+  row text instead of assuming every seeded row is attached in the first viewport; Android test APK
+  compilation passed again with `./gradlew assembleDebugAndroidTest`.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-bulk-actions.apk`
+  with SHA-256 `4766e62e3a6ea86ce69d2f5e9dff83a2838a8cfffa2097e3e1faff873411ce9b`.
+
+## Plan - 2026-06-28 FilterLists Checked Selection
+- [x] Replace the ambiguous selected/current-view behavior with explicit row checkboxes.
+- [x] Keep the existing one-row subscription switch separate from bulk row selection.
+- [x] Route Subscribe selected and Unsubscribe selected through checked FilterLists IDs only.
+- [x] Update source-contract and connected UI proof to require row selection before bulk actions.
+- [x] Run focused JVM/APK verification, update canonical evidence, and push only if verified.
+
+## Review - 2026-06-28 FilterLists Checked Selection
+- User clarified that `Subscribe selected` should mean a visible tick/checkbox selection, not the
+  currently filtered view. The previous scope split was functionally safe but product-ambiguous.
+- `filterlists_import_item.xml` now includes `filterlistsItemSelectionCheckBox`; this checkbox
+  controls bulk selection only. The existing row switch still controls the individual
+  subscribe/unsubscribe path.
+- `DiscoverFilterListsFragment` tracks checked IDs in `selectedListIds`, prunes hidden selections
+  when search/tag/language/DNS-safe filters change, and enables selected bulk commands only when
+  rows are checked.
+- Selected subscribe now passes exact checked IDs into `FilterListsSubscribeAllWorker`; selected
+  unsubscribe resolves only checked-row FilterLists source URLs. All-directory commands remain
+  separate and explicit.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- First focused connected attempt exposed a test-helper issue: `performClick()` on the checkbox
+  did not report success from the helper. The helper now toggles `CompoundButton` state directly
+  on the UI thread, which fires the real row-selection listener; the rerun passed.
+- A fresh debug APK was copied to
+  `/Users/steves/Downloads/AdAway/AdAway-13.5.1-debug-filterlists-checkbox-selection.apk`
+  with SHA-256 `35689a24ce47ad41c1889b5cb0a0661003c27b9dacac3d6da4e4d94016e6b6a5`.
+
+## Plan - 2026-06-28 FilterLists Selected Button Responsiveness
+- [x] Remove DNS-safe-count gating from the `Subscribe selected` enabled state.
+- [x] Keep bulk safety checks on click so unsupported-only selected rows explain the boundary.
+- [x] Add a connected regression for unsupported-only row selection enabling the button.
+- [x] Run focused verification, refresh APK, update status evidence, and push.
+
+## Review - 2026-06-28 FilterLists Selected Button Responsiveness
+- User reported `Subscribe selected` stayed grey after checking multiple filters.
+- Root cause: the selected subscribe button was enabled only when checked rows included at least
+  one DNS-safe row and were not already all subscribed. Unsupported-only or already-covered
+  selections therefore looked like the app ignored the checkbox.
+- `Subscribe selected` now enables whenever one or more visible rows are checked and the UI is not
+  busy. The click path still prevents unsafe bulk import and shows `No DNS-safe selected lists`
+  for unsupported-only selections.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- The connected proof now first checks only an unsupported row, verifies `Subscribe selected`
+  becomes enabled, and verifies tapping it shows `No DNS-safe selected lists` instead of leaving
+  the button grey.
+- A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
+  with SHA-256 `7b2b212528dbd3bbe61b0f20c4a55c7b63862909cc7043f1ad61b56ba80fd224`.
+
+## Plan - 2026-06-28 FilterLists Unsubscribe Responsiveness And Subscribed Filter
+- [x] Make `Unsubscribe selected` responsive whenever rows are checked.
+- [x] Add no-op feedback for selected unsubscribe when no checked row is subscribed.
+- [x] Add `Show subscribed` filter backed by live FilterLists source metadata.
+- [x] Compact filter/action controls so the list keeps more vertical room.
+- [x] Run focused verification, refresh APK, update status evidence, and push.
+
+## Review - 2026-06-28 FilterLists Unsubscribe Responsiveness And Subscribed Filter
+- User reported the same grey-button problem for `Unsubscribe selected` and asked for a
+  subscribed-only view plus more proportional controls.
+- `Unsubscribe selected` now enables whenever visible rows are checked. If none of those checked
+  rows are currently subscribed, tapping it shows `No subscribed selected lists` instead of staying
+  grey or silently doing nothing.
+- Added a `Show subscribed` switch next to `DNS-safe only`; it filters rows through the live
+  FilterLists source URL/index state and re-filters immediately after subscribe/unsubscribe changes.
+- The DNS-safe and subscribed switches now share one compact row, and bulk action buttons use
+  shorter equal sizing so more of the list remains visible.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- The connected proof now checks unsupported-only selection enables both selected actions, verifies
+  `Unsubscribe selected` reports `No subscribed selected lists`, verifies `Show subscribed` reduces
+  the list to the subscribed row, and verifies hidden selections are pruned when that filter hides
+  rows.
+- A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
+  with SHA-256 `3abe5ea934ee683f6d47c96ca0176f42312fc16f9f93fafa8436f449a8c39f06`.

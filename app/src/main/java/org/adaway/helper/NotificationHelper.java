@@ -6,6 +6,7 @@ import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static androidx.core.app.NotificationCompat.PRIORITY_LOW;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -40,11 +41,11 @@ public final class NotificationHelper {
     /**
      * The update hosts notification identifier.
      */
-    private static final int UPDATE_HOSTS_NOTIFICATION_ID = 10;
+    static final int UPDATE_HOSTS_NOTIFICATION_ID = 10;
     /**
      * The update application notification identifier.
      */
-    private static final int UPDATE_APP_NOTIFICATION_ID = 11;
+    static final int UPDATE_APP_NOTIFICATION_ID = 11;
     /**
      * The VPN running service notification identifier.
      */
@@ -108,14 +109,29 @@ public final class NotificationHelper {
         if (notificationManager == null || !notificationManager.areNotificationsEnabled()) {
             return;
         }
-        // Build notification
+        notificationManager.notify(
+                UPDATE_HOSTS_NOTIFICATION_ID,
+                buildUpdateHostsNotification(context)
+        );
+    }
+
+    static Notification buildUpdateHostsNotification(@NonNull Context context) {
         int color = context.getColor(R.color.notification);
         String title = context.getString(R.string.notification_update_host_available_title);
         String text = context.getString(R.string.notification_update_host_available_text);
         Intent intent = new Intent(context, HomeActivity.class);
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent pendingIntent = getActivity(context, 0, intent, FLAG_IMMUTABLE);
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, UPDATE_NOTIFICATION_CHANNEL)
+        return buildUpdateNotification(context, color, title, text, pendingIntent);
+    }
+
+    private static Notification buildUpdateNotification(
+            @NonNull Context context,
+            int color,
+            @NonNull String title,
+            @NonNull String text,
+            @NonNull PendingIntent pendingIntent) {
+        return new NotificationCompat.Builder(context, UPDATE_NOTIFICATION_CHANNEL)
                 .setSmallIcon(R.drawable.logo)
                 .setColorized(true)
                 .setColor(color)
@@ -124,9 +140,8 @@ public final class NotificationHelper {
                 .setContentText(text)
                 .setContentIntent(pendingIntent)
                 .setPriority(PRIORITY_LOW)
-                .setAutoCancel(true);
-        // Notify the built notification
-        notificationManager.notify(UPDATE_HOSTS_NOTIFICATION_ID, builder.build());
+                .setAutoCancel(true)
+                .build();
     }
 
     /**
@@ -140,25 +155,20 @@ public final class NotificationHelper {
         if (notificationManager == null || !notificationManager.areNotificationsEnabled()) {
             return;
         }
-        // Build notification
+        notificationManager.notify(
+                UPDATE_APP_NOTIFICATION_ID,
+                buildUpdateApplicationNotification(context)
+        );
+    }
+
+    static Notification buildUpdateApplicationNotification(@NonNull Context context) {
         int color = context.getColor(R.color.notification);
         String title = context.getString(R.string.notification_update_app_available_title);
         String text = context.getString(R.string.notification_update_app_available_text);
         Intent intent = new Intent(context, UpdateActivity.class);
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent pendingIntent = getActivity(context, 0, intent, FLAG_IMMUTABLE);
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, UPDATE_NOTIFICATION_CHANNEL)
-                .setSmallIcon(R.drawable.logo)
-                .setColorized(true)
-                .setColor(color)
-                .setShowWhen(false)
-                .setContentTitle(title)
-                .setContentText(text)
-                .setContentIntent(pendingIntent)
-                .setPriority(PRIORITY_LOW)
-                .setAutoCancel(true);
-        // Notify the built notification
-        notificationManager.notify(UPDATE_APP_NOTIFICATION_ID, builder.build());
+        return buildUpdateNotification(context, color, title, text, pendingIntent);
     }
 
     /**

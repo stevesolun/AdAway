@@ -353,24 +353,71 @@ public class DiscoverPresetSubscriptionTest {
                 "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
         String layout = readRepoFile(
                 "app/src/main/res/layout/fragment_discover_filterlists.xml");
+        String rowLayout = readRepoFile(
+                "app/src/main/res/layout/filterlists_import_item.xml");
+        String strings = readRepoFile("app/src/main/res/values/strings_filter_catalog.xml");
 
-        assertTrue("Bulk add must be an explicit command button.",
+        assertTrue("Selected-scope bulk actions must be grouped together.",
+                layout.contains("filterlistsSelectedActionsRow"));
+        assertTrue("All-directory bulk actions must be grouped separately.",
+                layout.contains("filterlistsAllActionsRow"));
+        assertTrue("Selected bulk add must be an explicit command button.",
                 layout.contains("filterlistsSubscribeVisibleButton"));
-        assertTrue("Bulk remove must be an explicit command button.",
+        assertTrue("Selected bulk remove must be an explicit command button.",
                 layout.contains("filterlistsRemoveVisibleButton"));
+        assertTrue("All-directory bulk add must be an explicit command button.",
+                layout.contains("filterlistsSubscribeAllButton"));
+        assertTrue("All-directory bulk remove must be an explicit command button.",
+                layout.contains("filterlistsRemoveAllButton"));
         assertTrue("Bulk actions must have a row container so empty states can hide them.",
                 layout.contains("filterlistsBulkActionsRow"));
+        assertTrue("Selected and all-directory actions must be visible in the copy.",
+                strings.contains("Subscribe selected")
+                        && strings.contains("Unsubscribe selected")
+                        && strings.contains("Subscribe all")
+                        && strings.contains("Unsubscribe all"));
+        assertTrue("Selected bulk actions must be backed by row checkboxes.",
+                rowLayout.contains("filterlistsItemSelectionCheckBox")
+                        && source.contains("selectedListIds")
+                        && source.contains("setFilterListSelected(s, checked)"));
         assertFalse("Bulk add/remove must not be represented as one destructive switch.",
                 layout.contains("filterlistsSubscribeAllSwitch"));
-        assertTrue("Bulk add button must call the subscribe confirmation.",
-                source.contains("filterlistsSubscribeVisibleButton.setOnClickListener"));
-        assertTrue("Bulk remove button must call the remove confirmation.",
-                source.contains("filterlistsRemoveVisibleButton.setOnClickListener"));
-        assertTrue("Bulk command enablement must still use visible subscription state.",
-                source.contains("FilterListsSubscriptionState.resolve(filtered"));
-        assertTrue("Bulk actions must hide when no visible rows are actionable.",
+        assertTrue("Selected add button must call selected subscribe confirmation.",
+                source.contains("filterlistsSubscribeVisibleButton.setOnClickListener")
+                        && source.contains("confirmSubscribeAll(false)"));
+        assertTrue("Selected remove button must call selected remove confirmation.",
+                source.contains("filterlistsRemoveVisibleButton.setOnClickListener")
+                        && source.contains("confirmUnsubscribeAll(false)"));
+        assertTrue("All add button must call all-directory subscribe confirmation.",
+                source.contains("filterlistsSubscribeAllButton.setOnClickListener")
+                        && source.contains("confirmSubscribeAll(true)"));
+        assertTrue("All remove button must call all-directory remove confirmation.",
+                source.contains("filterlistsRemoveAllButton.setOnClickListener")
+                        && source.contains("confirmUnsubscribeAll(true)"));
+        assertTrue("Selected bulk command enablement must use checked row state.",
+                source.contains("getSelectedSummariesForBulkScope()")
+                        && source.contains("getSelectedIdsForBulkScope()")
+                        && source.contains("filterlistsSubscribeVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())")
+                        && source.contains("filterlistsRemoveVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())"));
+        assertTrue("Subscribed-only filter must be available without adding another tall row.",
+                layout.contains("filterlistsShowSubscribedSwitch")
+                        && strings.contains("Show subscribed")
+                        && source.contains("mSubscribedOnly")
+                        && source.contains("if (mSubscribedOnly && !isSummarySubscribed(s))"));
+        assertTrue("Compatible-only switch must keep a 48dp touch target.",
+                xmlTagById(layout, "filterlistsCompatibleOnlySwitch")
+                        .contains("android:minHeight=\"48dp\""));
+        assertTrue("Subscribed-only switch must keep a 48dp touch target.",
+                xmlTagById(layout, "filterlistsShowSubscribedSwitch")
+                        .contains("android:minHeight=\"48dp\""));
+        assertTrue("Bulk buttons should stay compact so the list remains visible.",
+                layout.contains("android:minHeight=\"36dp\"")
+                        && layout.contains("android:textSize=\"12sp\""));
+        assertTrue("Bulk actions must hide when the directory has no rows to act on.",
                 source.contains("filterlistsBulkActionsRow.setVisibility") &&
-                        source.contains("filtered.isEmpty() && !bulkOperationRunning"));
+                        source.contains("all.isEmpty() && filtered.isEmpty()"));
         assertFalse("Subscribe-all switch must not use any-subscription state as checked.",
                 source.contains("setSubscribeAllSwitchChecked(hasFilterListsSubscriptions())"));
     }
@@ -434,26 +481,44 @@ public class DiscoverPresetSubscriptionTest {
     }
 
     @Test
-    public void filterListsBulkActionsUseCurrentFilteredScope()
+    public void filterListsBulkActionsSeparateSelectedAndAllDirectoryScopes()
             throws Exception {
         String source = readRepoFile(
                 "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
 
-        assertTrue("Subscribe-all worker must receive the active visible filter scope.",
+        assertTrue("Bulk subscribe worker must receive an explicit scope.",
                 source.contains("FilterListsSubscribeAllWorker.buildScopeInput("));
-        assertTrue("Filtered bulk scope must pass exact visible list ids when filters are active.",
-                source.contains("getFilteredIdsForBulkScope()"));
-        assertTrue("Subscribe-all confirmation must count visible rows, not the entire directory.",
-                source.contains("for (FilterListsDirectoryApi.ListSummary summary : filtered)"));
-        assertTrue("Bulk action state must resolve against visible rows.",
-                source.contains("FilterListsSubscriptionState.resolve(filtered"));
-        assertTrue("Unsubscribe-all must remove sources from the visible scope.",
-                source.contains("new ArrayList<>(filtered)"));
-        assertTrue("Subscribe-all must not queue a background job for zero DNS-safe visible rows.",
-                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope"));
-        assertFalse("Subscribe-all confirmation must not count the whole directory.",
-                source.contains("for (FilterListsDirectoryApi.ListSummary summary : all) {\n"
-                        + "            if (isAdAwayCompatible(summary.syntaxIds))"));
+        assertTrue("Selected subscribe must pass exact checked row ids.",
+                source.contains("int[] selectedIds = allDirectory ? null : getSelectedIdsForBulkScope()")
+                        && source.contains("selectedIds);"));
+        assertTrue("All-directory subscribe must clear text, tag, language, and id filters.",
+                source.contains("allDirectory ? null : getCurrentSearchQuery()")
+                        && source.contains("allDirectory ? 0 : selectedTagId")
+                        && source.contains("allDirectory ? 0 : selectedLanguageId")
+                        && source.contains("!allDirectory && mCompatibleOnly"));
+        assertTrue("Subscribe confirmation must count the selected scope for that command.",
+                source.contains("List<FilterListsDirectoryApi.ListSummary> scope ="
+                        + "\n                allDirectory ? all : getSelectedSummariesForBulkScope()")
+                        && source.contains("int safeCount = countCompatible(scope)"));
+        assertTrue("Selected bulk actions must stay responsive for checked rows.",
+                source.contains("filterlistsSubscribeVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())")
+                        && source.contains("filterlistsRemoveVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())"));
+        assertTrue("All-directory bulk action state must resolve against all loaded rows.",
+                source.contains("FilterListsSubscriptionState.resolve(" + "\n"
+                        + "                all, this::getCachedUrlForId, existingUrls)"));
+        assertTrue("Selected unsubscribe must remove sources from the checked-row scope.",
+                source.contains("allDirectory ? new ArrayList<>() : getSelectedSummariesForBulkScope()"));
+        assertTrue("All unsubscribe must remove every stored FilterLists-derived source.",
+                source.contains("for (HostsSource source : hostsSourceDao.getAll())")
+                        && source.contains("isFilterListsSource(source)"));
+        assertTrue("Bulk subscribe must not queue a background job for zero DNS-safe rows.",
+                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope")
+                        && source.contains("R.string.filterlists_no_dns_safe_selected_lists"));
+        assertTrue("Selected unsubscribe must stay responsive and explain no-op selections.",
+                source.contains("countSubscribed(selectedScope) == 0")
+                        && source.contains("R.string.filterlists_no_subscribed_selected_lists"));
     }
 
     @Test
@@ -583,8 +648,33 @@ public class DiscoverPresetSubscriptionTest {
         assertFalse("Unsupported row tap must not be only a dead-end snackbar.",
                 source.contains("showSnackbar(getString(R.string.filterlists_manual_review_required));\n"
                         + "            return;"));
-        assertTrue("Unsupported review copy must avoid claiming browser-rule compatibility.",
-                strings.contains("does not subscribe it automatically"));
+        assertTrue("Unsupported review copy must keep the safety boundary on bulk subscribe.",
+                strings.contains("bulk subscribe skips it by default"));
+    }
+
+    @Test
+    public void filterListsSingleToggleCanSubscribeLimitedSupportRows()
+            throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/ui/discover/DiscoverFilterListsFragment.java");
+
+        int methodStart = source.indexOf("private void updateSubscription");
+        int methodEnd = source.indexOf("private void confirmSubscribeAll", methodStart);
+        String method = source.substring(methodStart, methodEnd);
+
+        assertTrue("Single-list toggle must still resolve the FilterLists direct URL.",
+                method.contains("api.getListDetails(summary.id)"));
+        assertTrue("Single-list toggle must insert a normal enabled source.",
+                method.contains("hostsSourceDao.insert(src)") &&
+                        method.contains("SourceUpdateService.enqueueUpdateNow(appContext)"));
+        assertFalse("Single-list toggle must not be blocked by the bulk-safe compatibility gate.",
+                method.contains("!isAdAwayCompatible(summary.syntaxIds)"));
+        assertFalse("Single-list toggle must not bounce the user to manual review.",
+                method.contains("filterlists_manual_review_required"));
+        assertTrue("Row switches must remain available for explicit single-list subscription.",
+                source.contains("holder.switchView.setEnabled(true);"));
+        assertFalse("Row switches must not be disabled just because bulk subscribe skips a syntax.",
+                source.contains("holder.switchView.setEnabled(isSubscribed || compatible);"));
     }
 
     @Test
@@ -599,7 +689,7 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("formatDescriptionWithCapabilities(s.description, s.syntaxIds)"));
         assertTrue("Rows must include capability detail in accessibility copy.",
                 source.contains("rowState + \". \" + capabilitySummary"));
-        assertTrue("Unsupported rows must show manual-review status copy.",
+        assertTrue("Limited-support rows must show status copy.",
                 source.contains("FilterListCompatibility.rowSummary(s.syntaxIds)"));
         String descriptionView = xmlTagById(layout, "filterlistsItemDesc");
         assertFalse("Capability disclosure must wrap instead of clipping the description.",

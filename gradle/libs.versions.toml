@@ -1,7 +1,7 @@
 [versions]
 # Build
-appName = "13.5.0"
-appCode = "130500" # Read x.yy.zz to match version name
+appName = "13.5.1"
+appCode = "130501" # Read x.yy.zz to match version name
 gradle = "9.2.1"
 # Common
 guava = "33.6.0-android"
@@ -53,4 +53,3 @@ pcap4j = ["pcap4j-core", "pcap4j-pcap4j-packetfactory-static"]
 androidx-test = ["androidx-test-core", "androidx-test-core-testing", "androidx-test-ext-junit", "androidx-test-runner"]
 
 [plugins]
-

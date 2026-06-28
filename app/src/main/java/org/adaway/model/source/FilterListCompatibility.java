@@ -79,9 +79,9 @@ public final class FilterListCompatibility {
             return "DNS-safe: exact hosts and plain domains";
         }
         if (syntaxIds == null || syntaxIds.length == 0) {
-            return "Manual review: unknown syntax";
+            return "Limited support: unknown syntax";
         }
-        return "Manual review: browser semantics skipped";
+        return "Limited support: browser semantics skipped";
     }
 
     @NonNull
@@ -91,8 +91,8 @@ public final class FilterListCompatibility {
                     + "exceptions, cosmetics, and scriptlets are not claimed.";
         }
         if (syntaxIds == null || syntaxIds.length == 0) {
-            return "Unknown syntax. AdAway will not bulk-subscribe it; add it manually only "
-                    + "after confirming it is safe for DNS blocking.";
+            return "Unknown syntax. AdAway will not bulk-subscribe it; a single-list toggle "
+                    + "can add it after a direct download URL is found.";
         }
         return "Domain extraction only. Exceptions, redirects, path/options rules, cosmetics, "
                 + "scriptlets, and unsafe-to-flatten rules are skipped.";

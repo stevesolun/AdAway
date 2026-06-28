@@ -30,3 +30,8 @@ Result:
 - This environment is root-shell capable but is not accepted as a rooted hosts-apply smoke target.
 - `RUNTIME-007` remains open until a rooted physical device or trusted writable-system emulator can
   run the real `RootModel.apply()` path and restore `/system/etc/hosts` afterward.
+
+Superseded follow-up:
+- `tasks/benchmarks/2026-06-28-runtime007-writable-emulator-app-root-blocker.md` re-ran the probe
+  with a fresh `-writable-system` launch. Shell-level `/system/etc/hosts` write/restore now works.
+  The remaining blocker is app-granted root for `org.adaway`/libsu, not read-only `/system`.

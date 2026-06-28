@@ -1,5 +1,16 @@
 # Changelog
 
+## [13.5.1] - Unreleased
+
+- Prepare the Android fork release candidate with expanded connected-device and CI coverage.
+- Improve large filter import and root export performance for market-scale host lists.
+- Harden VPN onboarding, lifecycle, DNS enforcement, leak visibility, notifications, backup,
+  package-replaced handling, Quick Settings, and release-readiness checks.
+- Add curated filter discovery presets and keep Hebrew regional coverage to a hosts-compatible
+  source.
+- Document the rooted-hosts apply boundary: shell-level writable-system emulator proof exists, but
+  app-level root apply still requires a device or emulator that grants root to AdAway/libsu.
+
 ## [6.1.5] - Unreleased
 
 - Add always-on VPN detection during setup

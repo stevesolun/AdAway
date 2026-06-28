@@ -26,6 +26,7 @@ import org.adaway.db.entity.ListType;
 import org.adaway.db.entity.RuleKind;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -117,6 +118,40 @@ public class DnsPacketProxyRuntimeTruthTest {
     }
 
     @Test
+    public void ynetCompatibilityAllowlistForwardsCoreHostsWithoutOpeningTrackingHosts()
+            throws Exception {
+        insertHostListItem("ynet.co.il", BLOCKED, SUFFIX, null);
+        SiteCompatibilityAllowlist.ensureAllowlistSync(application);
+        hostEntryDao.sync();
+        application.invalidateVpnRulesCache();
+        InetAddress mappedDns = InetAddress.getByName("8.8.8.8");
+        RecordingEventLoop allowedLoop = new RecordingEventLoop();
+        DnsPacketProxy allowedProxy = new DnsPacketProxy(
+                allowedLoop,
+                new FixedDnsServerMapper(mappedDns));
+        allowedProxy.initialize(application);
+
+        allowedProxy.handleDnsRequest(buildDnsQueryPacket("www.ynet.co.il"));
+
+        assertEquals(1, allowedLoop.forwardedPackets);
+        assertNotNull(allowedLoop.forwardedPacket);
+        assertEquals(mappedDns, allowedLoop.forwardedPacket.getAddress());
+        assertNull(allowedLoop.devicePacket);
+
+        RecordingEventLoop blockedLoop = new RecordingEventLoop();
+        DnsPacketProxy blockedProxy = new DnsPacketProxy(
+                blockedLoop,
+                new FixedDnsServerMapper(mappedDns));
+        blockedProxy.initialize(application);
+
+        blockedProxy.handleDnsRequest(buildDnsQueryPacket("stats.ynet.co.il"));
+
+        assertEquals(0, blockedLoop.forwardedPackets);
+        assertNotNull(blockedLoop.devicePacket);
+        assertBlockedResponse(blockedLoop.devicePacket);
+    }
+
+    @Test
     public void dnsRequestForExactBlockedDomain_isAnsweredLocallyWithoutForwarding()
             throws Exception {
         insertHostListItem(exactBlockedHost, BLOCKED, EXACT, null);
@@ -205,6 +240,9 @@ public class DnsPacketProxyRuntimeTruthTest {
     }
 
     private void cleanup() {
+        for (String domain : SiteCompatibilityAllowlist.REQUIRED_DOMAINS) {
+            hostListItemDao.deleteUserFromHost(domain);
+        }
         hostListItemDao.clearSourceHosts(TEST_SOURCE_ID);
         database.getOpenHelper().getWritableDatabase().execSQL(
                 "DELETE FROM hosts_lists WHERE host LIKE ?",

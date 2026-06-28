@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
@@ -39,6 +40,8 @@ public class UserStoryStatusTrackerTest {
             "retest_status"
     );
     private static final Pattern STORY_ID = Pattern.compile("[A-Z]+-[0-9]{3}");
+    private static final Pattern BENCHMARK_EVIDENCE_PATH =
+            Pattern.compile("tasks/benchmarks/[A-Za-z0-9._/-]+");
     private static final Set<String> VALID_PRIORITIES = Set.of("P0", "P1", "P2");
 
     @Test
@@ -112,6 +115,207 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void trackerBenchmarkEvidencePathsExist() throws IOException {
+        Path repo = repoDir();
+
+        for (Row row : readRows()) {
+            Matcher matcher = BENCHMARK_EVIDENCE_PATH.matcher(row.allEvidence());
+            while (matcher.find()) {
+                String relativePath = trimTrailingPunctuation(matcher.group());
+                assertTrue("Tracker evidence path should exist for " + row.storyId() +
+                                ": " + relativePath,
+                        Files.exists(repo.resolve(relativePath)));
+            }
+        }
+    }
+
+    @Test
+    public void rel001StaysOpenWithFreshBoundaryReports() throws IOException {
+        Row row = rowsById().get("REL-001");
+
+        assertNotNull("REL-001 row should exist.", row);
+        assertEquals("REL-001 should remain a P0 release/legal gate.", "P0", row.priority());
+        assertFalse("REL-001 must not be marked covered by source/debug scans alone.",
+                isFullyCovered(row));
+        assertTrue("REL-001 should point at the fresh source-boundary evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
+                                "current-head-evidence.md"));
+        assertTrue("REL-001 should point at the debug artifact-boundary evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel001-" +
+                                "debug-artifact-boundary-evidence.md"));
+        assertTrue("REL-001 should record debug APK/SBOM artifact-boundary counts.",
+                row.testState().contains("Current-head GitTracked") &&
+                        row.testState().contains("2492 tracked source entries") &&
+                        row.testState().contains("2199 source archive entries") &&
+                        row.testState().contains("development CycloneDX SBOM") &&
+                        row.testState().contains("artifact-boundary checking") &&
+                        row.testState().contains("1119 APK entries") &&
+                        row.testState().contains("265 APK resources") &&
+                        row.testState().contains("116 SBOM components") &&
+                        row.testState().contains("Issues 0"));
+        assertExitCode(
+                "tasks/benchmarks/2026-06-28-rel001-license-boundary-gittracked.exitcode");
+        assertExitCode(
+                "tasks/benchmarks/2026-06-28-rel001-license-boundary-workingtree.exitcode");
+        assertExitCode("tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
+                "gittracked-strict-source-archive.exitcode");
+        assertTrue("REL-001 should keep MIT and artifact/legal boundaries open.",
+                row.riskNotes().contains("MIT remains blocked") &&
+                        row.riskNotes().contains("signed release APK/SBOM") &&
+                        row.retestStatus().contains("legal/provenance"));
+        assertTrue("REL-001 should record the debug artifact hashes.",
+                row.retestStatus().contains(
+                        "cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771") &&
+                        row.retestStatus().contains(
+                                "a75b7111dd87229a6c93541dd51190fb3f0ef1d7e785a290777269c7aa2706d1") &&
+                        row.retestStatus().contains("c03030f8"));
+    }
+
+    @Test
+    public void runtime007StaysOpenUntilAppGrantedRootApplyProofExists() throws IOException {
+        Row row = rowsById().get("RUNTIME-007");
+
+        assertNotNull("RUNTIME-007 row should exist.", row);
+        assertEquals("RUNTIME-007 should remain a P0 root apply gate.", "P0",
+                row.priority());
+        assertFalse("RUNTIME-007 must not close on adb-root or shell-write proof alone.",
+                isFullyCovered(row));
+        assertTrue("RUNTIME-007 should point at the current app-root blocker evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-runtime007-" +
+                                "writable-emulator-app-root-blocker.md"));
+        assertTrue("RUNTIME-007 should record that writable-system shell proof now exists.",
+                row.testState().contains("adb root/remount succeeded") &&
+                        row.testState().contains("shell write/restore"));
+        assertTrue("RUNTIME-007 should name the actual remaining blocker.",
+                row.riskNotes().contains("app-granted root") &&
+                        row.errorNotes().contains("Shell.getShell") &&
+                        row.errorNotes().contains("u0_a"));
+        assertTrue("RUNTIME-007 should keep the opt-in app smoke harness visible.",
+                row.existingTestEvidence().contains("RootModelApplyInstrumentedTest") &&
+                        row.retestStatus().contains("rootHostsApplySmoke=true") &&
+                        row.retestStatus().contains("app-root grant"));
+    }
+
+    @Test
+    public void update004StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+        Row row = rowsById().get("UPDATE-004");
+
+        assertNotNull("UPDATE-004 row should exist.", row);
+        assertEquals("UPDATE-004 should remain a P0 direct release gate.", "P0",
+                row.priority());
+        assertFalse("UPDATE-004 must not be marked covered by an ephemeral dry run.",
+                isFullyCovered(row));
+        assertTrue("UPDATE-004 should point at the directRelease dry-run evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-update004-" +
+                                "directrelease-dry-run-evidence.md"));
+        assertTrue("UPDATE-004 should record release packaging and artifact-boundary proof.",
+                row.testState().contains("assembleDirectRelease plus generateSbom") &&
+                        row.testState().contains("847 APK entries") &&
+                        row.testState().contains("202 APK resources") &&
+                        row.testState().contains("105 SBOM components") &&
+                        row.testState().contains("Issues 0"));
+        assertTrue("UPDATE-004 should keep production install smoke open.",
+                row.riskNotes().contains("production signed directRelease") &&
+                        row.retestStatus().contains("signed directRelease install smoke remains open"));
+    }
+
+    @Test
+    public void releaseHandoffRowsKeepVerifierEvidenceWithoutClosingExternalGates()
+            throws IOException {
+        Map<String, Row> rows = rowsById();
+
+        assertReleaseHandoffGate(rows, "REL-002", "artifact verifier");
+        assertReleaseHandoffGate(rows, "REL-003", "physical-smoke");
+        assertReleaseHandoffGate(rows, "REL-004", "ux packet");
+        assertReleaseHandoffGate(rows, "REL-005", "readiness aggregator");
+    }
+
+    @Test
+    public void rel002StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+        Row row = rowsById().get("REL-002");
+
+        assertNotNull("REL-002 row should exist.", row);
+        assertEquals("REL-002 should remain a P0 release artifact gate.", "P0",
+                row.priority());
+        assertFalse("REL-002 must not be marked covered by an ephemeral dry run.",
+                isFullyCovered(row));
+        assertTrue("REL-002 should point at the directRelease dry-run evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-update004-" +
+                                "directrelease-dry-run-evidence.md"));
+        assertTrue("REL-002 should record the directRelease dry-run scope.",
+                row.testState().contains("release packaging") &&
+                        row.testState().contains("R8/minification") &&
+                        row.testState().contains("release SBOM generation") &&
+                        row.testState().contains("strict APK/SBOM artifact-boundary"));
+        assertTrue("REL-002 should keep real signed artifact proof open.",
+                row.riskNotes().contains("production signer certificate") &&
+                        row.riskNotes().contains("signed manifest") &&
+                        row.retestStatus().contains("tagged release artifact run remains open"));
+    }
+
+    @Test
+    public void rel004StaysOpenWithFreshUxMatrixPacketEvidence() throws IOException {
+        Row row = rowsById().get("REL-004");
+
+        assertNotNull("REL-004 row should exist.", row);
+        assertEquals("REL-004 should remain a P0 release gate.", "P0", row.priority());
+        assertFalse("REL-004 must not be marked covered until human signoff exists.",
+                isFullyCovered(row));
+        assertTrue("REL-004 should point at the fresh UX matrix evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel004-ux-matrix-packet-evidence.md"));
+        assertTrue("REL-004 should record the fresh packet size and hash.",
+                row.testState().contains("40 screenshots") &&
+                        row.testState().contains(
+                                "1a25953daf58d51b56d796e641e34e6cf34bfc65") &&
+                        row.testState().contains(
+                                "d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4"));
+        assertTrue("REL-004 should keep the human-review boundary explicit.",
+                row.retestStatus().contains("Unchecked items 45") &&
+                        row.retestStatus().contains("human UX signoff"));
+    }
+
+    @Test
+    public void rel005StaysOpenWithCurrentHeadReadinessPreflightEvidence()
+            throws IOException {
+        Row row = rowsById().get("REL-005");
+
+        assertNotNull("REL-005 row should exist.", row);
+        assertEquals("REL-005 should remain a P0 final readiness gate.", "P0",
+                row.priority());
+        assertFalse("REL-005 must not be marked covered until real release proof exists.",
+                isFullyCovered(row));
+        assertTrue("REL-005 should point at the release-gate handoff evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
+        assertTrue("REL-005 should record the current-head packet hash and fail-closed result.",
+                row.testState().contains(
+                        "d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4") &&
+                        row.testState().contains("failed release artifact") &&
+                        row.testState().contains("failed physical smoke") &&
+                        row.testState().contains("failed UX signoff") &&
+                        row.testState().contains("failed license boundary") &&
+                        row.testState().contains("Issues 7"));
+        assertTrue("REL-005 should keep every upstream release proof open.",
+                row.riskNotes().contains("release artifact") &&
+                        row.riskNotes().contains("physical smoke") &&
+                        row.riskNotes().contains("checked human UX signoff") &&
+                        row.riskNotes().contains("artifact license-boundary"));
+        assertTrue("REL-005 should name the PR evidence and missing upstream reports.",
+                row.retestStatus().contains("missing release-artifacts/verification-report.md") &&
+                        row.retestStatus().contains("missing release-smoke/release-smoke-report.md") &&
+                        row.retestStatus().contains("debug/preflight license boundary") &&
+                        row.retestStatus().contains("post-reconciliation PR CI passed") &&
+                        row.retestStatus().contains("live PR state must be rechecked") &&
+                        row.retestStatus().contains("real workflow dispatch"));
+    }
+
+    @Test
     public void runtime010StaysClosedWithFreshFiveMillionScaleEvidence() throws IOException {
         Row row = rowsById().get("RUNTIME-010");
 
@@ -121,6 +325,106 @@ public class UserStoryStatusTrackerTest {
                 row.testState().contains("5M") &&
                         row.retestStatus().contains("5M") &&
                         row.retestStatus().contains("rootRows=4500000"));
+    }
+
+    @Test
+    public void runtime009StaysClosedWithPreparedVpnLifecycleEvidence() throws IOException {
+        Row row = rowsById().get("RUNTIME-009");
+
+        assertNotNull("RUNTIME-009 row should exist.", row);
+        assertEquals("RUNTIME-009 should stay a P1 lifecycle proof.", "P1", row.priority());
+        assertEquals("Covered by connected prepared-device lifecycle proof", row.status());
+        assertTrue("RUNTIME-009 should point at the prepared-device evidence file.",
+                row.existingTestEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md"));
+        assertTrue("RUNTIME-009 evidence file should be present.",
+                Files.isRegularFile(repoDir().resolve(
+                        "tasks/benchmarks/2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md")));
+        assertTrue("RUNTIME-009 should name the prepared-device full lifecycle proof.",
+                row.testState().contains("prepared API 34") &&
+                        row.testState().contains("start stop resume") &&
+                        row.retestStatus().contains("am instrument") &&
+                        row.retestStatus().contains("OK (1 test)"));
+        assertTrue("RUNTIME-009 should keep physical release smoke separate.",
+                row.riskNotes().contains("REL-003"));
+    }
+
+    @Test
+    public void systemContractRowsStayClosedWithoutOverclaimingPlatformDispatch()
+            throws IOException {
+        Map<String, Row> rows = rowsById();
+
+        assertCoveredSystemContract(
+                rows,
+                "SYS-001",
+                "Covered by connected tile contract",
+                "systemui");
+        assertCoveredSystemContract(
+                rows,
+                "SYS-004",
+                "Covered by connected receiver contract",
+                "release-smoke");
+    }
+
+    @Test
+    public void notif002StaysClosedWithNonMutatingConnectedAlertProof() throws IOException {
+        Row row = rowsById().get("NOTIF-002");
+
+        assertNotNull("NOTIF-002 row should exist.", row);
+        assertEquals("NOTIF-002 should stay a P2 notification contract.", "P2",
+                row.priority());
+        assertEquals("Covered by JVM and connected notification alert proof", row.status());
+        assertTrue("NOTIF-002 should point at the connected notification proof.",
+                row.existingTestEvidence().contains(
+                        "app/src/androidTest/java/org/adaway/helper/" +
+                                "NotificationHelperChannelInstrumentedTest.java") &&
+                        row.existingTestEvidence().contains(
+                                "tasks/benchmarks/2026-06-28-notif002-" +
+                                        "nonmutating-alert-proof.md"));
+        assertTrue("NOTIF-002 should name the app-owned alert contract.",
+                row.testState().contains("distinct actionable host/app notification builders") &&
+                        row.testState().contains("current notification-permission posting"));
+        assertTrue("NOTIF-002 should keep permission UX in the safer rows.",
+                row.riskNotes().contains("NOTIF-003/PREF-010") &&
+                        row.riskNotes().contains("avoids permission mutation"));
+        assertTrue("NOTIF-002 should record the focused JVM and connected retest.",
+                row.retestStatus().contains("NotificationHelperContractTest") &&
+                        row.retestStatus().contains("UserStoryStatusTrackerTest") &&
+                        row.retestStatus().contains("NotificationHelperChannelInstrumentedTest") &&
+                        row.retestStatus().contains("4 tests") &&
+                        row.retestStatus().contains("adaway-api34-16g"));
+    }
+
+    @Test
+    public void pref013StaysClosedWithPlatformBackupRestoreEvidence() throws IOException {
+        Row row = rowsById().get("PREF-013");
+
+        assertNotNull("PREF-013 row should exist.", row);
+        assertEquals("PREF-013 should stay a P2 backup contract.", "P2", row.priority());
+        assertEquals("Covered by connected platform backup restore smoke", row.status());
+        assertTrue("PREF-013 should point at the phase-gated platform restore proof.",
+                row.existingTestEvidence().contains(
+                        "app/src/androidTest/java/org/adaway/model/backup/" +
+                                "AppBackupAgentPlatformInstrumentedTest.java") &&
+                        row.existingTestEvidence().contains(
+                                "tasks/benchmarks/2026-06-28-pref013-" +
+                                        "platform-backup-restore-evidence.md"));
+        assertTrue("PREF-013 should record the real bmgr local transport path.",
+                row.testState().contains("bmgr backupnow") &&
+                        row.testState().contains("bmgr restore 1 org.adaway") &&
+                        row.testState().contains("blocked/allowed/redirected user rules"));
+        assertTrue("PREF-013 should keep cloud/provider availability out of the app claim.",
+                row.riskNotes().contains("local transport") &&
+                        row.riskNotes().contains("cloud account") &&
+                        row.riskNotes().contains("OS-owned"));
+        assertTrue("PREF-013 should record seed/assert instrumentation and shell restore.",
+                row.retestStatus().contains("platformBackupPhase=seed") &&
+                        row.retestStatus().contains("platformBackupPhase=assert") &&
+                        row.retestStatus().contains("adaway-api34-16g"));
+        assertTrue("PREF-013 evidence file should be present.",
+                Files.isRegularFile(repoDir().resolve(
+                        "tasks/benchmarks/2026-06-28-pref013-" +
+                                "platform-backup-restore-evidence.md")));
     }
 
     private static List<Row> readRows() throws IOException {
@@ -160,6 +464,47 @@ public class UserStoryStatusTrackerTest {
                 row.allEvidence().toLowerCase().contains(marker));
     }
 
+    private static void assertReleaseHandoffGate(
+            Map<String, Row> rows,
+            String storyId,
+            String verifierMarker) {
+        Row row = rows.get(storyId);
+
+        assertNotNull(storyId + " row should exist.", row);
+        assertEquals(storyId + " should remain a P0 release gate.", "P0", row.priority());
+        assertFalse(storyId + " must not be marked fully covered before upstream reports exist.",
+                isFullyCovered(row));
+        assertTrue(storyId + " should point at the release-gate handoff evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
+        assertTrue(storyId + " should name the verifier contract.",
+                row.status().toLowerCase().contains(verifierMarker));
+        boolean hasScriptRetest = row.retestStatus().contains("ReleaseReadinessScriptTest") &&
+                row.retestStatus().contains("UserStoryStatusTrackerTest");
+        boolean hasUxPacketRetest = row.retestStatus().contains("run-ux-matrix") &&
+                row.retestStatus().contains("verify-ux-signoff");
+        assertTrue(storyId + " should record the focused verifier retest.",
+                hasScriptRetest || hasUxPacketRetest);
+        assertFalse(storyId + " should not regress to vague retest placeholders.",
+                isPlaceholderEvidence(row.retestStatus()));
+    }
+
+    private static void assertCoveredSystemContract(
+            Map<String, Row> rows,
+            String storyId,
+            String expectedStatus,
+            String externalMarker) {
+        Row row = rows.get(storyId);
+
+        assertNotNull(storyId + " row should exist.", row);
+        assertEquals(storyId + " should stay a P1 system contract.", "P1", row.priority());
+        assertEquals(expectedStatus, row.status());
+        assertFalse(storyId + " needs concrete connected evidence.",
+                isPlaceholderEvidence(row.retestStatus()));
+        assertTrue(storyId + " should keep the external platform caveat.",
+                row.riskNotes().toLowerCase().contains(externalMarker));
+    }
+
     private static boolean isFullyCovered(Row row) {
         return row.status().startsWith("Covered by connected") ||
                 row.status().startsWith("Covered by tests") ||
@@ -188,6 +533,25 @@ public class UserStoryStatusTrackerTest {
                 lower.equals("not started") ||
                 lower.startsWith("needs ") ||
                 lower.contains("none found");
+    }
+
+    private static String trimTrailingPunctuation(String value) {
+        String trimmed = value;
+        while (trimmed.endsWith(".") || trimmed.endsWith(",") || trimmed.endsWith(";") ||
+                trimmed.endsWith(":") || trimmed.endsWith(")") || trimmed.endsWith("`")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private static void assertExitCode(String relativePath) throws IOException {
+        Path path = repoDir().resolve(relativePath);
+
+        assertTrue("Exitcode artifact should exist: " + relativePath,
+                Files.isRegularFile(path));
+        String value = new String(Files.readAllBytes(path), StandardCharsets.UTF_8).trim();
+        assertEquals("Exitcode artifact should record success: " + relativePath,
+                "0", value);
     }
 
     private static void assertRequired(Row row, String fieldName, String value) {
@@ -251,6 +615,10 @@ public class UserStoryStatusTrackerTest {
 
         String riskNotes() {
             return fields[10];
+        }
+
+        String errorNotes() {
+            return fields[12];
         }
 
         String fixStatus() {

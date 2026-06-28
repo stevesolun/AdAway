@@ -110,7 +110,7 @@ public class VpnLifecycleInstrumentedTest {
         assertTrue("Starting the VPN must schedule the heartbeat.",
                 waitForHeartbeatActive());
         assertTrue("Lifecycle logs must include a start signal.",
-                this.recordingTree.contains("VPN service started."));
+                waitForLog("VPN service started."));
 
         VpnServiceControls.stop(this.context);
         waitUntilStatus(STOPPED, LIFECYCLE_TIMEOUT_MS);
@@ -119,7 +119,7 @@ public class VpnLifecycleInstrumentedTest {
         assertTrue("Stopping the VPN must cancel the heartbeat.",
                 waitForHeartbeatStopped());
         assertTrue("Lifecycle logs must include a stop signal.",
-                this.recordingTree.contains("VPN service stopped."));
+                waitForLog("VPN service stopped."));
 
         assertTrue("VPN service resume command must be accepted.",
                 VpnServiceControls.start(this.context));
@@ -151,6 +151,17 @@ public class VpnLifecycleInstrumentedTest {
 
     private boolean waitForHeartbeatStopped() throws Exception {
         return waitForHeartbeatState(true);
+    }
+
+    private boolean waitForLog(String expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(LIFECYCLE_TIMEOUT_MS);
+        do {
+            if (this.recordingTree.contains(expected)) {
+                return true;
+            }
+            Thread.sleep(POLL_INTERVAL_MS);
+        } while (System.nanoTime() < deadline);
+        return false;
     }
 
     private boolean waitForHeartbeatState(boolean stopped) throws Exception {
