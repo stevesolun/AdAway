@@ -4,7 +4,7 @@ Scope:
 - Stories: `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`,
   `REL-004`, `REL-005`
 - Commit under test: `1a25953daf58d51b56d796e641e34e6cf34bfc65`
-- Latest pushed PR evidence head: `63eaa749e84a2872d42e82b34e61e61e0d84f789`
+- Additional PR CI evidence head: `63eaa749e84a2872d42e82b34e61e61e0d84f789`
 - PR: `#7`
 
 ## Baseline CI State Before This Slice
@@ -20,10 +20,10 @@ Connected Android tests: pass (9m25s)
 Development build: pass (5m59s)
 ```
 
-## Post-Reconciliation PR CI State
+## Post-Reconciliation PR CI Evidence
 
-After the docs-only convergence reconciliation commit, `gh pr checks 7` passed on pushed head
-`63eaa749e84a2872d42e82b34e61e61e0d84f789`:
+After the docs-only convergence reconciliation commit, this `gh pr checks 7` check set passed on
+pushed head `63eaa749e84a2872d42e82b34e61e61e0d84f789`:
 
 ```text
 Analyze (cpp): pass (1m13s)
@@ -36,6 +36,9 @@ Development build: pass (6m9s)
 The release proof inputs are unchanged by that docs-only commit: the UX packet and fail-closed
 readiness preflight below remain tied to source-under-test commit
 `1a25953daf58d51b56d796e641e34e6cf34bfc65`.
+
+This section records reusable CI evidence for the release ledger; it is not a live-head invariant.
+Release decisions should still re-run `gh pr checks 7` against the branch tip at decision time.
 
 ## Local Release-Gate Verifier Evidence
 
@@ -58,7 +61,7 @@ BUILD SUCCESSFUL in 23s
 PowerShell was present locally (`pwsh 7.6.3`), so the script tests exercised the real `.ps1`
 release-readiness and UX sign-off logic rather than skipping.
 
-## Current-Head Readiness Preflight
+## Source-Under-Test Readiness Preflight
 
 Command:
 

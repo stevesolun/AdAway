@@ -31,16 +31,33 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 Durable CI Evidence Wording
+- [x] Re-check the latest PR #7 state after the previous evidence refresh.
+- [x] Replace self-staling `latest pushed head` wording with durable CI-evidence wording.
+- [x] Keep exact source-under-test evidence for the UX packet/readiness preflight at `1a25953d`.
+- [x] Run focused tracker/release guard verification and hygiene.
+
+## Review - 2026-06-28 Durable CI Evidence Wording
+- PR #7 was green at branch tip `0e5bc25a` before this wording cleanup: Analyze cpp, Analyze java,
+  CodeQL, Development build, and Connected Android tests all passed.
+- The release-gate handoff now records the `63eaa749` check set as reusable CI evidence rather
+  than a live-head invariant. Release decisions must still re-run `gh pr checks 7` at the branch tip.
+- This avoids a docs-only evidence refresh loop while preserving the canonical `REL-005` boundary:
+  final readiness still needs real release artifact, physical smoke, checked UX signoff, and
+  release-grade license-boundary reports.
+- Focused guard bundle passed with explicit OpenJDK 21 `JAVA_HOME`: `ReleaseReadinessScriptTest`,
+  `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
 ## Plan - 2026-06-28 REL-005 Current PR CI Ledger Refresh
 - [x] Re-check pushed PR #7 CI after the docs-only convergence reconciliation.
 - [x] Preserve the `REL-004`/`REL-005` source-under-test distinction: UX packet and readiness
-  preflight remain tied to `1a25953d`, while current PR CI is green at `63eaa749`.
-- [x] Update the canonical `REL-005` retest ledger and guard test so the current pushed head is not
-  stale.
+  preflight remain tied to `1a25953d`, while a captured PR CI head is green at `63eaa749`.
+- [x] Update the canonical `REL-005` retest ledger and guard test so captured CI evidence is not
+  presented as a live-head invariant.
 - [x] Run focused tracker/release guard verification and hygiene.
 
 ## Review - 2026-06-28 REL-005 Current PR CI Ledger Refresh
-- PR #7 current pushed head `63eaa749e84a2872d42e82b34e61e61e0d84f789` is green: Analyze cpp
+- Captured PR #7 pushed head `63eaa749e84a2872d42e82b34e61e61e0d84f789` was green: Analyze cpp
   `1m13s`, Analyze java `4m3s`, CodeQL `5s`, Development build `6m9s`, and Connected Android
   tests `9m16s`.
 - This is an evidence-led docs refresh only. It does not change the app source-under-test for the

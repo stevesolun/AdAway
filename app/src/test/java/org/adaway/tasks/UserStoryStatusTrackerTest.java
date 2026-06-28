@@ -280,11 +280,12 @@ public class UserStoryStatusTrackerTest {
                         row.riskNotes().contains("physical smoke") &&
                         row.riskNotes().contains("checked human UX signoff") &&
                         row.riskNotes().contains("artifact license-boundary"));
-        assertTrue("REL-005 should name the current PR and missing upstream reports.",
+        assertTrue("REL-005 should name the PR evidence and missing upstream reports.",
                 row.retestStatus().contains("missing release-artifacts/verification-report.md") &&
                         row.retestStatus().contains("missing release-smoke/release-smoke-report.md") &&
                         row.retestStatus().contains("debug/preflight license boundary") &&
-                        row.retestStatus().contains("PR #7 head 63eaa749") &&
+                        row.retestStatus().contains("post-reconciliation PR CI passed") &&
+                        row.retestStatus().contains("live PR state must be rechecked") &&
                         row.retestStatus().contains("real workflow dispatch"));
     }
 
