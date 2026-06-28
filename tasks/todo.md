@@ -11225,3 +11225,28 @@
   boundary report inspected 1119 APK entries, 265 APK resources, 116 SBOM components, and found
   Issues 0 for debug APK SHA-256
   `cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771`.
+
+## Plan - 2026-06-28 UPDATE-004 DirectRelease Dry-Run CI Guard
+- [x] Probe whether `directRelease` packaging can be exercised locally without production signing
+  secrets.
+- [x] Reject the mismatched store/key password dry-run and use a shared ephemeral password that
+  Android packaging can read.
+- [x] Add Android CI directRelease dry-run packaging with a temporary keystore and public key
+  derived from the dry-run certificate.
+- [x] Run strict artifact-boundary checking against the dry-run `app-directRelease.apk` plus release
+  CycloneDX SBOM while keeping production signed artifact/device gates open.
+
+## Review - 2026-06-28 UPDATE-004 DirectRelease Dry-Run CI Guard
+- `UPDATE-004` / `REL-002`: Added a pull-request CI dry-run that builds
+  `:app:assembleDirectRelease :app:generateSbom` with an ephemeral keystore. This exercises
+  directRelease manifest merge, release signing configuration, R8/minification, lint-vital, and
+  release SBOM generation without production secrets.
+- The first local attempt with different store/key passwords failed at `:app:packageDirectRelease`,
+  so the workflow deliberately uses one `DRY_RUN_SIGNING_PASSWORD` for keytool and Gradle signing
+  properties.
+- Local verification passed for the shared-password dry-run and strict artifact boundary:
+  `app-directRelease.apk` SHA-256
+  `287b535363e1c1672978ff94117d1a129e6f12654c4ff6cb0f5d4ee1fd73722e`,
+  release SBOM SHA-256
+  `e99220606350d95ae2be18b1c001a3f327d3b4ef463041e5397347daced92861`,
+  847 APK entries, 202 APK resources, 105 SBOM components, Issues 0.

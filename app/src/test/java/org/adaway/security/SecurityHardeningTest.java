@@ -1696,6 +1696,9 @@ public class SecurityHardeningTest {
         assertTrue("Development SBOM CI must use strict dependency verification.",
                 ciWorkflow.contains(
                         "./gradlew :app:cyclonedxBom --dependency-verification=strict --stacktrace"));
+        assertTrue("Direct release dry-run CI must use strict dependency verification.",
+                ciWorkflow.contains(":app:assembleDirectRelease :app:generateSbom") &&
+                        ciWorkflow.contains("--dependency-verification=strict"));
         assertTrue("Sonar CI resolution must use strict dependency verification.",
                 ciWorkflow.contains("sonarqube --dependency-verification=strict"));
         assertTrue("Connected test CI must use strict dependency verification.",
@@ -1748,6 +1751,45 @@ public class SecurityHardeningTest {
                         sbomUploadStart < apkUploadStart &&
                         workflow.contains("AdAway-debug-sbom") &&
                         workflow.contains("app/build/reports/cyclonedx/bom.json"));
+    }
+
+    @Test
+    public void atk35_androidCiRunsDirectReleasePackagingDryRun() throws IOException {
+        String workflow = readUtf8(repoDir().resolve(".github/workflows/android-ci.yml"));
+        int debugApkUploadStart = workflow.indexOf("Upload APK");
+        int dryRunStart = workflow.indexOf("Run directRelease packaging dry run");
+        int boundaryStart = workflow.indexOf("Check directRelease dry-run artifact boundary");
+        int uploadStart = workflow.indexOf("Upload directRelease dry-run boundary report");
+        int analyzeStart = workflow.indexOf("Analyze project");
+
+        assertTrue("Android CI must run a directRelease packaging dry-run.",
+                dryRunStart > debugApkUploadStart &&
+                        workflow.contains(":app:assembleDirectRelease :app:generateSbom") &&
+                        workflow.contains("-PsigningStoreLocation=\"$KEYSTORE\"") &&
+                        workflow.contains("-PupdateManifestPublicKeyBase64=" +
+                                "\"$UPDATE_MANIFEST_PUBLIC_KEY_BASE64\""));
+        assertTrue("Dry-run update public key must come from the temporary keystore.",
+                workflow.contains("keytool -exportcert -rfc") &&
+                        workflow.contains("openssl x509 -pubkey -noout") &&
+                        workflow.contains("/BEGIN PUBLIC KEY/d") &&
+                        workflow.contains("tr -d '\\n'"));
+        assertTrue("Dry-run signing must avoid PKCS12 key/store password mismatch.",
+                workflow.contains("DRY_RUN_SIGNING_PASSWORD") &&
+                        workflow.contains("-storepass \"$DRY_RUN_SIGNING_PASSWORD\"") &&
+                        workflow.contains("-keypass \"$DRY_RUN_SIGNING_PASSWORD\"") &&
+                        workflow.contains("-PsigningStorePassword=\"$DRY_RUN_SIGNING_PASSWORD\"") &&
+                        workflow.contains("-PsigningKeyPassword=\"$DRY_RUN_SIGNING_PASSWORD\""));
+        assertTrue("DirectRelease dry-run boundary must inspect release APK and SBOM outputs.",
+                boundaryStart > dryRunStart &&
+                        workflow.contains("-ApkPath app/build/outputs/apk/directRelease/" +
+                                "app-directRelease.apk") &&
+                        workflow.contains("-SbomPath app/build/reports/sbom/adaway.cdx.json") &&
+                        workflow.contains("-StrictArtifacts"));
+        assertTrue("Android CI must persist the directRelease dry-run boundary report.",
+                uploadStart > boundaryStart &&
+                        uploadStart < analyzeStart &&
+                        workflow.contains("directrelease-dry-run-license-boundary-report") &&
+                        workflow.contains("directrelease-dry-run-license-boundary-report.md"));
     }
 
     @Test

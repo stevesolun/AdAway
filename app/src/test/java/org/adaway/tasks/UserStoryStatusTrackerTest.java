@@ -170,6 +170,30 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void update004StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+        Row row = rowsById().get("UPDATE-004");
+
+        assertNotNull("UPDATE-004 row should exist.", row);
+        assertEquals("UPDATE-004 should remain a P0 direct release gate.", "P0",
+                row.priority());
+        assertFalse("UPDATE-004 must not be marked covered by an ephemeral dry run.",
+                isFullyCovered(row));
+        assertTrue("UPDATE-004 should point at the directRelease dry-run evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-update004-" +
+                                "directrelease-dry-run-evidence.md"));
+        assertTrue("UPDATE-004 should record release packaging and artifact-boundary proof.",
+                row.testState().contains("assembleDirectRelease plus generateSbom") &&
+                        row.testState().contains("847 APK entries") &&
+                        row.testState().contains("202 APK resources") &&
+                        row.testState().contains("105 SBOM components") &&
+                        row.testState().contains("Issues 0"));
+        assertTrue("UPDATE-004 should keep production install smoke open.",
+                row.riskNotes().contains("production signed directRelease") &&
+                        row.retestStatus().contains("signed directRelease install smoke remains open"));
+    }
+
+    @Test
     public void releaseHandoffRowsKeepVerifierEvidenceWithoutClosingExternalGates()
             throws IOException {
         Map<String, Row> rows = rowsById();
@@ -178,6 +202,30 @@ public class UserStoryStatusTrackerTest {
         assertReleaseHandoffGate(rows, "REL-003", "physical-smoke");
         assertReleaseHandoffGate(rows, "REL-004", "ux packet");
         assertReleaseHandoffGate(rows, "REL-005", "readiness aggregator");
+    }
+
+    @Test
+    public void rel002StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+        Row row = rowsById().get("REL-002");
+
+        assertNotNull("REL-002 row should exist.", row);
+        assertEquals("REL-002 should remain a P0 release artifact gate.", "P0",
+                row.priority());
+        assertFalse("REL-002 must not be marked covered by an ephemeral dry run.",
+                isFullyCovered(row));
+        assertTrue("REL-002 should point at the directRelease dry-run evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-update004-" +
+                                "directrelease-dry-run-evidence.md"));
+        assertTrue("REL-002 should record the directRelease dry-run scope.",
+                row.testState().contains("release packaging") &&
+                        row.testState().contains("R8/minification") &&
+                        row.testState().contains("release SBOM generation") &&
+                        row.testState().contains("strict APK/SBOM artifact-boundary"));
+        assertTrue("REL-002 should keep real signed artifact proof open.",
+                row.riskNotes().contains("production signer certificate") &&
+                        row.riskNotes().contains("signed manifest") &&
+                        row.retestStatus().contains("tagged release artifact run remains open"));
     }
 
     @Test

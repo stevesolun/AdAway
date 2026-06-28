@@ -170,6 +170,57 @@ jobs:
           name: AdAway-debug
           path: app/build/outputs/apk/debug/app-debug.apk
 
+      - name: Run directRelease packaging dry run
+        shell: bash
+        env:
+          DRY_RUN_SIGNING_PASSWORD: direct-release-dry-run
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/direct-release-dry-run.jks"
+          keytool -genkeypair -v \
+            -keystore "$KEYSTORE" \
+            -storepass "$DRY_RUN_SIGNING_PASSWORD" \
+            -keypass "$DRY_RUN_SIGNING_PASSWORD" \
+            -alias dryrun \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=AdAway Direct Release Dry Run,O=AdAway,C=US"
+          UPDATE_MANIFEST_PUBLIC_KEY_BASE64="$(
+            keytool -exportcert -rfc \
+              -keystore "$KEYSTORE" \
+              -storepass "$DRY_RUN_SIGNING_PASSWORD" \
+              -alias dryrun |
+              openssl x509 -pubkey -noout |
+              sed -e '/BEGIN PUBLIC KEY/d' -e '/END PUBLIC KEY/d' |
+              tr -d '\n'
+          )"
+          ./gradlew :app:assembleDirectRelease :app:generateSbom \
+            --dependency-verification=strict \
+            --stacktrace \
+            -PsigningStoreLocation="$KEYSTORE" \
+            -PsigningStorePassword="$DRY_RUN_SIGNING_PASSWORD" \
+            -PsigningKeyAlias=dryrun \
+            -PsigningKeyPassword="$DRY_RUN_SIGNING_PASSWORD" \
+            -PupdateManifestPublicKeyBase64="$UPDATE_MANIFEST_PUBLIC_KEY_BASE64"
+
+      - name: Check directRelease dry-run artifact boundary
+        shell: pwsh
+        run: |
+          ./scripts/check-license-boundary.ps1 `
+            -ApkPath app/build/outputs/apk/directRelease/app-directRelease.apk `
+            -SbomPath app/build/reports/sbom/adaway.cdx.json `
+            -StrictArtifacts `
+            -ReportPath app/build/reports/license-boundary/directrelease-dry-run-license-boundary-report.md
+
+      - name: Upload directRelease dry-run boundary report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: directrelease-dry-run-license-boundary-report
+          path: app/build/reports/license-boundary/directrelease-dry-run-license-boundary-report.md
+          if-no-files-found: warn
+
 
 
       - name: Analyze project
