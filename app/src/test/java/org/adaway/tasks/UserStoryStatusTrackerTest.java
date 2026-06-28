@@ -251,6 +251,40 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void rel005StaysOpenWithCurrentHeadReadinessPreflightEvidence()
+            throws IOException {
+        Row row = rowsById().get("REL-005");
+
+        assertNotNull("REL-005 row should exist.", row);
+        assertEquals("REL-005 should remain a P0 final readiness gate.", "P0",
+                row.priority());
+        assertFalse("REL-005 must not be marked covered until real release proof exists.",
+                isFullyCovered(row));
+        assertTrue("REL-005 should point at the release-gate handoff evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
+        assertTrue("REL-005 should record the current-head packet hash and fail-closed result.",
+                row.testState().contains(
+                        "0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf") &&
+                        row.testState().contains("failed release artifact") &&
+                        row.testState().contains("failed physical smoke") &&
+                        row.testState().contains("failed UX signoff") &&
+                        row.testState().contains("failed license boundary") &&
+                        row.testState().contains("Issues 7"));
+        assertTrue("REL-005 should keep every upstream release proof open.",
+                row.riskNotes().contains("release artifact") &&
+                        row.riskNotes().contains("physical smoke") &&
+                        row.riskNotes().contains("checked human UX signoff") &&
+                        row.riskNotes().contains("artifact license-boundary"));
+        assertTrue("REL-005 should name the current PR and missing upstream reports.",
+                row.retestStatus().contains("missing release-artifacts/verification-report.md") &&
+                        row.retestStatus().contains("missing release-smoke/release-smoke-report.md") &&
+                        row.retestStatus().contains("non-release dry-run license boundary") &&
+                        row.retestStatus().contains("PR #7 head 69623d1f") &&
+                        row.retestStatus().contains("real workflow dispatch"));
+    }
+
+    @Test
     public void runtime010StaysClosedWithFreshFiveMillionScaleEvidence() throws IOException {
         Row row = rowsById().get("RUNTIME-010");
 

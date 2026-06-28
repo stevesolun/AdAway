@@ -11306,3 +11306,26 @@
 - Spot-checked `font-1.6-rtl` Home, Discover, Sources, and `font-1.6` More; no obvious clipping,
   hidden bottom navigation, or unreachable primary action was found. This remains a non-human
   sanity check and does not close human UX signoff.
+
+## Plan - 2026-06-28 REL-005 Current-Head Readiness Preflight
+- [x] Re-ground PR #7 after the current-head UX packet refresh.
+- [x] Run the release-readiness verifier with missing release/smoke reports, the failed UX
+  signoff preflight, the current UX review packet, and the dry-run license-boundary report.
+- [x] Record the expected fail-closed readiness output without treating it as final release
+  readiness.
+- [x] Add a tracker guard so `REL-005` keeps naming the current-head packet hash and upstream
+  blockers.
+
+## Review - 2026-06-28 REL-005 Current-Head Readiness Preflight
+- PR #7 head `69623d1f` was green before this slice: Development build `6m34s`, Connected Android
+  tests `8m56s`, CodeQL, Analyze cpp, and Analyze java all passed.
+- `scripts/verify-release-readiness.ps1` failed closed as intended when fed the refreshed current
+  UX packet plus non-final inputs: missing `release-artifacts/verification-report.md`, missing
+  `release-smoke/release-smoke-report.md`, failed UX signoff preflight, and dry-run
+  license-boundary report.
+- The generated preflight report recorded matching UX packet hashes
+  `0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf`, failed release artifact,
+  failed physical smoke, failed UX signoff, failed license boundary, and `Issues: 7`.
+- `REL-005` remains open. It still requires real release artifact, physical smoke, checked human UX
+  signoff, and release artifact license-boundary reports from one source commit and release
+  identity.
