@@ -95,6 +95,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     private int selectedTagId = 0;
     private int selectedLanguageId = 0;
     private boolean mCompatibleOnly = false;
+    private boolean mSubscribedOnly = false;
     private List<FilterListsDirectoryApi.Language> loadedLanguages = new ArrayList<>();
 
     private Adapter adapter;
@@ -184,8 +185,12 @@ public class DiscoverFilterListsFragment extends Fragment {
                         existingFilterListUrlsById.clear();
                         existingFilterListUrlsById.putAll(filterListUrls);
                     }
-                    refreshBulkActionsState();
-                    requestAdapterRefreshThrottled(1000);
+                    if (mSubscribedOnly) {
+                        filter();
+                    } else {
+                        refreshBulkActionsState();
+                        requestAdapterRefreshThrottled(1000);
+                    }
                 });
             });
         });
@@ -266,6 +271,10 @@ public class DiscoverFilterListsFragment extends Fragment {
 
         binding.filterlistsCompatibleOnlySwitch.setOnCheckedChangeListener((btn, checked) -> {
             mCompatibleOnly = checked;
+            filter();
+        });
+        binding.filterlistsShowSubscribedSwitch.setOnCheckedChangeListener((btn, checked) -> {
+            mSubscribedOnly = checked;
             filter();
         });
 
@@ -514,6 +523,7 @@ public class DiscoverFilterListsFragment extends Fragment {
             if (selectedTagId != 0 && !hasId(s.tagIds, selectedTagId)) continue;
             if (selectedLanguageId != 0 && !hasId(s.languageIds, selectedLanguageId)) continue;
             if (mCompatibleOnly && !isAdAwayCompatible(s.syntaxIds)) continue;
+            if (mSubscribedOnly && !isSummarySubscribed(s)) continue;
             nextFiltered.add(s);
         }
         pruneSelectedListIdsToVisible(nextFiltered);
@@ -657,7 +667,8 @@ public class DiscoverFilterListsFragment extends Fragment {
         if (binding == null) return false;
         CharSequence query = binding.filterlistsSearchEditText.getText();
         boolean hasQuery = query != null && query.toString().trim().length() > 0;
-        return hasQuery || selectedTagId != 0 || selectedLanguageId != 0 || mCompatibleOnly;
+        return hasQuery || selectedTagId != 0 || selectedLanguageId != 0
+                || mCompatibleOnly || mSubscribedOnly;
     }
 
     private int countCompatible(@NonNull List<FilterListsDirectoryApi.ListSummary> summaries) {
@@ -673,6 +684,11 @@ public class DiscoverFilterListsFragment extends Fragment {
     /** Returns true if the list uses a syntax that maps directly to DNS/root-hosts blocking. */
     private static boolean isAdAwayCompatible(@Nullable int[] syntaxIds) {
         return FilterListsSubscriptionState.isCompatible(syntaxIds);
+    }
+
+    private boolean isSummarySubscribed(@NonNull FilterListsDirectoryApi.ListSummary summary) {
+        String url = getCachedUrlForId(summary.id);
+        return url != null && existingUrls.contains(url);
     }
 
     @Nullable
@@ -869,7 +885,11 @@ public class DiscoverFilterListsFragment extends Fragment {
                         }
                     }
                     binding.filterlistsProgress.setVisibility(View.GONE);
-                    notifyFilterListRowChanged(summary.id);
+                    if (mSubscribedOnly) {
+                        filter();
+                    } else {
+                        notifyFilterListRowChanged(summary.id);
+                    }
                     showSnackbar(getString(subscribed
                             ? R.string.filterlists_subscribe_done
                             : R.string.filterlists_unsubscribe_done));
@@ -959,8 +979,14 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void confirmUnsubscribeAll(boolean allDirectory) {
         if (binding == null) return;
-        if (!allDirectory && getSelectedSummariesForBulkScope().isEmpty()) {
+        List<FilterListsDirectoryApi.ListSummary> selectedScope =
+                allDirectory ? new ArrayList<>() : getSelectedSummariesForBulkScope();
+        if (!allDirectory && selectedScope.isEmpty()) {
             showSnackbar(getString(R.string.filterlists_no_selected_lists));
+            return;
+        }
+        if (!allDirectory && countSubscribed(selectedScope) == 0) {
+            showSnackbar(getString(R.string.filterlists_no_subscribed_selected_lists));
             return;
         }
         int titleId = !allDirectory
@@ -1081,7 +1107,11 @@ public class DiscoverFilterListsFragment extends Fragment {
                 existingUrls.removeAll(filterListUrls);
                 bulkOperationRunning = false;
                 refreshBulkActionsState();
-                notifyFilterListRowsChanged();
+                if (mSubscribedOnly) {
+                    filter();
+                } else {
+                    notifyFilterListRowsChanged();
+                }
                 showSnackbar(getString(R.string.filterlists_unsubscribe_all_done, removedCount));
             });
         });
@@ -1118,6 +1148,16 @@ public class DiscoverFilterListsFragment extends Fragment {
         return selected;
     }
 
+    private int countSubscribed(@NonNull List<FilterListsDirectoryApi.ListSummary> summaries) {
+        int count = 0;
+        for (FilterListsDirectoryApi.ListSummary summary : summaries) {
+            if (isSummarySubscribed(summary)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     @NonNull
     private int[] getSelectedIdsForBulkScope() {
         List<FilterListsDirectoryApi.ListSummary> selected = getSelectedSummariesForBulkScope();
@@ -1131,8 +1171,6 @@ public class DiscoverFilterListsFragment extends Fragment {
     private void refreshBulkActionsState() {
         if (binding == null) return;
         List<FilterListsDirectoryApi.ListSummary> selected = getSelectedSummariesForBulkScope();
-        int selectedState = FilterListsSubscriptionState.resolve(
-                selected, this::getCachedUrlForId, existingUrls);
         int allState = FilterListsSubscriptionState.resolve(
                 all, this::getCachedUrlForId, existingUrls);
         int compatibleAll = countCompatible(all);
@@ -1145,8 +1183,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         binding.filterlistsSubscribeVisibleButton.setEnabled(
                 !busy && !selected.isEmpty());
         binding.filterlistsRemoveVisibleButton.setEnabled(
-                !busy && !selected.isEmpty()
-                        && selectedState != FilterListsSubscriptionState.NONE);
+                !busy && !selected.isEmpty());
         binding.filterlistsSubscribeAllButton.setEnabled(
                 !busy && compatibleAll > 0 && allState != FilterListsSubscriptionState.ALL);
         binding.filterlistsRemoveAllButton.setEnabled(

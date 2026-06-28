@@ -133,6 +133,7 @@
     <string name="filterlists_source_row_description">%1$s. %2$s.</string>
     <string name="filterlists_compatible_only">DNS-safe only</string>
     <string name="filterlists_compatible_only_summary">Hosts and domain lists only</string>
+    <string name="filterlists_show_subscribed">Show subscribed</string>
     <string name="filterlists_load_failed">Failed to load FilterLists.com</string>
     <string name="filterlists_tag_all">All</string>
     <string name="filterlists_language_all">All languages</string>
@@ -140,6 +141,7 @@
     <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in this scope</string>
     <string name="filterlists_no_dns_safe_selected_lists">No DNS-safe selected lists</string>
     <string name="filterlists_no_selected_lists">Select one or more FilterLists first</string>
+    <string name="filterlists_no_subscribed_selected_lists">No subscribed selected lists</string>
     <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
     <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>
     <string name="filterlists_resolve_url_failed">Failed to resolve list URL</string>

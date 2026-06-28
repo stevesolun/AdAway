@@ -116,3 +116,6 @@
   actions so the user never mutates invisible state by surprise.
 - Do not disable a selected-row command just because the selected rows are unsupported or already
   subscribed; keep the action responsive and explain the no-op or skipped semantics on click.
+- Treat paired selected actions consistently: if subscribe-selected responds to checked rows,
+  unsubscribe-selected must respond to checked rows too, with no-op feedback when nothing selected
+  is subscribed.

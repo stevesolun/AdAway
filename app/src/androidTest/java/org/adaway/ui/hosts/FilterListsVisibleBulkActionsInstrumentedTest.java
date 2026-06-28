@@ -115,8 +115,11 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             clickRowChildForText(scenario, VISIBLE_UNSUPPORTED_NAME,
                     R.id.filterlistsItemSelectionCheckBox);
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
+            waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, true);
             clickButton(scenario, R.id.filterlistsSubscribeVisibleButton);
             waitForAccessibilityText("No DNS-safe selected lists");
+            clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
+            waitForAccessibilityText("No subscribed selected lists");
 
             clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
                     R.id.filterlistsItemSelectionCheckBox);
@@ -145,6 +148,9 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                     .getByUrl(HIDDEN_SAFE_URL)
                     .isPresent());
 
+            setSwitchChecked(scenario, R.id.filterlistsShowSubscribedSwitch, true);
+            waitForRecyclerOnlyRowText(scenario, VISIBLE_SAFE_NAME, VISIBLE_UNSUPPORTED_NAME);
+
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
             waitForAccessibilityText("This removes selected FilterLists.com sources");
             clickExactAccessibilityText("Unsubscribe selected");
@@ -154,7 +160,9 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                     AppDatabase.getInstance(context).hostsSourceDao()
                             .getByUrl(HIDDEN_SAFE_URL)
                             .isPresent());
-            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
+            setSwitchChecked(scenario, R.id.filterlistsShowSubscribedSwitch, false);
+            waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_SAFE_NAME);
+            waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
         }
     }
@@ -221,6 +229,16 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             assertNotNull(search);
             search.setText(query);
         });
+    }
+
+    private static void setSwitchChecked(ActivityScenario<HomeActivity> scenario, int viewId,
+            boolean checked) throws Exception {
+        scenario.onActivity(activity -> {
+            CompoundButton button = activity.findViewById(viewId);
+            assertNotNull(button);
+            button.setChecked(checked);
+        });
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private Optional<HostsSource> waitForSource(String url, boolean expectedPresent)
@@ -291,6 +309,31 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                 recycler.scrollToPosition(target);
             }
             return false;
+        });
+    }
+
+    private static void waitForRecyclerOnlyRowText(ActivityScenario<HomeActivity> scenario,
+            String expectedText, String excludedText) throws Exception {
+        waitForCondition("only row text " + expectedText, scenario, activity -> {
+            RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+            if (recycler == null || recycler.getAdapter() == null
+                    || recycler.getAdapter().getItemCount() != 1) {
+                return false;
+            }
+            boolean foundExpected = false;
+            for (int i = 0; i < recycler.getChildCount(); i++) {
+                View child = recycler.getChildAt(i);
+                TextView text = child.findViewById(R.id.filterlistsItemName);
+                if (text == null || text.getText() == null) {
+                    continue;
+                }
+                String value = text.getText().toString();
+                if (value.contains(excludedText)) {
+                    return false;
+                }
+                foundExpected |= value.contains(expectedText);
+            }
+            return foundExpected;
         });
     }
 

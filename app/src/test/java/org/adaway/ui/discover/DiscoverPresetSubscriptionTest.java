@@ -395,11 +395,20 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("filterlistsRemoveAllButton.setOnClickListener")
                         && source.contains("confirmUnsubscribeAll(true)"));
         assertTrue("Selected bulk command enablement must use checked row state.",
-                source.contains("int selectedState = FilterListsSubscriptionState.resolve(")
-                        && source.contains("getSelectedSummariesForBulkScope()")
+                source.contains("getSelectedSummariesForBulkScope()")
                         && source.contains("getSelectedIdsForBulkScope()")
                         && source.contains("filterlistsSubscribeVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())")
+                        && source.contains("filterlistsRemoveVisibleButton.setEnabled(" + "\n"
                         + "                !busy && !selected.isEmpty())"));
+        assertTrue("Subscribed-only filter must be available without adding another tall row.",
+                layout.contains("filterlistsShowSubscribedSwitch")
+                        && strings.contains("Show subscribed")
+                        && source.contains("mSubscribedOnly")
+                        && source.contains("if (mSubscribedOnly && !isSummarySubscribed(s))"));
+        assertTrue("Bulk buttons should stay compact so the list remains visible.",
+                layout.contains("android:minHeight=\"36dp\"")
+                        && layout.contains("android:textSize=\"12sp\""));
         assertTrue("Bulk actions must hide when the directory has no rows to act on.",
                 source.contains("filterlistsBulkActionsRow.setVisibility") &&
                         source.contains("all.isEmpty() && filtered.isEmpty()"));
@@ -485,9 +494,11 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("List<FilterListsDirectoryApi.ListSummary> scope ="
                         + "\n                allDirectory ? all : getSelectedSummariesForBulkScope()")
                         && source.contains("int safeCount = countCompatible(scope)"));
-        assertTrue("Selected bulk action state must resolve against checked rows.",
-                source.contains("int selectedState = FilterListsSubscriptionState.resolve(")
-                        && source.contains("selected, this::getCachedUrlForId, existingUrls)"));
+        assertTrue("Selected bulk actions must stay responsive for checked rows.",
+                source.contains("filterlistsSubscribeVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())")
+                        && source.contains("filterlistsRemoveVisibleButton.setEnabled(" + "\n"
+                        + "                !busy && !selected.isEmpty())"));
         assertTrue("All-directory bulk action state must resolve against all loaded rows.",
                 source.contains("FilterListsSubscriptionState.resolve(" + "\n"
                         + "                all, this::getCachedUrlForId, existingUrls)"));
@@ -499,6 +510,9 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("Bulk subscribe must not queue a background job for zero DNS-safe rows.",
                 source.contains("R.string.filterlists_no_dns_safe_lists_in_scope")
                         && source.contains("R.string.filterlists_no_dns_safe_selected_lists"));
+        assertTrue("Selected unsubscribe must stay responsive and explain no-op selections.",
+                source.contains("countSubscribed(selectedScope) == 0")
+                        && source.contains("R.string.filterlists_no_subscribed_selected_lists"));
     }
 
     @Test

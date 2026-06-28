@@ -11677,3 +11677,32 @@
   the button grey.
 - A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
   with SHA-256 `7b2b212528dbd3bbe61b0f20c4a55c7b63862909cc7043f1ad61b56ba80fd224`.
+
+## Plan - 2026-06-28 FilterLists Unsubscribe Responsiveness And Subscribed Filter
+- [x] Make `Unsubscribe selected` responsive whenever rows are checked.
+- [x] Add no-op feedback for selected unsubscribe when no checked row is subscribed.
+- [x] Add `Show subscribed` filter backed by live FilterLists source metadata.
+- [x] Compact filter/action controls so the list keeps more vertical room.
+- [x] Run focused verification, refresh APK, update status evidence, and push.
+
+## Review - 2026-06-28 FilterLists Unsubscribe Responsiveness And Subscribed Filter
+- User reported the same grey-button problem for `Unsubscribe selected` and asked for a
+  subscribed-only view plus more proportional controls.
+- `Unsubscribe selected` now enables whenever visible rows are checked. If none of those checked
+  rows are currently subscribed, tapping it shows `No subscribed selected lists` instead of staying
+  grey or silently doing nothing.
+- Added a `Show subscribed` switch next to `DNS-safe only`; it filters rows through the live
+  FilterLists source URL/index state and re-filters immediately after subscribe/unsubscribe changes.
+- The DNS-safe and subscribed switches now share one compact row, and bulk action buttons use
+  shorter equal sizing so more of the list remains visible.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --rerun-tasks --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest --tests org.adaway.ui.discover.FilterListsSubscriptionStateTest --tests org.adaway.tasks.UserStoryStatusTrackerTest`,
+  `./gradlew assembleDebugAndroidTest assembleDebug`, and focused connected
+  `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- The connected proof now checks unsupported-only selection enables both selected actions, verifies
+  `Unsubscribe selected` reports `No subscribed selected lists`, verifies `Show subscribed` reduces
+  the list to the subscribed row, and verifies hidden selections are pruned when that filter hides
+  rows.
+- A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
+  with SHA-256 `3abe5ea934ee683f6d47c96ca0176f42312fc16f9f93fafa8436f449a8c39f06`.
