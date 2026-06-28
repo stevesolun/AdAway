@@ -31,6 +31,37 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-29 Branch and CI/CD Protection
+- [x] Inspect current repo admin permission, default branch, PR check contexts, branch protection,
+  and Actions repository settings.
+- [x] Protect `master` with required release-gate CI contexts, strict up-to-date checks, admin
+  enforcement, conversation resolution, and blocked force-push/delete.
+- [x] Harden GitHub Actions defaults to read-only tokens and immutable action references.
+- [x] Patch workflow definitions so required checks always report and CI jobs request only needed
+  token permissions.
+- [x] Verify workflow syntax/hygiene and record current evidence without claiming PR #7 is green.
+
+## Review - 2026-06-29 Branch and CI/CD Protection
+- GitHub reports `stevesolun/AdAway` default branch `master` and this operator has `ADMIN`
+  permission.
+- `master` branch protection is now enabled with strict required status checks:
+  `Analyze (cpp)`, `Analyze (java)`, `CodeQL`, `Connected Android tests`, `Development build`,
+  and `Validate locales`.
+- Protection also enforces admins, requires conversation resolution, and blocks force pushes and
+  branch deletion.
+- Repository Actions settings now use read-only default workflow tokens, disallow Actions tokens
+  from approving pull requests, and require SHA-pinned action references.
+- Workflow hardening in this slice: Android CI declares `contents: read`, CodeQL and locale
+  validation cancel stale duplicate runs, locale validation always emits the required check and
+  fails with a diff instead of auto-committing to PR branches, and the issue checker explicitly
+  requests `issues: write`.
+- Verification passed: `git diff --check`, YAML parse over all `.github/workflows/*.yml`, source-file
+  execution of `AndroidLocaleChecker.java` with JDK 21, no floating `uses: ...@v*`/`@main`/`@master`
+  workflow action refs, and live GitHub API reads for branch protection plus Actions permissions.
+- Current PR #7 is intentionally not declared green by this slice; before these changes,
+  `Connected Android tests` was red and the protected branch would block merging until the fresh
+  head passes required checks.
+
 ## Plan - 2026-06-28 Durable CI Evidence Wording
 - [x] Re-check the latest PR #7 state after the previous evidence refresh.
 - [x] Replace self-staling `latest pushed head` wording with durable CI-evidence wording.

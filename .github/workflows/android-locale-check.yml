@@ -4,8 +4,13 @@ on:
   pull_request:
     branches:
       - master
-    paths:
-      - 'app/src/main/res/values*/string*.xml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -34,8 +39,9 @@ jobs:
           cd ${GITHUB_WORKSPACE}
           java .github/workflows/AndroidLocaleChecker.java ${ALL_CHANGED_FILES}
 
-      - name: Commit patch
-        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9
+      - name: Fail on locale normalization changes
         if: steps.validation.outputs.patch_applied == 'true'
-        with:
-          message: 'chore: Fix contribution'
+        run: |
+          git diff -- 'app/src/main/res/values*/string*.xml'
+          echo "::error::Locale files need normalization. Apply the diff above and push it."
+          exit 1

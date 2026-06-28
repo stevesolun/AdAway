@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
@@ -39,7 +40,22 @@ public class AndroidLocaleChecker {
         } else {
             System.out.println("No file patched.");
         }
-        System.out.println("::set-output name=patch_applied::" + patchApplied);
+        setPatchAppliedOutput(patchApplied);
+    }
+
+    private static void setPatchAppliedOutput(boolean patchApplied) {
+        String outputPath = System.getenv("GITHUB_OUTPUT");
+        if (outputPath == null || outputPath.isBlank()) {
+            return;
+        }
+        try {
+            Files.writeString(Path.of(outputPath), "patch_applied=" + patchApplied + "\n",
+                    UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            System.err.println("Failed to write GitHub Actions output.");
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     /**
