@@ -11019,9 +11019,10 @@
 
 ### External-Blocked Release Gates
 - [ ] ADA-P0-ROOT-007 / `RUNTIME-007`: run rooted-device hosts apply smoke with real remount/write
-  evidence. Fresh API 34 emulator probe had `adb root`/`su 0`, but `/system/etc/hosts` stayed
-  read-only and `-writable-system` did not yield a usable device, so closure remains blocked until
-  a rooted physical or trusted writable-system emulator environment is available.
+  evidence. Fresh API 34 `-writable-system` emulator probe now proves `adb root`, `adb remount`,
+  and shell-level `/system/etc/hosts` write/restore, but the app/libsu path still runs as the
+  `u0_a` app UID. Closure remains blocked until a rooted physical, Magisk/root-manager emulator, or
+  trusted target grants root to `org.adaway`.
 - [ ] ADA-P0-UPD-002 / `UPDATE-002`: run signed APK self-update install smoke with verified APK hash
   and signing certificate evidence. Blocked until signed release/test artifact exists.
 - [ ] ADA-P0-UPD-004 / `UPDATE-004`: run `directRelease` install/update gate proof. Blocked until
@@ -11170,11 +11171,13 @@
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#packageWithoutCommandPermissionCannotDeliverCommandBroadcast
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
 - `RUNTIME-007`: Re-probed the local API 34 emulator for rooted hosts-file apply viability.
-  Evidence improved but still does not close the story: `adb root` and `su 0 id` worked, but
-  `adb remount` required bootloader unlock, `avbctl disable-verification` failed writing `vbmeta`,
-  direct write to `/system/etc/hosts` failed with `Read-only file system`, and restarting the AVD
-  with `-writable-system` did not produce a usable connected device. The rooted-hosts apply smoke
-  remains blocked until a rooted physical device or trusted writable-system emulator is available.
+  Superseded evidence now shows `adb root`, `adb remount`, and shell-level `/system/etc/hosts`
+  write/restore work on a fresh `-writable-system` `adaway-api34-16g` launch. The remaining blocker
+  is app-granted root: the opt-in `RootModelApplyInstrumentedTest` compiled, but
+  `Shell.getShell()`/`Shell.cmd("id")` still ran as `u0_a` before any app-level hosts mutation; a
+  temporary `/system/xbin/su` mode bootstrap from `4750` to `4755` did not change that. The hosts
+  hash and `su` mode were restored. The rooted-hosts apply smoke remains blocked until a rooted
+  physical device, Magisk/root-manager emulator, or trusted target grants root to `org.adaway`.
 
 ## Review - 2026-06-27 Filter Catalog Preset Safety
 - CTO split this slice across three read-only expert lanes: catalog/product quality,
@@ -11410,7 +11413,7 @@
   and the new `Run directRelease packaging dry run` plus strict dry-run artifact-boundary steps
   passed before the connected suite ran.
 - Release-gate lane: no remaining P0 can be honestly closed by local-only work. `RUNTIME-007`
-  requires a writable rooted `/system/etc/hosts` target; `REL-003` requires a physical release
+  requires an app-granted root target for `org.adaway`/libsu; `REL-003` requires a physical release
   device. `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-004`, and `REL-005` are only
   locally strengthenable until real signed artifacts, legal/provenance review, human UX signoff,
   and upstream readiness reports exist.
@@ -11475,3 +11478,32 @@
 - `REL-005` remains open. It still requires real release artifact, physical smoke, checked human UX
   signoff, and release artifact license-boundary reports from one source commit and release
   identity.
+
+## Plan - 2026-06-28 RUNTIME-007 Writable Emulator Re-Probe
+- [x] Launch `adaway-api34-16g` with `-writable-system` and verify boot/root/remount state.
+- [x] Prove controlled shell-level `/system/etc/hosts` write and exact restoration.
+- [x] Add an opt-in connected `RootModel.apply()` smoke that is skipped in normal CI and only runs
+  with `rootHostsApplySmoke=true`.
+- [x] Run the app-level smoke and document whether the emulator provides app-granted root.
+- [x] Update the canonical tracker without closing `RUNTIME-007` from shell-only evidence.
+
+## Review - 2026-06-28 RUNTIME-007 Writable Emulator Re-Probe
+- The old read-only conclusion is stale. A fresh writable-system emulator launch reached
+  `boot_completed=1`, accepted `adb root`, remounted `/system` with overlayfs read/write, and
+  allowed a controlled shell write of `codex-root-write-smoke.local` into `/system/etc/hosts`.
+  Restoring the backup returned the hosts SHA-256 to
+  `425c3e713d5bae19b031bc8639c20c6a23e311a54647ba1824cbf45969a11ff4`.
+- Added `RootModelApplyInstrumentedTest`, an explicit opt-in connected harness that seeds one
+  blocked host, calls the real `RootModel.apply()` path, and restores `/system/etc/hosts` in
+  teardown if it reaches mutation. Normal connected suites skip this test unless
+  `rootHostsApplySmoke=true` is supplied.
+- Verification passed for the harness compile:
+  `./gradlew --no-daemon :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace`.
+- The opt-in smoke failed before mutation because this AOSP emulator does not grant root to the app:
+  after `Shell.getShell()`, `Shell.cmd("id")` reported `u0_a194`/`u0_a196`, not `uid=0`.
+  `/system/xbin/su` was shell-only (`4750 root:shell`); temporarily changing it to `4755` still
+  left libsu in an untrusted app shell. `su` mode and `/system/etc/hosts` were restored.
+- `RUNTIME-007` remains a real external gate, but now the ask is precise: provide a rooted physical
+  device, Magisk/root-manager emulator, or trusted target where `org.adaway` gets app-granted root,
+  then rerun the opt-in smoke.

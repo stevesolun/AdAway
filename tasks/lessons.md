@@ -80,3 +80,12 @@
   from optimistic wording drift.
 - When the user calls out looping, stop rediscovering the same release board: pick the strongest
   locally finishable row, finish it with proof, and leave external gates explicitly blocked.
+
+## 2026-06-28 - Re-Probe Stale Blockers
+
+- When the user challenges an external blocker, re-probe the current device/emulator capability
+  before repeating old evidence.
+- Treat a newly writable rooted emulator as a new proof surface: first prove controlled shell
+  write/restore, then run the real app-owned path behind an explicit opt-in guard.
+- Do not close a root-hosts gate from `adb root` alone; close it only when the app/libsu path
+  writes the generated hosts file and restores the original system file afterward.

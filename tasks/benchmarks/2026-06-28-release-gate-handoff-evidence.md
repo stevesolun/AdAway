@@ -118,7 +118,7 @@ artifacts, a real physical/rooted device, legal review, or human review.
 
 | Story | Needed proof | Owner action |
 | --- | --- | --- |
-| `RUNTIME-007` | Real rooted writable hosts-file apply smoke | Provide rooted physical device or trusted writable-system target where AdAway/libsu can write and restore `/system/etc/hosts`. |
+| `RUNTIME-007` | Real app-rooted hosts-file apply smoke | Provide rooted physical device, Magisk/root-manager emulator, or trusted target where `org.adaway`/libsu is granted root and can write/restore `/system/etc/hosts`. |
 | `UPDATE-002` | Signed APK self-update/install proof | Produce signed direct-release artifact, signed manifest, APK hash, and target-device install/update evidence. |
 | `UPDATE-004` | Signed directRelease channel proof | Run the signed `directRelease` install/update path and verify installer permission/channel behavior. |
 | `REL-001` | Legal/provenance signoff | Review GPL-derived code/assets/notices and sign off the GPL/MIT boundary; local source reports are not legal clearance. |

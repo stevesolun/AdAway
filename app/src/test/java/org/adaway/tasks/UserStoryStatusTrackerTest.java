@@ -174,6 +174,32 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void runtime007StaysOpenUntilAppGrantedRootApplyProofExists() throws IOException {
+        Row row = rowsById().get("RUNTIME-007");
+
+        assertNotNull("RUNTIME-007 row should exist.", row);
+        assertEquals("RUNTIME-007 should remain a P0 root apply gate.", "P0",
+                row.priority());
+        assertFalse("RUNTIME-007 must not close on adb-root or shell-write proof alone.",
+                isFullyCovered(row));
+        assertTrue("RUNTIME-007 should point at the current app-root blocker evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-runtime007-" +
+                                "writable-emulator-app-root-blocker.md"));
+        assertTrue("RUNTIME-007 should record that writable-system shell proof now exists.",
+                row.testState().contains("adb root/remount succeeded") &&
+                        row.testState().contains("shell write/restore"));
+        assertTrue("RUNTIME-007 should name the actual remaining blocker.",
+                row.riskNotes().contains("app-granted root") &&
+                        row.errorNotes().contains("Shell.getShell") &&
+                        row.errorNotes().contains("u0_a"));
+        assertTrue("RUNTIME-007 should keep the opt-in app smoke harness visible.",
+                row.existingTestEvidence().contains("RootModelApplyInstrumentedTest") &&
+                        row.retestStatus().contains("rootHostsApplySmoke=true") &&
+                        row.retestStatus().contains("app-root grant"));
+    }
+
+    @Test
     public void update004StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
         Row row = rowsById().get("UPDATE-004");
 
@@ -589,6 +615,10 @@ public class UserStoryStatusTrackerTest {
 
         String riskNotes() {
             return fields[10];
+        }
+
+        String errorNotes() {
+            return fields[12];
         }
 
         String fixStatus() {
