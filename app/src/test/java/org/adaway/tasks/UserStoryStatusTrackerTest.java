@@ -240,6 +240,35 @@ public class UserStoryStatusTrackerTest {
                 "release-smoke");
     }
 
+    @Test
+    public void notif002StaysClosedWithNonMutatingConnectedAlertProof() throws IOException {
+        Row row = rowsById().get("NOTIF-002");
+
+        assertNotNull("NOTIF-002 row should exist.", row);
+        assertEquals("NOTIF-002 should stay a P2 notification contract.", "P2",
+                row.priority());
+        assertEquals("Covered by JVM and connected notification alert proof", row.status());
+        assertTrue("NOTIF-002 should point at the connected notification proof.",
+                row.existingTestEvidence().contains(
+                        "app/src/androidTest/java/org/adaway/helper/" +
+                                "NotificationHelperChannelInstrumentedTest.java") &&
+                        row.existingTestEvidence().contains(
+                                "tasks/benchmarks/2026-06-28-notif002-" +
+                                        "nonmutating-alert-proof.md"));
+        assertTrue("NOTIF-002 should name the app-owned alert contract.",
+                row.testState().contains("distinct actionable host/app notification builders") &&
+                        row.testState().contains("current notification-permission posting"));
+        assertTrue("NOTIF-002 should keep permission UX in the safer rows.",
+                row.riskNotes().contains("NOTIF-003/PREF-010") &&
+                        row.riskNotes().contains("avoids permission mutation"));
+        assertTrue("NOTIF-002 should record the focused JVM and connected retest.",
+                row.retestStatus().contains("NotificationHelperContractTest") &&
+                        row.retestStatus().contains("UserStoryStatusTrackerTest") &&
+                        row.retestStatus().contains("NotificationHelperChannelInstrumentedTest") &&
+                        row.retestStatus().contains("4 tests") &&
+                        row.retestStatus().contains("adaway-api34-16g"));
+    }
+
     private static List<Row> readRows() throws IOException {
         Path tracker = repoDir().resolve("tasks/user-story-status.tsv");
         List<String> lines = Files.readAllLines(tracker, StandardCharsets.UTF_8);

@@ -78,3 +78,5 @@
   legal, hardware, consent, or human-review caveats visible in the tracker.
 - Add tracker guardrail tests when changing status language so CI protects the product boundary
   from optimistic wording drift.
+- When the user calls out looping, stop rediscovering the same release board: pick the strongest
+  locally finishable row, finish it with proof, and leave external gates explicitly blocked.

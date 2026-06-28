@@ -19,20 +19,24 @@ public class NotificationHelperContractTest {
 
         assertTrue("Hosts update notification must use the hosts notification id.",
                 hostsBlock.contains("notificationManager.notify(" +
-                        "UPDATE_HOSTS_NOTIFICATION_ID, builder.build())"));
+                        "\n                UPDATE_HOSTS_NOTIFICATION_ID,"));
+        assertTrue("Hosts update notification must post the hosts alert object.",
+                hostsBlock.contains("buildUpdateHostsNotification(context)"));
         assertTrue("App update notification must use the app notification id.",
                 appBlock.contains("notificationManager.notify(" +
-                        "UPDATE_APP_NOTIFICATION_ID, builder.build())"));
+                        "\n                UPDATE_APP_NOTIFICATION_ID,"));
+        assertTrue("App update notification must post the app alert object.",
+                appBlock.contains("buildUpdateApplicationNotification(context)"));
         assertFalse("App update notification must not overwrite the hosts update notification.",
                 appBlock.contains("notificationManager.notify(" +
-                        "UPDATE_HOSTS_NOTIFICATION_ID, builder.build())"));
+                        "\n                UPDATE_HOSTS_NOTIFICATION_ID,"));
     }
 
     @Test
     public void updateNotificationsOpenExpectedScreensAndClearOnTap() throws Exception {
         String source = readNotificationHelperSource();
-        String hostsBlock = methodBlock(source, "showUpdateHostsNotification");
-        String appBlock = methodBlock(source, "showUpdateApplicationNotification");
+        String hostsBlock = methodBlock(source, "buildUpdateHostsNotification");
+        String appBlock = methodBlock(source, "buildUpdateApplicationNotification");
 
         assertActionableUpdateNotification(hostsBlock,
                 "HomeActivity.class",
@@ -69,8 +73,7 @@ public class NotificationHelperContractTest {
     private static void assertActionableUpdateNotification(String block, String targetActivity,
             String titleResource, String textResource) {
         assertTrue("Update notification must use the update notification channel.",
-                block.contains("new NotificationCompat.Builder(context, " +
-                        "UPDATE_NOTIFICATION_CHANNEL)"));
+                block.contains("buildUpdateNotification(context"));
         assertTrue("Update notification must open the expected screen.",
                 block.contains("new Intent(context, " + targetActivity + ")"));
         assertTrue("Update notification must reset the opened task.",
@@ -86,6 +89,19 @@ public class NotificationHelperContractTest {
                 block.contains("String text = context.getString(R.string." +
                         textResource + ")"));
         assertTrue("Update notification must attach the pending intent.",
+                block.contains("pendingIntent"));
+    }
+
+    @Test
+    public void sharedUpdateNotificationBuilderKeepsAlertPresentationContract()
+            throws Exception {
+        String source = readNotificationHelperSource();
+        String block = methodBlock(source, "buildUpdateNotification");
+
+        assertTrue("Update notification must use the update notification channel.",
+                block.contains("new NotificationCompat.Builder(context, " +
+                        "UPDATE_NOTIFICATION_CHANNEL)"));
+        assertTrue("Update notification must attach the pending intent.",
                 block.contains(".setContentIntent(pendingIntent)"));
         assertTrue("Update notification must remain low priority on pre-channel devices.",
                 block.contains(".setPriority(PRIORITY_LOW)"));
@@ -96,7 +112,7 @@ public class NotificationHelperContractTest {
     private static void assertNotificationBlockHasPermissionGuard(String block) {
         int guard = block.indexOf("if (notificationManager == null || " +
                 "!notificationManager.areNotificationsEnabled())");
-        int builder = block.indexOf("new NotificationCompat.Builder");
+        int builder = block.indexOf("buildUpdate");
         int notify = block.indexOf("notificationManager.notify(");
 
         assertTrue("Update notification must check whether alerts can be posted.", guard >= 0);
@@ -114,6 +130,9 @@ public class NotificationHelperContractTest {
 
     private static String methodBlock(String source, String methodName) {
         int start = source.indexOf("void " + methodName);
+        if (start < 0) {
+            start = source.indexOf("Notification " + methodName);
+        }
         if (start < 0) {
             throw new AssertionError("Missing method: " + methodName);
         }

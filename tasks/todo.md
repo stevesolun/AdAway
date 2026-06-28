@@ -11151,3 +11151,31 @@
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.prefs.PrefsRootWebServerUnavailableInstrumentedTest
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 1 connected test.
+
+## Plan - 2026-06-28 NOTIF-002 Non-Mutating Alert Proof
+- [x] Use the clean PR worktree and avoid the dirty `master` checkout.
+- [x] Split the work across expert lanes for notification proof, release-tracker triage, and
+  environment/CI risk.
+- [x] Strengthen the update-alert builder so the notification object can be inspected without
+  posting or mutating runtime notification permission.
+- [x] Add connected proof for distinct actionable hosts/app alerts and current permission-state
+  posting behavior.
+- [x] Update tracker evidence only after focused JVM and connected proofs pass.
+
+## Review - 2026-06-28 NOTIF-002 Non-Mutating Alert Proof
+- `NOTIF-002`: Refactored `NotificationHelper` so hosts/app update alert builders are inspectable
+  package-private contracts while the public posting methods still guard on
+  `NotificationManager.areNotificationsEnabled()` before notifying.
+- Extended `NotificationHelperChannelInstrumentedTest` from channel-only coverage to four connected
+  proofs: channel metadata, existing-channel upgrade immutability, distinct actionable hosts/app
+  update notification builders, and current permission-state posting/no-post behavior without
+  `POST_NOTIFICATIONS` grant/revoke mutation.
+- The canonical tracker now marks `NOTIF-002` covered for the app-owned alert/channel contract while
+  keeping Android notification permission UX under `NOTIF-003`/`PREF-010`.
+- Verification passed:
+  `./gradlew --no-daemon :app:testDebugUnitTest --tests
+  org.adaway.helper.NotificationHelperContractTest :app:compileDebugAndroidTestJavaWithJavac
+  --dependency-verification=strict --stacktrace` and
+  `./gradlew --no-daemon :app:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.helper.NotificationHelperChannelInstrumentedTest
+  --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 4 connected tests.
