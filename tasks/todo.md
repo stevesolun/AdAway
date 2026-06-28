@@ -62,6 +62,29 @@
   `Connected Android tests` was red and the protected branch would block merging until the fresh
   head passes required checks.
 
+## Plan - 2026-06-29 Connected UX Touch Target Gate
+- [x] Watch the fresh protected-branch CI run after the workflow-hardening push.
+- [x] Inspect the failed connected Android job and identify whether it came from CI hardening or
+  product UX coverage.
+- [x] Fix the Discover filter-list switch touch target regression caught by `UxDeviceMatrixTest`.
+- [x] Add a focused static guard so the switch controls cannot shrink below the connected-test
+  threshold again.
+- [x] Run focused local verification before pushing the fix.
+
+## Review - 2026-06-29 Connected UX Touch Target Gate
+- Fresh PR #7 head `a7880320` passed `Validate locales`, `Analyze (cpp)`, `Analyze (java)`,
+  `CodeQL`, and `Development build`, then failed `Connected Android tests`.
+- The connected failure was `UxDeviceMatrixTest` on the Discover screen:
+  `filterlistsCompatibleOnlySwitch` measured `519x105`, below the test's 48dp touch-target floor
+  on the CI emulator.
+- The root cause was `fragment_discover_filterlists.xml` explicitly setting both filter-list
+  `MaterialSwitch` controls to `android:minHeight="40dp"`.
+- Fixed both filter-list switches to `48dp` and extended `DiscoverPresetSubscriptionTest` to guard
+  `filterlistsCompatibleOnlySwitch` and `filterlistsShowSubscribedSwitch`.
+- Local verification passed with JDK 21: `git diff --check`, focused
+  `DiscoverPresetSubscriptionTest` plus `UserStoryStatusTrackerTest`, and
+  `:app:processDebugResources`.
+
 ## Plan - 2026-06-28 Durable CI Evidence Wording
 - [x] Re-check the latest PR #7 state after the previous evidence refresh.
 - [x] Replace self-staling `latest pushed head` wording with durable CI-evidence wording.

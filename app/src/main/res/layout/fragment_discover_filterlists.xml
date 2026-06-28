@@ -64,7 +64,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:checked="false"
-            android:minHeight="40dp"
+            android:minHeight="48dp"
             android:text="@string/filterlists_compatible_only" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
@@ -73,7 +73,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:checked="false"
-            android:minHeight="40dp"
+            android:minHeight="48dp"
             android:text="@string/filterlists_show_subscribed" />
 
     </LinearLayout>

@@ -406,6 +406,12 @@ public class DiscoverPresetSubscriptionTest {
                         && strings.contains("Show subscribed")
                         && source.contains("mSubscribedOnly")
                         && source.contains("if (mSubscribedOnly && !isSummarySubscribed(s))"));
+        assertTrue("Compatible-only switch must keep a 48dp touch target.",
+                xmlTagById(layout, "filterlistsCompatibleOnlySwitch")
+                        .contains("android:minHeight=\"48dp\""));
+        assertTrue("Subscribed-only switch must keep a 48dp touch target.",
+                xmlTagById(layout, "filterlistsShowSubscribedSwitch")
+                        .contains("android:minHeight=\"48dp\""));
         assertTrue("Bulk buttons should stay compact so the list remains visible.",
                 layout.contains("android:minHeight=\"36dp\"")
                         && layout.contains("android:textSize=\"12sp\""));
