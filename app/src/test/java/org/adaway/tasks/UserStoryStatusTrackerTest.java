@@ -269,6 +269,38 @@ public class UserStoryStatusTrackerTest {
                         row.retestStatus().contains("adaway-api34-16g"));
     }
 
+    @Test
+    public void pref013StaysClosedWithPlatformBackupRestoreEvidence() throws IOException {
+        Row row = rowsById().get("PREF-013");
+
+        assertNotNull("PREF-013 row should exist.", row);
+        assertEquals("PREF-013 should stay a P2 backup contract.", "P2", row.priority());
+        assertEquals("Covered by connected platform backup restore smoke", row.status());
+        assertTrue("PREF-013 should point at the phase-gated platform restore proof.",
+                row.existingTestEvidence().contains(
+                        "app/src/androidTest/java/org/adaway/model/backup/" +
+                                "AppBackupAgentPlatformInstrumentedTest.java") &&
+                        row.existingTestEvidence().contains(
+                                "tasks/benchmarks/2026-06-28-pref013-" +
+                                        "platform-backup-restore-evidence.md"));
+        assertTrue("PREF-013 should record the real bmgr local transport path.",
+                row.testState().contains("bmgr backupnow") &&
+                        row.testState().contains("bmgr restore 1 org.adaway") &&
+                        row.testState().contains("blocked/allowed/redirected user rules"));
+        assertTrue("PREF-013 should keep cloud/provider availability out of the app claim.",
+                row.riskNotes().contains("local transport") &&
+                        row.riskNotes().contains("cloud account") &&
+                        row.riskNotes().contains("OS-owned"));
+        assertTrue("PREF-013 should record seed/assert instrumentation and shell restore.",
+                row.retestStatus().contains("platformBackupPhase=seed") &&
+                        row.retestStatus().contains("platformBackupPhase=assert") &&
+                        row.retestStatus().contains("adaway-api34-16g"));
+        assertTrue("PREF-013 evidence file should be present.",
+                Files.isRegularFile(repoDir().resolve(
+                        "tasks/benchmarks/2026-06-28-pref013-" +
+                                "platform-backup-restore-evidence.md")));
+    }
+
     private static List<Row> readRows() throws IOException {
         Path tracker = repoDir().resolve("tasks/user-story-status.tsv");
         List<String> lines = Files.readAllLines(tracker, StandardCharsets.UTF_8);

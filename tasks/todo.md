@@ -11179,3 +11179,27 @@
   `./gradlew --no-daemon :app:connectedDebugAndroidTest
   -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.helper.NotificationHelperChannelInstrumentedTest
   --dependency-verification=strict --stacktrace` on `adaway-api34-16g` with 4 connected tests.
+
+## Plan - 2026-06-28 PREF-013 Platform Backup Restore Smoke
+- [x] Re-check whether the API 34 emulator exposes a usable Android backup transport before
+  leaving `PREF-013` as manual-only.
+- [x] Add a phase-gated instrumentation proof that seeds backup state and later asserts restored
+  state without pretending normal CI alone proves platform restore.
+- [x] Run the real shell sequence: enable Backup Manager, select local transport, `bmgr backupnow`,
+  clear app data, restore from the local restore set, and assert the restored app state.
+- [x] Update the canonical tracker with exact evidence and keep cloud/OEM transport availability as
+  an OS-owned boundary.
+
+## Review - 2026-06-28 PREF-013 Platform Backup Restore Smoke
+- `PREF-013`: Added `AppBackupAgentPlatformInstrumentedTest`, a phase-gated connected proof for
+  Android Backup Manager restore. The seed phase writes a SharedPreferences probe plus source,
+  blocked, allowed, and redirected user rules. The assert phase verifies the preference and rules
+  after platform restore.
+- The accepted proof uses manual APK install and `adb shell am instrument`, because Gradle
+  `connectedDebugAndroidTest` cleans up the target package before shell `bmgr backupnow` can run.
+- Verification passed on `adaway-api34-16g`: `bmgr enable true`, selected
+  `com.android.localtransport/.LocalTransport`, seed phase `OK (1 test)`, `bmgr backupnow
+  org.adaway` succeeded for `@pm@` and `org.adaway`, `pm clear org.adaway` succeeded,
+  `bmgr restore 1 org.adaway` finished with status `0`, and assert phase `OK (1 test)`.
+- The canonical tracker now marks `PREF-013` covered for the app-owned BackupAgent contract while
+  keeping cloud account availability and OEM transport behavior as OS-owned boundaries.
