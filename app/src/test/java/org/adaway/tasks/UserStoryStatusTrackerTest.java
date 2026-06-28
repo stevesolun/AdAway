@@ -246,9 +246,9 @@ public class UserStoryStatusTrackerTest {
         assertTrue("REL-004 should record the fresh packet size and hash.",
                 row.testState().contains("40 screenshots") &&
                         row.testState().contains(
-                                "e762f2b4f73bcd1e20342572a2285c23d9c3c52b") &&
+                                "1a25953daf58d51b56d796e641e34e6cf34bfc65") &&
                         row.testState().contains(
-                                "0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf"));
+                                "d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4"));
         assertTrue("REL-004 should keep the human-review boundary explicit.",
                 row.retestStatus().contains("Unchecked items 45") &&
                         row.retestStatus().contains("human UX signoff"));
@@ -269,7 +269,7 @@ public class UserStoryStatusTrackerTest {
                         "tasks/benchmarks/2026-06-28-release-gate-handoff-evidence.md"));
         assertTrue("REL-005 should record the current-head packet hash and fail-closed result.",
                 row.testState().contains(
-                        "0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf") &&
+                        "d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4") &&
                         row.testState().contains("failed release artifact") &&
                         row.testState().contains("failed physical smoke") &&
                         row.testState().contains("failed UX signoff") &&
@@ -283,8 +283,8 @@ public class UserStoryStatusTrackerTest {
         assertTrue("REL-005 should name the current PR and missing upstream reports.",
                 row.retestStatus().contains("missing release-artifacts/verification-report.md") &&
                         row.retestStatus().contains("missing release-smoke/release-smoke-report.md") &&
-                        row.retestStatus().contains("non-release dry-run license boundary") &&
-                        row.retestStatus().contains("PR #7 head 69623d1f") &&
+                        row.retestStatus().contains("debug/preflight license boundary") &&
+                        row.retestStatus().contains("PR #7 head 1a25953d") &&
                         row.retestStatus().contains("real workflow dispatch"));
     }
 

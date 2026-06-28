@@ -31,6 +31,31 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 REL-004/REL-005 Source-Under-Test Refresh
+- [x] Confirm PR #7 is green and the only remaining partial tracker rows are external P0 gates.
+- [x] Restart the API 34 emulator and regenerate the UX matrix packet against source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`.
+- [x] Run UX signoff and final readiness preflights, expecting fail-closed results until human
+  UX signoff, release artifacts, physical smoke, and release-grade license-boundary reports exist.
+- [x] Update canonical evidence without marking `REL-004`, `REL-005`, or the overall goal done.
+
+## Review - 2026-06-28 REL-004/REL-005 Source-Under-Test Refresh
+- PR #7 was green before this slice at `1a25953d`: Analyze cpp, Analyze java, CodeQL,
+  Development build, and Connected Android tests all passed.
+- `scripts/run-ux-matrix.ps1` passed all five variants on `adaway-api34-16g` and pulled
+  `40` screenshots to `app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d`.
+- The refreshed review packet records source commit
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65` and SHA-256
+  `d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4`.
+- `verify-ux-signoff.ps1` failed as expected with `Status: failed`, `Checked items: 0`,
+  `Unchecked items: 45`, and `Issues: 1`; source commit and review packet source commit matched.
+- Spot-checked `font-1.6-rtl` Home/Discover/Sources and `font-1.6` More; no obvious clipping,
+  hidden bottom navigation, or unreachable primary action was found. This is still not human
+  release signoff.
+- `verify-release-readiness.ps1` failed closed with `Issues: 7`: missing release artifact report,
+  missing physical smoke report, failed UX signoff, and debug/preflight license-boundary evidence
+  that is not acceptable for final release readiness.
+
 ## Plan - 2026-06-28 REL-001 Current-Head License Boundary Refresh
 - [x] Re-ground the active PR worktree and confirm PR #7 is green at
   `c03030f89ec2337bb9213949cec2e2c3db69f309`.

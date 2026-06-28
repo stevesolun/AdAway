@@ -2,11 +2,11 @@
 
 Scope:
 - Story: `REL-004`
-- Commit under test: `e762f2b4 docs: record cto convergence audit`
+- Commit under test: `1a25953daf58d51b56d796e641e34e6cf34bfc65`
 - Device: `adaway-api34-16g(AVD) - 14`
-- Output directory: `app/build/reports/ux-matrix-2026-06-28-rel004-current-head`
+- Output directory: `app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d`
 - Note: this refresh supersedes the earlier packet generated from source commit
-  `6125937c97978346a7ea4d67508f35ab04075c88`.
+  `e762f2b4f73bcd1e20342572a2285c23d9c3c52b`.
 
 ## Command
 
@@ -14,8 +14,8 @@ Scope:
 pwsh -NoProfile -File scripts/run-ux-matrix.ps1 \
   -AndroidHome "$HOME/.local/android-sdk" \
   -JavaHome /opt/homebrew/opt/openjdk@21 \
-  -OutputDir app/build/reports/ux-matrix-2026-06-28-rel004-current-head \
-  -InstrumentationTimeoutSeconds 420
+  -OutputDir app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d \
+  -InstrumentationTimeoutSeconds 360
 ```
 
 ## Result
@@ -28,16 +28,16 @@ font-1.3: OK (1 test), 8 screenshots pulled
 font-1.6: OK (1 test), 8 screenshots pulled
 font-1.3-rtl: OK (1 test), 8 screenshots pulled
 font-1.6-rtl: OK (1 test), 8 screenshots pulled
-UX matrix review packet=app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-matrix-review.md
+UX matrix review packet=app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d/ux-matrix-review.md
 ```
 
 Generated artifacts:
 
 ```text
 Screenshot count: 40
-Review packet: app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-matrix-review.md
-Review packet SHA-256: 0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf
-Review packet source commit: e762f2b4f73bcd1e20342572a2285c23d9c3c52b
+Review packet: app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d/ux-matrix-review.md
+Review packet SHA-256: d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4
+Review packet source commit: 1a25953daf58d51b56d796e641e34e6cf34bfc65
 ```
 
 ## Sign-Off Preflight
@@ -46,18 +46,18 @@ Command:
 
 ```bash
 pwsh -NoProfile -File scripts/verify-ux-signoff.ps1 \
-  -ReviewPacket app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-matrix-review.md \
+  -ReviewPacket app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d/ux-matrix-review.md \
   -Reviewer Codex-preflight \
-  -ReportPath app/build/reports/ux-matrix-2026-06-28-rel004-current-head/ux-signoff-preflight-report.md
+  -ReportPath app/build/reports/ux-matrix-2026-06-28-rel004-head-1a25953d/ux-signoff-preflight-report.md
 ```
 
 Expected result:
 
 ```text
 Status: failed
-Source commit: e762f2b4f73bcd1e20342572a2285c23d9c3c52b
-Review packet source commit: e762f2b4f73bcd1e20342572a2285c23d9c3c52b
-Review packet SHA-256: 0fb50e3a0781ca455908612fc0f9914d2c839ed28a9e481267c05d51e633f2bf
+Source commit: 1a25953daf58d51b56d796e641e34e6cf34bfc65
+Review packet source commit: 1a25953daf58d51b56d796e641e34e6cf34bfc65
+Review packet SHA-256: d481b9ab3152760fb917474704131b15c44ae45c4aec615581714e5d9e29eae4
 Checked items: 0
 Unchecked items: 45
 Issues: 1
@@ -77,5 +77,5 @@ The highest-risk local spot-check viewed:
 - `font-1.6/ux-matrix/more.png`
 
 No obvious clipping, hidden bottom navigation, or unreachable primary action was found in the
-current-head spot-check. Large-font rows are dense by design and still require human review across
+current-head-under-test spot-check. Large-font rows are dense by design and still require human review across
 the full packet. This is not human release signoff.
