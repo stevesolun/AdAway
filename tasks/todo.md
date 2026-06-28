@@ -31,6 +31,26 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- [x] Confirm no signed release APK, SBOM, physical device, or rooted writable target is locally
+  available.
+- [x] Re-run GitTracked, WorkingTree, and GitTracked strict source-archive license-boundary reports
+  at the current pushed head.
+- [x] Record fresh source-side evidence while keeping legal/provenance and artifact APK/SBOM gates
+  open.
+
+## Review - 2026-06-28 REL-001 Current-Head License Boundary Refresh
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked` passed with `2474` source entries,
+  `Issues: 0`, and source commit `72b64e6f4c848a4667adcab115d432e9dad32376`.
+- `scripts/check-license-boundary.ps1 -SourceMode WorkingTree` passed with `2170` source entries
+  and `Issues: 0`.
+- `scripts/check-license-boundary.ps1 -SourceMode GitTracked -StrictSourceArchive` passed with
+  `2474` source entries, `2180` source archive entries, and `Issues: 0`.
+- All reports still say `MIT release status: blocked until GPL-derived material is cleared` and
+  have `APK: not-provided`, `SBOM: not-provided`, and `Strict artifacts: false`.
+- `REL-001` remains partial: current-head source checks are fresh, but legal/provenance signoff and
+  release artifact APK/SBOM boundary checks still require external inputs.
+
 ## Plan - 2026-06-28 REL-004 Fresh UX Matrix Packet
 - [x] Re-ground available devices and confirm no physical release device/artifact gate is locally
   closeable.

@@ -112,6 +112,27 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
+    public void rel001StaysOpenWithFreshSourceBoundaryReports() throws IOException {
+        Row row = rowsById().get("REL-001");
+
+        assertNotNull("REL-001 row should exist.", row);
+        assertEquals("REL-001 should remain a P0 release/legal gate.", "P0", row.priority());
+        assertFalse("REL-001 must not be marked covered by source scans alone.",
+                isFullyCovered(row));
+        assertTrue("REL-001 should point at the fresh source-boundary evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel001-license-boundary-current-head-evidence.md"));
+        assertTrue("REL-001 should record current-head source report counts.",
+                row.testState().contains("2474 tracked entries") &&
+                        row.testState().contains("2170 working-tree entries") &&
+                        row.testState().contains("2180 strict archive entries"));
+        assertTrue("REL-001 should keep MIT and artifact/legal boundaries open.",
+                row.riskNotes().contains("MIT remains blocked") &&
+                        row.riskNotes().contains("APK/SBOM") &&
+                        row.retestStatus().contains("legal/provenance"));
+    }
+
+    @Test
     public void releaseHandoffRowsKeepVerifierEvidenceWithoutClosingExternalGates()
             throws IOException {
         Map<String, Row> rows = rowsById();
