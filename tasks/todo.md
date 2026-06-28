@@ -11578,6 +11578,10 @@
 - Added a connected packet regression in `DnsPacketProxyRuntimeTruthTest`: a broad suffix block on
   `ynet.co.il` must still forward `www.ynet.co.il`, while `stats.ynet.co.il` remains locally
   blocked. The test compiles locally; execution is pending a working connected device.
+- First pushed PR connected run caught a real startup race before tests executed:
+  `SQLiteConstraintException: FOREIGN KEY constraint failed` from inserting site-compatibility user
+  rows before the user source row existed. The allowlist now inserts/ignores the user source first,
+  matching the normal `AppDatabase` user-list defaults.
 - Verification passed with OpenJDK 21: full `./gradlew testDebugUnitTest`,
   `./gradlew assembleDebugAndroidTest`, and `./gradlew assembleDebug`.
 - A fresh debug APK was copied to

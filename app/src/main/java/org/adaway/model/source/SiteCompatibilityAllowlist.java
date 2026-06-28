@@ -2,6 +2,7 @@ package org.adaway.model.source;
 
 import android.content.Context;
 
+import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.entity.HostListItem;
@@ -47,7 +48,9 @@ public final class SiteCompatibilityAllowlist {
 
     public static boolean ensureAllowlistSync(Context context) {
         final Context appContext = context.getApplicationContext();
-        HostListItemDao dao = AppDatabase.getInstance(appContext).hostsListItemDao();
+        AppDatabase database = AppDatabase.getInstance(appContext);
+        ensureUserSource(appContext, database);
+        HostListItemDao dao = database.hostsListItemDao();
         List<HostListItem> existing = dao.getUserList();
         boolean inserted = false;
 
@@ -58,6 +61,19 @@ public final class SiteCompatibilityAllowlist {
             }
         }
         return inserted;
+    }
+
+    private static void ensureUserSource(Context context, AppDatabase database) {
+        if (database.hostsSourceDao().getById(HostsSource.USER_SOURCE_ID).isPresent()) {
+            return;
+        }
+        HostsSource userSource = new HostsSource();
+        userSource.setLabel(context.getString(R.string.hosts_user_source));
+        userSource.setId(HostsSource.USER_SOURCE_ID);
+        userSource.setUrl(HostsSource.USER_SOURCE_URL);
+        userSource.setAllowEnabled(true);
+        userSource.setRedirectEnabled(true);
+        database.hostsSourceDao().insert(userSource);
     }
 
     static HostListItem buildItem(String domain) {

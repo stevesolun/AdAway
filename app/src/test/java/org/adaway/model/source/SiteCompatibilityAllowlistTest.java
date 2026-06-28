@@ -64,6 +64,29 @@ public class SiteCompatibilityAllowlistTest {
     }
 
     @Test
+    public void ensureAllowlistCreatesUserSourceBeforeUserRows() throws Exception {
+        String allowlist = compact(readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SiteCompatibilityAllowlist.java"));
+
+        assertTrue(allowlist.contains("ensureUserSource(appContext,database);"
+                + "HostListItemDao"));
+        assertTrue(allowlist.contains("database.hostsSourceDao().insert(userSource);"));
+        assertTrue(allowlist.indexOf("ensureUserSource(appContext,database);")
+                < allowlist.indexOf("dao.insert(buildItem(domain));"));
+    }
+
+    @Test
+    public void userSourceCreatedWithUserListCapabilities() throws Exception {
+        String allowlist = readRepoFile(
+                "app/src/main/java/org/adaway/model/source/SiteCompatibilityAllowlist.java");
+
+        assertTrue(allowlist.contains("setId(HostsSource.USER_SOURCE_ID)"));
+        assertTrue(allowlist.contains("setUrl(HostsSource.USER_SOURCE_URL)"));
+        assertTrue(allowlist.contains("setAllowEnabled(true)"));
+        assertTrue(allowlist.contains("setRedirectEnabled(true)"));
+    }
+
+    @Test
     public void databaseCreationSeedsSiteCompatibilityAllowlist() throws Exception {
         String appDatabase = compact(readRepoFile(
                 "app/src/main/java/org/adaway/db/AppDatabase.java"));
