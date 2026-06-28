@@ -31,6 +31,24 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-28 REL-005 Current PR CI Ledger Refresh
+- [x] Re-check pushed PR #7 CI after the docs-only convergence reconciliation.
+- [x] Preserve the `REL-004`/`REL-005` source-under-test distinction: UX packet and readiness
+  preflight remain tied to `1a25953d`, while current PR CI is green at `63eaa749`.
+- [x] Update the canonical `REL-005` retest ledger and guard test so the current pushed head is not
+  stale.
+- [x] Run focused tracker/release guard verification and hygiene.
+
+## Review - 2026-06-28 REL-005 Current PR CI Ledger Refresh
+- PR #7 current pushed head `63eaa749e84a2872d42e82b34e61e61e0d84f789` is green: Analyze cpp
+  `1m13s`, Analyze java `4m3s`, CodeQL `5s`, Development build `6m9s`, and Connected Android
+  tests `9m16s`.
+- This is an evidence-led docs refresh only. It does not change the app source-under-test for the
+  refreshed UX matrix packet or readiness preflight, which remain recorded at
+  `1a25953daf58d51b56d796e641e34e6cf34bfc65`.
+- Focused guard bundle passed with explicit OpenJDK 21 `JAVA_HOME`: `ReleaseReadinessScriptTest`,
+  `UxMatrixScriptTest`, and `UserStoryStatusTrackerTest`.
+
 ## Plan - 2026-06-28 CTO Convergence Todo Reconciliation
 - [x] Re-ground PR #7 head, CI, clean worktree state, and canonical tracker rows.
 - [x] Dispatch independent expert lanes for stale todo reconciliation, tracker/open-gate audit, and

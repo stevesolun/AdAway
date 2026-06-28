@@ -284,7 +284,7 @@ public class UserStoryStatusTrackerTest {
                 row.retestStatus().contains("missing release-artifacts/verification-report.md") &&
                         row.retestStatus().contains("missing release-smoke/release-smoke-report.md") &&
                         row.retestStatus().contains("debug/preflight license boundary") &&
-                        row.retestStatus().contains("PR #7 head 1a25953d") &&
+                        row.retestStatus().contains("PR #7 head 63eaa749") &&
                         row.retestStatus().contains("real workflow dispatch"));
     }
 

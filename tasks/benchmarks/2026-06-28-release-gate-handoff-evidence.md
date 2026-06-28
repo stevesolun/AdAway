@@ -4,6 +4,7 @@ Scope:
 - Stories: `RUNTIME-007`, `UPDATE-002`, `UPDATE-004`, `REL-001`, `REL-002`, `REL-003`,
   `REL-004`, `REL-005`
 - Commit under test: `1a25953daf58d51b56d796e641e34e6cf34bfc65`
+- Latest pushed PR evidence head: `63eaa749e84a2872d42e82b34e61e61e0d84f789`
 - PR: `#7`
 
 ## Baseline CI State Before This Slice
@@ -18,6 +19,23 @@ CodeQL: pass (2s)
 Connected Android tests: pass (9m25s)
 Development build: pass (5m59s)
 ```
+
+## Post-Reconciliation PR CI State
+
+After the docs-only convergence reconciliation commit, `gh pr checks 7` passed on pushed head
+`63eaa749e84a2872d42e82b34e61e61e0d84f789`:
+
+```text
+Analyze (cpp): pass (1m13s)
+Analyze (java): pass (4m3s)
+CodeQL: pass (5s)
+Connected Android tests: pass (9m16s)
+Development build: pass (6m9s)
+```
+
+The release proof inputs are unchanged by that docs-only commit: the UX packet and fail-closed
+readiness preflight below remain tied to source-under-test commit
+`1a25953daf58d51b56d796e641e34e6cf34bfc65`.
 
 ## Local Release-Gate Verifier Evidence
 
