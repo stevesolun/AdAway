@@ -137,6 +137,33 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew assembleDebug --dependency-verification=strict --stacktrace
 
+      - name: Generate development SBOM
+        run: ./gradlew :app:cyclonedxBom --dependency-verification=strict --stacktrace
+
+      - name: Check development artifact license boundary
+        shell: pwsh
+        run: |
+          ./scripts/check-license-boundary.ps1 `
+            -ApkPath app/build/outputs/apk/debug/app-debug.apk `
+            -SbomPath app/build/reports/cyclonedx/bom.json `
+            -StrictArtifacts `
+            -ReportPath app/build/reports/license-boundary/debug-artifact-license-boundary-report.md
+
+      - name: Upload development artifact boundary report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: debug-artifact-license-boundary-report
+          path: app/build/reports/license-boundary/debug-artifact-license-boundary-report.md
+          if-no-files-found: warn
+
+      - name: Upload development SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: AdAway-debug-sbom
+          path: app/build/reports/cyclonedx/bom.json
+          if-no-files-found: error
+
       - name: Upload APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

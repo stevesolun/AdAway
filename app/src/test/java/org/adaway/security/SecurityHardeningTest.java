@@ -1693,6 +1693,9 @@ public class SecurityHardeningTest {
         assertTrue("Debug assemble CI must use strict dependency verification.",
                 ciWorkflow.contains(
                         "./gradlew assembleDebug --dependency-verification=strict --stacktrace"));
+        assertTrue("Development SBOM CI must use strict dependency verification.",
+                ciWorkflow.contains(
+                        "./gradlew :app:cyclonedxBom --dependency-verification=strict --stacktrace"));
         assertTrue("Sonar CI resolution must use strict dependency verification.",
                 ciWorkflow.contains("sonarqube --dependency-verification=strict"));
         assertTrue("Connected test CI must use strict dependency verification.",
@@ -1714,6 +1717,37 @@ public class SecurityHardeningTest {
                 codeqlWorkflow.contains("build-mode: manual"));
         assertTrue("CodeQL Gradle build must only run for Java jobs.",
                 codeqlWorkflow.contains("if: matrix.language == 'java'"));
+    }
+
+    @Test
+    public void atk35_androidCiChecksDevelopmentArtifactLicenseBoundary() throws IOException {
+        String workflow = readUtf8(repoDir().resolve(".github/workflows/android-ci.yml"));
+        int buildStart = workflow.indexOf("Build with Gradle");
+        int sbomStart = workflow.indexOf("Generate development SBOM");
+        int boundaryStart = workflow.indexOf("Check development artifact license boundary");
+        int boundaryUploadStart = workflow.indexOf("Upload development artifact boundary report");
+        int sbomUploadStart = workflow.indexOf("Upload development SBOM");
+        int apkUploadStart = workflow.indexOf("Upload APK");
+
+        assertTrue("Android CI must generate a development CycloneDX SBOM.",
+                sbomStart > 0 &&
+                        workflow.contains(":app:cyclonedxBom"));
+        assertTrue("Android CI must check the built debug APK and development SBOM together.",
+                boundaryStart > sbomStart &&
+                        workflow.contains("-ApkPath app/build/outputs/apk/debug/app-debug.apk") &&
+                        workflow.contains("-SbomPath app/build/reports/cyclonedx/bom.json") &&
+                        workflow.contains("-StrictArtifacts"));
+        assertTrue("Development artifact boundary must run after debug APK build.",
+                buildStart > 0 && buildStart < sbomStart && sbomStart < boundaryStart);
+        assertTrue("Android CI must persist the development artifact boundary report.",
+                boundaryUploadStart > boundaryStart &&
+                        workflow.contains("debug-artifact-license-boundary-report") &&
+                        workflow.contains("debug-artifact-license-boundary-report.md"));
+        assertTrue("Android CI must upload the exact SBOM inspected by the boundary check.",
+                sbomUploadStart > boundaryStart &&
+                        sbomUploadStart < apkUploadStart &&
+                        workflow.contains("AdAway-debug-sbom") &&
+                        workflow.contains("app/build/reports/cyclonedx/bom.json"));
     }
 
     @Test

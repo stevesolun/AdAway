@@ -130,22 +130,28 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
-    public void rel001StaysOpenWithFreshSourceBoundaryReports() throws IOException {
+    public void rel001StaysOpenWithFreshBoundaryReports() throws IOException {
         Row row = rowsById().get("REL-001");
 
         assertNotNull("REL-001 row should exist.", row);
         assertEquals("REL-001 should remain a P0 release/legal gate.", "P0", row.priority());
-        assertFalse("REL-001 must not be marked covered by source scans alone.",
+        assertFalse("REL-001 must not be marked covered by source/debug scans alone.",
                 isFullyCovered(row));
         assertTrue("REL-001 should point at the fresh source-boundary evidence.",
                 row.allEvidence().contains(
                         "tasks/benchmarks/2026-06-28-rel001-license-boundary-" +
                                 "source-baseline-evidence.md"));
-        assertTrue("REL-001 should record source-baseline report counts.",
-                row.testState().contains("source-baseline") &&
-                        row.testState().contains("2474 tracked entries") &&
-                        row.testState().contains("2170 working-tree entries") &&
-                        row.testState().contains("2180 strict archive entries"));
+        assertTrue("REL-001 should point at the debug artifact-boundary evidence.",
+                row.allEvidence().contains(
+                        "tasks/benchmarks/2026-06-28-rel001-" +
+                                "debug-artifact-boundary-evidence.md"));
+        assertTrue("REL-001 should record debug APK/SBOM artifact-boundary counts.",
+                row.testState().contains("development CycloneDX SBOM") &&
+                        row.testState().contains("artifact-boundary checking") &&
+                        row.testState().contains("1119 APK entries") &&
+                        row.testState().contains("265 APK resources") &&
+                        row.testState().contains("116 SBOM components") &&
+                        row.testState().contains("Issues 0"));
         assertExitCode(
                 "tasks/benchmarks/2026-06-28-rel001-license-boundary-gittracked.exitcode");
         assertExitCode(
@@ -154,8 +160,13 @@ public class UserStoryStatusTrackerTest {
                 "gittracked-strict-source-archive.exitcode");
         assertTrue("REL-001 should keep MIT and artifact/legal boundaries open.",
                 row.riskNotes().contains("MIT remains blocked") &&
-                        row.riskNotes().contains("APK/SBOM") &&
+                        row.riskNotes().contains("signed release APK/SBOM") &&
                         row.retestStatus().contains("legal/provenance"));
+        assertTrue("REL-001 should record the debug artifact hashes.",
+                row.retestStatus().contains(
+                        "cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771") &&
+                        row.retestStatus().contains(
+                                "5aedaeef2b7137c6bce331d549a6815accb9c51b7a4bf0d758631711b3bbf8f4"));
     }
 
     @Test

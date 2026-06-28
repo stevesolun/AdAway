@@ -11203,3 +11203,25 @@
   `bmgr restore 1 org.adaway` finished with status `0`, and assert phase `OK (1 test)`.
 - The canonical tracker now marks `PREF-013` covered for the app-owned BackupAgent contract while
   keeping cloud account availability and OEM transport behavior as OS-owned boundaries.
+
+## Plan - 2026-06-28 REL-001 Debug Artifact Boundary CI Guard
+- [x] Check whether any remaining release gate can be locally strengthened without pretending debug
+  artifacts are signed release artifacts.
+- [x] Prove a debug-safe CycloneDX SBOM path with `:app:cyclonedxBom` while preserving the
+  release-gated `:app:generateSbom` fail-closed behavior.
+- [x] Add Android CI steps that inspect the built debug APK plus development SBOM using
+  `check-license-boundary.ps1 -StrictArtifacts`.
+- [x] Add JVM workflow guards and update the canonical tracker/evidence without closing legal,
+  signed-release, physical-device, or root gates.
+
+## Review - 2026-06-28 REL-001 Debug Artifact Boundary CI Guard
+- `REL-001`: Android CI now generates a development CycloneDX SBOM, checks
+  `app/build/outputs/apk/debug/app-debug.apk` plus `app/build/reports/cyclonedx/bom.json` with
+  strict artifact mode, and uploads both the boundary report and SBOM.
+- The release boundary remains honest: unsigned `:app:generateSbom` still fails closed on missing
+  release trust material, and this debug artifact proof does not replace signed release APK/SBOM,
+  attestation, or legal/provenance clearance.
+- Local verification passed: `:app:assembleDebug :app:cyclonedxBom` succeeded; strict artifact
+  boundary report inspected 1119 APK entries, 265 APK resources, 116 SBOM components, and found
+  Issues 0 for debug APK SHA-256
+  `cc587365535bae924e7a12cd0f3c35b58fb6595320243c6f37b37580b1e26771`.
