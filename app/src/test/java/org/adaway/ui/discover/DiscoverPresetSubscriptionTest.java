@@ -518,9 +518,12 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("All unsubscribe must remove every stored FilterLists-derived source.",
                 source.contains("for (HostsSource source : hostsSourceDao.getAll())")
                         && source.contains("isFilterListsSource(source)"));
-        assertTrue("Bulk subscribe must not queue a background job for zero DNS-safe rows.",
-                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope")
-                        && source.contains("R.string.filterlists_no_dns_safe_selected_lists"));
+        assertTrue("Bulk subscribe-all must not queue a background job for zero DNS-safe rows.",
+                source.contains("R.string.filterlists_no_dns_safe_lists_in_scope"));
+        assertTrue("Unsupported selected rows must route to review instead of a dead-end snackbar.",
+                source.contains("if (!allDirectory && showUnsupportedSelectionReview(scope))")
+                        && source.contains("private boolean showUnsupportedSelectionReview")
+                        && source.contains("showUnsupportedChoicesDialog(unsupported)"));
         assertTrue("Selected unsubscribe must stay responsive and explain no-op selections.",
                 source.contains("countSubscribed(selectedScope) == 0")
                         && source.contains("R.string.filterlists_no_subscribed_selected_lists"));

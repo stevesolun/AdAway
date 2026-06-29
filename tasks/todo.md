@@ -11780,3 +11780,34 @@
   rows.
 - A fresh debug APK was copied to `/Users/steves/Downloads/AdAway/AdAway_13.5.1.apk`
   with SHA-256 `3abe5ea934ee683f6d47c96ca0176f42312fc16f9f93fafa8436f449a8c39f06`.
+
+## Plan - 2026-06-29 FilterLists Unsupported Selected Review
+- [x] Keep `Subscribe selected` enabled for checked unsupported rows without weakening DNS-safe
+  automatic bulk import.
+- [x] Route unsupported-only checked selections to the existing manual review/add dialog instead of
+  the `No DNS-safe selected lists` dead end.
+- [x] Prove the selected-row path with deterministic connected UI coverage and source-contract
+  coverage.
+- [x] Refresh `/Users/steves/Downloads/AdAway_13.5.1.apk` with the verified build.
+
+## Review - 2026-06-29 FilterLists Unsupported Selected Review
+- User reported that `Subscribe selected` now clicks but still says `No DNS-safe selected lists`
+  and will not let the user continue.
+- Root cause: the prior fix made the button responsive, but the click path still treated an
+  unsupported-only checked selection as a terminal no-op. Single unsupported row taps already had a
+  manual-review path, but checked-row bulk selection did not reuse it.
+- `confirmSubscribeAll(false)` now keeps automatic bulk import DNS-safe, and when the checked scope
+  has zero DNS-safe rows it collects unsupported selected summaries and opens the manual
+  unsupported review flow. One unsupported row opens its review directly; multiple unsupported rows
+  use the existing unsupported-list chooser before review.
+- The focused connected proof now checks only the unsupported browser-rule row, verifies
+  `Subscribe selected` opens the unsupported review disclosure with `Domain extraction only` and
+  the resolved URL, closes it, then verifies mixed safe+unsupported selected bulk subscription
+  still imports only the DNS-safe row and skips the unsupported row.
+- Verification passed with OpenJDK 21 and `ANDROID_HOME=/Users/steves/.local/android-sdk`:
+  `./gradlew testDebugUnitTest --tests org.adaway.ui.discover.DiscoverPresetSubscriptionTest`,
+  `./gradlew assembleDebugAndroidTest`, and focused connected
+  `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest`
+  on `adaway-api34-16g`.
+- A fresh debug APK was copied to `/Users/steves/Downloads/AdAway_13.5.1.apk`
+  with SHA-256 `c35353c4551281d356ce41b72329f4399dc74cb7d96341ec6f835075b0855e61`.

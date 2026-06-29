@@ -116,6 +116,9 @@
   actions so the user never mutates invisible state by surprise.
 - Do not disable a selected-row command just because the selected rows are unsupported or already
   subscribed; keep the action responsive and explain the no-op or skipped semantics on click.
+- Do not let `Subscribe selected` dead-end on unsupported-only checked rows. Keep automatic bulk
+  import DNS-safe, but route unsupported selected rows to manual review/add so the action still
+  helps the user move forward.
 - Treat paired selected actions consistently: if subscribe-selected responds to checked rows,
   unsubscribe-selected must respond to checked rows too, with no-op feedback when nothing selected
   is subscribed.

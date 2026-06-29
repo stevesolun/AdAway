@@ -915,6 +915,9 @@ public class DiscoverFilterListsFragment extends Fragment {
         }
         int safeCount = countCompatible(scope);
         if (safeCount == 0) {
+            if (!allDirectory && showUnsupportedSelectionReview(scope)) {
+                return;
+            }
             showSnackbar(getString(allDirectory
                     ? R.string.filterlists_no_dns_safe_lists_in_scope
                     : R.string.filterlists_no_dns_safe_selected_lists));
@@ -1303,6 +1306,26 @@ public class DiscoverFilterListsFragment extends Fragment {
             return;
         }
 
+        showUnsupportedChoicesDialog(summaries);
+    }
+
+    private boolean showUnsupportedSelectionReview(
+            @NonNull List<FilterListsDirectoryApi.ListSummary> summaries) {
+        List<FilterListsDirectoryApi.ListSummary> unsupported = new ArrayList<>();
+        for (FilterListsDirectoryApi.ListSummary summary : summaries) {
+            if (!isAdAwayCompatible(summary.syntaxIds)) {
+                unsupported.add(summary);
+            }
+        }
+        if (unsupported.isEmpty()) {
+            return false;
+        }
+        showUnsupportedChoicesDialog(unsupported);
+        return true;
+    }
+
+    private void showUnsupportedChoicesDialog(
+            @NonNull List<FilterListsDirectoryApi.ListSummary> summaries) {
         if (summaries.size() == 1) {
             showUnsupportedReviewDialog(summaries.get(0));
             return;
