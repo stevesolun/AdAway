@@ -31,6 +31,26 @@
 
 # Market-Leading Quality Plan
 
+## Plan - 2026-06-29 FilterLists Selected Action Responsiveness
+- [x] Reproduce the reported symptom path in code by tracing checkbox state to selected bulk
+  button enablement.
+- [x] Fix selected bulk actions so visible cached rows remain actionable during a background
+  directory refresh.
+- [x] Add a static regression guard for the cached-row refresh state.
+- [x] Verify with focused JVM/resource checks and the connected selected-bulk UI test.
+
+## Review - 2026-06-29 FilterLists Selected Action Responsiveness
+- Root cause: `refreshBulkActionsState()` treated any `directoryLoading` refresh as busy, while
+  row checkboxes stayed enabled. With cached rows visible during a background directory refresh,
+  checking one or more rows could leave `Subscribe selected` and `Unsubscribe selected` disabled.
+- Changed the busy gate to block selected actions only when the directory is loading and no rows
+  are available yet, or when a bulk operation is actually running.
+- Added `DiscoverPresetSubscriptionTest` coverage so a background directory refresh cannot disable
+  selected-row commands after visible cached rows exist.
+- Verification passed with JDK 21: `git diff --check`, focused
+  `DiscoverPresetSubscriptionTest` plus `UserStoryStatusTrackerTest`, `:app:processDebugResources`,
+  and connected `FilterListsVisibleBulkActionsInstrumentedTest` on `adaway-api34-16g`.
+
 ## Plan - 2026-06-29 Branch and CI/CD Protection
 - [x] Inspect current repo admin permission, default branch, PR check contexts, branch protection,
   and Actions repository settings.
