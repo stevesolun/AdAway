@@ -24,12 +24,14 @@ import androidx.work.WorkManager;
 
 import com.google.android.material.button.MaterialButton;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.NotificationHelper;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.model.source.FilterListsSourceMetadata;
+import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.junit.After;
@@ -38,6 +40,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +48,13 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 @RunWith(AndroidJUnit4.class)
 public class FilterListsVisibleBulkActionsInstrumentedTest {
@@ -59,10 +69,15 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
     private static final String HIDDEN_SAFE_NAME = "Hidden Bulk Safe";
     private static final String VISIBLE_SAFE_URL = "https://visible-bulk.test/hosts.txt";
     private static final String HIDDEN_SAFE_URL = "https://hidden-bulk.test/hosts.txt";
+    private static final String VISIBLE_UNSUPPORTED_URL =
+            "https://unsupported-bulk.test/browser.txt";
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private Context context;
     private SharedPreferences prefs;
     private ImmediateDependencies dependencies;
+    private SourceModel sourceModel;
+    private OkHttpClient previousHttpClient;
 
     @Before
     public void setUp() throws Exception {
@@ -73,12 +88,18 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         seedCachedDirectory();
         seedHiddenSubscribedSource();
+        sourceModel = ((AdAwayApplication) context).getSourceModel();
+        previousHttpClient = getCachedHttpClient(sourceModel);
+        injectHttpClient(sourceModel, buildFilterListsClient());
         dependencies = new ImmediateDependencies(context, prefs);
         FilterListsSubscribeAllWorker.setDependenciesForTest(dependencies);
     }
 
     @After
     public void tearDown() throws Exception {
+        if (sourceModel != null) {
+            injectHttpClient(sourceModel, previousHttpClient);
+        }
         if (context != null) {
             WorkManager.getInstance(context)
                     .cancelUniqueWork(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME)
@@ -117,7 +138,10 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, true);
             clickButton(scenario, R.id.filterlistsSubscribeVisibleButton);
-            waitForAccessibilityText("No DNS-safe selected lists");
+            waitForAccessibilityText("bulk subscribe skips it by default");
+            waitForAccessibilityText("Domain extraction only");
+            waitForAccessibilityText(VISIBLE_UNSUPPORTED_URL);
+            clickExactAccessibilityText("Close");
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
             waitForAccessibilityText("No subscribed selected lists");
 
@@ -142,7 +166,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             assertEquals(Collections.singletonList(VISIBLE_SAFE_ID),
                     dependencies.directoryClient.detailRequests);
             assertFalse(AppDatabase.getInstance(context).hostsSourceDao()
-                    .getByUrl("https://unsupported-bulk.test/browser.txt")
+                    .getByUrl(VISIBLE_UNSUPPORTED_URL)
                     .isPresent());
             assertTrue(AppDatabase.getInstance(context).hostsSourceDao()
                     .getByUrl(HIDDEN_SAFE_URL)
@@ -220,6 +244,68 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                 + "\"description\":\"Hidden compatible list\",\"syntaxIds\":[1],"
                 + "\"tagIds\":[10],\"languageIds\":[2]}"
                 + "]";
+    }
+
+    private static OkHttpClient buildFilterListsClient() {
+        return new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    Request request = chain.request();
+                    String path = request.url().encodedPath();
+                    String body;
+                    if ("/lists".equals(path)) {
+                        body = listsJson();
+                    } else if ("/syntaxes".equals(path)) {
+                        body = "["
+                                + "{\"id\":1,\"name\":\"Hosts\"},"
+                                + "{\"id\":3,\"name\":\"Browser rules\"}"
+                                + "]";
+                    } else if ("/tags".equals(path)) {
+                        body = "["
+                                + "{\"id\":9,\"name\":\"Visible\","
+                                + "\"description\":\"Visible test lists\"},"
+                                + "{\"id\":10,\"name\":\"Hidden\","
+                                + "\"description\":\"Hidden test lists\"}"
+                                + "]";
+                    } else if ("/languages".equals(path)) {
+                        body = "[{\"id\":2,\"name\":\"English\",\"iso6391\":\"en\"}]";
+                    } else if (("/lists/" + VISIBLE_UNSUPPORTED_ID).equals(path)) {
+                        body = "{"
+                                + "\"id\":" + VISIBLE_UNSUPPORTED_ID + ","
+                                + "\"name\":\"" + VISIBLE_UNSUPPORTED_NAME + "\","
+                                + "\"description\":\"Visible browser list\","
+                                + "\"syntaxIds\":[3],"
+                                + "\"viewUrls\":[{\"segmentNumber\":0,\"primariness\":10,"
+                                + "\"url\":\"" + VISIBLE_UNSUPPORTED_URL + "\"}]"
+                                + "}";
+                    } else {
+                        return jsonResponse(request, 404, "{}");
+                    }
+                    return jsonResponse(request, 200, body);
+                })
+                .build();
+    }
+
+    private static Response jsonResponse(Request request, int code, String body) {
+        return new Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message(code == 200 ? "OK" : "Not Found")
+                .body(ResponseBody.create(body, JSON))
+                .build();
+    }
+
+    private static OkHttpClient getCachedHttpClient(SourceModel sourceModel) throws Exception {
+        Field field = SourceModel.class.getDeclaredField("cachedHttpClient");
+        field.setAccessible(true);
+        return (OkHttpClient) field.get(sourceModel);
+    }
+
+    private static void injectHttpClient(SourceModel sourceModel, OkHttpClient client)
+            throws Exception {
+        Field field = SourceModel.class.getDeclaredField("cachedHttpClient");
+        field.setAccessible(true);
+        field.set(sourceModel, client);
     }
 
     private static void setSearchQuery(ActivityScenario<HomeActivity> scenario, String query)
