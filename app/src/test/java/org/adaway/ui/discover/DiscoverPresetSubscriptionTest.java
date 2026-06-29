@@ -401,6 +401,11 @@ public class DiscoverPresetSubscriptionTest {
                         + "                !busy && !selected.isEmpty())")
                         && source.contains("filterlistsRemoveVisibleButton.setEnabled(" + "\n"
                         + "                !busy && !selected.isEmpty())"));
+        assertTrue("Selected bulk commands must stay responsive for visible cached rows.",
+                source.contains("boolean directoryBlocking = directoryLoading && all.isEmpty();")
+                        && source.contains("boolean busy = directoryBlocking || bulkOperationRunning;"));
+        assertFalse("Background directory refresh must not keep visible selected rows disabled.",
+                source.contains("boolean busy = directoryLoading || bulkOperationRunning;"));
         assertTrue("Subscribed-only filter must be available without adding another tall row.",
                 layout.contains("filterlistsShowSubscribedSwitch")
                         && strings.contains("Show subscribed")

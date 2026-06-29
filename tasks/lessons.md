@@ -119,3 +119,5 @@
 - Treat paired selected actions consistently: if subscribe-selected responds to checked rows,
   unsubscribe-selected must respond to checked rows too, with no-op feedback when nothing selected
   is subscribed.
+- If cached rows are already visible, a background directory refresh must not keep selected-row
+  bulk commands disabled; only block selection actions before there are rows to act on.

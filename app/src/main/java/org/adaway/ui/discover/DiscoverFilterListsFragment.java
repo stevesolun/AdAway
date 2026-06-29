@@ -1174,7 +1174,8 @@ public class DiscoverFilterListsFragment extends Fragment {
         int allState = FilterListsSubscriptionState.resolve(
                 all, this::getCachedUrlForId, existingUrls);
         int compatibleAll = countCompatible(all);
-        boolean busy = directoryLoading || bulkOperationRunning;
+        boolean directoryBlocking = directoryLoading && all.isEmpty();
+        boolean busy = directoryBlocking || bulkOperationRunning;
         binding.filterlistsBulkActionsRow.setVisibility(
                 all.isEmpty() && filtered.isEmpty() && !bulkOperationRunning
                         ? View.GONE : View.VISIBLE);
