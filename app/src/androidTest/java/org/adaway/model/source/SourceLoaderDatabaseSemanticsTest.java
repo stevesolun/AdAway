@@ -98,24 +98,43 @@ public class SourceLoaderDatabaseSemanticsTest {
             content.append("0.0.0.0 cancel-").append(i).append(".example\n");
         }
         CountDownLatch inserting = new CountDownLatch(1);
+        CountDownLatch writerInterrupted = new CountDownLatch(1);
+        CountDownLatch releaseWriter = new CountDownLatch(1);
+        CountDownLatch writerExited = new CountDownLatch(1);
         CountDownLatch exited = new CountDownLatch(1);
         AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<Thread> writer = new AtomicReference<>();
+        AtomicReference<Boolean> writerFinishedAtReturn = new AtomicReference<>(false);
         Thread caller = new Thread(() -> {
             try {
                 new SourceLoader(source, GENERATION).parse(
                         new BufferedReader(new StringReader(content.toString())),
                         hostListItemDao, database.getOpenHelper().getWritableDatabase(),
                         count -> {
+                            writer.set(Thread.currentThread());
                             inserting.countDown();
+                            boolean interrupted = false;
                             try {
-                                new CountDownLatch(1).await();
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
+                                while (true) {
+                                    try {
+                                        releaseWriter.await();
+                                        break;
+                                    } catch (InterruptedException e) {
+                                        interrupted = true;
+                                        writerInterrupted.countDown();
+                                    }
+                                }
+                            } finally {
+                                if (interrupted) {
+                                    Thread.currentThread().interrupt();
+                                }
+                                writerExited.countDown();
                             }
                         }, null);
             } catch (Throwable throwable) {
                 failure.set(throwable);
             } finally {
+                writerFinishedAtReturn.set(writerExited.getCount() == 0);
                 exited.countDown();
             }
         }, "SourceLoaderCancellationTest");
@@ -123,16 +142,23 @@ public class SourceLoaderDatabaseSemanticsTest {
         try {
             assertTrue(inserting.await(5, TimeUnit.SECONDS));
             caller.interrupt();
+            assertTrue("Cancellation must interrupt this import's writer",
+                    writerInterrupted.await(5, TimeUnit.SECONDS));
+            assertFalse("parse() must wait for the active writer to finish",
+                    exited.await(100, TimeUnit.MILLISECONDS));
+            releaseWriter.countDown();
             assertTrue("Cancellation must stop the inserter", exited.await(5, TimeUnit.SECONDS));
+            assertTrue("The writer must finish before parse() returns", writerFinishedAtReturn.get());
             assertTrue(failure.get() instanceof IllegalStateException);
             assertEquals(0,
                     hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
             assertEquals(0L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage"));
-            for (Thread thread : Thread.getAllStackTraces().keySet()) {
-                assertFalse("No loader worker may outlive parse()",
-                        thread.isAlive() && "SourceLoader".equals(thread.getName()));
-            }
+            // Executor termination precedes the backing Thread's final run() return.
+            // Join only this import's writer, not unrelated threads sharing its name.
+            writer.get().join(1000);
+            assertFalse("This import's writer must terminate", writer.get().isAlive());
         } finally {
+            releaseWriter.countDown();
             caller.interrupt();
             caller.join(5000);
         }

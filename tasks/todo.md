@@ -11831,5 +11831,9 @@ must be reported explicitly rather than silently counted as passed.
   require backup/uninstall/reinstall; physical-device approval remains a stable-release gate.
 
 Current bug register and verification ledger: `tasks/review-2026-10-12.md`.
+PR 10 follow-up: the first protected run found two test synchronization failures.
+Both fixtures are corrected without changing production behavior or removing
+assertions. A fresh full API 34 run passed 297 tests with six intentional skips
+and zero failures, including live VPN/DNS checks; protected CI remains open.
 Historical root, physical-device, and legal/provenance gates above are not automatically
 closed by this bounded Android candidate release.

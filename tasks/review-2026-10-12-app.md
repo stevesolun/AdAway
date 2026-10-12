@@ -136,3 +136,38 @@ device test.
 - Verification lesson: distinguish recreation's preliminary global-idle wait
   from actual lifecycle restoration; use bounded lifecycle synchronization when
   animations keep the UI active, and keep the user-visible assertions intact.
+
+## PR 10 CI Cleanup Follow-Up (2026-10-13)
+
+- Scope: only `SourcesToggleApplyInstrumentedTest.java` and this appended record.
+  Reviewed commit `5a72c982d8`; no production change or SourceLoader change.
+- Downloaded evidence: `app/build/reports/ci-connected-review/ci-artifacts/connected-logcat.txt`
+  and `app/build/reports/ci-connected-review/outputs/androidTest-results/connected/debug/TEST-emulator-5554 - 14-_app-.xml`.
+  XML lines 604-620 record the 60.311-second failure of
+  `togglingSourceOffPersistsRowsAndApplyRunsProtectionUpdate`, with
+  `ActivityScenario.close():421 -> moveToState():654 -> waitForIdleSync()` at
+  original test line 118. The compiled method's line table puts line 118 on the
+  normal close path AFTER the final assertion; exceptional close maps to line 98.
+- Root cause: teardown waits for global main-thread idleness before requesting
+  activity destruction, while the still-resumed UI continues rendering. Logcat
+  records source synchronization completing at 21:36:13.985 and continuous app
+  frame output until the 21:37:12.919 timeout. The runner then directly finishes
+  the same HomeActivity at 21:37:12.977; it reaches PAUSED at 21:37:13.011 and
+  DESTROYED at 21:37:13.963. This supports idle-starved cleanup rather than failed
+  source/apply assertions or a blocked main thread. The precise animating view or
+  observer is not identified by these artifacts, and is not claimed as a new
+  production defect.
+- Minimal test fix: retain the captured HomeActivity, call `finish()` directly
+  through `runOnMainSync` in `finally`, and poll `isDestroyed()` on the main
+  thread with the existing 10-second deadline before `scenario.close()`. A failed
+  destruction wait raises a specific assertion without entering the idle-gated
+  close. All source-toggle, disabled-row, snackbar-action, apply-order/count and
+  final source-state assertions remain; the 60-second test timeout is unchanged.
+- Validation is reserved for the parent: no Gradle, emulator/device commands,
+  builds, or test execution were run for this follow-up. The CI failure is the
+  pre-fix runtime evidence; the patched connected method still needs a rerun.
+- PASS: scoped `git diff --check`; reviewed the diff to confirm all behavioral
+  assertions and the original timeout are preserved.
+- Parent validation: both CI-repaired classes passed (seven tests), followed by
+  the full 297-test API 34 run with prepared VPN consent: 291 passed, six intentional
+  skips, zero failures, 177.963 seconds. Protected CI remains open.
