@@ -1,5 +1,9 @@
 # Israeli Sites VPN Smoke - 2026-10-14
 
+Follow-up: the bounded fixes and release validation for all three findings are
+tracked in `release-13.5.4b.md`. The observations below describe the original
+13.5.3b smoke and its first local fix, not the later release status.
+
 ## Result
 
 The published 13.5.3b candidate blocked advertising DNS requests on a non-root

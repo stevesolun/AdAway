@@ -11866,3 +11866,37 @@ the redundant Apply prompt after auto-import and missing never-downloaded freshn
 counts. Evidence, filter URL, comparison matrix, and limits are in
 `tasks/israeli-vpn-smoke-2026-10-14.md`. This closes this bounded smoke pass, not
 historical root, physical-device, or stable-release gates.
+
+## Plan - 2026-10-14 Finish VPN Findings And Publish 13.5.4b
+
+- [x] Fix IL-UX-02 redundant Apply guidance without hiding real pending changes/errors.
+- [x] Fix IL-UX-03 never-downloaded enabled source counts with database regression tests.
+- [x] Validate these fixes and IL-VPN-01 with JVM, lint, connected, and minified APK checks.
+- [ ] Commit one reviewed release slice, push through validation, and merge only after
+  all protected checks pass.
+- [ ] Publish signed v13.5.4b, verify downloaded assets/signatures, and deliver
+  `AdAway_13.5.4b.apk` in Downloads and the GitHub release.
+
+Scope is the three findings from the Israeli-site VPN smoke, not the historical
+root gates or an unbounded new audit. Preserve master protection and existing
+signing identity; keep the beta channel until physical-device validation exists.
+
+Progress: freshness queries now include enabled subscriptions with no successful
+download and exclude user rules. Nine Room regression tests plus three Home counter
+tests passed on API 34 (12 tests, no skips/failures), including offline defaults,
+screen recreation, successful empty downloads, and disabled subscriptions.
+
+Apply-state progress: configuration fingerprints exclude download metadata and
+acknowledge only successful, unchanged configurations. Real selection changes and
+failed applications stay pending. A focused API 34 run passed all 13 tests across
+source toggle/apply, toolbar update, snackbar threading, and immediate WorkManager
+updates. This includes keeping the failure/retry message visible across background
+metadata refreshes; the test first exposed that race and now guards it.
+
+Final local validation passed: 610 JVM tests (3 skipped), 310 connected API 34 tests
+(10 intentionally skipped), no failures/errors, and lint with zero errors. Signed
+13.5.4b clean installation and normal VPN consent automatically loaded 72.7k rules.
+The Hebrew URL imported 181 hosts without a redundant Apply prompt; allowed and
+blocked DNS probes behaved as expected. Details and publication boundary:
+`tasks/release-13.5.4b.md`. The remaining two checklist items are deliberately open
+in this pre-publication commit until protected CI and downloaded release verification.

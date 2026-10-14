@@ -39,6 +39,8 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -54,6 +56,8 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceApplyState;
+import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
@@ -85,6 +89,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private HostsSourcesViewModel mViewModel;
     private CategorizedSourcesAdapter mAdapter;
     private CoordinatorLayout coordinatorLayout;
+    private ApplyConfigurationSnackbar mApplySnackbar;
     private List<HostsSource> lastSources = new ArrayList<>();
 
     @Override
@@ -104,9 +109,27 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Get lists layout to attached snackbar to
         coordinatorLayout = view.findViewById(R.id.coordinator);
         // Create apply snackbar
-        ApplyConfigurationSnackbar applySnackbar = new ApplyConfigurationSnackbar(coordinatorLayout, true, true);
+        SourceApplyState applyState = this.mViewModel.getApplyState();
+        ApplyConfigurationSnackbar applySnackbar =
+                new ApplyConfigurationSnackbar(coordinatorLayout, applyState);
+        this.mApplySnackbar = applySnackbar;
         // Bind snackbar to view models
-        this.mViewModel.getHostsSources().observe(lifecycleOwner, applySnackbar.createObserver());
+        this.mViewModel.getHostsSources().observe(lifecycleOwner, sources -> {
+            applyState.updateSources(sources);
+            applySnackbar.refreshSourceState();
+        });
+        WorkManager.getInstance(requireContext())
+                .getWorkInfosForUniqueWorkLiveData(SourceUpdateService.WORK_NAME_NOW)
+                .observe(lifecycleOwner, work -> {
+                    // REPLACE creates a single update-now request, not an apply chain.
+                    if (work == null) return;
+                    WorkInfo info = work.size() == 1 ? work.get(0) : null;
+                    applyState.observeAutomaticWork(info == null ? null : info.getId().toString(),
+                            info != null && info.getState() == WorkInfo.State.SUCCEEDED
+                                    ? info.getOutputData().getString(
+                                            SourceUpdateService.APPLIED_CONFIGURATION) : null);
+                    applySnackbar.refreshSourceState();
+                });
         
         /*
          * Configure recycler view with categorized adapter.
@@ -714,11 +737,16 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
 
         // QA-06: capture Context before background thread to avoid IllegalStateException on navigation.
         AdAwayApplication app = (AdAwayApplication) requireContext().getApplicationContext();
+        SourceApplyState applyState = this.mViewModel.getApplyState();
+        ApplyConfigurationSnackbar applySnackbar = this.mApplySnackbar;
         AppExecutors.getInstance().networkIO().execute(() -> {
             SourceModel sourceModel = app.getSourceModel();
             AdBlockModel adBlockModel = app.getAdBlockModel();
             boolean ok = true;
+            String appliedConfiguration = null;
             try {
+                HostsSourceDao sources = AppDatabase.getInstance(app).hostsSourceDao();
+                String configuration = SourceApplyState.fingerprint(sources.getAll());
                 boolean shouldApply = true;
                 if (source == null) {
                     shouldApply = sourceModel.checkAndRetrieveHostsSources();
@@ -727,21 +755,29 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 }
                 if (shouldApply) {
                     adBlockModel.apply();
+                    if (configuration.equals(SourceApplyState.fingerprint(sources.getAll()))) {
+                        appliedConfiguration = configuration;
+                    }
                 } else {
                     ok = false;
                 }
-            } catch (HostErrorException e) {
+            } catch (HostErrorException | RuntimeException e) {
                 ok = false;
             }
 
             boolean finalOk = ok;
+            String configuration = appliedConfiguration;
             AppExecutors.getInstance().mainThread().execute(() -> {
                 waitSnackbar.dismiss();
                 if (!finalOk) {
-                    Snackbar.make(coordinatorLayout, R.string.notification_configuration_failed, Snackbar.LENGTH_LONG).show();
+                    applySnackbar.showFailure(() -> runUpdateSources(source));
                 } else {
-                    Snackbar.make(coordinatorLayout, R.string.notification_configuration_applied,
-                            Snackbar.LENGTH_LONG).show();
+                    applyState.applied(configuration);
+                    applySnackbar.refreshSourceState();
+                    if (!applyState.isPending()) {
+                        Snackbar.make(coordinatorLayout, R.string.notification_configuration_applied,
+                                Snackbar.LENGTH_LONG).show();
+                    }
                 }
             });
         });

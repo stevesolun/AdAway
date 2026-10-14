@@ -9,6 +9,7 @@ import androidx.lifecycle.LiveData;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.util.AppExecutors;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
  */
 public class HostsSourcesViewModel extends AndroidViewModel {
     private final HostsSourceDao hostsSourceDao;
+    private final SourceApplyState mApplyState = new SourceApplyState();
 
     public HostsSourcesViewModel(@NonNull Application application) {
         super(application);
@@ -28,6 +30,10 @@ public class HostsSourcesViewModel extends AndroidViewModel {
 
     public LiveData<List<HostsSource>> getHostsSources() {
         return this.hostsSourceDao.loadAll();
+    }
+
+    public SourceApplyState getApplyState() {
+        return mApplyState;
     }
 
     public void toggleSourceEnabled(HostsSource source) {
