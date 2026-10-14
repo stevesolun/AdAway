@@ -39,6 +39,7 @@ import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -156,9 +157,11 @@ public class SourcesToggleApplyInstrumentedTest {
                         ZonedDateTime.now(), ZonedDateTime.now());
             });
             waitForNoPendingPrompt(activity);
+            UiEvidence.capture(this.context, "sources-automatic-import-no-apply-prompt");
             turnSourceSwitchOff(scenario);
             waitForText(activity, this.context.getString(
                     R.string.notification_configuration_changed));
+            UiEvidence.capture(this.context, "sources-later-selection-apply-prompt");
         } finally {
             finishActivity(activity);
             scenario.close();
@@ -189,11 +192,13 @@ public class SourcesToggleApplyInstrumentedTest {
             waitForNoPendingPrompt(activity);
             waitForText(activity, this.context.getString(
                     R.string.notification_configuration_failed));
+            UiEvidence.capture(this.context, "sources-failure-survives-metadata-with-retry");
             this.recordingAdBlockModel.failApply.set(false);
             clickSnackbarAction(activity);
             waitForText(activity, this.context.getString(
                     R.string.notification_configuration_applied));
             waitForNoPendingPrompt(activity);
+            UiEvidence.capture(this.context, "sources-retry-success-no-apply-prompt");
         } finally {
             finishActivity(activity);
             scenario.close();

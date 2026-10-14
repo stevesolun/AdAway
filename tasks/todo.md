@@ -11851,21 +11851,10 @@ closed by this bounded Android candidate release.
 
 ## Review - 2026-10-14 Israeli Sites VPN Smoke
 
-Published 13.5.3b passed VPN-only Ynet, KSP, and Calcalist browsing with downloaded
-defaults and with the Hebrew hosts feed added by URL. The Hebrew feed imported 181
-domains and additionally blocked totalmedia2.ynet.co.il without breaking the tested
-news/article/product pages. No connection-lost error was reproduced in completed runs.
-Walla is unverified because it crashed the emulator while VPN was off.
-
-The first-run seeded-default download gate was defective: the VPN could run with
-zero blocking rules. A bounded retained initialization fix passed 602 JVM tests
-(3 skips, no failures), a signed minified build, and clean-app-data onboarding on
-API 34 that automatically downloaded 72.7k rules and passed real DNS canaries.
-The fix is local, not in the published APK. Two nonblocking UI findings remain open:
-the redundant Apply prompt after auto-import and missing never-downloaded freshness
-counts. Evidence, filter URL, comparison matrix, and limits are in
-`tasks/israeli-vpn-smoke-2026-10-14.md`. This closes this bounded smoke pass, not
-historical root, physical-device, or stable-release gates.
+The bounded smoke pass is complete. Original observations, filter setup, findings,
+and limits are recorded in the [smoke report](israeli-vpn-smoke-2026-10-14.md).
+The later fix and validation checkpoint is [13.5.4b](release-13.5.4b.md).
+Historical root, physical-device, and stable-release gates remain separate.
 
 ## Plan - 2026-10-14 Finish VPN Findings And Publish 13.5.4b
 
@@ -11881,22 +11870,6 @@ Scope is the three findings from the Israeli-site VPN smoke, not the historical
 root gates or an unbounded new audit. Preserve master protection and existing
 signing identity; keep the beta channel until physical-device validation exists.
 
-Progress: freshness queries now include enabled subscriptions with no successful
-download and exclude user rules. Nine Room regression tests plus three Home counter
-tests passed on API 34 (12 tests, no skips/failures), including offline defaults,
-screen recreation, successful empty downloads, and disabled subscriptions.
-
-Apply-state progress: configuration fingerprints exclude download metadata and
-acknowledge only successful, unchanged configurations. Real selection changes and
-failed applications stay pending. A focused API 34 run passed all 13 tests across
-source toggle/apply, toolbar update, snackbar threading, and immediate WorkManager
-updates. This includes keeping the failure/retry message visible across background
-metadata refreshes; the test first exposed that race and now guards it.
-
-Final local validation passed: 610 JVM tests (3 skipped), 310 connected API 34 tests
-(10 intentionally skipped), no failures/errors, and lint with zero errors. Signed
-13.5.4b clean installation and normal VPN consent automatically loaded 72.7k rules.
-The Hebrew URL imported 181 hosts without a redundant Apply prompt; allowed and
-blocked DNS probes behaved as expected. Details and publication boundary:
-`tasks/release-13.5.4b.md`. The remaining two checklist items are deliberately open
-in this pre-publication commit until protected CI and downloaded release verification.
+Local fixes and validation are complete; the [release checkpoint](release-13.5.4b.md)
+owns the validation ledger and precise limits. The remaining two checklist items
+are deliberately open until protected CI and downloaded release verification.

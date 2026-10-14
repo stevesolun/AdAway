@@ -22,6 +22,7 @@ import org.adaway.model.source.FilterListCatalog;
 import org.adaway.model.source.FilterOperationState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -93,6 +94,7 @@ public class HomeCountersInstrumentedTest {
             scenario.recreate();
             waitForText(scenario, R.id.upToDateSourcesTextView, "0 up-to-date sources");
             waitForText(scenario, R.id.outdatedSourcesTextView, "4 outdated sources");
+            UiEvidence.capture(this.context, "home-never-downloaded-0-current-4-outdated");
 
             runDatabaseWork(this.context, "recording a successful empty download", database -> {
                 HostsSource source = database.hostsSourceDao().getAll().get(0);
@@ -103,6 +105,7 @@ public class HomeCountersInstrumentedTest {
             });
             waitForText(scenario, R.id.upToDateSourcesTextView, "1 up-to-date source");
             waitForText(scenario, R.id.outdatedSourcesTextView, "3 outdated sources");
+            UiEvidence.capture(this.context, "home-empty-download-1-current-3-outdated");
 
             runDatabaseWork(this.context, "disabling a never-downloaded source", database -> {
                 HostsSource source = database.hostsSourceDao().getAll().get(1);
@@ -110,6 +113,7 @@ public class HomeCountersInstrumentedTest {
             });
             waitForText(scenario, R.id.upToDateSourcesTextView, "1 up-to-date source");
             waitForText(scenario, R.id.outdatedSourcesTextView, "2 outdated sources");
+            UiEvidence.capture(this.context, "home-disabled-source-1-current-2-outdated");
         }
     }
 
