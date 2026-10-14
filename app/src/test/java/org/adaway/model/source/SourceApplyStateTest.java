@@ -21,7 +21,7 @@ public class SourceApplyStateTest {
         List<HostsSource> sources = Collections.singletonList(source);
         state.updateSources(sources);
         assertTrue(state.isPending());
-        assertTrue(state.observeAutomaticWork("import", SourceApplyState.fingerprint(sources)));
+        assertTrue(state.observeAutomaticWork("import", true, SourceApplyState.fingerprint(sources)));
         assertFalse(state.isPending());
 
         source.setSize(181);
@@ -39,7 +39,7 @@ public class SourceApplyStateTest {
     public void completionBeforeRoomEmissionDoesNotCreatePendingPrompt() {
         SourceApplyState state = observingEmptySources();
         List<HostsSource> sources = Collections.singletonList(source(2));
-        state.observeAutomaticWork("import", SourceApplyState.fingerprint(sources));
+        state.observeAutomaticWork("import", true, SourceApplyState.fingerprint(sources));
         state.updateSources(sources);
         assertFalse(state.isPending());
     }
@@ -52,14 +52,14 @@ public class SourceApplyStateTest {
         String imported = SourceApplyState.fingerprint(sources);
         source.setEnabled(false);
         state.updateSources(sources);
-        state.observeAutomaticWork("import", imported);
+        state.observeAutomaticWork("import", true, imported);
         assertTrue(state.isPending());
         state.applied(SourceApplyState.fingerprint(sources));
         assertFalse(state.isPending());
         source.setEnabled(true);
         state.updateSources(sources);
         assertTrue(state.isPending());
-        assertFalse(state.observeAutomaticWork("import", imported));
+        assertFalse(state.observeAutomaticWork("import", true, imported));
         assertTrue("Replayed success must not swallow the next selection", state.isPending());
     }
 
@@ -68,11 +68,11 @@ public class SourceApplyStateTest {
         SourceApplyState state = observingEmptySources();
         List<HostsSource> sources = Collections.singletonList(source(2));
         state.updateSources(sources);
-        state.observeAutomaticWork("retry", null);
+        state.observeAutomaticWork("retry", false, null);
         assertTrue(state.isPending());
         state.applied(null);
         assertTrue(state.isPending());
-        state.observeAutomaticWork("retry", SourceApplyState.fingerprint(sources));
+        state.observeAutomaticWork("retry", true, SourceApplyState.fingerprint(sources));
         assertFalse(state.isPending());
     }
 
@@ -85,19 +85,19 @@ public class SourceApplyStateTest {
 
         SourceApplyState state = new SourceApplyState();
         state.updateSources(sources);
-        assertFalse(state.observeAutomaticWork("historical", historical));
+        assertFalse(state.observeAutomaticWork("historical", true, historical));
         assertFalse(state.isPending());
 
         source.setEnabled(true);
         state.updateSources(sources);
-        state.observeAutomaticWork("historical", historical);
+        state.observeAutomaticWork("historical", true, historical);
         assertTrue(state.isPending());
     }
 
     @Test
     public void historicalWorkerBeforeInitialRowsDoesNotReplaceBaseline() {
         SourceApplyState state = new SourceApplyState();
-        state.observeAutomaticWork("historical", "old-selection");
+        state.observeAutomaticWork("historical", true, "old-selection");
         state.updateSources(Collections.singletonList(source(2)));
         assertFalse(state.isPending());
     }
@@ -106,10 +106,10 @@ public class SourceApplyStateTest {
     public void runningWorkerOnNewScreenCanStillAcknowledgeCompletion() {
         SourceApplyState state = new SourceApplyState();
         state.updateSources(Collections.emptyList());
-        state.observeAutomaticWork("running", null);
+        state.observeAutomaticWork("running", false, null);
         List<HostsSource> sources = Collections.singletonList(source(2));
         state.updateSources(sources);
-        state.observeAutomaticWork("running", SourceApplyState.fingerprint(sources));
+        state.observeAutomaticWork("running", true, SourceApplyState.fingerprint(sources));
         assertFalse(state.isPending());
     }
 
@@ -239,7 +239,7 @@ public class SourceApplyStateTest {
         HostsSource a = source(2);
         HostsSource b = source(3);
         List<HostsSource> sources = Arrays.asList(a, b);
-        state.observeAutomaticWork("import", SourceApplyState.fingerprint(sources));
+        state.observeAutomaticWork("import", true, SourceApplyState.fingerprint(sources));
         b.setEnabled(false);
         state.updateSources(sources);
         state.appliedSources(sources, a.getId());
@@ -290,19 +290,97 @@ public class SourceApplyStateTest {
         assertTrue(state.isPending());
 
         String configuration = SourceApplyState.fingerprint(sources);
-        assertTrue(state.observeAutomaticWork("completed", configuration));
+        assertTrue(state.observeAutomaticWork("completed", true, configuration));
         assertFalse(state.isPending());
         state.invalidate();
-        assertFalse(state.observeAutomaticWork("completed", configuration));
+        assertFalse(state.observeAutomaticWork("completed", true, configuration));
         assertTrue(state.isPending());
-        assertTrue(state.observeAutomaticWork("next-completion", configuration));
+        assertTrue(state.observeAutomaticWork("next-completion", true, configuration));
         assertFalse(state.isPending());
+    }
+
+    @Test
+    public void uncertainAutomaticCompletionKeepsReturnedSelectionPendingUntilFullApply() {
+        SourceApplyState state = new SourceApplyState();
+        HostsSource a = source(2);
+        HostsSource b = source(3);
+        List<HostsSource> sources = Arrays.asList(a, b);
+        state.updateSources(sources);
+        assertFalse(state.observeAutomaticWork("queued-import", false, null));
+        b.setEnabled(false);
+        state.updateSources(sources);
+        assertTrue(state.isPending());
+        b.setEnabled(true);
+        state.updateSources(sources);
+        assertFalse(state.isPending());
+
+        assertTrue(state.observeAutomaticWork("queued-import", true, null));
+        assertTrue(state.isPending());
+        b.setSize(0);
+        state.updateSources(sources);
+        state.appliedSources(sources, a.getId());
+        assertTrue(state.isPending());
+
+        state.appliedSources(sources, null);
+        assertFalse(state.isPending());
+        assertFalse(state.observeAutomaticWork("queued-import", true, null));
+        assertFalse(state.isPending());
+    }
+
+    @Test
+    public void historicalUncertainCompletionDoesNotInvalidateLaterManualBaseline() {
+        SourceApplyState state = new SourceApplyState();
+        List<HostsSource> sources = Collections.singletonList(source(2));
+        state.updateSources(sources);
+        assertFalse(state.observeAutomaticWork("historical", true, null));
+        assertFalse(state.isPending());
+        assertFalse(state.observeAutomaticWork("historical", true, null));
+        assertFalse(state.isPending());
+
+        assertFalse(state.observeAutomaticWork("new-work", false, null));
+        assertTrue(state.observeAutomaticWork("new-work", true, null));
+        assertTrue(state.isPending());
+        assertTrue(state.observeAutomaticWork("stable-completion", true,
+                SourceApplyState.fingerprint(sources)));
+        assertFalse(state.isPending());
+    }
+
+    @Test
+    public void historicalUncertainCompletionBeforeInitialRowsDoesNotInvalidateBaseline() {
+        SourceApplyState state = new SourceApplyState();
+        assertFalse(state.observeAutomaticWork("historical", true, null));
+        state.updateSources(Collections.singletonList(source(2)));
+        assertFalse(state.isPending());
+        assertFalse(state.observeAutomaticWork("historical", true, null));
+        assertFalse(state.isPending());
+    }
+
+    @Test
+    public void uncertainCompletionBeforeInitialRowsKeepsInitialSnapshotPending() {
+        SourceApplyState state = new SourceApplyState();
+        assertFalse(state.observeAutomaticWork("running", false, null));
+        assertTrue(state.observeAutomaticWork("running", true, null));
+        state.updateSources(Collections.singletonList(source(2)));
+        assertTrue(state.isPending());
+    }
+
+    @Test
+    public void nonterminalWorkDoesNotInvalidateOrAcknowledgeSelections() {
+        SourceApplyState state = observingEmptySources();
+        assertFalse(state.observeAutomaticWork("retry", false, null));
+        assertFalse(state.observeAutomaticWork(null, true, null));
+        assertFalse(state.isPending());
+        List<HostsSource> sources = Collections.singletonList(source(2));
+        state.updateSources(sources);
+        assertFalse(state.observeAutomaticWork("retry", false,
+                SourceApplyState.fingerprint(sources)));
+        assertTrue(state.isPending());
     }
 
     private static SourceApplyState observingEmptySources() {
         SourceApplyState state = new SourceApplyState();
         state.updateSources(Collections.emptyList());
-        state.observeAutomaticWork(null, null);
+        state.observeAutomaticWork(null, false, null);
         return state;
     }
 

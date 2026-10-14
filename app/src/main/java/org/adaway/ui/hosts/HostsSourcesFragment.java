@@ -121,6 +121,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                     if (work == null) return;
                     WorkInfo info = work.size() == 1 ? work.get(0) : null;
                     this.mViewModel.observeAutomaticWork(info == null ? null : info.getId().toString(),
+                            info != null && info.getState() == WorkInfo.State.SUCCEEDED,
                             info != null && info.getState() == WorkInfo.State.SUCCEEDED
                                     ? info.getOutputData().getString(
                                             SourceUpdateService.APPLIED_CONFIGURATION) : null);

@@ -5,6 +5,7 @@ import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -26,6 +27,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -40,6 +45,7 @@ import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
@@ -237,6 +243,98 @@ public class SourcesApplyStateRegressionTest {
         assertTrue(onMainBoolean(() -> viewModelOnMain(activity).getApplyState().isPending()));
     }
 
+    @Test(timeout = 90_000)
+    public void uncertainAutomaticCompletionKeepsReenabledSourcePendingAfterRecreation()
+            throws Exception {
+        sourceModel.realUpdates = true;
+        HomeActivity original = launchSources();
+        HostsSourcesViewModel retained = viewModel(original);
+        onMain(() -> retained.observeAutomaticWork(null, false, null));
+        assertFalse(onMainBoolean(() -> retained.getApplyState().isPending()));
+        selectSource(SOURCE_B, false);
+        waitForText(original, R.string.notification_configuration_changed);
+        adBlockModel.blockApply();
+        WorkManager manager = WorkManager.getInstance(context);
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(
+                SourceUpdateService.HostsSourcesImmediateUpdateWorker.class).build();
+        manager.enqueueUniqueWork(SourceUpdateService.WORK_NAME_NOW,
+                ExistingWorkPolicy.REPLACE, request).getResult()
+                .get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertTrue(adBlockModel.entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+
+        selectSource(SOURCE_B, true);
+        waitForTextAbsent(original, R.string.notification_configuration_changed);
+        assertFalse(onMainBoolean(() -> retained.getApplyState().isPending()));
+        onMain(original::recreate);
+        HomeActivity recreated = waitForActivity(original);
+        assertSame(retained, viewModel(recreated));
+        waitForTextAbsent(recreated, R.string.notification_configuration_changed);
+        int emissionsBeforeCompletion = sourceEmissions.get();
+
+        adBlockModel.releaseApply();
+
+        WorkInfo completed = waitForSuccessfulWork(manager, request);
+        assertNull(completed.getOutputData().getString(SourceUpdateService.APPLIED_CONFIGURATION));
+        waitForStatus(recreated, HostsSourcesViewModel.ApplyStatus.SUCCEEDED);
+        waitForText(recreated, R.string.notification_configuration_changed);
+        assertTrue(onMainBoolean(() -> retained.getApplyState().isPending()));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        assertTrue(sourceRuleCount(SOURCE_A) > 0);
+        assertTrue(database.hostsSourceDao().getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(emissionsBeforeCompletion, sourceEmissions.get());
+    }
+
+    @Test(timeout = 90_000)
+    public void updateBeforeFirstSourceObservationAcknowledgesUnchangedSelection()
+            throws Exception {
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        adBlockModel.blockApply();
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application));
+            model.get().updateSources(null);
+        });
+        assertTrue(adBlockModel.entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        List<HostsSource> initialRows = database.hostsSourceDao().getAll();
+        onMain(() -> model.get().onSourcesChanged(initialRows));
+
+        adBlockModel.releaseApply();
+
+        await("Apply before initial source observation", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue()
+                        == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertFalse(onMainBoolean(() -> model.get().getApplyState().isPending()));
+        assertEquals(1, sourceModel.fullUpdates.get());
+        assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test(timeout = 90_000)
+    public void selectionEditedAndRestoredBeforeFirstObservationRemainsPending()
+            throws Exception {
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        adBlockModel.blockApply();
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application));
+            model.get().updateSources(null);
+        });
+        assertTrue(adBlockModel.entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        HostsSource source = database.hostsSourceDao().getById(SOURCE_B).orElseThrow();
+        onMain(() -> model.get().setSourceEnabled(source, false));
+        await("Selection before initial observation", () -> !observedSource(SOURCE_B).isEnabled());
+        onMain(() -> model.get().setSourceEnabled(source, true));
+        await("Restored selection before initial observation",
+                () -> observedSource(SOURCE_B).isEnabled());
+        List<HostsSource> initialRows = database.hostsSourceDao().getAll();
+        onMain(() -> model.get().onSourcesChanged(initialRows));
+
+        adBlockModel.releaseApply();
+
+        await("Apply with edits before initial source observation", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue()
+                        == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertTrue(onMainBoolean(() -> model.get().getApplyState().isPending()));
+    }
+
     private void assertCompletionAfterRecreation(boolean toolbar) throws Exception {
         HomeActivity original = launchSources();
         HostsSourcesViewModel retained = viewModel(original);
@@ -272,6 +370,21 @@ public class SourcesApplyStateRegressionTest {
         await("Initial source row", () -> onMainBoolean(() ->
                 hasText(activity.getWindow().getDecorView(), "Apply regression source " + SOURCE_A)));
         return activity;
+    }
+
+    private static WorkInfo waitForSuccessfulWork(WorkManager manager, OneTimeWorkRequest request)
+            throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            WorkInfo info = manager.getWorkInfoById(request.getId())
+                    .get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            if (info != null && info.getState().isFinished()) {
+                assertEquals(WorkInfo.State.SUCCEEDED, info.getState());
+                return info;
+            }
+            SystemClock.sleep(50);
+        }
+        throw new AssertionError("Immediate update did not succeed");
     }
 
     private HomeActivity waitForActivity(HomeActivity previous) {

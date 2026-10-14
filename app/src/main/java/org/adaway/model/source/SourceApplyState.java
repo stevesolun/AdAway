@@ -73,16 +73,20 @@ public final class SourceApplyState {
         mAppliedConfiguration = fingerprint(mAppliedSources);
     }
 
-    public boolean observeAutomaticWork(String workId, String configuration) {
+    public boolean observeAutomaticWork(String workId, boolean successful, String configuration) {
         // A new screen must not replay historical success over a later manual apply.
         if (!mWorkObserved) {
             mWorkObserved = true;
-            mLastCompletedWork = configuration == null ? null : workId;
+            mLastCompletedWork = successful ? workId : null;
             return false;
         }
-        if (configuration != null && !workId.equals(mLastCompletedWork)) {
+        if (successful && workId != null && !workId.equals(mLastCompletedWork)) {
             mLastCompletedWork = workId;
-            applied(configuration);
+            if (configuration == null) {
+                invalidate();
+            } else {
+                applied(configuration);
+            }
             return true;
         }
         return false;

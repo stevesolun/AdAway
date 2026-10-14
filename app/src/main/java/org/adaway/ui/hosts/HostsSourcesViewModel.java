@@ -62,8 +62,10 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         if (sources != null) {
             String configuration = SourceApplyState.fingerprint(sources);
             if (!configuration.equals(mObservedConfiguration)) {
+                if (mObservedConfiguration != null) {
+                    mConfigurationRevision++;
+                }
                 mObservedConfiguration = configuration;
-                mConfigurationRevision++;
             }
         }
         mApplyState.updateSources(sources);
@@ -71,8 +73,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     }
 
     @UiThread
-    public void observeAutomaticWork(String workId, String configuration) {
-        boolean completed = mApplyState.observeAutomaticWork(workId, configuration);
+    public void observeAutomaticWork(String workId, boolean successful, String configuration) {
+        boolean completed = mApplyState.observeAutomaticWork(workId, successful, configuration);
         mApplyStatus.setValue(completed && mApplyStatus.getValue() != ApplyStatus.RUNNING
                 ? ApplyStatus.SUCCEEDED : mApplyStatus.getValue());
     }
