@@ -14,11 +14,11 @@ import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
-import org.adaway.db.AppDatabase;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
-import org.adaway.model.source.SourceApplyState;
+import org.adaway.ui.hosts.HostsSourcesViewModel;
+import org.adaway.ui.hosts.HostsSourcesViewModel.ApplyStatus;
 import org.adaway.util.AppExecutors;
 
 import timber.log.Timber;
@@ -66,7 +66,9 @@ public class ApplyConfigurationSnackbar {
     private boolean ignoreEventDuringInstall;
     private boolean applying;
     @Nullable
-    private final SourceApplyState mSourceApplyState;
+    private final HostsSourcesViewModel mSourceViewModel;
+    @Nullable
+    private ApplyStatus mLastSourceStatus;
     @Nullable
     private Snackbar mFailureSnackbar;
 
@@ -83,12 +85,12 @@ public class ApplyConfigurationSnackbar {
         this(view, syncSources, ignoreEventDuringInstall, null);
     }
 
-    public ApplyConfigurationSnackbar(@NonNull View view, @NonNull SourceApplyState sourceState) {
-        this(view, true, false, sourceState);
+    public ApplyConfigurationSnackbar(@NonNull View view, @NonNull HostsSourcesViewModel sourceViewModel) {
+        this(view, true, false, sourceViewModel);
     }
 
     private ApplyConfigurationSnackbar(@NonNull View view, boolean syncSources,
-            boolean ignoreEventDuringInstall, @Nullable SourceApplyState sourceState) {
+            boolean ignoreEventDuringInstall, @Nullable HostsSourcesViewModel sourceViewModel) {
         this.view = view;
         this.notifySnackbar = Snackbar.make(this.view, R.string.notification_configuration_changed, LENGTH_INDEFINITE)
                 .setAction(R.string.notification_configuration_changed_action, v -> apply());
@@ -98,20 +100,30 @@ public class ApplyConfigurationSnackbar {
         this.ignoreEventDuringInstall = ignoreEventDuringInstall;
         this.update = false;
         this.skipUpdate = false;
-        this.mSourceApplyState = sourceState;
+        this.mSourceViewModel = sourceViewModel;
     }
 
     @UiThread
     public void refreshSourceState() {
-        if (this.mSourceApplyState == null || this.applying) return;
-        if (this.mSourceApplyState.isPending()) {
-            if (this.mFailureSnackbar != null && this.mFailureSnackbar.isShownOrQueued()) {
-                return;
-            }
+        if (this.mSourceViewModel == null) return;
+        ApplyStatus status = this.mSourceViewModel.getApplyStatus().getValue();
+        boolean changed = status != this.mLastSourceStatus;
+        this.mLastSourceStatus = status;
+        if (status == ApplyStatus.RUNNING) {
+            if (changed) showLoading();
+            return;
+        }
+        this.waitSnackbar.dismiss();
+        if (status == ApplyStatus.FAILED) {
+            if (this.mFailureSnackbar == null) showFailure(this.mSourceViewModel::retry);
+            return;
+        }
+        if (status == ApplyStatus.SUCCEEDED) dismissFailure();
+        if (this.mSourceViewModel.getApplyState().isPending()) {
             notifyUpdateAvailable();
         } else {
             this.notifySnackbar.dismiss();
-            dismissFailure();
+            if (changed && status == ApplyStatus.SUCCEEDED) showApplied();
         }
     }
 
@@ -169,6 +181,10 @@ public class ApplyConfigurationSnackbar {
 
     @UiThread
     void apply() {
+        if (this.mSourceViewModel != null) {
+            this.mSourceViewModel.updateSources(null);
+            return;
+        }
         if (this.applying) {
             return;
         }
@@ -178,11 +194,7 @@ public class ApplyConfigurationSnackbar {
                 (AdAwayApplication) this.view.getContext().getApplicationContext();
         AppExecutors.getInstance().diskIO().execute(() -> {
             boolean successful = false;
-            String appliedConfiguration = null;
             try {
-                String configuration = this.mSourceApplyState == null ? null
-                        : SourceApplyState.fingerprint(AppDatabase.getInstance(application)
-                                .hostsSourceDao().getAll());
                 SourceModel sourceModel = application.getSourceModel();
                 AdBlockModel adBlockModel = application.getAdBlockModel();
                 boolean shouldApply = true;
@@ -195,23 +207,12 @@ public class ApplyConfigurationSnackbar {
                     adBlockModel.apply();
                 }
                 successful = shouldApply;
-                if (successful && configuration != null && configuration.equals(
-                        SourceApplyState.fingerprint(AppDatabase.getInstance(application)
-                                .hostsSourceDao().getAll()))) {
-                    appliedConfiguration = configuration;
-                }
             } catch (HostErrorException | RuntimeException exception) {
                 successful = false;
                 Timber.w(exception, "Failed to apply configuration.");
             }
             boolean result = successful;
-            String configuration = appliedConfiguration;
-            AppExecutors.getInstance().mainThread().execute(() -> {
-                if (this.mSourceApplyState != null) {
-                    this.mSourceApplyState.applied(configuration);
-                }
-                endLoading(result);
-            });
+            AppExecutors.getInstance().mainThread().execute(() -> endLoading(result));
         });
     }
 
@@ -220,6 +221,9 @@ public class ApplyConfigurationSnackbar {
         dismissFailure();
         this.notifySnackbar.dismiss();
         // Show wait snackbar
+        if (this.mSourceViewModel != null) {
+            this.waitSnackbar.setText(R.string.sources_apply_installing);
+        }
         this.waitSnackbar.show();
     }
 
@@ -232,12 +236,7 @@ public class ApplyConfigurationSnackbar {
             return;
         }
         if (!successfulInstall) {
-            showFailure(this.mSourceApplyState == null ? null : this::apply);
-            return;
-        }
-        if (this.mSourceApplyState != null) {
-            refreshSourceState();
-            if (!this.mSourceApplyState.isPending()) showApplied();
+            showFailure(null);
             return;
         }
         if (this.update) {

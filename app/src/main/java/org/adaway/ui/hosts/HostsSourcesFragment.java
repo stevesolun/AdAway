@@ -53,10 +53,8 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
-import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
-import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar;
 import org.adaway.ui.home.HomeActivity;
@@ -109,26 +107,23 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Get lists layout to attached snackbar to
         coordinatorLayout = view.findViewById(R.id.coordinator);
         // Create apply snackbar
-        SourceApplyState applyState = this.mViewModel.getApplyState();
         ApplyConfigurationSnackbar applySnackbar =
-                new ApplyConfigurationSnackbar(coordinatorLayout, applyState);
+                new ApplyConfigurationSnackbar(coordinatorLayout, this.mViewModel);
         this.mApplySnackbar = applySnackbar;
         // Bind snackbar to view models
-        this.mViewModel.getHostsSources().observe(lifecycleOwner, sources -> {
-            applyState.updateSources(sources);
-            applySnackbar.refreshSourceState();
-        });
+        this.mViewModel.getApplyStatus().observe(lifecycleOwner,
+                status -> applySnackbar.refreshSourceState());
+        this.mViewModel.getHostsSources().observe(lifecycleOwner, this.mViewModel::onSourcesChanged);
         WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData(SourceUpdateService.WORK_NAME_NOW)
                 .observe(lifecycleOwner, work -> {
                     // REPLACE creates a single update-now request, not an apply chain.
                     if (work == null) return;
                     WorkInfo info = work.size() == 1 ? work.get(0) : null;
-                    applyState.observeAutomaticWork(info == null ? null : info.getId().toString(),
+                    this.mViewModel.observeAutomaticWork(info == null ? null : info.getId().toString(),
                             info != null && info.getState() == WorkInfo.State.SUCCEEDED
                                     ? info.getOutputData().getString(
                                             SourceUpdateService.APPLIED_CONFIGURATION) : null);
-                    applySnackbar.refreshSourceState();
                 });
         
         /*
@@ -725,61 +720,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
      * If {@code source} is null, updates all enabled sources.
      */
     private void runUpdateSources(@Nullable HostsSource source) {
-        int installingMessage = source == null
-                ? R.string.sources_apply_installing
-                : R.string.notification_configuration_installing;
-        Snackbar waitSnackbar = Snackbar.make(
-                coordinatorLayout,
-                installingMessage,
-                Snackbar.LENGTH_INDEFINITE
-        );
-        waitSnackbar.show();
-
-        // QA-06: capture Context before background thread to avoid IllegalStateException on navigation.
-        AdAwayApplication app = (AdAwayApplication) requireContext().getApplicationContext();
-        SourceApplyState applyState = this.mViewModel.getApplyState();
-        ApplyConfigurationSnackbar applySnackbar = this.mApplySnackbar;
-        AppExecutors.getInstance().networkIO().execute(() -> {
-            SourceModel sourceModel = app.getSourceModel();
-            AdBlockModel adBlockModel = app.getAdBlockModel();
-            boolean ok = true;
-            String appliedConfiguration = null;
-            try {
-                HostsSourceDao sources = AppDatabase.getInstance(app).hostsSourceDao();
-                String configuration = SourceApplyState.fingerprint(sources.getAll());
-                boolean shouldApply = true;
-                if (source == null) {
-                    shouldApply = sourceModel.checkAndRetrieveHostsSources();
-                } else {
-                    sourceModel.retrieveHostsSource(source.getId());
-                }
-                if (shouldApply) {
-                    adBlockModel.apply();
-                    if (configuration.equals(SourceApplyState.fingerprint(sources.getAll()))) {
-                        appliedConfiguration = configuration;
-                    }
-                } else {
-                    ok = false;
-                }
-            } catch (HostErrorException | RuntimeException e) {
-                ok = false;
-            }
-
-            boolean finalOk = ok;
-            String configuration = appliedConfiguration;
-            AppExecutors.getInstance().mainThread().execute(() -> {
-                waitSnackbar.dismiss();
-                if (!finalOk) {
-                    applySnackbar.showFailure(() -> runUpdateSources(source));
-                } else {
-                    applyState.applied(configuration);
-                    applySnackbar.refreshSourceState();
-                    if (!applyState.isPending()) {
-                        Snackbar.make(coordinatorLayout, R.string.notification_configuration_applied,
-                                Snackbar.LENGTH_LONG).show();
-                    }
-                }
-            });
-        });
+        this.mViewModel.updateSources(source == null ? null : source.getId());
     }
 }
