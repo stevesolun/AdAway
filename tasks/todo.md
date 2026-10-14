@@ -11839,3 +11839,30 @@ The bounded follow-up pins the tested toolchain and prepares 13.5.3b, preserving
 failed tag. Protected follow-up CI and publication remain open; see OCT-REL-08.
 Historical root, physical-device, and legal/provenance gates above are not automatically
 closed by this bounded Android candidate release.
+
+## Plan - 2026-10-14 Israeli Sites VPN Smoke
+
+- [x] Install the published 13.5.3b APK on the API 34 emulator without root.
+- [x] Browse Ynet, KSP, and another Israeli site with protection off, default sources on,
+  and Hebrew hosts coverage on; capture page, request, and VPN evidence.
+- [x] Exercise navigation and reloads, separate site challenges and cosmetic ad limitations
+  from reproducible app failures, and record any confirmed bugs.
+- [x] Summarize the observed results and recommended filter setup with explicit limitations.
+
+## Review - 2026-10-14 Israeli Sites VPN Smoke
+
+Published 13.5.3b passed VPN-only Ynet, KSP, and Calcalist browsing with downloaded
+defaults and with the Hebrew hosts feed added by URL. The Hebrew feed imported 181
+domains and additionally blocked totalmedia2.ynet.co.il without breaking the tested
+news/article/product pages. No connection-lost error was reproduced in completed runs.
+Walla is unverified because it crashed the emulator while VPN was off.
+
+The first-run seeded-default download gate was defective: the VPN could run with
+zero blocking rules. A bounded retained initialization fix passed 602 JVM tests
+(3 skips, no failures), a signed minified build, and clean-app-data onboarding on
+API 34 that automatically downloaded 72.7k rules and passed real DNS canaries.
+The fix is local, not in the published APK. Two nonblocking UI findings remain open:
+the redundant Apply prompt after auto-import and missing never-downloaded freshness
+counts. Evidence, filter URL, comparison matrix, and limits are in
+`tasks/israeli-vpn-smoke-2026-10-14.md`. This closes this bounded smoke pass, not
+historical root, physical-device, or stable-release gates.
