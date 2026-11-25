@@ -141,6 +141,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test --dependency-verification=strict --stacktrace
 
+      - name: Check debug and release signing isolation
+        run: bash scripts/tests/check-debug-signing-policy.sh
+
       - name: Run lint
         run: ./gradlew :app:lintDebug --dependency-verification=strict --stacktrace
 
