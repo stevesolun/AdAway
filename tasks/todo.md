@@ -11916,3 +11916,25 @@ signing identity; keep the beta channel until physical-device validation exists.
 Local fixes and validation are complete; the [release checkpoint](release-13.5.4b.md)
 owns the validation ledger and precise limits. The remaining two checklist items
 are deliberately open until protected CI and downloaded release verification.
+
+## CI fix - 2026-11-25 Offline source cleanup
+
+- [x] Trace the failing SQLite durability assertion and asynchronous cache refresh.
+- [x] Run the unmodified class on the isolated worktree API 34 emulator.
+- [x] Wait for the queued cache refresh before asserting final cleanup state.
+- [x] Complete focused connected verification and return evidence to the outer executor.
+
+The cleanup assertion raced the queued runtime cache refresh, which temporarily sets
+`synchronous=NORMAL` before restoring `FULL`. The test now drains the existing
+single-threaded disk queue before asserting cleanup, reusing its teardown barrier.
+The strict pragma, staging cleanup, and user-rule preservation assertions remain.
+
+The unmodified class passed 18 tests locally; a standalone baseline retry instead
+hit the existing ten-second teardown queue timeout, not the CI pragma assertion.
+The patched class passed all 18 tests with zero failures or skips using
+`./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelOfflineFileTest --dependency-verification=strict --console=plain`.
+The previously failing method also passed 20 consecutive isolated instrumentation
+runs (`python3 .gradle/ci-android/repeat_offline_cleanup.py after 20`); each run's
+`OK (1 test)` result is retained in `.gradle/ci-android/offline-after-*.log`.
+Full PR CI rerun and delivery remain owned by the outer executor. Root, physical-device,
+and intermittent DNS evidence are unchanged.
