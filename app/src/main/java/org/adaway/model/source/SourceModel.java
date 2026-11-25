@@ -1794,8 +1794,7 @@ public class SourceModel {
     }
 
     /**
-     * Get request builder for an hosts source.
-     * All cache data available are filled into the headers.
+     * Get a request builder for a hosts source.
      *
      * @param source The hosts source to get request builder.
      * @return The hosts source request builder.
@@ -1810,7 +1809,7 @@ public class SourceModel {
             request = request.cacheControl(okhttp3.CacheControl.FORCE_NETWORK);
             return request;
         }
-        // Max-age guard: if the source has not been successfully fetched in over 7 days,
+        // Max-age guard: if the downloaded source's modification date is over 7 days old,
         // skip cached ETag/Last-Modified headers and force a full re-fetch. This prevents
         // stale data persisting indefinitely when a server sends bad ETags or a source URL
         // is changed and the old cache metadata no longer matches the new content.

@@ -171,6 +171,7 @@ public class HomeUpdateSignalErrorInstrumentedTest {
             String details = this.context.getString(R.string.error_download_failed_details);
             publishHostError(scenario, HostError.DOWNLOAD_FAILED);
             waitForTextContaining(details);
+            UiEvidence.capture(this.context, "home-download-failure-before-navigation");
 
             // Keep the launch action/category so ActivityScenario can track the reused activity.
             scenario.onActivity(activity -> activity.startActivity(
@@ -182,8 +183,10 @@ public class HomeUpdateSignalErrorInstrumentedTest {
                     waitForClickableText(this.context.getString(R.string.nav_home));
             scenario.onActivity(activity -> assertNotNull(
                     activity.getSupportFragmentManager().findFragmentByTag("discover")));
+            UiEvidence.capture(this.context, "discover-with-download-dialog-dismissed");
             assertTrue(homeTab.performAction(AccessibilityNodeInfo.ACTION_CLICK));
             waitForTextContaining(details);
+            UiEvidence.capture(this.context, "home-download-failure-restored-on-return");
             assertTrue(waitForClickableText(this.context.getString(R.string.button_close))
                     .performAction(AccessibilityNodeInfo.ACTION_CLICK));
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -216,6 +219,7 @@ public class HomeUpdateSignalErrorInstrumentedTest {
             }
             assertTrue("The orientation must actually change", rotated[0]);
             waitForTextContaining(details);
+            UiEvidence.capture(this.context, "home-download-failure-after-rotation");
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
             // The already selected Home tab is not an accessibility click target.
             waitForClickableText(this.context.getString(R.string.nav_more));
@@ -223,6 +227,7 @@ public class HomeUpdateSignalErrorInstrumentedTest {
             waitForClickableText(this.context.getString(R.string.nav_more));
             scenario.onActivity(activity -> assertNull(new ViewModelProvider(activity)
                     .get(HomeViewModel.class).getError().getValue()));
+            UiEvidence.capture(this.context, "home-download-failure-cleared-after-back");
         }
     }
 

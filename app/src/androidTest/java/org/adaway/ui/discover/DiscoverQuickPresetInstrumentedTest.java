@@ -33,6 +33,7 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.util.AppExecutors;
@@ -158,6 +159,9 @@ public class DiscoverQuickPresetInstrumentedTest {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
             tapPreset(scenario, R.id.chipDiscoverBalanced);
+            waitForMessage(scenario, context.getResources().getQuantityString(
+                    R.plurals.filter_preset_existing_updating, 1, 1));
+            UiEvidence.capture(context, "discover-balanced-known-newer-update");
             scenario.onActivity(activity -> activity.navigateTo(R.id.nav_home));
         }
         drainDiskIo();
@@ -166,6 +170,10 @@ public class DiscoverQuickPresetInstrumentedTest {
         waitForSuccessfulImmediateWork();
         assertEquals(1, sourceModel.updateCount.get());
         assertEquals(1, adBlockModel.applyCount.get());
+        System.out.println("Balanced preset recording-model evidence: activeProfile="
+                + FilterSetStore.getActiveProfile(context) + ", unrelatedSourceEnabled="
+                + hostsSourceDao.getByUrl(extra).get().isEnabled() + ", updateCalls="
+                + sourceModel.updateCount.get() + ", applyCalls=" + adBlockModel.applyCount.get());
     }
 
     @Test(timeout = 60_000)

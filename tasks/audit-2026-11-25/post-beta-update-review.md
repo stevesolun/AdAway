@@ -1,6 +1,7 @@
 # Post-beta update screen review
 
-**POST-BETA-UPDATE-001 (P2): implemented, awaiting Android execution.**
+**POST-BETA-UPDATE-001 (P2):** Original lane analysis below; current fix status is
+in the [bug register](bugs.csv), with [integrated Android evidence](validation.md#post-beta-review).
 Source trace confirms both the incorrect verdict and the missing recovery action.
 
 ## Entry and recovery

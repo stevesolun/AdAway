@@ -139,7 +139,8 @@ public class DomainCheckerFragment extends Fragment {
                             ? R.string.domain_checker_user_source_format
                             : R.string.domain_checker_filter_source_format;
                     String rule = source.kind == RuleKind.SUFFIX ? "||" + source.host + "^" : source.host;
-                    row.setText(getString(format, source.name) + "\n" + rule);
+                    row.setText(getString(R.string.domain_checker_allow_source_rule_format,
+                            getString(format, source.name), rule));
                     sourcesContainer.addView(row);
                 }
             }

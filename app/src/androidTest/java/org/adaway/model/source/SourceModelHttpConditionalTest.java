@@ -282,15 +282,28 @@ public class SourceModelHttpConditionalTest {
             public MockResponse dispatch(RecordedRequest request) {
                 MockResponse response = new MockResponse().setHeader("Last-Modified", modified);
                 if (modified.equals(request.getHeader(IF_MODIFIED_SINCE))) {
+                    System.out.println("Source refresh local TLS fixture: "
+                            + request.getMethod() + " response=304");
                     return response.setResponseCode(304);
                 }
+                System.out.println("Source refresh local TLS fixture: "
+                        + request.getMethod() + " response=200");
                 return "HEAD".equals(request.getMethod()) ? response
                         : response.setBody("0.0.0.0 " + UPDATED_FIRST_HOST + "\n");
             }
         });
 
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        System.out.println("Source refresh before: generation=" + getActiveGeneration()
+                + ", " + FIRST_HOST + "=" + hostEntryDao.resolveEntry(FIRST_HOST).getType()
+                + ", " + UPDATED_FIRST_HOST + "="
+                + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
         assertTrue(sourceModel.checkForUpdate());
-        assertEquals("HEAD", server.takeRequest(5, TimeUnit.SECONDS).getMethod());
+        RecordedRequest checked = server.takeRequest(5, TimeUnit.SECONDS);
+        assertNotNull(checked);
+        assertEquals("HEAD", checked.getMethod());
+        logRefreshRequest(checked);
         assertTrue(sourceModel.checkAndRetrieveHostsSources());
         assertEquals(BLOCKED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
         assertEquals(ALLOWED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
@@ -298,8 +311,13 @@ public class SourceModelHttpConditionalTest {
         assertNotNull(changed);
         assertEquals("GET", changed.getMethod());
         assertNull(changed.getHeader(IF_MODIFIED_SINCE));
+        logRefreshRequest(changed);
 
         int publishedGeneration = getActiveGeneration();
+        System.out.println("Source refresh after new body: generation=" + publishedGeneration
+                + ", " + FIRST_HOST + "=" + hostEntryDao.resolveEntry(FIRST_HOST).getType()
+                + ", " + UPDATED_FIRST_HOST + "="
+                + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
         assertTrue(sourceModel.checkAndRetrieveHostsSources());
         RecordedRequest unchanged = server.takeRequest(5, TimeUnit.SECONDS);
         assertNotNull(unchanged);
@@ -307,6 +325,17 @@ public class SourceModelHttpConditionalTest {
         assertEquals(modified, unchanged.getHeader(IF_MODIFIED_SINCE));
         assertEquals(publishedGeneration, getActiveGeneration());
         assertEquals(BLOCKED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        logRefreshRequest(unchanged);
+        System.out.println("Source refresh after 304: publishedGeneration=" + publishedGeneration
+                + ", retainedGeneration=" + getActiveGeneration() + ", "
+                + UPDATED_FIRST_HOST + "=" + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+    }
+
+    private static void logRefreshRequest(RecordedRequest request) {
+        System.out.println("Source refresh local TLS request: " + request.getMethod()
+                + " " + request.getPath() + ", If-Modified-Since="
+                + request.getHeader(IF_MODIFIED_SINCE) + ", If-None-Match="
+                + request.getHeader(IF_NONE_MATCH));
     }
 
     @Test

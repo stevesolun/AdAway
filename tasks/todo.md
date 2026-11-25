@@ -14,7 +14,7 @@
 
 Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
-Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
+Historical 13.5.5b candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
 Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
 Public beta: [13.5.6b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.6b).
 Post-release file and interaction checks: [post-beta review](audit-2026-11-25/validation.md#post-beta-review).

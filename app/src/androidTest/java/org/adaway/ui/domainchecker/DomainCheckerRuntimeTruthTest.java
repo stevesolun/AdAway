@@ -47,6 +47,7 @@ import org.adaway.db.entity.RuleKind;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -214,10 +215,62 @@ public class DomainCheckerRuntimeTruthTest {
                 assertFalse(a.findViewById(R.id.blockButton).isShown());
                 assertFalse(a.findViewById(R.id.removeAllowButton).isShown());
             });
+            UiEvidence.capture(context, "domain-checker-downloaded-allow-provenance");
             assertDomainStatus(activity, UNKNOWN_HOST,
                     context.getString(R.string.domain_checker_status_unknown),
                     context.getString(R.string.domain_checker_not_blocked));
             scenario.onActivity(a -> assertTrue(a.findViewById(R.id.blockButton).isShown()));
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void removingExactAllowInVpnUiPreservesWildcardAndSibling() {
+        PreferenceHelper.setAbBlockMethod(application, VPN);
+        String base = "allow-action-" + UUID.randomUUID().toString().substring(0, 8) + ".invalid";
+        String pattern = "child-*." + base;
+        String child = "child-one." + base;
+        String sibling = "child-two." + base;
+        String userSource = context.getString(R.string.domain_checker_user_source_format,
+                context.getString(R.string.hosts_user_source));
+        try {
+            insertItem(base, BLOCKED, SUFFIX, TEST_SOURCE_ID, null);
+            insertItem(pattern, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            insertItem(child, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            hostEntryDao.sync();
+            application.invalidateVpnRulesCache();
+            try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+                HomeActivity activity = showDomainChecker(scenario);
+                assertDomainStatus(activity, child,
+                        context.getString(R.string.allowed_hosts_label), userSource + "\n" + pattern);
+                waitForVisibleText(activity, userSource + "\n" + child);
+                scenario.onActivity(a -> {
+                    assertTrue(a.findViewById(R.id.removeAllowButton).isShown());
+                    assertTrue(a.findViewById(R.id.removeAllowButton).isEnabled());
+                });
+                UiEvidence.capture(context, "domain-checker-exact-and-wildcard-before-removal");
+
+                clickVisibleView(activity, R.id.removeAllowButton, "Remove exact Allow List rule");
+                waitForVisibleText(activity, context.getString(R.string.domain_checker_allow_removed));
+                waitForUserRule(child, ALLOWED, false);
+                assertTrue("The broader user allow must survive", hasUserRule(pattern, ALLOWED));
+                assertEquals(ALLOWED, hostEntryDao.getTypeForHost(child));
+                assertEquals(ALLOWED, hostEntryDao.getTypeForHost(sibling));
+                waitForVisibleText(activity, context.getString(R.string.allowed_hosts_label));
+                waitForVisibleText(activity, userSource + "\n" + pattern);
+                scenario.onActivity(a -> {
+                    assertFalse(a.findViewById(R.id.removeAllowButton).isShown());
+                    assertFalse(hasVisibleText(a.getWindow().getDecorView(), userSource + "\n" + child));
+                });
+                UiEvidence.capture(context, "domain-checker-wildcard-retained-after-removal");
+
+                assertDomainStatus(activity, sibling,
+                        context.getString(R.string.allowed_hosts_label), userSource + "\n" + pattern);
+                scenario.onActivity(a -> assertFalse(a.findViewById(R.id.removeAllowButton).isShown()));
+                UiEvidence.capture(context, "domain-checker-sibling-still-allowed");
+            }
+        } finally {
+            hostListItemDao.deleteUserFromHost(child);
+            hostListItemDao.deleteUserFromHost(pattern);
         }
     }
 

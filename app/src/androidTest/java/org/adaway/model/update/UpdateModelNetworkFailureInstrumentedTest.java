@@ -31,6 +31,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.update.UpdateActivity;
 import org.json.JSONObject;
 import org.junit.After;
@@ -158,8 +159,9 @@ public class UpdateModelNetworkFailureInstrumentedTest {
                 assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.changelogTitleTextView).getVisibility());
                 assertEquals(0, this.server.getRequestCount());
-                tapCheck(activity, R.string.menu_check_updates);
             });
+            UiEvidence.capture(this.context, "update-cold-entry-check-action");
+            scenario.onActivity(activity -> tapCheck(activity, R.string.menu_check_updates));
             assertTrue("First check did not finish", failed.await(10, TimeUnit.SECONDS));
             scenario.recreate();
             scenario.onActivity(activity -> {
@@ -168,8 +170,9 @@ public class UpdateModelNetworkFailureInstrumentedTest {
                 assertText(activity, R.id.progressTextView, R.string.update_unavailable_header);
                 assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
                 assertEquals(1, this.server.getRequestCount());
-                tapCheck(activity, R.string.update_check_again_button);
             });
+            UiEvidence.capture(this.context, "update-failure-retry-after-recreation");
+            scenario.onActivity(activity -> tapCheck(activity, R.string.update_check_again_button));
             assertTrue("Retry did not finish", recovered.await(10, TimeUnit.SECONDS));
             scenario.onActivity(activity -> {
                 assertText(activity, R.id.headerTextView, R.string.update_up_to_date_header);
@@ -178,6 +181,7 @@ public class UpdateModelNetworkFailureInstrumentedTest {
                 assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
                 assertEquals(2, this.server.getRequestCount());
             });
+            UiEvidence.capture(this.context, "update-signed-current-after-retry");
         } finally {
             field.set(app, previous);
             InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->

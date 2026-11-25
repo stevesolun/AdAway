@@ -1,7 +1,9 @@
 # Post-beta Home file review
 
 **Result:** Two new regressions in the beta failed-download recovery path were
-confirmed by source inspection and patched. Both are **implemented-awaiting-test**.
+confirmed by source inspection and patched. This report preserves the lane handoff;
+current status is in the [bug register](bugs.csv), with
+[integrated Android evidence](validation.md#post-beta-review).
 Only HomeFragment and its focused Android test changed outside this evidence set.
 
 ## Comparison

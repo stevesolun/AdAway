@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -12,6 +13,7 @@
         android:text="@string/list_dialog_hostname"
         android:textAppearance="@android:style/TextAppearance.Medium" />
 
+    <!-- The explicit label names the field; the hint is only an example hostname. -->
     <EditText
         android:id="@+id/list_dialog_hostname"
         android:layout_width="match_parent"
@@ -19,7 +21,8 @@
         android:hint="@string/list_dialog_hostname_hint"
         android:importantForAutofill="no"
         android:inputType="textMultiLine|textVisiblePassword"
-        android:scrollHorizontally="false" />
+        android:scrollHorizontally="false"
+        tools:ignore="LabelFor" />
 
     <TextView
         android:layout_width="match_parent"
