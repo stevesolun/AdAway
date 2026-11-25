@@ -374,11 +374,20 @@ public class HomeFlowRoundTripInstrumentedTest {
             view.requestRectangleOnScreen(new Rect(0, 0, view.getWidth(), view.getHeight()), true);
         });
         Rect target = new Rect();
-        scenario.onActivity(activity -> {
-            View view = activity.findViewById(id);
-            assertTrue("Control must be enabled and clickable", view.isEnabled() && view.isClickable());
-            assertTrue("Control must be on screen", view.isShown() && view.getGlobalVisibleRect(target));
-            assertTrue(target.width() > 0 && target.height() > 0);
+        await("focused Home tap target " + context.getResources().getResourceEntryName(id), () -> {
+            Rect sample = new Rect();
+            scenario.onActivity(activity -> {
+                View view = activity.findViewById(id);
+                if (view == null || !view.hasWindowFocus() || view.isLayoutRequested()
+                        || !view.isShown() || !view.isEnabled() || !view.isClickable()
+                        || !view.getLocalVisibleRect(sample)) return;
+                int[] location = new int[2];
+                view.getLocationOnScreen(location);
+                sample.offset(location[0], location[1]);
+            });
+            boolean stable = !sample.isEmpty() && sample.equals(target);
+            target.set(sample);
+            return stable;
         });
         long down = SystemClock.uptimeMillis();
         for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
