@@ -195,13 +195,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boun
   -SbomPath $Sbom `
   -StrictArtifacts `
   -ReportPath artifact-license-boundary-report.md
-.\scripts\run-release-smoke.ps1 `
-  -ApkPath $Apk `
-  -ExpectedCertSha256 "<release-certificate-sha256>" `
-  -VerifyOnly
-.\scripts\run-release-smoke.ps1 `
-  -ApkPath $Apk `
-  -ExpectedCertSha256 "<release-certificate-sha256>"
+.\scripts\verify-release-artifacts.ps1 `
+  --apk $Apk --apk-sha256 "$Apk.sha256" `
+  --manifest $Manifest --manifest-sha256 "$Manifest.sha256" `
+  --sbom $Sbom --sbom-sha256 "$Sbom.sha256" `
+  --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  --expected-version $Version --expected-store adaway `
+  --expected-cert-sha256 "<release-certificate-sha256>" `
+  --report local-unattested-verification.md
 ```
 
 `generate-update-manifest.ps1` and `generate-update-manifest.sh` both delegate
@@ -209,23 +210,66 @@ to the same JDK-based manifest generator, so local Windows verification does not
 require WSL, Bash, or OpenSSL. The release workflow still invokes the Bash
 wrapper on GitHub-hosted Linux runners.
 
-`run-release-smoke.ps1 -VerifyOnly` checks release APK badging and optional
-signer identity without requiring a connected device, and writes the APK
-SHA-256 plus signer certificate status when `-ReportPath` is provided. The full
-`run-release-smoke.ps1` command still refuses debuggable APKs and emulators,
+The local pre-attestation check above verifies real APK identity and signed metadata,
+but reports artifact provenance as `not-verified`; it cannot satisfy readiness.
+Release smoke is a post-publish check and requires all six published artifacts
+and their GitHub attestations. Install JDK 21, PowerShell, GitHub CLI with read
+access, and Android build-tools 36.0.0; set `ANDROID_HOME` or `ANDROID_SDK_ROOT`.
+Supply a trusted release certificate pin and `UPDATE_MANIFEST_PUBLIC_KEY_BASE64`
+independently of the downloaded files. From the repository root:
+
+```powershell
+$Version = "<version>"
+$Tag = "v$Version"
+$Bundle = "release-artifacts"
+$Apk = "$Bundle\AdAway_$Version.apk"
+New-Item -ItemType Directory -Force $Bundle | Out-Null
+foreach ($Asset in @("AdAway_$Version.apk", "AdAway_$Version.apk.sha256",
+    "manifest.json", "manifest.json.sha256", "adaway.cdx.json", "adaway.cdx.json.sha256")) {
+  gh release download $Tag --repo stevesolun/AdAway --pattern $Asset --dir $Bundle
+  if ($LASTEXITCODE -ne 0) { throw "Release asset download failed: $Asset" }
+}
+$RefreshArgs = @{}
+# Only for renewed metadata, set BOTH pins to the exact refresh run identity:
+# $RefreshArgs.MetadataSourceCommit = "<40-hex-refresh-workflow-commit>"
+# $RefreshArgs.MetadataSourceRef = "refs/heads/<refresh-branch>"
+.\scripts\run-release-smoke.ps1 @RefreshArgs `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -VerifyOnly -ReportPath release-smoke\identity-only-report.md
+# This installs/updates and launches the app on the explicitly selected physical device:
+.\scripts\run-release-smoke.ps1 @RefreshArgs `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -DeviceSerial "<physical-device-serial>" `
+  -ReportPath release-smoke\release-smoke-report.md
+```
+
+`run-release-smoke.ps1 -VerifyOnly` verifies actual package/version/code/debug/signer
+identity against authenticated metadata and checks all six attestations
+without requiring a connected device. It is not an offline or identity-only security bypass;
+the report's `identity-only` mode means device installation was not run. The full
+`run-release-smoke.ps1` command refuses debuggable APKs and emulators,
 installs the release APK on an attached physical device, launches `org.adaway`,
 and fails if the process is not running after launch.
 
 The same full device smoke can be run from the manual **Physical release smoke**
 workflow (`.github/workflows/physical-release-smoke.yml`). Use a self-hosted
 runner labeled `android-device` with PowerShell, GitHub CLI, `adb`, Android
-build-tools 36.0.0, and one attached physical device, or provide the optional
+build-tools 36.0.0, JDK 21, and one attached physical device, or provide the optional
 `device_serial` input when several physical devices are attached. The workflow downloads
-`AdAway_<version>.apk` from the provided release tag and runs
+all six assets from the provided release tag and runs
 `run-release-smoke.ps1` without `-VerifyOnly`. A successful run uploads the
 `physical-release-smoke-report` artifact with the release tag, APK name,
 APK SHA-256, signing certificate identity, physical device status, hashed
-device serial, observed launch pid, and source commit.
+device serial, observed launch pid, `Artifact source commit/ref/workflow`, and
+`Tooling source commit`. The artifact commit is the resolved release tag target
+bound by the attestation, never the dispatch checkout's commit. Renewed metadata
+requires the workflow inputs `metadata_source_commit` and `metadata_source_ref`;
+its `refresh-update-manifest.yml` identity is separate from the APK/SBOM's
+`fork-release-apk.yml` provenance. Missing or mismatched pins fail closed.
 
 On Unix-like shells with PowerShell available, the boundary checker wrapper can
 also be run directly:
@@ -241,16 +285,20 @@ boundary reports.
 
 Use the tagged release artifact boundary report, not the regular CI source-only
 report, when running `verify-release-readiness.ps1`. The final readiness check
-expects all generated proof reports to describe the same source commit. It also
+expects all generated proof reports to describe the same source commit as the APK:
+artifact/smoke `Artifact source commit` must equal UX/license `Source commit`.
+`Tooling source commit` identifies each verifier checkout and may differ. It also
 expects the generated `verify-release-artifacts` report with
 `Checksum verification: passed`, `Manifest signature: passed`,
-`Manifest payload: passed`, a checked `Expected certificate SHA-256`, and the
+`Manifest payload: passed`, `APK identity: verified`, `Artifact provenance: verified`,
+a checked `Expected certificate SHA-256`, and the
 release tag inferred from the signed manifest APK URL; it also expects
 `Strict artifacts: true` plus the same APK and SBOM artifact names from the
 release artifact verification report.
 The physical smoke report must be generated by `run-release-smoke.ps1` in
 physical-device mode and include `Package`, `Signer certificate check: True`,
-`Signer certificate SHA-256`, `Release tag`, `Source commit`,
+`Signer certificate SHA-256`, `Release tag`, `Artifact source commit`,
+`Artifact source ref`, `Artifact source workflow`, `Tooling source commit`,
 `Device serial SHA-256`, and `Launch pid observed`.
 The UX sign-off report must be generated by `verify-ux-signoff.ps1` and include
 a reviewer, review packet, `Source commit`, `Review packet source commit`,
@@ -286,8 +334,13 @@ The same post-publish check can be run in GitHub Actions from the manual
 **Verify release artifacts** workflow (`.github/workflows/verify-release-artifacts.yml`).
 Provide the release tag and expected APK signing certificate SHA-256 digest;
 the workflow downloads the six release assets, verifies manifest/signature and
-checksum semantics, verifies GitHub attestations against this repository, and
+checksum semantics and real APK identity, binds GitHub attestations to this
+repository's exact tag/ref/commit/workflow, and
 uploads a `release-artifact-verification-report` artifact.
+For renewed metadata, supply both `metadata_source_commit` and `metadata_source_ref`
+inputs (CLI: `--metadata-source-commit` and `--metadata-source-ref`). Only the
+manifest pair may use that pinned refresh identity; APK/SBOM provenance stays
+bound to the release tag. Old ambiguous `Source commit`-only reports cannot pass readiness.
 
 ```powershell
 $Version = "<version>"

@@ -46,7 +46,11 @@ function Test-ReportMarkers(
 
     $passed = $true
     foreach ($marker in $requiredMarkers) {
-        if ($content -notlike "*$marker*") {
+        $pattern = '(?m)^' + [Regex]::Escape($marker) + '[ \t]*\r?$'
+        if ($marker.EndsWith(':')) {
+            $pattern = '(?m)^' + [Regex]::Escape($marker) + '[ \t]*[^\r\n]+\r?$'
+        }
+        if ([Regex]::Matches($content, $pattern).Count -ne 1) {
             $issues.Add("$label report must contain '$marker'.")
             $passed = $false
         }
@@ -86,13 +90,13 @@ function Get-ReportField(
         return ""
     }
 
-    $pattern = "(?m)^-\s*" + [Regex]::Escape($fieldName) + ":\s*(.+?)\s*$"
-    $match = [Regex]::Match($content, $pattern)
-    if (-not $match.Success) {
-        $issues.Add("$label report must contain '$fieldName'.")
+    $pattern = "(?m)^-[ \t]*" + [Regex]::Escape($fieldName) + ":[ \t]*(.+?)[ \t]*\r?$"
+    $matches = [Regex]::Matches($content, $pattern)
+    if ($matches.Count -ne 1) {
+        $issues.Add("$label report must contain exactly one '$fieldName'.")
         return ""
     }
-    return $match.Groups[1].Value.Trim()
+    return $matches[0].Groups[1].Value.Trim()
 }
 
 function Get-OptionalReportField(
@@ -150,9 +154,9 @@ function Test-SourceCommitIdentity(
 
     $passed = $true
     $releaseCommit = Get-ReportField $issues "Release artifact verification" `
-        $releaseArtifactText "Source commit"
+        $releaseArtifactText "Artifact source commit"
     $smokeCommit = Get-ReportField $issues "Physical release smoke" `
-        $physicalSmokeText "Source commit"
+        $physicalSmokeText "Artifact source commit"
     $uxCommit = Get-ReportField $issues "UX sign-off" $uxSignOffText "Source commit"
     $licenseCommit = Get-ReportField $issues "License boundary" `
         $licenseBoundaryText "Source commit"
@@ -181,6 +185,41 @@ function Test-SourceCommitIdentity(
     return $passed
 }
 
+function Test-ArtifactProvenance(
+    [System.Collections.Generic.List[string]] $issues,
+    [string] $label,
+    [string] $content
+) {
+    $before = $issues.Count
+    $commit = Get-ReportField $issues $label $content 'Artifact source commit'
+    $tag = Get-ReportField $issues $label $content 'Release tag'
+    $ref = Get-ReportField $issues $label $content 'Artifact source ref'
+    $workflow = Get-ReportField $issues $label $content 'Artifact source workflow'
+    $tooling = Get-ReportField $issues $label $content 'Tooling source commit'
+    $provenance = Get-ReportField $issues $label $content 'Artifact provenance'
+    if ($tag -cnotmatch '^v[0-9][0-9A-Za-z._-]*$' -or $ref -cne "refs/tags/$tag" -or
+            $workflow -cne 'stevesolun/AdAway/.github/workflows/fork-release-apk.yml' -or
+            $tooling -notmatch '^[0-9a-fA-F]{40}$' -or $commit -notmatch '^[0-9a-fA-F]{40}$' -or
+            $provenance -cne 'verified') {
+        $issues.Add("$label must bind verified artifact tag/ref/workflow and identify tooling separately.")
+    }
+    if ($label -eq 'Release artifact verification') {
+        $metadataCommit = Get-ReportField $issues $label $content 'Metadata source commit'
+        $metadataRef = Get-ReportField $issues $label $content 'Metadata source ref'
+        $metadataWorkflow = Get-ReportField $issues $label $content 'Metadata source workflow'
+        $originalMetadata = $metadataWorkflow -ceq $workflow -and
+            $metadataCommit -ceq $commit -and $metadataRef -ceq $ref
+        $refreshedMetadata = $metadataWorkflow -ceq `
+            'stevesolun/AdAway/.github/workflows/refresh-update-manifest.yml' -and
+            $metadataCommit -cmatch '^[0-9a-f]{40}$' -and
+            $metadataRef -cmatch '^refs/heads/[A-Za-z0-9_./-]+$'
+        if (-not ($originalMetadata -or $refreshedMetadata)) {
+            $issues.Add('Release metadata must have explicit original or refreshed provenance.')
+        }
+    }
+    return $issues.Count -eq $before
+}
+
 function Test-ReleaseIdentity(
     [System.Collections.Generic.List[string]] $issues,
     [string] $releaseArtifactText,
@@ -192,6 +231,14 @@ function Test-ReleaseIdentity(
     }
 
     $passed = $true
+    foreach ($field in @('Package', 'APK version', 'APK versionCode')) {
+        $artifactValue = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText $field
+        $smokeValue = Get-ReportField $issues 'Physical release smoke' $physicalSmokeText $field
+        if ($artifactValue -cne $smokeValue -or [string]::IsNullOrWhiteSpace($artifactValue)) {
+            $issues.Add("Release artifact and physical smoke $field must match.")
+            $passed = $false
+        }
+    }
     $artifactReleaseTag = Get-ReportField $issues "Release artifact verification" `
         $releaseArtifactText "Release tag"
     $smokeReleaseTag = Get-ReportField $issues "Physical release smoke" `
@@ -236,7 +283,7 @@ function Test-ReleaseIdentity(
     }
 
     $artifactCertSha256 = Normalize-Sha256 (Get-ReportField $issues `
-        "Release artifact verification" $releaseArtifactText "Manifest certificate SHA-256")
+        "Release artifact verification" $releaseArtifactText "APK certificate SHA-256")
     $smokeCertSha256 = Get-ReportField $issues "Physical release smoke" `
         $physicalSmokeText "Signer certificate SHA-256"
     if ($smokeCertSha256 -eq "not-checked") {
@@ -318,6 +365,20 @@ function Test-ReleaseArtifactEvidence(
         $releaseArtifactText "Manifest certificate SHA-256"
     $normalizedExpectedCert = Normalize-Sha256 $expectedCertSha256
     $normalizedManifestCert = Normalize-Sha256 $manifestCertSha256
+    $actualCert = Normalize-Sha256 (Get-ReportField $issues 'Release artifact verification' `
+            $releaseArtifactText 'APK certificate SHA-256')
+    $apkHash = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText 'APK SHA-256'
+    $package = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText 'Package'
+    $version = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText 'APK version'
+    $tag = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText 'Release tag'
+    $code = Get-ReportField $issues 'Release artifact verification' $releaseArtifactText 'APK versionCode'
+    if ($actualCert -notmatch '^[0-9a-f]{64}$' -or $actualCert -cne $normalizedManifestCert -or
+            $actualCert -cne $normalizedExpectedCert -or $apkHash -cnotmatch '^[0-9a-f]{64}$' -or
+            $package -cne 'org.adaway' -or "v$version" -cne $tag -or
+            $code -cnotmatch '^[1-9][0-9]*$') {
+        $issues.Add('Release artifact report must contain consistent verified APK identity and hashes.')
+        $passed = $false
+    }
     if (-not [string]::IsNullOrWhiteSpace($normalizedExpectedCert) -and
             -not [string]::IsNullOrWhiteSpace($normalizedManifestCert) -and
             $expectedCertSha256 -ne "not-provided" -and
@@ -487,7 +548,7 @@ function Write-ReadinessReport(
     $releaseApk = Get-OptionalReportField $releaseArtifactText "APK"
     $releaseApkSha256 = Get-NormalizedOptionalReportSha256 $releaseArtifactText "APK SHA-256"
     $releaseSbom = Get-OptionalReportField $releaseArtifactText "SBOM"
-    $sourceCommit = Get-OptionalReportField $releaseArtifactText "Source commit"
+    $sourceCommit = Get-OptionalReportField $releaseArtifactText "Artifact source commit"
     $uxPacketSha256 = Get-NormalizedOptionalReportSha256 `
         $uxSignOffText "Review packet SHA-256"
 
@@ -499,7 +560,7 @@ function Write-ReadinessReport(
     $lines.Add("- APK: $releaseApk")
     $lines.Add("- APK SHA-256: $releaseApkSha256")
     $lines.Add("- SBOM: $releaseSbom")
-    $lines.Add("- Source commit: $sourceCommit")
+    $lines.Add("- Artifact source commit: $sourceCommit")
     $lines.Add("- UX review packet SHA-256: $uxPacketSha256")
     $lines.Add("- UX review packet file SHA-256: $(Get-ReportSha256 $UxReviewPacket)")
     $lines.Add("- Release artifact verification: $(Format-Status $releaseArtifactPassed)")
@@ -537,7 +598,9 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
     $releaseArtifactText @(
         "# Release Artifact Verification Report",
         "- Status: passed",
-        "- Source commit:",
+        "- Artifact source commit:",
+        "- APK identity: verified",
+        "- APK debuggable: false",
         "- Release tag:",
         "- APK:",
         "- SBOM:",
@@ -552,10 +615,14 @@ $releaseArtifactPassed = Test-ReportMarkers $issues "Release artifact verificati
     )
 $releaseArtifactPassed = $releaseArtifactPassed -and
         (Test-ReleaseArtifactEvidence $issues $releaseArtifactText)
+$releaseArtifactPassed = (Test-ArtifactProvenance $issues 'Release artifact verification' `
+        $releaseArtifactText) -and $releaseArtifactPassed
 $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $physicalSmokeText @(
         "# Release Smoke Report",
         "- Status: passed",
-        "- Source commit:",
+        "- Artifact source commit:",
+        "- APK identity: verified",
+        "- APK debuggable: false",
         "- Mode: physical-device",
         "- Release tag:",
         "- APK:",
@@ -569,6 +636,8 @@ $physicalSmokePassed = Test-ReportMarkers $issues "Physical release smoke" $phys
     )
 $physicalSmokePassed = $physicalSmokePassed -and
         (Test-PhysicalSmokeEvidence $issues $physicalSmokeText)
+$physicalSmokePassed = (Test-ArtifactProvenance $issues 'Physical release smoke' `
+        $physicalSmokeText) -and $physicalSmokePassed
 $uxSignOffPassed = Test-ReportMarkers $issues "UX sign-off" $uxSignOffText @(
         "# UX Sign-Off Report",
         "- Status: passed",

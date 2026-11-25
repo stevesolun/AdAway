@@ -264,10 +264,14 @@ cd AdAway
 
 ### UX Matrix Review Packet
 
-For pre-release UI review, run the connected UX matrix on an emulator:
+For pre-release UI review, select a disposable emulator and explicitly authorize
+capture. The runner reinstalls test packages and erases AdAway app data on that
+emulator; physical devices are refused. Replace the example serial with your
+emulator's serial. Existing font and locale settings are restored afterward.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1 `
+  -DeviceSerial emulator-5554 -AllowDestructiveCapture `
   -OutputDir app\build\reports\ux-matrix
 ```
 
@@ -295,6 +299,38 @@ Successful runs upload a `ux-signoff-report` artifact with the current source
 commit and the checked packet's source commit; stale packets from another
 source revision are rejected.
 
+For release smoke, first download all six published assets into one directory:
+`AdAway_<version>.apk`, its `.sha256`, `manifest.json`, its `.sha256`,
+`adaway.cdx.json`, and its `.sha256`. Use JDK 21, PowerShell, GitHub CLI with
+read access, and Android build-tools 36.0.0 via `ANDROID_HOME` or
+`ANDROID_SDK_ROOT`. Supply the trusted manifest public key and release certificate
+pin independently of the downloaded metadata. See `RELEASING.md` for download commands.
+
+```powershell
+$Version = "<version>"
+$Tag = "v$Version"
+$Apk = "release-artifacts\AdAway_$Version.apk"
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -VerifyOnly -ReportPath release-smoke\identity-only-report.md
+# On the intended physical device; this installs/updates the app and launches it:
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -DeviceSerial "<physical-device-serial>" `
+  -ReportPath release-smoke\release-smoke-report.md
+```
+
+Both modes verify actual APK identity, authenticated metadata and all six
+attestations before device access; `-VerifyOnly` is not an offline or metadata-only
+bypass and does not satisfy the physical smoke gate. For renewed metadata, add
+both `-MetadataSourceCommit "<40-hex-refresh-workflow-commit>"` and
+`-MetadataSourceRef "refs/heads/<refresh-branch>"` to each command, using the exact
+refresh run identity. Unknown or mismatched provenance fails closed.
+
 After release artifact verification, physical release smoke, UX sign-off, and
 license-boundary checks have all produced reports, aggregate them into one final
 readiness report:
@@ -309,18 +345,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
   -ReportPath release-readiness-report.md
 ```
 
-The readiness verifier requires all proof reports to describe the same source commit.
+The readiness verifier requires all proof reports to describe the same source commit
+as the artifact: artifact/smoke `Artifact source commit` must match UX/license
+`Source commit`. Each report's separate `Tooling source commit` may differ from
+the APK commit and from the other verifier's checkout.
 It also requires the artifact verifier and physical smoke report to
 describe the same release tag, APK name, APK SHA-256, and signing certificate
 digest; do not combine proof reports from different release attempts. The
 release artifact report must come from `verify-release-artifacts` and include
-`Source commit`,
+`Artifact source commit`, `Artifact source ref`, `Artifact source workflow`,
+`Artifact provenance: verified`, `Tooling source commit`, `APK identity: verified`,
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
 The physical smoke report must come from `run-release-smoke.ps1` in
 physical-device mode and include `Release tag`, `Package`,
 `Signer certificate check: True`, `Signer certificate SHA-256`,
-`Device serial SHA-256`, `Launch pid observed`, and `Source commit`.
+`Device serial SHA-256`, `Launch pid observed`, and the same explicit artifact
+provenance and APK identity fields. Old `Source commit`-only artifact/smoke reports
+are rejected. Metadata refresh provenance is recorded separately from APK provenance.
 Use the tagged release artifact license-boundary report for
 `-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
 artifact names from the release artifact verification report, not the regular CI source-only
@@ -332,7 +374,7 @@ reviewer, review packet, `Source commit`, `Review packet source commit`,
 When `-UxReviewPacket` is provided, final readiness also hashes the checked
 review packet and requires the same review packet hash as the sign-off report.
 The generated `release-readiness-report.md` repeats the release tag, APK, APK
-SHA-256, SBOM, source commit, and UX review packet hash, then records
+SHA-256, SBOM, artifact source commit, and UX review packet hash, then records
 `Release artifact report SHA-256`, `Physical smoke report SHA-256`,
 `UX sign-off report SHA-256`, and `License boundary report SHA-256` so the final
 summary is tied to the exact proof reports it consumed.
@@ -385,7 +427,7 @@ release is created, run the manual `verify-release-artifacts.yml` workflow as
 the CI-backed post-publish artifact and attestation check; successful runs
 upload a `release-artifact-verification-report` artifact. For install/launch
 coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
-`android-device`; it downloads the tagged APK and runs the full release smoke
+`android-device`; it downloads all six tagged assets and runs the full release smoke
 against a physical device. Successful physical smoke runs upload a
 `physical-release-smoke-report` artifact with release tag, APK name, APK
 SHA-256, signer certificate identity, and the observed launch result. Regular

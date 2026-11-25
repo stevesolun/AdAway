@@ -9,6 +9,14 @@ on:
       expected_cert_sha256:
         description: "Expected release APK signing certificate SHA-256 digest"
         required: true
+      metadata_source_commit:
+        description: "For renewed metadata only: exact refresh workflow commit (40 hex)"
+        required: false
+        default: ""
+      metadata_source_ref:
+        description: "For renewed metadata only: refresh workflow ref (refs/heads/...)"
+        required: false
+        default: ""
       device_serial:
         description: "Optional adb device serial when several physical devices are attached"
         required: false
@@ -16,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  attestations: read
 
 jobs:
   smoke:
@@ -23,6 +32,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Check runner tools
         shell: bash
@@ -30,8 +47,9 @@ jobs:
           set -euo pipefail
           command -v gh
           command -v pwsh
+          test -f "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools/36.0.0/lib/apksigner.jar"
 
-      - name: Download release APK
+      - name: Download release artifact bundle
         id: apk
         shell: bash
         env:
@@ -40,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if ! [[ "$TAG" =~ ^v[^/[:space:]]+$ ]]; then
+          if ! [[ "$TAG" =~ ^v[0-9][0-9A-Za-z._-]*$ ]]; then
             echo "::error::tag must be a release tag such as v13.5.0."
             exit 1
           fi
@@ -51,26 +69,38 @@ jobs:
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
 
-          gh release download "$TAG" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --pattern "$APK_NAME" \
-            --dir "$OUT_DIR" \
-            --clobber
+          for ASSET in "$APK_NAME" "$APK_NAME.sha256" manifest.json manifest.json.sha256 adaway.cdx.json adaway.cdx.json.sha256; do
+            gh release download "$TAG" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern "$ASSET" \
+              --dir "$OUT_DIR" \
+              --clobber
+          done
 
           echo "apk_path=$OUT_DIR/$APK_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Run physical-device release smoke
         shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.UPDATE_MANIFEST_PUBLIC_KEY_BASE64 }}
           EXPECTED_CERT_SHA256: ${{ inputs.expected_cert_sha256 }}
           DEVICE_SERIAL: ${{ inputs.device_serial }}
+          TAG: ${{ inputs.tag }}
+          APK_PATH: ${{ steps.apk.outputs.apk_path }}
+          METADATA_SOURCE_COMMIT: ${{ inputs.metadata_source_commit }}
+          METADATA_SOURCE_REF: ${{ inputs.metadata_source_ref }}
         run: |
           $smokeArgs = @(
-            "-ApkPath", "${{ steps.apk.outputs.apk_path }}",
+            "-ApkPath", "$env:APK_PATH",
             "-ExpectedCertSha256", "$env:EXPECTED_CERT_SHA256",
-            "-ReleaseTag", "${{ inputs.tag }}",
+            "-ReleaseTag", "$env:TAG",
             "-ReportPath", "release-smoke/release-smoke-report.md"
           )
+          if ($env:METADATA_SOURCE_COMMIT -or $env:METADATA_SOURCE_REF) {
+            $smokeArgs += @("-MetadataSourceCommit", "$env:METADATA_SOURCE_COMMIT",
+              "-MetadataSourceRef", "$env:METADATA_SOURCE_REF")
+          }
           if (-not [string]::IsNullOrWhiteSpace($env:DEVICE_SERIAL)) {
             $smokeArgs += @("-DeviceSerial", "$env:DEVICE_SERIAL")
           }

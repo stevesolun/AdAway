@@ -654,184 +654,19 @@ public class SecurityHardeningTest {
 
     @Test
     public void atk34_releaseArtifactVerifierChecksManifestAndChecksums() throws Exception {
-        Path repo = repoDir();
-        Path fixture = Files.createTempDirectory("adaway-release-artifacts");
-        try {
-            Path apk = fixture.resolve("AdAway_13.5.0.apk");
-            writeUtf8(apk, "test apk bytes\n");
-            Path apkChecksum = Path.of(apk.toString() + ".sha256");
-            Path sbom = fixture.resolve("adaway.cdx.json");
-            writeUtf8(sbom, "{\n" +
-                    "  \"bomFormat\": \"CycloneDX\",\n" +
-                    "  \"components\": [{\"name\": \"adaway-fixture\"}]\n" +
-                    "}\n");
-            Path sbomChecksum = Path.of(sbom.toString() + ".sha256");
-            Path manifest = fixture.resolve("manifest.json");
-            Path manifestChecksum = Path.of(manifest.toString() + ".sha256");
-
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-            String privateKeyBase64 = Base64.getEncoder().encodeToString(
-                    pem("PRIVATE KEY", keyPair.getPrivate().getEncoded())
-                            .getBytes(StandardCharsets.US_ASCII));
-            String publicKeyBase64 = Base64.getEncoder().encodeToString(
-                    keyPair.getPublic().getEncoded());
-            String certSha256 =
-                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-            String apkUrl = "https://github.com/stevesolun/AdAway/releases/download/" +
-                    "v13.5.0/AdAway_13.5.0.apk";
-
-            writeChecksum(apk, apkChecksum);
-            writeChecksum(sbom, sbomChecksum);
-            assertEquals("Update manifest generator must create fixture manifest.",
-                    0, runProcess(repo,
-                            javaCommand(),
-                            repo.resolve("scripts/GenerateUpdateManifest.java").toString(),
-                            "--apk", apk.toString(),
-                            "--version", "13.5.0",
-                            "--version-code", "130500",
-                            "--cert-sha256", certSha256,
-                            "--apk-url", apkUrl,
-                            "--private-key-base64", privateKeyBase64,
-                            "--public-key-base64", publicKeyBase64,
-                            "--out", manifest.toString(),
-                            "--channel", "stable",
-                            "--store", "adaway",
-                            "--valid-days", "1").exitCode);
-
-            ProcessResult verified = runProcess(repo,
-                    javaCommand(),
-                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
-                    "--apk", apk.toString(),
-                    "--apk-sha256", apkChecksum.toString(),
-                    "--manifest", manifest.toString(),
-                    "--manifest-sha256", manifestChecksum.toString(),
-                    "--sbom", sbom.toString(),
-                    "--sbom-sha256", sbomChecksum.toString(),
-                    "--public-key-base64", publicKeyBase64,
-                    "--expected-version", "13.5.0",
-                    "--expected-channel", "stable",
-                    "--expected-store", "adaway",
-                    "--expected-apk-url", apkUrl,
-                    "--expected-cert-sha256", certSha256);
-            assertEquals("Release artifact verifier must accept matching artifacts.",
-                    0, verified.exitCode);
-            assertTrue("Passing verifier must report success.",
-                    verified.stdout.contains("Release artifact verification passed"));
-
-            Path fakeGhLog = fixture.resolve("fake-gh.log");
-            Path fakeGh = writeFakeGitHubCli(fixture, fakeGhLog);
-            Path report = fixture.resolve("verification-report.md");
-            java.util.Map<String, String> environment = new java.util.HashMap<>();
-            environment.put("GH_CLI_PATH", fakeGh.toString());
-            environment.put("FAKE_GH_LOG", fakeGhLog.toString());
-            ProcessResult attested = runProcess(repo,
-                    environment,
-                    javaCommand(),
-                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
-                    "--apk", apk.toString(),
-                    "--apk-sha256", apkChecksum.toString(),
-                    "--manifest", manifest.toString(),
-                    "--manifest-sha256", manifestChecksum.toString(),
-                    "--sbom", sbom.toString(),
-                    "--sbom-sha256", sbomChecksum.toString(),
-                    "--public-key-base64", publicKeyBase64,
-                    "--expected-version", "13.5.0",
-                    "--expected-channel", "stable",
-                    "--expected-store", "adaway",
-                    "--expected-apk-url", apkUrl,
-                    "--expected-cert-sha256", certSha256,
-                    "--report", report.toString(),
-                    "--verify-attestations");
-            assertEquals("Verifier must accept matching artifacts when attestations pass.",
-                    0, attested.exitCode);
-            assertTrue("Verifier must write the requested verification report.",
-                    Files.isRegularFile(report));
-            String reportText = readUtf8(report);
-            assertTrue("Verification report must summarize release artifact proof.",
-                    reportText.contains("# Release Artifact Verification Report") &&
-                            reportText.contains("- Status: passed") &&
-                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
-                                    .matcher(reportText)
-                                    .find() &&
-                            reportText.contains("- Release tag: v13.5.0") &&
-                            reportText.contains("- APK: AdAway_13.5.0.apk") &&
-                            reportText.contains("- Expected version: 13.5.0") &&
-                            reportText.contains("- Expected channel: stable") &&
-                            reportText.contains("- Expected store: adaway") &&
-                            reportText.contains("- Checksum verification: passed") &&
-                            reportText.contains("- Manifest signature: passed") &&
-                            reportText.contains("- Manifest payload: passed") &&
-                            reportText.contains("- Attestations: verified") &&
-                            reportText.contains("- Attested artifacts: 6"));
-            assertFalse("Verification report must not leak the manifest public key.",
-                    reportText.contains(publicKeyBase64));
-            String fakeGhCalls = readUtf8(fakeGhLog);
-            assertEquals("Verifier must run one attestation check per uploaded release asset.",
-                    6, countMatches(fakeGhCalls, "attestation verify"));
-            assertTrue("Verifier must attest the APK and its checksum sidecar.",
-                    fakeGhCalls.contains(apk.getFileName().toString()) &&
-                            fakeGhCalls.contains(apkChecksum.getFileName().toString()));
-            assertTrue("Verifier must attest the manifest and its checksum sidecar.",
-                    fakeGhCalls.contains(manifest.getFileName().toString()) &&
-                            fakeGhCalls.contains(manifestChecksum.getFileName().toString()));
-            assertTrue("Verifier must attest the SBOM and its checksum sidecar.",
-                    fakeGhCalls.contains(sbom.getFileName().toString()) &&
-                            fakeGhCalls.contains(sbomChecksum.getFileName().toString()));
-
-            Path flakyGhLog = fixture.resolve("flaky-gh.log");
-            Path flakyGhState = fixture.resolve("flaky-gh-state");
-            Path flakyGh = writeFlakyGitHubCli(fixture, flakyGhLog, flakyGhState);
-            java.util.Map<String, String> flakyEnvironment = new java.util.HashMap<>();
-            flakyEnvironment.put("GH_CLI_PATH", flakyGh.toString());
-            flakyEnvironment.put("FAKE_GH_LOG", flakyGhLog.toString());
-            flakyEnvironment.put("FAKE_GH_STATE", flakyGhState.toString());
-            ProcessResult retried = runProcess(repo,
-                    flakyEnvironment,
-                    javaCommand(),
-                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
-                    "--apk", apk.toString(),
-                    "--apk-sha256", apkChecksum.toString(),
-                    "--manifest", manifest.toString(),
-                    "--manifest-sha256", manifestChecksum.toString(),
-                    "--sbom", sbom.toString(),
-                    "--sbom-sha256", sbomChecksum.toString(),
-                    "--public-key-base64", publicKeyBase64,
-                    "--expected-version", "13.5.0",
-                    "--expected-channel", "stable",
-                    "--expected-store", "adaway",
-                    "--expected-apk-url", apkUrl,
-                    "--expected-cert-sha256", certSha256,
-                    "--verify-attestations");
-            assertEquals("Verifier must retry transient GitHub attestation lookup misses.",
-                    0, retried.exitCode);
-            assertTrue("Retry proof must include the initial failed attestation lookup.",
-                    readUtf8(flakyGhLog).contains("transient-miss"));
-
-            writeUtf8(apk, "tampered apk bytes\n");
-            ProcessResult rejected = runProcess(repo,
-                    javaCommand(),
-                    repo.resolve("scripts/VerifyReleaseArtifacts.java").toString(),
-                    "--apk", apk.toString(),
-                    "--apk-sha256", apkChecksum.toString(),
-                    "--manifest", manifest.toString(),
-                    "--manifest-sha256", manifestChecksum.toString(),
-                    "--sbom", sbom.toString(),
-                    "--sbom-sha256", sbomChecksum.toString(),
-                    "--public-key-base64", publicKeyBase64,
-                    "--expected-version", "13.5.0",
-                    "--expected-channel", "stable",
-                    "--expected-store", "adaway",
-                    "--expected-apk-url", apkUrl,
-                    "--expected-cert-sha256", certSha256);
-            assertTrue("Tampered APK must fail release artifact verification.",
-                    rejected.exitCode != 0);
-            assertTrue("Failure must identify checksum drift.",
-                    rejected.stderr.contains("Checksum mismatch for"));
-        } finally {
-            deleteRecursively(fixture);
-        }
+        ReleaseArtifactTestHarness.run(repoDir(),
+                "test_real_signed_apk_passes_and_unattested_source_is_unknown",
+                "test_non_apk_unsigned_and_extra_signer_fail_with_authenticated_metadata",
+                "test_identity_mismatches_fail_with_authenticated_metadata",
+                "test_metadata_version_code_is_required_and_positive",
+                "test_signature_expiry_checksum_and_pin_checks_remain",
+                "test_tampered_signed_apk_fails_even_after_metadata_is_resigned",
+                "test_source_tag_commit_workflow_policy_covers_all_six_artifacts",
+                "test_mismatched_provenance_rejects_even_when_metadata_and_apk_match",
+                "test_unknown_failed_or_moving_tag_is_rejected",
+                "test_metadata_refresh_is_explicit_and_distinct_from_apk_source",
+                "test_stale_success_report_removed_on_identity_failure",
+                "test_transient_attestation_lookup_is_retried");
     }
 
     @Test
@@ -1102,7 +937,7 @@ public class SecurityHardeningTest {
     }
 
     @Test
-    public void atk34_releaseSmokeRequiresReleaseApkOnRealDevice() throws IOException {
+    public void atk34_releaseSmokeRequiresReleaseApkOnRealDevice() throws Exception {
         Path repo = repoDir();
         Path smokeWorkflowPath = repo.resolve(".github/workflows/physical-release-smoke.yml");
         String smokeScript = readUtf8(repo.resolve("scripts/run-release-smoke.ps1"));
@@ -1112,10 +947,13 @@ public class SecurityHardeningTest {
         assertTrue("Release smoke must require an explicit APK path.",
                 smokeScript.contains("[Parameter(Mandatory = $true)]") &&
                         smokeScript.contains("$ApkPath"));
-        assertTrue("Release smoke must inspect APK badging.",
-                smokeScript.contains("aapt") && smokeScript.contains("dump badging"));
-        assertTrue("Release smoke must reject debuggable APKs.",
-                smokeScript.contains("application-debuggable"));
+        ReleaseArtifactTestHarness.run(repo,
+                "test_smoke_verifies_bundle_before_any_device_access",
+                "test_smoke_rejects_emulator_before_install",
+                "test_smoke_wrong_certificate_and_actual_signer_fail_before_device_access");
+        assertTrue("Release smoke must use the canonical identity and provenance verifier.",
+                smokeScript.contains("VerifyReleaseArtifacts.java") &&
+                        smokeScript.contains("'--verify-attestations'"));
         assertTrue("Release smoke must support artifact identity verification without device I/O.",
                 smokeScript.contains("[switch] $VerifyOnly") &&
                         smokeScript.contains("APK identity verification passed") &&
@@ -1124,14 +962,6 @@ public class SecurityHardeningTest {
                 smokeScript.contains("$ReportPath") &&
                         smokeScript.contains("Write-ReleaseSmokeReport") &&
                         smokeScript.contains("Release Smoke Report"));
-        assertTrue("Release smoke must preserve colon-separated signer certificate digests.",
-                smokeScript.contains("certificate SHA-256 digest:\\s*") &&
-                        smokeScript.contains("Signer #1 certificate SHA-256 digest was not found") &&
-                        !smokeScript.contains("-replace \"^.*:\\s*\""));
-        assertTrue("Release smoke must compare normalized signer digests, not parser tokens.",
-                smokeScript.contains("$actualCertSha256 = Normalize-Sha256 $actualCert") &&
-                        smokeScript.contains("$actualCertSha256 -ne " +
-                        "(Normalize-Sha256 $ExpectedCertSha256)"));
         int verifyOnlyIndex = smokeScript.indexOf("if ($VerifyOnly)");
         int adbDiscoveryIndex = smokeScript.indexOf("$adb = Find-CommandOrSdkTool");
         assertTrue("Artifact-only verification must not require adb discovery.",
@@ -1148,7 +978,10 @@ public class SecurityHardeningTest {
                 smokeScript.contains("org.adaway"));
         assertTrue("Release docs must include the real-device smoke command.",
                 releasing.contains(".\\scripts\\run-release-smoke.ps1") &&
-                        releasing.contains("-ApkPath $Apk"));
+                        releasing.contains("-ApkPath $Apk") &&
+                        releasing.contains("-ReleaseTag $Tag") &&
+                        releasing.contains("-PublicKeyBase64") &&
+                        releasing.contains("all six"));
         assertTrue("Release docs must document identity-only release APK verification.",
                 releasing.contains("-VerifyOnly") &&
                         releasing.contains("without requiring a connected device"));
@@ -1203,120 +1036,17 @@ public class SecurityHardeningTest {
     @Test
     public void atk34_releaseSmokeVerifyOnlyUsesHighestParsedBuildToolsVersion()
             throws Exception {
-        String powershell = findPowerShell();
-        assumeTrue("PowerShell is required to exercise the release-smoke script.",
-                powershell != null);
-
-        Path fixture = Files.createTempDirectory("adaway-release-smoke");
-        try {
-            Path apk = fixture.resolve("release.apk");
-            Path report = fixture.resolve("release-smoke-report.md");
-            writeUtf8(apk, "fake release apk\n");
-            Path sdk = fixture.resolve("android-sdk");
-            writeFakeBuildTool(sdk, "9.0.0", "aapt",
-                    "package: name='wrong.package' versionCode='1' versionName='0.0.0'");
-            writeFakeBuildTool(sdk, "36.0.0", "aapt",
-                    "package: name='org.adaway' versionCode='130500' versionName='13.5.0'");
-
-            java.util.Map<String, String> environment = new java.util.HashMap<>();
-            environment.put("ANDROID_HOME", sdk.toString());
-            environment.put("ANDROID_SDK_ROOT", null);
-
-            ProcessResult result = runProcess(repoDir(), environment,
-                    powershell,
-                    "-NoProfile",
-                    "-ExecutionPolicy", "Bypass",
-                    "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
-                    "-ApkPath", apk.toString(),
-                    "-ReportPath", report.toString(),
-                    "-ReleaseTag", "v13.5.0",
-                    "-VerifyOnly");
-
-            assertEquals("Release smoke must select build-tools 36.0.0 over stale 9.0.0.",
-                    0, result.exitCode);
-            assertTrue("VerifyOnly smoke must stop before adb/device checks.",
-                    result.stdout.contains("Physical-device install/launch smoke was not run"));
-            assertTrue("VerifyOnly smoke must write the requested report.",
-                    Files.isRegularFile(report));
-            String reportText = readUtf8(report);
-            assertTrue("Release smoke report must describe identity-only mode.",
-                    reportText.contains("# Release Smoke Report") &&
-                            reportText.contains("- Status: passed") &&
-                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
-                                    .matcher(reportText)
-                                    .find() &&
-                            reportText.contains("- Mode: identity-only") &&
-                            reportText.contains("- Release tag: v13.5.0") &&
-                            reportText.contains("- Physical device: not-run"));
-            assertTrue("Release smoke report must include APK identity in verify-only mode.",
-                    reportText.contains("- APK SHA-256: " +
-                            sha256Hex("fake release apk\n".getBytes(StandardCharsets.UTF_8))) &&
-                            reportText.contains("- Signer certificate SHA-256: not-checked"));
-        } finally {
-            deleteRecursively(fixture);
-        }
+        ReleaseArtifactTestHarness.run(repoDir(),
+                "test_smoke_prefers_pinned_tools_over_old_new_and_path",
+                "test_smoke_verifies_bundle_before_any_device_access",
+                "test_smoke_provenance_failure_never_reaches_adb");
     }
 
     @Test
     public void atk34_releaseSmokeReportRecordsPhysicalLaunchWithoutSerialLeak()
             throws Exception {
-        String powershell = findPowerShell();
-        assumeTrue("PowerShell is required to exercise the release-smoke script.",
-                powershell != null);
-
-        Path fixture = Files.createTempDirectory("adaway-release-smoke-physical");
-        try {
-            Path apk = fixture.resolve("release.apk");
-            Path report = fixture.resolve("release-smoke-report.md");
-            writeUtf8(apk, "fake release apk\n");
-            String certSha256 =
-                    "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-            Path sdk = fixture.resolve("android-sdk");
-            writeFakeBuildTool(sdk, "36.0.0", "aapt",
-                    "package: name='org.adaway' versionCode='130500' versionName='13.5.0'");
-            writeFakeBuildTool(sdk, "36.0.0", "apksigner",
-                    "Signer #1 certificate SHA-256 digest: " + certSha256);
-            writeFakeAdb(sdk, "device-123", "4242");
-
-            java.util.Map<String, String> environment = new java.util.HashMap<>();
-            environment.put("ANDROID_HOME", sdk.toString());
-            environment.put("ANDROID_SDK_ROOT", null);
-
-            ProcessResult result = runProcess(repoDir(), environment,
-                    powershell,
-                    "-NoProfile",
-                    "-ExecutionPolicy", "Bypass",
-                    "-File", repoDir().resolve("scripts/run-release-smoke.ps1").toString(),
-                    "-ApkPath", apk.toString(),
-                    "-ReportPath", report.toString(),
-                    "-ExpectedCertSha256", certSha256,
-                    "-ReleaseTag", "v13.5.0",
-                    "-LaunchWaitSeconds", "0",
-                    "-DeviceSerial", "device-123");
-
-            assertEquals("Release smoke must pass against the fake physical adb.",
-                    0, result.exitCode);
-            String reportText = readUtf8(report);
-            assertTrue("Physical release smoke report must record launch evidence.",
-                    reportText.contains("- Mode: physical-device") &&
-                            Pattern.compile("(?m)^- Source commit: [0-9a-f]{40}$")
-                                    .matcher(reportText)
-                                    .find() &&
-                            reportText.contains("- Release tag: v13.5.0") &&
-                            reportText.contains("- Physical device: verified-real-device") &&
-                            reportText.contains("- Launch pid observed: 4242"));
-            assertTrue("Physical release smoke report must hash the device serial.",
-                    reportText.contains("- Device serial SHA-256: " +
-                            sha256Hex("device-123".getBytes(StandardCharsets.UTF_8))));
-            assertTrue("Physical release smoke report must record the tested APK identity.",
-                    reportText.contains("- APK SHA-256: " +
-                            sha256Hex("fake release apk\n".getBytes(StandardCharsets.UTF_8))) &&
-                            reportText.contains("- Signer certificate SHA-256: " + certSha256));
-            assertFalse("Physical release smoke report must not leak the raw device serial.",
-                    reportText.contains("device-123"));
-        } finally {
-            deleteRecursively(fixture);
-        }
+        ReleaseArtifactTestHarness.run(repoDir(),
+                "test_smoke_physical_report_binds_identity_and_redacts_serial");
     }
 
     @Test
