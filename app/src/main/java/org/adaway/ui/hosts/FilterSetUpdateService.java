@@ -11,6 +11,7 @@ import androidx.work.WorkManager;
 
 import org.adaway.helper.PreferenceHelper;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,11 +44,34 @@ public final class FilterSetUpdateService {
 
     public static void syncPreferences(@NonNull Context context) {
         FilterSetStore.ensureGlobalDefaults(context);
-        if (FilterSetStore.isGlobalScheduleEnabled(context)) {
+        if (hasEnabledSchedule(context)) {
             enable(context);
         } else {
             disable(context);
         }
+    }
+
+    private static boolean hasEnabledSchedule(@NonNull Context context) {
+        if (FilterSetStore.isGlobalScheduleEnabled(context)
+                && FilterSetStore.getGlobalSchedule(context) != FilterSetStore.SCHEDULE_OFF) {
+            return true;
+        }
+        for (String name : FilterSetStore.getSetNames(context)) {
+            if (FilterSetStore.getSchedule(context, name) != FilterSetStore.SCHEDULE_OFF) {
+                return true;
+            }
+        }
+        // Reconciliation also runs in a receiver: do not query Room on the main thread.
+        // Retain configured URL schedules even while their sources are disabled or absent.
+        for (Map.Entry<String, ?> entry : context.getSharedPreferences(
+                "source_schedules", Context.MODE_PRIVATE).getAll().entrySet()) {
+            if (entry.getKey().startsWith("schedule_url_")
+                    && (Integer.valueOf(FilterSetStore.SCHEDULE_DAILY).equals(entry.getValue())
+                    || Integer.valueOf(FilterSetStore.SCHEDULE_WEEKLY).equals(entry.getValue()))) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

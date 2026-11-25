@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -11,12 +12,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.os.SystemClock;
+import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
+import android.widget.PopupMenu;
 
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -25,6 +30,8 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.textfield.TextInputEditText;
 
 import org.adaway.AdAwayApplication;
@@ -34,7 +41,10 @@ import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
 import org.adaway.db.entity.RuleKind;
+import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
@@ -43,8 +53,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.Optional;
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -71,6 +83,9 @@ public class SourceEditAddEditInstrumentedTest {
     private static final String DELETE_URL = "https://example.com/adaway-delete-proof.txt";
 
     private Context context;
+    private AdAwayApplication application;
+    private AdBlockModel previousAdBlockModel;
+    private boolean adBlockModelInjected;
     private SourceModel sourceModel;
     private OkHttpClient previousHttpClient;
 
@@ -78,6 +93,11 @@ public class SourceEditAddEditInstrumentedTest {
     public void setUp() throws Exception {
         this.context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(this.context, "set up source add edit");
+        this.application = (AdAwayApplication) this.context.getApplicationContext();
+        Field adBlockModel = adBlockModelField();
+        this.previousAdBlockModel = (AdBlockModel) adBlockModel.get(this.application);
+        adBlockModel.set(this.application, new InertAdBlockModel(this.context));
+        this.adBlockModelInjected = true;
         AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
         waitForDiskIoIdle();
         resetSources(this.context);
@@ -97,14 +117,479 @@ public class SourceEditAddEditInstrumentedTest {
     public void tearDown() throws Exception {
         finishResumedActivities();
         if (this.context != null) {
-            InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down source add edit");
-            resetSources(this.context);
+            waitForDiskIoIdle();
+            if (this.adBlockModelInjected) {
+                try (SourceOperationCoordinator.Lease ignored = awaitIdleOperation()) {
+                    InstrumentedTestState.resetForPassiveRootUi(
+                            this.context, "tear down source add edit");
+                    resetSources(this.context);
+                    if (this.sourceModel != null) {
+                        Field client = SourceModel.class.getDeclaredField("cachedHttpClient");
+                        client.setAccessible(true);
+                        client.set(this.sourceModel, this.previousHttpClient);
+                    }
+                    adBlockModelField().set(this.application, this.previousAdBlockModel);
+                    this.adBlockModelInjected = false;
+                }
+            } else {
+                InstrumentedTestState.resetForPassiveRootUi(
+                        this.context, "tear down source add edit");
+                resetSources(this.context);
+            }
         }
-        if (this.sourceModel != null) {
-            Field client = SourceModel.class.getDeclaredField("cachedHttpClient");
-            client.setAccessible(true);
-            client.set(this.sourceModel, this.previousHttpClient);
+    }
+
+    private SourceOperationCoordinator.Lease awaitIdleOperation() {
+        long deadline = SystemClock.elapsedRealtime() + TIMEOUT_MS;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            SourceOperationCoordinator.Lease lease =
+                    this.application.getSourceOperations().tryAcquire();
+            if (lease != null) {
+                return lease;
+            }
+            SystemClock.sleep(50);
         }
+        throw new AssertionError("Refusing to restore the real model while source work is active.");
+    }
+
+    private static Field adBlockModelField() throws Exception {
+        Field field = AdAwayApplication.class.getDeclaredField("adBlockModel");
+        field.setAccessible(true);
+        return field;
+    }
+
+    @Test(timeout = 120_000)
+    public void existingAllowSourceLoadsCorrectlyAndLabelEditPreservesFormat() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> {
+            HostsSource source = database.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow();
+            source.setAllowEnabled(true);
+            database.hostsSourceDao().update(source);
+        });
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            SourceEditActivity activity = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(activity, R.id.labelEditText, DELETE_LABEL);
+            scenario.onActivity(owner -> {
+                assertTrue("Initial hydration must select the stored Allow format",
+                        ((MaterialButton) owner.findViewById(R.id.allow_format_button)).isChecked());
+                assertFalse(((MaterialButton) owner.findViewById(R.id.block_format_button))
+                        .isChecked());
+            });
+            saveSource(activity, EDIT_LABEL, DELETE_URL);
+            waitForSourceLabel(DELETE_URL, EDIT_LABEL);
+            assertTrue(waitForSource(DELETE_URL).isAllowEnabled());
+            assertEquals("Renaming must not clear downloaded rows", 1,
+                    countListRowsForSource(DELETE_SOURCE_ID));
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void delayedReloadAfterRecreationPreservesUrlAndNewerDraftEdits() throws Exception {
+        seedDownloadedSource(this.context);
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForFieldText(waitForActivity(SourceEditActivity.class), R.id.labelEditText,
+                    DELETE_LABEL);
+            scenario.onActivity(activity -> {
+                ((TextView) activity.findViewById(R.id.labelEditText)).setText(EDIT_LABEL);
+                ((TextView) activity.findViewById(R.id.location_edit_text)).setText(EDIT_URL);
+                activity.findViewById(R.id.allow_format_button).performClick();
+            });
+            holdDiskIo(release);
+            scenario.recreate();
+            SourceEditActivity restored = waitForActivity(SourceEditActivity.class);
+            assertFieldText(restored, R.id.labelEditText, EDIT_LABEL);
+            assertFieldText(restored, R.id.location_edit_text, EDIT_URL);
+            scenario.onActivity(activity -> {
+                assertTrue(((MaterialButton) activity.findViewById(R.id.allow_format_button))
+                        .isChecked());
+                ((TextView) activity.findViewById(R.id.labelEditText)).setText("Newer draft");
+            });
+            release.countDown();
+            waitForDiskIoIdle();
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            assertFieldText(restored, R.id.labelEditText, "Newer draft");
+            assertFieldText(restored, R.id.location_edit_text, EDIT_URL);
+            assertEquals("Draft must not be saved by recreation", DELETE_LABEL,
+                    waitForSource(DELETE_URL).getLabel());
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void recreationBeforeFirstLoadStillLoadsSource() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> {
+            HostsSource source = database.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow();
+            source.setAllowEnabled(true);
+            database.hostsSourceDao().update(source);
+        });
+        CountDownLatch release = new CountDownLatch(1);
+        holdDiskIo(release);
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            scenario.onActivity(activity -> assertFalse(
+                    activity.findViewById(R.id.labelEditText).isEnabled()));
+            scenario.recreate();
+            release.countDown();
+            SourceEditActivity restored = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(restored, R.id.labelEditText, DELETE_LABEL);
+            assertFieldText(restored, R.id.location_edit_text, DELETE_URL);
+            scenario.onActivity(activity -> {
+                assertTrue(activity.findViewById(R.id.labelEditText).isEnabled());
+                assertTrue(((MaterialButton) activity.findViewById(R.id.allow_format_button))
+                        .isChecked());
+            });
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void fileDraftAndRedirectFormatSurviveRecreationWithoutPicker() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> {
+            HostsSource source = database.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow();
+            source.setUrl("content://org.adaway.test/initial-hosts");
+            database.hostsSourceDao().update(source);
+        });
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        String draftFile = "content://org.adaway.test/draft-hosts";
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForFieldText(waitForActivity(SourceEditActivity.class), R.id.labelEditText,
+                    DELETE_LABEL);
+            scenario.onActivity(activity -> {
+                assertTrue("Initial load must select the stored File type",
+                        ((MaterialButton) activity.findViewById(R.id.file_button)).isChecked());
+                ((TextView) activity.findViewById(R.id.file_location_text_view)).setText(draftFile);
+                ((MaterialCheckBox) activity.findViewById(R.id.redirected_hosts_checkbox))
+                        .setChecked(true);
+            });
+            scenario.recreate();
+            waitForDiskIoIdle();
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            assertFieldText(waitForActivity(SourceEditActivity.class),
+                    R.id.file_location_text_view, draftFile);
+            scenario.onActivity(activity -> {
+                assertTrue(((MaterialButton) activity.findViewById(R.id.file_button)).isChecked());
+                assertTrue(((MaterialCheckBox) activity.findViewById(R.id.redirected_hosts_checkbox))
+                        .isChecked());
+                assertFalse(activity.findViewById(R.id.location_edit_text).isEnabled());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.file_location_text_view).getVisibility());
+            });
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void addDraftOverridesIntentPrefillAfterRecreation() throws Exception {
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, ADD_LABEL)
+                .putExtra(SourceEditActivity.EXTRA_INITIAL_URL, ADD_URL);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            scenario.onActivity(activity -> {
+                ((TextView) activity.findViewById(R.id.labelEditText)).setText(EDIT_LABEL);
+                ((TextView) activity.findViewById(R.id.location_edit_text)).setText(EDIT_URL);
+            });
+            scenario.recreate();
+            SourceEditActivity restored = waitForActivity(SourceEditActivity.class);
+            assertFieldText(restored, R.id.labelEditText, EDIT_LABEL);
+            assertFieldText(restored, R.id.location_edit_text, EDIT_URL);
+            assertFalse(AppDatabase.getInstance(this.context).hostsSourceDao()
+                    .getByUrl(EDIT_URL).isPresent());
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void pendingAddSurvivesRecreationAndRejectsRepeatedApply() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario =
+                     ActivityScenario.launch(SourceEditActivity.class)) {
+            SourceEditActivity original = waitForActivity(SourceEditActivity.class);
+            SourceEditViewModel model = editorModel(scenario);
+            holdDiskIo(release);
+            saveSource(original, ADD_LABEL, ADD_URL);
+            assertPendingEditor(scenario, model);
+            scenario.onActivity(activity -> dispatchEditorAction(activity, R.id.apply_action));
+            scenario.recreate();
+            SourceEditActivity restored = waitForActivity(SourceEditActivity.class);
+            assertPendingEditor(scenario, model);
+            assertFieldText(restored, R.id.labelEditText, ADD_LABEL);
+            assertFieldText(restored, R.id.location_edit_text, ADD_URL);
+            scenario.onActivity(activity -> {
+                dispatchEditorAction(activity, R.id.apply_action);
+                // Exercise the retained owner's guard independently of the menu guard.
+                HostsSource duplicate = new HostsSource();
+                duplicate.setLabel(EDIT_LABEL);
+                duplicate.setUrl(EDIT_URL);
+                model.saveSource(-1, duplicate);
+            });
+            release.countDown();
+            awaitEditorClosed(scenario);
+            assertEquals(ADD_LABEL, waitForSource(ADD_URL).getLabel());
+            assertFalse(AppDatabase.getInstance(this.context).hostsSourceDao()
+                    .getByUrl(EDIT_URL).isPresent());
+            assertMutationSucceeded(model);
+        } finally {
+            release.countDown();
+            waitForDiskIoIdle();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void pendingLabelSaveClosesRecreatedEditorAndPreservesAllowRules() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> {
+            HostsSource source = database.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow();
+            source.setAllowEnabled(true);
+            database.hostsSourceDao().update(source);
+        });
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            SourceEditActivity original = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(original, R.id.labelEditText, DELETE_LABEL);
+            SourceEditViewModel model = editorModel(scenario);
+            holdDiskIo(release);
+            saveSource(original, EDIT_LABEL, DELETE_URL);
+            scenario.recreate();
+            assertPendingEditor(scenario, model);
+            scenario.onActivity(activity -> {
+                assertTrue(((MaterialButton) activity.findViewById(R.id.allow_format_button))
+                        .isChecked());
+                assertFalse(((MaterialButton) activity.findViewById(R.id.block_format_button))
+                        .isChecked());
+                dispatchEditorAction(activity, R.id.apply_action);
+            });
+            release.countDown();
+            awaitEditorClosed(scenario);
+            HostsSource saved = waitForSource(DELETE_URL);
+            assertEquals(EDIT_LABEL, saved.getLabel());
+            assertEquals(DELETE_SOURCE_ID, saved.getId());
+            assertTrue(saved.isAllowEnabled());
+            assertEquals(1, countListRowsForSource(DELETE_SOURCE_ID));
+            assertMutationSucceeded(model);
+        } finally {
+            release.countDown();
+            waitForDiskIoIdle();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void pendingDeleteClosesRecreatedEditorWithoutResubmission() throws Exception {
+        seedDownloadedSource(this.context);
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForFieldText(waitForActivity(SourceEditActivity.class), R.id.labelEditText,
+                    DELETE_LABEL);
+            SourceEditViewModel model = editorModel(scenario);
+            holdDiskIo(release);
+            confirmEditorDelete();
+            assertPendingEditor(scenario, model);
+            scenario.recreate();
+            assertPendingEditor(scenario, model);
+            scenario.onActivity(activity -> {
+                dispatchEditorAction(activity, R.id.apply_action);
+                dispatchEditorAction(activity, R.id.delete_action);
+                model.deleteSource(DELETE_SOURCE_ID);
+            });
+            release.countDown();
+            awaitEditorClosed(scenario);
+            waitForSourceMissing(DELETE_URL);
+            assertEquals(0, countListRowsForSource(DELETE_SOURCE_ID));
+            assertMutationSucceeded(model);
+        } finally {
+            release.countDown();
+            waitForDiskIoIdle();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void duplicateSaveErrorSurvivesStoppedOwnerAndRecreationThenRetries() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> {
+            HostsSource other = new HostsSource();
+            other.setLabel(ADD_LABEL);
+            other.setUrl(ADD_URL);
+            database.hostsSourceDao().insert(other);
+        });
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            SourceEditActivity original = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(original, R.id.labelEditText, DELETE_LABEL);
+            SourceEditViewModel model = editorModel(scenario);
+            holdDiskIo(release);
+            saveSource(original, EDIT_LABEL, ADD_URL);
+            scenario.recreate();
+            assertPendingEditor(scenario, model);
+            scenario.moveToState(Lifecycle.State.CREATED);
+            release.countDown();
+            waitForDiskIoIdle();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                    assertEquals(SourceEditViewModel.Status.DUPLICATE_URL,
+                            model.getStatus().getValue()));
+            scenario.moveToState(Lifecycle.State.RESUMED);
+            assertRetryableEditor(scenario, R.string.source_edit_duplicate_url);
+            scenario.recreate();
+            waitForDiskIoIdle();
+            assertRetryableEditor(scenario, R.string.source_edit_duplicate_url);
+            SourceEditActivity restored = waitForActivity(SourceEditActivity.class);
+            assertFieldText(restored, R.id.labelEditText, EDIT_LABEL);
+            assertFieldText(restored, R.id.location_edit_text, ADD_URL);
+            assertEquals(DELETE_LABEL, waitForSource(DELETE_URL).getLabel());
+            assertEquals(1, countListRowsForSource(DELETE_SOURCE_ID));
+            saveSource(restored, EDIT_LABEL, DELETE_URL);
+            awaitEditorClosed(scenario);
+            assertEquals(EDIT_LABEL, waitForSource(DELETE_URL).getLabel());
+            assertEquals(ADD_LABEL, waitForSource(ADD_URL).getLabel());
+            assertMutationSucceeded(model);
+        } finally {
+            release.countDown();
+            waitForDiskIoIdle();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void failedDeleteSurvivesRecreationAndAllowsConfirmedRetry() throws Exception {
+        seedDownloadedSource(this.context);
+        runDatabaseWork(this.context, database -> database.getOpenHelper().getWritableDatabase()
+                .execSQL("CREATE TRIGGER editor_delete_failure BEFORE DELETE ON hosts_sources "
+                        + "WHEN OLD.id = " + DELETE_SOURCE_ID
+                        + " BEGIN SELECT RAISE(ABORT, 'editor delete test'); END"));
+        Intent intent = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(intent)) {
+            waitForFieldText(waitForActivity(SourceEditActivity.class), R.id.labelEditText,
+                    DELETE_LABEL);
+            SourceEditViewModel model = editorModel(scenario);
+            holdDiskIo(release);
+            confirmEditorDelete();
+            scenario.recreate();
+            assertPendingEditor(scenario, model);
+            release.countDown();
+            waitForDiskIoIdle();
+            assertRetryableEditor(scenario, R.string.source_edit_save_failed);
+            scenario.recreate();
+            waitForDiskIoIdle();
+            assertRetryableEditor(scenario, R.string.source_edit_save_failed);
+            assertEquals(DELETE_SOURCE_ID, waitForSource(DELETE_URL).getId());
+            assertEquals(1, countListRowsForSource(DELETE_SOURCE_ID));
+            runDatabaseWork(this.context, database -> database.getOpenHelper()
+                    .getWritableDatabase().execSQL("DROP TRIGGER editor_delete_failure"));
+            confirmEditorDelete();
+            awaitEditorClosed(scenario);
+            waitForSourceMissing(DELETE_URL);
+            assertMutationSucceeded(model);
+        } finally {
+            release.countDown();
+            waitForDiskIoIdle();
+            runDatabaseWork(this.context, database -> database.getOpenHelper()
+                    .getWritableDatabase().execSQL("DROP TRIGGER IF EXISTS editor_delete_failure"));
+        }
+    }
+
+    private static SourceEditViewModel editorModel(ActivityScenario<SourceEditActivity> scenario) {
+        AtomicReference<SourceEditViewModel> model = new AtomicReference<>();
+        scenario.onActivity(activity -> model.set(
+                new ViewModelProvider(activity).get(SourceEditViewModel.class)));
+        return model.get();
+    }
+
+    private static Menu editorMenu(SourceEditActivity activity) {
+        Menu menu = new PopupMenu(activity, activity.findViewById(R.id.labelEditText)).getMenu();
+        activity.onCreateOptionsMenu(menu);
+        activity.onPrepareOptionsMenu(menu);
+        return menu;
+    }
+
+    private static void dispatchEditorAction(SourceEditActivity activity, int action) {
+        assertTrue(activity.onOptionsItemSelected(editorMenu(activity).findItem(action)));
+    }
+
+    private static void assertPendingEditor(ActivityScenario<SourceEditActivity> scenario,
+                                           SourceEditViewModel model) {
+        scenario.onActivity(activity -> {
+            assertSame(model, new ViewModelProvider(activity).get(SourceEditViewModel.class));
+            assertEquals(SourceEditViewModel.Status.PENDING, model.getStatus().getValue());
+            assertFalse(activity.isFinishing());
+            int[] controls = {R.id.labelEditText, R.id.location_edit_text, R.id.url_button,
+                    R.id.file_button, R.id.block_format_button, R.id.allow_format_button,
+                    R.id.redirected_hosts_checkbox, R.id.file_location_text_view};
+            for (int id : controls) {
+                assertFalse("Pending control must stay disabled: " + id,
+                        activity.findViewById(id).isEnabled());
+            }
+            Menu menu = editorMenu(activity);
+            assertFalse(menu.findItem(R.id.apply_action).isEnabled());
+            assertFalse(menu.findItem(R.id.delete_action).isEnabled());
+            assertFalse(menu.findItem(R.id.auto_update_action).isEnabled());
+        });
+    }
+
+    private static void assertRetryableEditor(ActivityScenario<SourceEditActivity> scenario,
+                                            int error) {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        scenario.onActivity(activity -> {
+            assertFalse(activity.isFinishing());
+            assertTrue(activity.findViewById(R.id.labelEditText).isEnabled());
+            assertTrue(activity.findViewById(R.id.location_edit_text).isEnabled());
+            assertTrue(editorMenu(activity).findItem(R.id.apply_action).isEnabled());
+            assertTrue(editorMenu(activity).findItem(R.id.delete_action).isEnabled());
+            TextView field = activity.findViewById(R.id.location_edit_text);
+            assertEquals(activity.getString(error), String.valueOf(field.getError()));
+        });
+    }
+
+    private void confirmEditorDelete() throws Exception {
+        clickAccessibilityText(this.context.getString(R.string.checkbox_list_context_delete));
+        clickAccessibilityText(this.context.getString(R.string.source_edit_delete_confirm_action));
+    }
+
+    private static void awaitEditorClosed(ActivityScenario<SourceEditActivity> scenario) {
+        waitForDiskIoIdle();
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (scenario.getState() == Lifecycle.State.DESTROYED) return;
+            SystemClock.sleep(50);
+        }
+        throw new AssertionError("Mutation must close the current editor");
+    }
+
+    private static void assertMutationSucceeded(SourceEditViewModel model) {
+        waitForDiskIoIdle();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            assertEquals(SourceEditViewModel.Status.SUCCEEDED, model.getStatus().getValue());
+            assertTrue("Success must not reopen the mutation guard", model.isMutationBlocked());
+        });
+    }
+
+    private static void holdDiskIo(CountDownLatch release) throws InterruptedException {
+        CountDownLatch held = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            held.countDown();
+            try {
+                if (!release.await(60, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Timed out holding source editor load");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            }
+        });
+        assertTrue(held.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     @Test(timeout = 120_000)
@@ -808,5 +1293,44 @@ public class SourceEditAddEditInstrumentedTest {
 
     private interface DatabaseWork {
         void run(AppDatabase database);
+    }
+
+    private static final class InertAdBlockModel extends AdBlockModel {
+        InertAdBlockModel(Context context) {
+            super(context);
+        }
+
+        @Override
+        public AdBlockMethod getMethod() {
+            return AdBlockMethod.ROOT;
+        }
+
+        @Override
+        public void apply() {
+            this.applied.postValue(true);
+        }
+
+        @Override
+        public void revert() {
+            this.applied.postValue(false);
+        }
+
+        @Override
+        public boolean isRecordingLogs() {
+            return false;
+        }
+
+        @Override
+        public void setRecordingLogs(boolean recording) {
+        }
+
+        @Override
+        public List<String> getLogs() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void clearLogs() {
+        }
     }
 }

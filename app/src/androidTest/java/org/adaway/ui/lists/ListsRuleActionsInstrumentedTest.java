@@ -118,6 +118,7 @@ public class ListsRuleActionsInstrumentedTest {
     public void userRuleCanToggleEditCancelDeleteAndConfirmDelete() throws Exception {
         insertListItem(BLOCKED, USER_HOST, true, USER_SOURCE_ID);
         insertListItem(BLOCKED, DELETE_USER_HOST, true, USER_SOURCE_ID);
+        int deletedRuleId = this.hostListItemDao.getHostId(DELETE_USER_HOST).orElseThrow();
 
         launchBlockedLists();
         waitForTabFragment(BLOCKED_HOSTS_TAB);
@@ -148,7 +149,7 @@ public class ListsRuleActionsInstrumentedTest {
         clickAccessibilityText(this.context.getString(R.string.checkbox_list_context_delete));
         waitForAccessibilityText(this.context.getString(R.string.list_delete_confirm_title));
         clickAccessibilityText(this.context.getString(R.string.list_delete_confirm_action));
-        waitForRuleCount(BLOCKED, DELETE_USER_HOST, USER_SOURCE_ID, true, 0);
+        waitForRuleAbsent(deletedRuleId, DELETE_USER_HOST, USER_SOURCE_ID);
     }
 
     @Test(timeout = 90_000)
@@ -221,6 +222,23 @@ public class ListsRuleActionsInstrumentedTest {
         }
         assertEquals("Unexpected count for " + host, expectedCount,
                 countRules(type, host, sourceId, enabled));
+    }
+
+    private void waitForRuleAbsent(int id, String host, int sourceId) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            try (Cursor cursor = this.database.getOpenHelper().getReadableDatabase().query(
+                    new SimpleSQLiteQuery("SELECT COUNT(*) FROM hosts_lists "
+                            + "WHERE id = ? OR (host = ? AND source_id = ?)",
+                            new Object[]{id, host, sourceId}))) {
+                assertTrue(cursor.moveToFirst());
+                if (cursor.getInt(0) == 0) {
+                    return;
+                }
+            }
+            SystemClock.sleep(100L);
+        }
+        throw new AssertionError("Deleted rule identity is still stored: " + id + " / " + host);
     }
 
     private int countRules(

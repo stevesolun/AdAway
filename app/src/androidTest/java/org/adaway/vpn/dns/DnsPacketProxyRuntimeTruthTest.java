@@ -1,5 +1,6 @@
 package org.adaway.vpn.dns;
 
+import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
@@ -55,14 +56,13 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
 public class DnsPacketProxyRuntimeTruthTest {
-    private static final int TEST_SOURCE_ID = 909091;
-    private static final String TEST_HOST_PATTERN = "%dns-proxy-runtime%.invalid";
-
     private AdAwayApplication application;
     private AppDatabase database;
     private HostEntryDao hostEntryDao;
@@ -73,6 +73,7 @@ public class DnsPacketProxyRuntimeTruthTest {
     private String childHost;
     private String exactBlockedHost;
     private String redirectedHost;
+    private int testSourceId;
 
     @Before
     public void setUp() {
@@ -89,7 +90,6 @@ public class DnsPacketProxyRuntimeTruthTest {
         childHost = "ads." + suffixHost;
         exactBlockedHost = "blocked." + suffixHost;
         redirectedHost = "redirect." + suffixHost;
-        cleanup();
         insertSource();
     }
 
@@ -121,7 +121,10 @@ public class DnsPacketProxyRuntimeTruthTest {
     public void ynetCompatibilityAllowlistForwardsCoreHostsWithoutOpeningTrackingHosts()
             throws Exception {
         insertHostListItem("ynet.co.il", BLOCKED, SUFFIX, null);
-        SiteCompatibilityAllowlist.ensureAllowlistSync(application);
+        // Exercise the shipped compatibility rules without changing the user's source.
+        for (String domain : SiteCompatibilityAllowlist.REQUIRED_DOMAINS) {
+            insertHostListItem(domain, ALLOWED, EXACT, null);
+        }
         hostEntryDao.sync();
         application.invalidateVpnRulesCache();
         InetAddress mappedDns = InetAddress.getByName("8.8.8.8");
@@ -219,11 +222,13 @@ public class DnsPacketProxyRuntimeTruthTest {
 
     private void insertSource() {
         HostsSource source = new HostsSource();
-        source.setId(TEST_SOURCE_ID);
         source.setLabel("DNS proxy runtime truth test");
-        source.setUrl("https://example.invalid/dns-proxy-runtime-hosts.txt");
+        source.setUrl("https://example.invalid/" + suffixHost + ".txt");
         source.setEnabled(true);
+        source.setAllowEnabled(true);
+        source.setRedirectEnabled(true);
         hostsSourceDao.insert(source);
+        testSourceId = hostsSourceDao.getByUrl(source.getUrl()).orElseThrow().getId();
     }
 
     private void insertHostListItem(
@@ -234,22 +239,48 @@ public class DnsPacketProxyRuntimeTruthTest {
         item.setKind(kind);
         item.setEnabled(true);
         item.setRedirection(redirection);
-        item.setSourceId(TEST_SOURCE_ID);
+        item.setSourceId(testSourceId);
         item.setGeneration(hostEntryDao.getActiveGeneration());
         hostListItemDao.insert(item);
     }
 
     private void cleanup() {
-        for (String domain : SiteCompatibilityAllowlist.REQUIRED_DOMAINS) {
-            hostListItemDao.deleteUserFromHost(domain);
-        }
-        hostListItemDao.clearSourceHosts(TEST_SOURCE_ID);
-        database.getOpenHelper().getWritableDatabase().execSQL(
-                "DELETE FROM hosts_lists WHERE host LIKE ?",
-                new Object[]{TEST_HOST_PATTERN});
-        hostsSourceDao.getById(TEST_SOURCE_ID).ifPresent(hostsSourceDao::delete);
+        if (database == null || testSourceId == 0) return;
+        hostListItemDao.clearSourceHosts(testSourceId);
+        hostsSourceDao.getById(testSourceId).ifPresent(hostsSourceDao::delete);
+        testSourceId = 0;
         hostEntryDao.sync();
         application.invalidateVpnRulesCache();
+    }
+
+    @Test
+    public void cleanupPreservesExistingUserRules() {
+        String domain = SiteCompatibilityAllowlist.REQUIRED_DOMAINS.get(0);
+        HostListItem inserted = null;
+        if (hostListItemDao.getHostId(domain).isEmpty()) {
+            inserted = new HostListItem();
+            inserted.setHost(domain);
+            inserted.setType(ALLOWED);
+            inserted.setKind(EXACT);
+            inserted.setEnabled(true);
+            inserted.setSourceId(HostsSource.USER_SOURCE_ID);
+            hostListItemDao.insert(inserted);
+            inserted.setId(hostListItemDao.getHostId(domain).orElseThrow());
+        }
+        try {
+            List<Integer> before = hostListItemDao.getUserList().stream()
+                    .map(HostListItem::getId).sorted().collect(Collectors.toList());
+            cleanup();
+            List<Integer> after = hostListItemDao.getUserList().stream()
+                    .map(HostListItem::getId).sorted().collect(Collectors.toList());
+            assertEquals("Only the unique test source may be removed.", before, after);
+        } finally {
+            if (inserted != null) {
+                hostListItemDao.delete(inserted);
+                hostEntryDao.sync();
+                application.invalidateVpnRulesCache();
+            }
+        }
     }
 
     private static byte[] buildDnsQueryPacket(String host) throws Exception {

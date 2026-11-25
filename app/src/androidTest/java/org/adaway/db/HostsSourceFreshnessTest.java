@@ -19,8 +19,9 @@ public class HostsSourceFreshnessTest extends DbTest {
             this.hostsSourceDao.insert(entry.toHostsSource());
         }
 
-        assertEquals(4, this.hostsSourceDao.getEnabled().size());
-        assertFreshness(0, 4);
+        int defaults = FilterListCatalog.getDefaults().size();
+        assertEquals(defaults, this.hostsSourceDao.getEnabled().size());
+        assertFreshness(0, defaults);
     }
 
     @Test

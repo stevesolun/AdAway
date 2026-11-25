@@ -1,0 +1,6 @@
+test_id,command,result,evidence,limits
+NAT-FIX-HOST,ruby scripts/tests/native-feature-fixes.Tests.rb,pass,17 tests; JUnit 4.13.2; OpenJDK 21 with --release 17; wrapper I/O traps and exact recording/preferences/cleanup excerpts plus source/syntax checks,Host doubles only; not Gradle or Android runtime; immediate LiveData double; fixture reconstruction not Activity recreation
+NAT-FIX-BASELINE,ruby scripts/tests/native-feature-fixes.Tests.rb --baseline,expected-failure,11 tests with 8 expected failures and exit 1 against HEAD d51eb7aea06871c2c6ad2bbedb9ddbaaaca48d77; no checkout changes,Current-only source/syntax/legacy cases omitted; baseline fixtures not full app execution
+NAT-FIX-WHITESPACE,git diff --check,pass,Exit 0 after final implementation and test edits,Whitespace check only; concurrent unrelated work is not reviewed
+NAT-FIX-INTEGRATION,Main-owned Gradle and passive Android UI gate,pending,No Gradle/emulator/ADB execution by this lane,Android linkage and UI lifecycle/rendering/LiveData/persistence behavior remain unverified
+NAT-FIX-ROOT,Real root and legacy daemon migration,not-run,No actual root shell/native launch/process cleanup/network listener/capture performed,Name-based kill behavior and denied/busy shell timing not runtime verified; cleanup scheduled per RootModel construction without new timeout/retry policy

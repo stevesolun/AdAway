@@ -6,4 +6,4 @@ Kök izni olmayan bir cihaz kullanan uygulama, reklamlara ve izleyicilere giden 
 Bu nedenle, bir uygulama bu dosyadaki bir ana bilgisayardan bir reklam veya izleyici istediğinde, bu istek hiçbir şey yapmayan yerel IP 127.0.0.1'e yönlendirilir.
 
 Önceden tanımlanmış reklamları ve engellenen listeleri, dahil etmek için uygulama içinden ana bilgisayar dosyaları olarak indirebilirsiniz. Kendi dosyalarınızı kullanmak ve izin verilen ve engellenen listelere belirli ana bilgisayarlar eklemek de mümkündür.
-Engellenen host adlarına yanıt vermek ve bunun yerine tercih ettiğiniz IP adresine istekleri yönlendirmek için yerel bir web sunucusunu çalıştırma seçenekleri vardır.
+İstekleri tercih ettiğiniz IP adresine yönlendirme seçenekleri vardır.

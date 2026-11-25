@@ -9,6 +9,7 @@
 package org.adaway.model.update;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -168,6 +169,20 @@ public class UpdateModelNetworkFailureInstrumentedTest {
             SystemClock.sleep(100L);
         }
         throw new AssertionError("Update manifest was not published.");
+    }
+
+    @Test(timeout = 60_000)
+    public void currentSignedVersionIsPublishedButCannotStartDownload() throws Exception {
+        this.server.enqueue(new MockResponse().setResponseCode(200)
+                .setBody(envelope(payload(CURRENT_VERSION_CODE))));
+
+        Manifest checked = this.updateModel.checkForUpdateManifest();
+        assertNotNull(checked);
+        assertFalse(checked.updateAvailable);
+        assertSame(checked, waitForManifest());
+        assertEquals("Current-version metadata cannot authorize a reinstall.",
+                -1L, this.updateModel.update());
+        assertEquals(1, this.server.getRequestCount());
     }
 
     private void waitForManifestCleared() {

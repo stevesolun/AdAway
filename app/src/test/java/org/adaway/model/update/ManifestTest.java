@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Base64;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -234,11 +235,36 @@ public class ManifestTest {
         new Manifest(envelope(payload), 41, publicKeyBase64);
     }
 
-    @Test(expected = JSONException.class)
-    public void signedManifest_rejectsEqualOrLowerVersionCode() throws Exception {
+    @Test
+    public void signedManifest_currentVersionIsUpToDate() throws Exception {
         String payload = payload(42, validSha256(), Instant.now().plusSeconds(3600).toString());
 
+        Manifest manifest = new Manifest(envelope(payload), 42, publicKeyBase64);
+
+        assertFalse(manifest.updateAvailable);
+        assertEquals(42, manifest.versionCode);
+    }
+
+    @Test(expected = JSONException.class)
+    public void signedManifest_rejectsLowerVersionCode() throws Exception {
+        String payload = payload(41, validSha256(), Instant.now().plusSeconds(3600).toString());
+
         new Manifest(envelope(payload), 42, publicKeyBase64);
+    }
+
+    @Test(expected = JSONException.class)
+    public void signedManifest_currentVersionStillRejectsExpiredPayload() throws Exception {
+        String payload = payload(42, validSha256(), Instant.now().minusSeconds(60).toString());
+
+        new Manifest(envelope(payload), 42, publicKeyBase64);
+    }
+
+    @Test(expected = GeneralSecurityException.class)
+    public void signedManifest_currentVersionStillRejectsWrongSignature() throws Exception {
+        String payload = payload(42, validSha256(), Instant.now().plusSeconds(3600).toString());
+        String differentPayload = payload(43, validSha256(), Instant.now().plusSeconds(3600).toString());
+
+        new Manifest(envelope(payload, sign(differentPayload)), 42, publicKeyBase64);
     }
 
     @Test(expected = GeneralSecurityException.class)

@@ -35,9 +35,13 @@ import org.adaway.ui.home.HomeActivity;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
@@ -65,6 +69,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
     private static final int PROGRESS_EVERY = 25;
     private static final int MAX_OUTCOME_LEDGER_ENTRIES = 500;
     private static final int MAX_REVIEW_PREVIEW_ENTRIES = 3;
+    public static final int MAX_INLINE_SCOPE_IDS = 500;
+    private static final String KEY_SCOPE_TOKEN = "subscribeAllScopeToken";
+    private static final String KEY_SCOPE_IDS = "subscribeAllScopeIds";
 
     public static final String PROGRESS_DONE = "done";
     public static final String PROGRESS_TOTAL = "total";
@@ -82,6 +89,10 @@ public class FilterListsSubscribeAllWorker extends Worker {
     public static final String INPUT_LANGUAGE_ID = "languageId";
     public static final String INPUT_COMPATIBLE_ONLY = "compatibleOnly";
     public static final String INPUT_LIST_IDS = "listIds";
+    public static final String INPUT_SCOPE_TOKEN = "scopeToken";
+    public static final String INPUT_RETRY_NO_URL = "retryNoUrl";
+    public static final String KEY_LAST_RUN_NO_URL_IDS = "lastRunNoUrlIds";
+    public static final String KEY_LAST_RUN_UNSUPPORTED_IDS = "lastRunUnsupportedIds";
     public static final String KEY_LAST_RUN_OUTCOMES = "lastRunOutcomes";
     public static final String KEY_LAST_RUN_OUTCOME_COUNT = "lastRunOutcomeCount";
     public static final String KEY_LAST_RUN_REVIEW_COUNT = "lastRunReviewCount";
@@ -159,12 +170,30 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     .build());
 
             Data input = getInputData();
+            int[] scopeIds;
+            try {
+                scopeIds = readScopeIds(prefs, input);
+            } catch (IllegalStateException e) {
+                // Never turn an unavailable explicit selection into the entire directory.
+                notificationManager.notify(NOTIFICATION_ID, baseBuilder(context)
+                        .setContentTitle(context.getString(
+                                R.string.notification_filterlists_subscribe_all_title))
+                        .setContentText("Selection unavailable. Select lists and try again.")
+                        .setAutoCancel(true).build());
+                return Result.failure();
+            }
+            if (input.getBoolean(INPUT_RETRY_NO_URL, false) && scopeIds != null) {
+                recorder.retainPendingRetryIds(scopeIds);
+            }
+            if (isCancellationRequested(prefs)) {
+                return finishCancelled(null, notificationManager, recorder);
+            }
             List<FilterListsDirectoryApi.ListSummary> lists = filterListsForScope(api.getLists(),
                     input.getString(INPUT_QUERY),
                     input.getInt(INPUT_TAG_ID, 0),
                     input.getInt(INPUT_LANGUAGE_ID, 0),
                     input.getBoolean(INPUT_COMPATIBLE_ONLY, false),
-                    input.getIntArray(INPUT_LIST_IDS));
+                    scopeIds);
             int total = lists.size();
             int done = 0;
 
@@ -186,10 +215,14 @@ public class FilterListsSubscribeAllWorker extends Worker {
 
             ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL_DETAILS);
             CompletionService<Resolved> completion = new ExecutorCompletionService<>(pool);
+            Map<Future<Resolved>, FilterListsDirectoryApi.ListSummary> resolving = new HashMap<>();
             int pending = 0;
 
             // First, enqueue network tasks only for items without cached mapping.
             for (FilterListsDirectoryApi.ListSummary s : lists) {
+                if (isCancellationRequested(prefs)) {
+                    return finishCancelled(pool, notificationManager, recorder);
+                }
                 if (!FilterListCompatibility.isBulkSafe(s.syntaxIds)) {
                     continue;
                 }
@@ -200,7 +233,7 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     continue;
                 }
                 pending++;
-                completion.submit(new ResolveCallable(api, s));
+                resolving.put(completion.submit(new ResolveCallable(api, s)), s);
             }
 
             // Process cached items immediately (no network).
@@ -245,13 +278,15 @@ public class FilterListsSubscribeAllWorker extends Worker {
                     return finishCancelled(pool, notificationManager, recorder);
                 }
                 Resolved r;
+                FilterListsDirectoryApi.ListSummary summary = resolving.remove(future);
                 try {
                     r = future.get();
                 } catch (Exception e) {
                     // Treat as one failed resolution.
                     pending--;
                     done++;
-                    recorder.recordSkippedNoUrl();
+                    recorder.accept(summary.id, summary.name, summary.syntaxIds,
+                            summary.tagIds, summary.languageIds, null);
                     if (shouldEmitProgressUpdate(done, total)) {
                         emitProgress(done, total, -1, "Resolving…");
                         notificationManager.notify(
@@ -321,7 +356,8 @@ public class FilterListsSubscribeAllWorker extends Worker {
         return isStopped() || prefs.getBoolean(KEY_CANCEL_REQUESTED, false);
     }
 
-    private Result finishCancelled(ExecutorService pool, NotificationManager notificationManager,
+    private Result finishCancelled(@Nullable ExecutorService pool,
+            NotificationManager notificationManager,
             SubscribeAllRecorder recorder) {
         Data output = finalizeCancelledRun(pool,
                 sDependencies.getCachePreferences(getApplicationContext()),
@@ -330,9 +366,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
         return Result.failure(output);
     }
 
-    static Data finalizeCancelledRun(ExecutorService pool, SharedPreferences prefs,
+    static Data finalizeCancelledRun(@Nullable ExecutorService pool, SharedPreferences prefs,
             SubscribeAllRecorder recorder, Runnable cancelNotification) {
-        pool.shutdownNow();
+        if (pool != null) pool.shutdownNow();
         recorder.flush();
         persistLastRunOutcomes(prefs, recorder, true);
         cancelNotification.run();
@@ -359,10 +395,12 @@ public class FilterListsSubscribeAllWorker extends Worker {
                 .build();
     }
 
-    private static void persistLastRunOutcomes(SharedPreferences prefs, SubscribeAllRecorder recorder,
+    static void persistLastRunOutcomes(SharedPreferences prefs, SubscribeAllRecorder recorder,
             boolean cancelled) {
         prefs.edit()
                 .putString(KEY_LAST_RUN_OUTCOMES, recorder.getOutcomeLedger())
+                .putStringSet(KEY_LAST_RUN_NO_URL_IDS, new HashSet<>(recorder.noUrlIds))
+                .putStringSet(KEY_LAST_RUN_UNSUPPORTED_IDS, new HashSet<>(recorder.unsupportedIds))
                 .putInt(KEY_LAST_RUN_OUTCOME_COUNT, recorder.getOutcomeCount())
                 .putInt(KEY_LAST_RUN_REVIEW_COUNT, recorder.getReviewCount())
                 .putString(KEY_LAST_RUN_REVIEW_PREVIEW, recorder.getReviewPreview())
@@ -382,6 +420,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
             int languageId,
             boolean compatibleOnly,
             @Nullable int[] listIds) {
+        if (listIds != null && listIds.length > MAX_INLINE_SCOPE_IDS) {
+            throw new IllegalArgumentException("Large selections require a persisted scope");
+        }
         Data.Builder builder = new Data.Builder()
                 .putString(INPUT_QUERY, normalizeQuery(query))
                 .putInt(INPUT_TAG_ID, Math.max(0, tagId))
@@ -391,6 +432,64 @@ public class FilterListsSubscribeAllWorker extends Worker {
             builder.putIntArray(INPUT_LIST_IDS, listIds);
         }
         return builder.build();
+    }
+
+    /**
+     * The unique REPLACE job owns one durable snapshot, not an accumulating history of scopes.
+     * A fresh token replaces the previous snapshot; readers must match it exactly. Retaining the
+     * latest snapshot also covers WorkManager retries/stops and cancellation before worker startup.
+     */
+    @NonNull
+    public static Data buildPersistedScopeInput(@NonNull Context context,
+            boolean compatibleOnly, @NonNull int[] listIds) throws IOException {
+        return persistScopeInput(sDependencies.getCachePreferences(context.getApplicationContext()),
+                compatibleOnly, listIds);
+    }
+
+    @NonNull
+    static synchronized Data persistScopeInput(@NonNull SharedPreferences prefs,
+            boolean compatibleOnly, @NonNull int[] listIds) throws IOException {
+        Set<String> ids = new HashSet<>();
+        for (int id : listIds) {
+            if (id <= 0) throw new IllegalArgumentException("Invalid list ID: " + id);
+            ids.add(Integer.toString(id));
+        }
+        String token = UUID.randomUUID().toString();
+        if (!prefs.edit().putString(KEY_SCOPE_TOKEN, token).putStringSet(KEY_SCOPE_IDS, ids)
+                .commit()) {
+            throw new IOException("Unable to persist subscription scope");
+        }
+        return new Data.Builder().putString(INPUT_SCOPE_TOKEN, token)
+                .putBoolean(INPUT_COMPATIBLE_ONLY, compatibleOnly).build();
+    }
+
+    @Nullable
+    static synchronized int[] readScopeIds(@NonNull SharedPreferences prefs, @NonNull Data input) {
+        String token = input.getString(INPUT_SCOPE_TOKEN);
+        if (token == null) return input.getIntArray(INPUT_LIST_IDS);
+        if (!token.equals(prefs.getString(KEY_SCOPE_TOKEN, null))
+                || !prefs.contains(KEY_SCOPE_IDS)) {
+            throw new IllegalStateException("Subscription scope is no longer available");
+        }
+        return readStoredIds(prefs, KEY_SCOPE_IDS);
+    }
+
+    @NonNull
+    public static int[] readStoredIds(@NonNull SharedPreferences prefs, @NonNull String key) {
+        Set<String> stored = prefs.getStringSet(key, new HashSet<>());
+        int[] ids = new int[stored.size()];
+        int i = 0;
+        try {
+            for (String value : stored) {
+                int id = Integer.parseInt(value);
+                if (id <= 0) throw new NumberFormatException("Non-positive list ID");
+                ids[i++] = id;
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException("Invalid stored subscription IDs", e);
+        }
+        Arrays.sort(ids);
+        return ids;
     }
 
     @NonNull
@@ -421,10 +520,15 @@ public class FilterListsSubscribeAllWorker extends Worker {
             boolean compatibleOnly,
             @Nullable int[] listIds) {
         String normalizedQuery = normalizeQuery(query);
+        Set<Integer> scopeIds = null;
+        if (listIds != null) {
+            scopeIds = new HashSet<>();
+            for (int id : listIds) scopeIds.add(id);
+        }
         List<FilterListsDirectoryApi.ListSummary> scoped = new ArrayList<>(lists.size());
         for (FilterListsDirectoryApi.ListSummary summary : lists) {
             if (!matchesScope(summary, normalizedQuery, tagId, languageId, compatibleOnly,
-                    listIds)) {
+                    scopeIds)) {
                 continue;
             }
             scoped.add(summary);
@@ -438,9 +542,9 @@ public class FilterListsSubscribeAllWorker extends Worker {
             int tagId,
             int languageId,
             boolean compatibleOnly,
-            @Nullable int[] listIds) {
+            @Nullable Set<Integer> listIds) {
         if (listIds != null) {
-            return hasId(listIds, summary.id)
+            return listIds.contains(summary.id)
                     && (!compatibleOnly || FilterListCompatibility.isBulkSafe(summary.syntaxIds));
         }
         if (!query.isEmpty()) {
@@ -555,6 +659,8 @@ public class FilterListsSubscribeAllWorker extends Worker {
         private final List<HostsSource> pendingInsert;
         private final List<String> outcomeLedger;
         private final List<String> reviewPreview;
+        private final Set<String> noUrlIds = new HashSet<>();
+        private final Set<String> unsupportedIds = new HashSet<>();
         private int outcomeCount;
         private int reviewCount;
         private int subscribed;
@@ -576,6 +682,13 @@ public class FilterListsSubscribeAllWorker extends Worker {
                 existingUrls.add(source.getUrl());
             }
             return new SubscribeAllRecorder(hostsSourceDao, existingUrls);
+        }
+
+        void retainPendingRetryIds(int[] ids) {
+            // Cancellation must not erase failures that this retry has not reached yet.
+            for (int id : ids) {
+                if (id > 0) noUrlIds.add(Integer.toString(id));
+            }
         }
 
         CandidateOutcome accept(String name, int[] syntaxIds, String url) {
@@ -647,6 +760,8 @@ public class FilterListsSubscribeAllWorker extends Worker {
         }
 
         private void record(CandidateOutcome outcome, int filterListId, String name, String url) {
+            noUrlIds.remove(Integer.toString(filterListId));
+            unsupportedIds.remove(Integer.toString(filterListId));
             switch (outcome) {
                 case SUBSCRIBED:
                     subscribed++;
@@ -669,6 +784,13 @@ public class FilterListsSubscribeAllWorker extends Worker {
         private void appendOutcome(CandidateOutcome outcome, int filterListId, String name,
                 String url) {
             outcomeCount++;
+            if (filterListId > 0) {
+                if (outcome == CandidateOutcome.SKIPPED_NO_URL) {
+                    noUrlIds.add(Integer.toString(filterListId));
+                } else if (outcome == CandidateOutcome.SKIPPED_UNSUPPORTED) {
+                    unsupportedIds.add(Integer.toString(filterListId));
+                }
+            }
             if (outcome == CandidateOutcome.SKIPPED_NO_URL
                     || outcome == CandidateOutcome.SKIPPED_UNSUPPORTED) {
                 reviewCount++;

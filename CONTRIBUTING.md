@@ -42,37 +42,48 @@ We have a dedicated forum with a welcoming community and a wiki to answer your q
 
 ### Discovering the project structure
 
-The AdAway source code is an Android project organized in modules.
-There are four main modules:
-* `app`: The Android application itself
-* `tcpdump`: A module dedicated to build the `pcap` library and the `tcpdump` binary
-* `webserver`: A module dedicated to build a simple HTTP server binary based on `mongoose`
-* `libraries/RootCommands`: A vendorize Android library to run root shell commands
-
-The three last modules are independent and used by the `app` module.
-Modularizing the application allows for faster build times and simplier maintainance.
+See the [project structure](README.md#module-structure) for the active modules
+and the boundary between shipped code and historical native sources.
 
 ### Building the project
 
-Building the project will require the latest versions of the Android SDK (Software Development Kit) and NDK (Native Development kit).
-They can easily be installed or updated using [Android Studio](https://developer.android.com/studio/).
+Building the project requires JDK 21, Android SDK platform 36, SDK Build-Tools 36.0.0,
+and NDK 27.2.12479018.
 
 #### Building with Gradle
-1. Ensure you have Android SDK and NDK installed.
-If not:
-    * Option 1: [Install Android Studio](https://developer.android.com/studio/index.html) or,
-    * Option 2: Install command line tools, build tools and ndk bundle with sdk manager:  
-    `tools/bin/sdkmanager "build-tools;x.y.z" ndk-bundle` where `x.y.z` is the latest version
-2. Export `ANDROID_HOME` environment variable pointing to your Android SDK:  
-`export ANDROID_HOME=/path/to/your/sdk`
-3. Launch a build:  
-`./gradlew assembleRelease`
+1. Install JDK 21 and the Android SDK. In [Android Studio](https://developer.android.com/studio/),
+use SDK Manager to select the versions above and Android SDK Command-Line Tools;
+select JDK 21 as the Gradle JDK. For a command-line-only setup, follow the
+[Command-Line Tools installation instructions](https://developer.android.com/tools/sdkmanager)
+to place SDK Manager at `cmdline-tools/latest/bin/sdkmanager` inside your SDK.
+2. Set the paths to your JDK and SDK, then install the required packages.
+Review and accept the SDK licenses when prompted:
+
+```sh
+export JAVA_HOME="/path/to/jdk-21"
+export ANDROID_HOME="/path/to/android-sdk"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --install \
+  "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses
+```
+
+3. Launch a debug build:
+`./gradlew assembleDebug`
+
+Without release signing properties, this uses the local debug key.
+For signed production builds and their required signing and update-trust inputs,
+follow the [release guide](RELEASING.md). Release trust checks remain required.
 
 The first full build of the apk can take a lot of time, about 20 minutes, whereas an incremental build of the `app` module takes less than a dozen seconds.
 
 #### Running on an emulator
 
-In order to test the application on an emulator, disable [the root check in the Constants source file](https://github.com/AdAway/AdAway/blob/c90336cb9b062220540317bc6c7cfedb19927c63/app/src/main/java/org/adaway/util/Constants.java#L28).
+Install the debug build on a disposable emulator with `./gradlew installDebug`.
+Choose VPN mode in onboarding and accept Android's VPN consent prompt. No source
+change or root-check bypass is needed for non-root operation. For screenshot
+capture, follow the [UX matrix instructions](README.md#ux-matrix-review-packet).
 
 ## How can I contribute?
 
@@ -154,7 +165,9 @@ See https://source.android.com/source/code-style.html
 
 #### Origin
 
-Forked from the following sources and slightly modified to compile:
+These are historical source references, not a list of active build modules.
+See the [third-party notices](THIRD_PARTY_LICENSES.md) for packaging and licensing
+boundaries. The native sources were forked and modified to compile from:
 
 * dnsmasq: https://github.com/CyanogenMod/android_external_dnsmasq
 * libpcap: https://github.com/the-tcpdump-group/libpcap/tree/libpcap-1.7.4

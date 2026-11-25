@@ -6,4 +6,4 @@ Nem rootolt eszköz használatával az alkalmazás VPN funkcióval blokkolja a h
 Tehát, amikor egy alkalmazás hirdetést kér egy adott állomásból, ez a kérés átirányításra kerül a helyi 127.0.0.1 IP-re, amely így nem tesz semmit.
 
 Letölthetsz előre definiált, hirdetéseket és blokk-listákat hosts fájlokként az alkalmazáson belül, hogy beépítsd ezeket. Lehetőség van saját fájlok használatára, valamint bizonyos gazdagépek hozzáadására az engedélyezett és letiltottak listáihoz.
-Lehetőség van helyi webszerver futtatására, hogy az válaszoljon a blokkolt gazdanevekre és a kéréseket a választott IP címre irányítsa.
+Lehetőség van a kéréseket a választott IP címre irányítani.

@@ -82,6 +82,12 @@ public class DiscoverFilterListsFragment extends Fragment {
     private static final String KEY_SUBSCRIBE_ALL_STOPPING = "subscribeAllStopping";
     private static final long CACHE_TTL_MS = 24L * 60L * 60L * 1000L; // 24h
     private static final int MAX_LAST_RUN_DIALOG_ROWS = 80;
+    private static final String STATE_SELECTED_IDS = "discover.selectedIds";
+    private static final String STATE_TAG_ID = "discover.tagId";
+    private static final String STATE_LANGUAGE_ID = "discover.languageId";
+    private static final String STATE_QUERY = "discover.query";
+    private static final String STATE_COMPATIBLE_ONLY = "discover.compatibleOnly";
+    private static final String STATE_SUBSCRIBED_ONLY = "discover.subscribedOnly";
 
     private final List<FilterListsDirectoryApi.ListSummary> all = new ArrayList<>();
     private final List<FilterListsDirectoryApi.ListSummary> filtered = new ArrayList<>();
@@ -97,6 +103,10 @@ public class DiscoverFilterListsFragment extends Fragment {
     private int selectedLanguageId = 0;
     private boolean mCompatibleOnly = false;
     private boolean mSubscribedOnly = false;
+    private String mSearchQuery = "";
+    private boolean mDirectorySnapshotLoaded;
+    private boolean mSubscriptionsLoaded;
+    private boolean mViewStateRestored;
     private List<FilterListsDirectoryApi.Language> loadedLanguages = new ArrayList<>();
 
     private Adapter adapter;
@@ -124,12 +134,39 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private Snackbar activeSnackbar;
 
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState == null) return;
+        ArrayList<Integer> selectedIds = savedInstanceState.getIntegerArrayList(STATE_SELECTED_IDS);
+        if (selectedIds != null) selectedListIds.addAll(selectedIds);
+        selectedTagId = savedInstanceState.getInt(STATE_TAG_ID);
+        selectedLanguageId = savedInstanceState.getInt(STATE_LANGUAGE_ID);
+        mSearchQuery = savedInstanceState.getString(STATE_QUERY, "");
+        mCompatibleOnly = savedInstanceState.getBoolean(STATE_COMPATIBLE_ONLY);
+        mSubscribedOnly = savedInstanceState.getBoolean(STATE_SUBSCRIBED_ONLY);
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putIntegerArrayList(STATE_SELECTED_IDS, new ArrayList<>(selectedListIds));
+        outState.putInt(STATE_TAG_ID, selectedTagId);
+        outState.putInt(STATE_LANGUAGE_ID, selectedLanguageId);
+        outState.putString(STATE_QUERY, mSearchQuery);
+        outState.putBoolean(STATE_COMPATIBLE_ONLY, mCompatibleOnly);
+        outState.putBoolean(STATE_SUBSCRIBED_ONLY, mSubscribedOnly);
+    }
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         this.binding = FragmentDiscoverFilterlistsBinding.inflate(inflater, container, false);
+        mDirectorySnapshotLoaded = false;
+        mSubscriptionsLoaded = false;
+        mViewStateRestored = false;
         return this.binding.getRoot();
     }
 
@@ -143,9 +180,17 @@ public class DiscoverFilterListsFragment extends Fragment {
         adapter = new Adapter();
         binding.filterlistsRecyclerView.setAdapter(adapter);
 
+        binding.filterlistsSearchEditText.setText(mSearchQuery);
+        binding.filterlistsCompatibleOnlySwitch.setChecked(mCompatibleOnly);
+        binding.filterlistsShowSubscribedSwitch.setChecked(mSubscribedOnly);
+        // Restore the semantic language ID, never a position in an older metadata adapter.
+        binding.languageSpinner.setSaveEnabled(false);
         binding.filterlistsSearchEditText.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filter(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mSearchQuery = s.toString();
+                filter();
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
 
@@ -166,6 +211,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         refreshLastRunReviewAction(true);
 
         // Observe live DB changes to update subscribed state
+        final FragmentDiscoverFilterlistsBinding observedBinding = binding;
         hostsSourceDao.loadAll().observe(getViewLifecycleOwner(), sources -> {
             if (this.binding == null) return;
             final List<HostsSource> snapshot = sources != null ? new ArrayList<>(sources) : null;
@@ -179,7 +225,8 @@ public class DiscoverFilterListsFragment extends Fragment {
                     }
                 }
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding == null) return;
+                    if (this.binding != observedBinding) return;
+                    mSubscriptionsLoaded = true;
                     existingUrls.clear();
                     existingUrls.addAll(urls);
                     synchronized (existingFilterListUrlsById) {
@@ -283,6 +330,13 @@ public class DiscoverFilterListsFragment extends Fragment {
     }
 
     @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        mViewStateRestored = true;
+        filter();
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         if (activeSnackbar != null) {
@@ -305,6 +359,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void load() {
         if (binding == null) return;
+        final FragmentDiscoverFilterlistsBinding loadingBinding = binding;
         directoryLoading = true;
         directoryLoadFailed = false;
         binding.filterlistsProgress.setVisibility(View.VISIBLE);
@@ -318,15 +373,6 @@ public class DiscoverFilterListsFragment extends Fragment {
             try {
                 AdAwayApplication app = (AdAwayApplication) appContext;
                 FilterListsDirectoryApi api = new FilterListsDirectoryApi(app.getSourceModel().getHttpClientForUi());
-
-                // Load existing sources
-                List<HostsSource> existing = hostsSourceDao.getAll();
-                Set<String> existingUrlsLocal = new HashSet<>();
-                Map<Integer, String> existingFilterListUrlsLocal = new HashMap<>();
-                for (HostsSource s : existing) {
-                    existingUrlsLocal.add(s.getUrl());
-                    indexExistingSource(s, existingFilterListUrlsLocal);
-                }
 
                 SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                 String cachedListsJson = prefs.getString(KEY_LISTS_JSON, null);
@@ -357,18 +403,13 @@ public class DiscoverFilterListsFragment extends Fragment {
                                 : new ArrayList<>();
                         cachedDirectoryLoaded = true;
                         AppExecutors.getInstance().mainThread().execute(() -> {
-                            if (this.binding == null) return;
+                            if (this.binding != loadingBinding) return;
                             this.syntaxNames = cachedSyntaxNames;
-                            this.existingUrls.clear();
-                            this.existingUrls.addAll(existingUrlsLocal);
-                            synchronized (existingFilterListUrlsById) {
-                                this.existingFilterListUrlsById.clear();
-                                this.existingFilterListUrlsById.putAll(existingFilterListUrlsLocal);
-                            }
                             all.clear();
                             all.addAll(cachedLists);
                             populateTagChips(cachedTags);
                             populateLanguageSpinner(cachedLanguages);
+                            mDirectorySnapshotLoaded = true;
                             filter();
                             binding.filterlistsProgress.setVisibility(View.GONE);
                             refreshBulkActionsState();
@@ -381,7 +422,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
                 if (cachedDirectoryLoaded && listsCacheFresh && tagsCacheFresh) {
                     AppExecutors.getInstance().mainThread().execute(() -> {
-                        if (this.binding == null) return;
+                        if (this.binding != loadingBinding) return;
                         directoryLoading = false;
                         directoryLoadFailed = false;
                         binding.filterlistsProgress.setVisibility(View.GONE);
@@ -412,18 +453,13 @@ public class DiscoverFilterListsFragment extends Fragment {
                         .apply();
 
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding == null) return;
+                    if (this.binding != loadingBinding) return;
                     this.syntaxNames = syntaxNamesNet;
-                    this.existingUrls.clear();
-                    this.existingUrls.addAll(existingUrlsLocal);
-                    synchronized (existingFilterListUrlsById) {
-                        this.existingFilterListUrlsById.clear();
-                        this.existingFilterListUrlsById.putAll(existingFilterListUrlsLocal);
-                    }
                     all.clear();
                     all.addAll(lists);
                     populateTagChips(tags);
                     populateLanguageSpinner(languages);
+                    mDirectorySnapshotLoaded = true;
                     filter();
                     directoryLoading = false;
                     directoryLoadFailed = false;
@@ -433,7 +469,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                 });
             } catch (IOException e) {
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding == null) return;
+                    if (this.binding != loadingBinding) return;
                     directoryLoading = false;
                     directoryLoadFailed = true;
                     binding.filterlistsProgress.setVisibility(View.GONE);
@@ -454,6 +490,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         Chip allChip = new Chip(requireContext());
         allChip.setText(R.string.filterlists_tag_all);
         allChip.setCheckable(true);
+        allChip.setSaveEnabled(false);
         allChip.setChecked(selectedTagId == 0);
         allChip.setTag(0);
         allChip.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -468,6 +505,7 @@ public class DiscoverFilterListsFragment extends Fragment {
             Chip chip = new Chip(requireContext());
             chip.setText(tag.name);
             chip.setCheckable(true);
+            chip.setSaveEnabled(false);
             chip.setChecked(selectedTagId == tag.id);
             chip.setTag(tag.id);
             chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -486,14 +524,21 @@ public class DiscoverFilterListsFragment extends Fragment {
 
         List<String> items = new ArrayList<>();
         items.add(getString(R.string.filterlists_language_all));
+        int selectedPosition = 0;
         for (FilterListsDirectoryApi.Language lang : languages) {
             items.add(lang.name);
+            if (lang.id == selectedLanguageId) {
+                selectedPosition = items.size() - 1;
+            }
         }
+        if (selectedPosition == 0) selectedLanguageId = 0;
 
         ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
                 requireContext(), android.R.layout.simple_spinner_item, items);
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        binding.languageSpinner.setOnItemSelectedListener(null);
         binding.languageSpinner.setAdapter(spinnerAdapter);
+        binding.languageSpinner.setSelection(selectedPosition, false);
 
         binding.languageSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -508,7 +553,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                selectedLanguageId = 0;
+                // Adapter replacement can temporarily clear the view selection.
             }
         });
     }
@@ -529,7 +574,11 @@ public class DiscoverFilterListsFragment extends Fragment {
             if (mSubscribedOnly && !isSummarySubscribed(s)) continue;
             nextFiltered.add(s);
         }
-        pruneSelectedListIdsToVisible(nextFiltered);
+        // Initial empty adapters/DAO delivery are not evidence that restored IDs disappeared.
+        if (mDirectorySnapshotLoaded && mViewStateRestored
+                && (!mSubscribedOnly || mSubscriptionsLoaded)) {
+            pruneSelectedListIdsToVisible(nextFiltered);
+        }
         updateFilteredRows(nextFiltered);
         refreshBulkActionsState();
         updateFilterListsState();
@@ -950,7 +999,25 @@ public class DiscoverFilterListsFragment extends Fragment {
             return;
         }
         Context appContext = requireContext().getApplicationContext();
-        FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
+        Data inputData;
+        try {
+            inputData = selectedIds != null
+                    && selectedIds.length > FilterListsSubscribeAllWorker.MAX_INLINE_SCOPE_IDS
+                    ? FilterListsSubscribeAllWorker.buildPersistedScopeInput(
+                            appContext, mCompatibleOnly, selectedIds)
+                    : FilterListsSubscribeAllWorker.buildScopeInput(
+                            allDirectory ? null : getCurrentSearchQuery(),
+                            allDirectory ? 0 : selectedTagId,
+                            allDirectory ? 0 : selectedLanguageId,
+                            !allDirectory && mCompatibleOnly,
+                            selectedIds);
+            if (!FilterListsSubscribeAllWorker.prepareForNewRun(appContext)) {
+                throw new IOException("Unable to prepare subscription");
+            }
+        } catch (IOException e) {
+            showSnackbar(getString(R.string.filterlists_update_subscription_failed));
+            return;
+        }
         binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
         binding.filterlistsSubscribeAllStatus.setText(R.string.filterlists_status_preparing);
         setSubscribeAllStopping(false);
@@ -971,12 +1038,6 @@ public class DiscoverFilterListsFragment extends Fragment {
         } catch (Exception ignored) {
         }
 
-        Data inputData = FilterListsSubscribeAllWorker.buildScopeInput(
-                allDirectory ? null : getCurrentSearchQuery(),
-                allDirectory ? 0 : selectedTagId,
-                allDirectory ? 0 : selectedLanguageId,
-                !allDirectory && mCompatibleOnly,
-                selectedIds);
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
@@ -1228,8 +1289,8 @@ public class DiscoverFilterListsFragment extends Fragment {
         boolean hasReview = prefs.getInt(
                 FilterListsSubscribeAllWorker.KEY_LAST_RUN_REVIEW_COUNT, 0) > 0
                 && outcomes != null && !outcomes.isEmpty();
-        boolean hasRetry = outcomes != null && parseRetryableNoUrlIds(outcomes).length > 0;
-        boolean hasUnsupported = outcomes != null && parseUnsupportedIds(outcomes).length > 0;
+        boolean hasRetry = readLastRunNoUrlIds(prefs).length > 0;
+        boolean hasUnsupported = readLastRunUnsupportedIds(prefs).length > 0;
         boolean showActions = allowed && (hasReview || hasRetry || hasUnsupported);
         binding.filterlistsLastRunActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
         binding.filterlistsReviewLastRunButton.setVisibility(
@@ -1265,13 +1326,28 @@ public class DiscoverFilterListsFragment extends Fragment {
     private void retryLastRunNoUrlLists() {
         if (binding == null) return;
         Context appContext = requireContext().getApplicationContext();
-        FilterListsSubscribeAllWorker.prepareForNewRun(appContext);
         SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
-        int[] retryIds = parseRetryableNoUrlIds(outcomes != null ? outcomes : "");
+        int[] retryIds = readLastRunNoUrlIds(prefs);
         if (retryIds.length == 0) {
             showSnackbar(getString(R.string.filterlists_retry_last_run_empty));
             refreshLastRunReviewAction(true);
+            return;
+        }
+
+        Data inputData;
+        try {
+            inputData = retryIds.length > FilterListsSubscribeAllWorker.MAX_INLINE_SCOPE_IDS
+                    ? FilterListsSubscribeAllWorker.buildPersistedScopeInput(
+                            appContext, false, retryIds)
+                    : FilterListsSubscribeAllWorker.buildScopeInput(null, 0, 0, false,
+                retryIds);
+            inputData = new Data.Builder().putAll(inputData)
+                    .putBoolean(FilterListsSubscribeAllWorker.INPUT_RETRY_NO_URL, true).build();
+            if (!FilterListsSubscribeAllWorker.prepareForNewRun(appContext)) {
+                throw new IOException("Unable to prepare subscription retry");
+            }
+        } catch (IOException e) {
+            showSnackbar(getString(R.string.filterlists_update_subscription_failed));
             return;
         }
 
@@ -1291,8 +1367,6 @@ public class DiscoverFilterListsFragment extends Fragment {
         refreshBulkActionsState();
         refreshLastRunReviewAction(false);
 
-        Data inputData = FilterListsSubscribeAllWorker.buildScopeInput(null, 0, 0, false,
-                retryIds);
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FilterListsSubscribeAllWorker.class)
                 .setInputData(inputData)
                 .build();
@@ -1306,8 +1380,7 @@ public class DiscoverFilterListsFragment extends Fragment {
         if (binding == null) return;
         Context appContext = requireContext().getApplicationContext();
         SharedPreferences prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
-        int[] unsupportedIds = parseUnsupportedIds(outcomes != null ? outcomes : "");
+        int[] unsupportedIds = readLastRunUnsupportedIds(prefs);
         if (unsupportedIds.length == 0) {
             showSnackbar(getString(R.string.filterlists_review_unsupported_empty));
             refreshLastRunReviewAction(true);
@@ -1345,9 +1418,8 @@ public class DiscoverFilterListsFragment extends Fragment {
             return;
         }
 
-        int shown = Math.min(summaries.size(), MAX_LAST_RUN_DIALOG_ROWS);
-        CharSequence[] labels = new CharSequence[shown];
-        for (int i = 0; i < shown; i++) {
+        CharSequence[] labels = new CharSequence[summaries.size()];
+        for (int i = 0; i < summaries.size(); i++) {
             FilterListsDirectoryApi.ListSummary summary = summaries.get(i);
             labels[i] = summary.name != null && !summary.name.isEmpty()
                     ? summary.name : "List " + summary.id;
@@ -1361,14 +1433,14 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     @NonNull
     private List<FilterListsDirectoryApi.ListSummary> findSummariesByIds(@NonNull int[] ids) {
+        Map<Integer, FilterListsDirectoryApi.ListSummary> byId = new HashMap<>();
+        for (FilterListsDirectoryApi.ListSummary summary : all) {
+            byId.put(summary.id, summary);
+        }
         List<FilterListsDirectoryApi.ListSummary> summaries = new ArrayList<>();
         for (int id : ids) {
-            for (FilterListsDirectoryApi.ListSummary summary : all) {
-                if (summary.id == id) {
-                    summaries.add(summary);
-                    break;
-                }
-            }
+            FilterListsDirectoryApi.ListSummary summary = byId.get(id);
+            if (summary != null) summaries.add(summary);
         }
         return summaries;
     }
@@ -1424,6 +1496,24 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     static int[] parseUnsupportedIds(@NonNull String outcomes) {
         return parseOutcomeIds(outcomes, "SKIPPED_UNSUPPORTED");
+    }
+
+    static int[] readLastRunNoUrlIds(@NonNull SharedPreferences prefs) {
+        if (prefs.contains(FilterListsSubscribeAllWorker.KEY_LAST_RUN_NO_URL_IDS)) {
+            return FilterListsSubscribeAllWorker.readStoredIds(prefs,
+                    FilterListsSubscribeAllWorker.KEY_LAST_RUN_NO_URL_IDS);
+        }
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        return parseRetryableNoUrlIds(outcomes != null ? outcomes : "");
+    }
+
+    static int[] readLastRunUnsupportedIds(@NonNull SharedPreferences prefs) {
+        if (prefs.contains(FilterListsSubscribeAllWorker.KEY_LAST_RUN_UNSUPPORTED_IDS)) {
+            return FilterListsSubscribeAllWorker.readStoredIds(prefs,
+                    FilterListsSubscribeAllWorker.KEY_LAST_RUN_UNSUPPORTED_IDS);
+        }
+        String outcomes = prefs.getString(FilterListsSubscribeAllWorker.KEY_LAST_RUN_OUTCOMES, "");
+        return parseUnsupportedIds(outcomes);
     }
 
     @NonNull

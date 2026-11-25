@@ -69,6 +69,7 @@ class SourceLoader {
     private static final int PARSER_COUNT = SourceModel.PARSER_THREADS_PER_SOURCE;
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
+    private static final Pattern HOSTS_ALIAS_PATTERN = Pattern.compile("[^#\\s]+");
     static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$|\\s]+)\\^?$");
     static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
     private static final Pattern DNSMASQ_ADDRESS =
@@ -552,12 +553,11 @@ class SourceLoader {
                     else if (line.isEmpty() || line.charAt(0) == '#' || line.charAt(0) == '!') {
                         // skip
                     } else {
-                        HostListItem item = allowedList ? parseAllowListItem(line) : parseHostListItem(line);
-                        if (item == null || !isRedirectionValid(item) || !isHostValid(item)) {
-                            // Track failed parse attempts
+                        boolean valid = allowedList ? enqueueItem(parseAllowListItem(line))
+                                : parseHostListItems(line);
+                        if (!valid) {
+                            // Count a partially malformed alias record once, not once per alias.
                             this.skippedLines.incrementAndGet();
-                        } else {
-                            this.itemQueue.put(item);
                         }
                     }
                 } catch (InterruptedException e) {
@@ -572,76 +572,65 @@ class SourceLoader {
             }
         }
 
-        private HostListItem parseHostListItem(String line) {
+        private boolean enqueueItem(@Nullable HostListItem item) throws InterruptedException {
+            if (item == null || !isRedirectionValid(item) || !isHostValid(item)) {
+                return false;
+            }
+            this.itemQueue.put(item);
+            return true;
+        }
+
+        private boolean parseHostListItems(String line) throws InterruptedException {
             Matcher matcher = HOSTS_PARSER_PATTERN.matcher(line);
             if (!matcher.matches()) {
-                // Best-effort: accept common "filter syntax" formats by extracting a hostname.
-                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
-                if (extracted == null) {
-                    return null;  // Skip non-matching lines silently for performance
-                }
-                // Treat extracted domain as blocked (0.0.0.0 domain)
-                HostListItem item = new HostListItem();
-                item.setType(BLOCKED);
-                item.setHost(extracted.host);
-                item.setKind(extracted.kind);
-                item.setEnabled(true);
-                item.setSourceId(this.source.getId());
-                return item;
+                return enqueueItem(parseNonHostsItem(line));
             }
-            // Check IP address validity or while list entry (if allowed)
             String ip = matcher.group(1);
-            String hostname = matcher.group(2);
-            assert hostname != null;
-            // Skip localhost name
-            if (LOCALHOST_HOSTNAME.equals(hostname)) {
-                return null;
-            }
-            // check if ip is 127.0.0.1 or 0.0.0.0
             ListType type;
             if (LOCALHOST_IPV4.equals(ip)
                     || BOGUS_IPV4.equals(ip)
                     || LOCALHOST_IPV6.equals(ip)) {
                 type = BLOCKED;
-            } else if (!RegexUtils.isValidIP(ip)) {
-                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
-                if (extracted != null) {
-                    HostListItem item = new HostListItem();
-                    item.setType(BLOCKED);
-                    item.setHost(extracted.host);
-                    item.setKind(extracted.kind);
-                    item.setEnabled(true);
-                    item.setSourceId(this.source.getId());
-                    return item;
-                }
-                return null;
-            } else if (this.source.isRedirectEnabled()) {
+            } else if (RegexUtils.isValidIP(ip) && this.source.isRedirectEnabled()) {
                 type = REDIRECTED;
             } else {
-                // Not a standard hosts entry (IP is not 127.0.0.1 / 0.0.0.0 / ::1 and redirect
-                // is disabled). This can happen for lines that HOSTS_PARSER_PATTERN matches
-                // structurally but which belong to another format — e.g. RPZ:
-                //   "ads.example.com CNAME . ; comment" → ip=ads.example.com, hostname=CNAME
-                // Fall through to non-hosts syntax extraction to recover these lines.
-                ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
-                if (extracted != null) {
-                    HostListItem item = new HostListItem();
-                    item.setType(BLOCKED);
-                    item.setHost(extracted.host);
-                    item.setKind(extracted.kind);
-                    item.setEnabled(true);
-                    item.setSourceId(this.source.getId());
-                    return item;
+                // Multi-token non-hosts formats such as RPZ must keep their own semantics.
+                return enqueueItem(parseNonHostsItem(line));
+            }
+            int comment = line.indexOf('#', matcher.start(2));
+            Matcher aliases = HOSTS_ALIAS_PATTERN.matcher(line);
+            aliases.region(matcher.start(2), comment < 0 ? line.length() : comment);
+            boolean valid = true;
+            while (aliases.find()) {
+                String hostname = aliases.group();
+                if (LOCALHOST_HOSTNAME.equals(hostname)) {
+                    valid = false;
+                    continue;
                 }
+                HostListItem item = new HostListItem();
+                item.setType(type);
+                item.setHost(hostname);
+                item.setEnabled(true);
+                if (type == REDIRECTED) {
+                    item.setRedirection(ip);
+                }
+                item.setSourceId(this.source.getId());
+                valid &= enqueueItem(item);
+            }
+            return valid;
+        }
+
+        @Nullable
+        private HostListItem parseNonHostsItem(String line) {
+            ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
+            if (extracted == null) {
                 return null;
             }
             HostListItem item = new HostListItem();
-            item.setType(type);
-            item.setHost(hostname);
+            item.setType(BLOCKED);
+            item.setHost(extracted.host);
+            item.setKind(extracted.kind);
             item.setEnabled(true);
-            if (type == REDIRECTED) {
-                item.setRedirection(ip);
-            }
             item.setSourceId(this.source.getId());
             return item;
         }

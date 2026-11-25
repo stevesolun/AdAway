@@ -17,6 +17,6 @@ public class CompleteDownloadStatus implements DownloadStatus {
 
     @Override
     public String format(Context context) {
-        return context.getString(R.string.update_complete_label);
+        return context.getString(R.string.update_downloaded_label);
     }
 }

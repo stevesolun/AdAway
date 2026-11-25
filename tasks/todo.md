@@ -1,3 +1,23 @@
+# Full File-by-File Audit - 2026-11-25 (Active)
+
+- [x] Revalidate clean worktree, merged baseline, previous completed review run,
+  and current open PRs; start `codex/full-codebase-audit` from `origin/master`.
+- [ ] Inventory every repository file with hash-bound review status; preserve
+  pending/stale coverage rather than infer review from passing tests.
+- [ ] Review every file, log confirmed bugs in
+  `tasks/audit-2026-11-25/bugs.csv`, and fix them with regression proof.
+- [ ] Enumerate and exercise every UI control and workflow, including cancellation,
+  denial, failure/retry, rotation, back navigation and multi-step operations.
+- [ ] Validate consolidated fixes locally, then through protected review/CI.
+- [ ] Audit full goal coverage before claiming completion. October release delivery
+  is historical evidence, not completion of this expanded audit.
+
+Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
+
+Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
+Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
+The bounded beta release does not complete this ongoing audit.
+
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log

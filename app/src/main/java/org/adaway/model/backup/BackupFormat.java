@@ -5,12 +5,16 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
 import org.adaway.db.entity.RuleKind;
 import org.adaway.util.RegexUtils;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
+import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 
 /**
  * This class defines user lists and hosts sources file format.
@@ -18,6 +22,9 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 final class BackupFormat {
+    static final int MAX_SOURCES = 200;
+    static final int MAX_LIST_ITEMS = 50_000;
+    static final int MAX_CHARACTERS = 16 * 1024 * 1024;
     /*
      * Source backup format.
      */
@@ -42,6 +49,59 @@ final class BackupFormat {
 
     }
 
+    static ParsedBackup parseBackup(JSONObject backup) throws JSONException {
+        JSONArray sources = backup.getJSONArray(SOURCES_KEY);
+        JSONArray blocked = backup.getJSONArray(BLOCKED_KEY);
+        JSONArray allowed = backup.getJSONArray(ALLOWED_KEY);
+        JSONArray redirected = backup.getJSONArray(REDIRECTED_KEY);
+        checkCounts(sources.length(), (long) blocked.length() + allowed.length()
+                + redirected.length());
+        List<HostsSource> importedSources = new ArrayList<>();
+        for (int index = 0; index < sources.length(); index++) {
+            HostsSource source = sourceFromJson(sources.getJSONObject(index));
+            source.setRedirectEnabled(false);
+            importedSources.add(source);
+        }
+        List<HostListItem> importedHosts = new ArrayList<>();
+        parseList(importedHosts, ListType.BLOCKED, blocked);
+        parseList(importedHosts, ListType.ALLOWED, allowed);
+        parseList(importedHosts, ListType.REDIRECTED, redirected);
+        return new ParsedBackup(importedSources, importedHosts);
+    }
+
+    static void checkCounts(int sources, long hosts) throws JSONException {
+        if (sources > MAX_SOURCES || hosts > MAX_LIST_ITEMS) {
+            throw new JSONException("Backup exceeds import limits.");
+        }
+    }
+
+    static String serializeBackup(JSONObject backup) throws JSONException {
+        // An export must satisfy the same row and count checks as its eventual import.
+        parseBackup(backup);
+        String serialized = backup.toString(4);
+        if (serialized.length() > MAX_CHARACTERS) {
+            throw new JSONException("Backup exceeds maximum size.");
+        }
+        return serialized;
+    }
+
+    private static void parseList(List<HostListItem> target, ListType type, JSONArray hosts)
+            throws JSONException {
+        for (int index = 0; index < hosts.length(); index++) {
+            target.add(hostFromJson(hosts.getJSONObject(index), type));
+        }
+    }
+
+    static final class ParsedBackup {
+        final List<HostsSource> sources;
+        final List<HostListItem> hosts;
+
+        private ParsedBackup(List<HostsSource> sources, List<HostListItem> hosts) {
+            this.sources = sources;
+            this.hosts = hosts;
+        }
+    }
+
     static JSONObject sourceToJson(HostsSource source) throws JSONException {
         JSONObject sourceObject = new JSONObject();
         sourceObject.put(SOURCE_LABEL_ATTRIBUTE, source.getLabel());
@@ -56,7 +116,7 @@ final class BackupFormat {
         HostsSource source = new HostsSource();
         source.setLabel(sourceObject.getString(SOURCE_LABEL_ATTRIBUTE));
         String url = sourceObject.getString(SOURCE_URL_ATTRIBUTE);
-        if (!HostsSource.isValidUrl(url)) {
+        if (USER_SOURCE_URL.equals(url) || !HostsSource.isValidUrl(url)) {
             throw new JSONException("Invalid source URL: "+url);
         }
         source.setUrl(url);

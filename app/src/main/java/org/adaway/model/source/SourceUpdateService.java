@@ -153,8 +153,17 @@ public final class SourceUpdateService {
         @Override
         public Result doWork() {
             Timber.i("Starting update worker");
-            // Create model
             AdAwayApplication application = (AdAwayApplication) getApplicationContext();
+            try (SourceOperationCoordinator.Lease ignored =
+                         application.getSourceOperations().acquire()) {
+                return updateWithLease(application);
+            } catch (HostErrorException exception) {
+                Timber.i(exception, "Source operation busy; retrying background update.");
+                return retry();
+            }
+        }
+
+        private Result updateWithLease(AdAwayApplication application) {
             SourceModel model = application.getSourceModel();
             // Check for update
             boolean hasUpdate;
@@ -215,7 +224,8 @@ public final class SourceUpdateService {
         public Result doWork() {
             Timber.i("Starting immediate update-all worker");
             AdAwayApplication application = (AdAwayApplication) getApplicationContext();
-            try {
+            try (SourceOperationCoordinator.Lease ignored =
+                         application.getSourceOperations().acquire()) {
                 HostsSourceDao sources = AppDatabase.getInstance(application).hostsSourceDao();
                 String configuration = SourceApplyState.fingerprint(sources.getAll());
                 SourceModel sourceModel = application.getSourceModel();

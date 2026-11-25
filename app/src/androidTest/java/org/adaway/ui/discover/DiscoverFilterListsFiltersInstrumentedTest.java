@@ -6,11 +6,14 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
 
+import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -23,7 +26,9 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -31,9 +36,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
 public class DiscoverFilterListsFiltersInstrumentedTest {
@@ -68,25 +78,29 @@ public class DiscoverFilterListsFiltersInstrumentedTest {
             throws Exception {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
-            waitForAdapterCount(scenario, 4);
+            waitForAdapterIds(scenario, 101, 102, 103, 104);
 
             scenario.onActivity(activity -> {
                 EditText search = activity.findViewById(R.id.filterlistsSearchEditText);
                 assertNotNull(search);
                 search.setText("regional");
             });
-            waitForAdapterCount(scenario, 3);
+            waitForAdapterIds(scenario, 101, 102, 103);
+
+            scenario.onActivity(activity -> ((EditText) activity.findViewById(
+                    R.id.filterlistsSearchEditText)).setText(""));
+            waitForAdapterIds(scenario, 101, 102, 103, 104);
 
             scenario.onActivity(activity -> clickChip(activity.findViewById(R.id.tagChipGroup),
                     "Regional"));
-            waitForAdapterCount(scenario, 3);
+            waitForAdapterIds(scenario, 101, 102, 103);
 
             scenario.onActivity(activity -> {
                 Spinner spinner = activity.findViewById(R.id.languageSpinner);
                 assertNotNull(spinner);
                 spinner.setSelection(1);
             });
-            waitForAdapterCount(scenario, 2);
+            waitForAdapterIds(scenario, 101, 102);
 
             scenario.onActivity(activity -> {
                 MaterialSwitch compatibleOnly =
@@ -94,14 +108,16 @@ public class DiscoverFilterListsFiltersInstrumentedTest {
                 assertNotNull(compatibleOnly);
                 compatibleOnly.setChecked(true);
             });
-            waitForAdapterCount(scenario, 1);
+            waitForAdapterIds(scenario, 101);
+            waitForVisibleFilterName(scenario, "Regional Ads Safe");
+            UiEvidence.capture(this.context, "discover-filtered-directory");
 
             scenario.onActivity(activity -> {
                 EditText search = activity.findViewById(R.id.filterlistsSearchEditText);
                 assertNotNull(search);
                 search.setText("no such list");
             });
-            waitForAdapterCount(scenario, 0);
+            waitForAdapterIds(scenario);
             scenario.onActivity(activity -> {
                 View state = activity.findViewById(R.id.filterlistsStateContainer);
                 assertNotNull(state);
@@ -158,31 +174,75 @@ public class DiscoverFilterListsFiltersInstrumentedTest {
         throw new AssertionError("Missing chip " + text);
     }
 
-    private static void waitForAdapterCount(ActivityScenario<HomeActivity> scenario, int expected)
-            throws Exception {
+    private static void waitForAdapterIds(ActivityScenario<HomeActivity> scenario,
+                                          Integer... expectedIds) throws Exception {
+        Set<Integer> expected = new TreeSet<>(Arrays.asList(expectedIds));
+        Field filtered = DiscoverFilterListsFragment.class.getDeclaredField("filtered");
+        filtered.setAccessible(true);
         long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
-        int last = -1;
+        Set<Integer> last = null;
         while (SystemClock.elapsedRealtime() < deadline) {
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-            AtomicInteger count = new AtomicInteger(-1);
+            AtomicReference<Set<Integer>> ids = new AtomicReference<>();
             scenario.onActivity(activity -> {
                 RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
-                if (recycler != null && recycler.getAdapter() != null) {
-                    count.set(recycler.getAdapter().getItemCount());
+                Fragment discover = activity.getSupportFragmentManager()
+                        .findFragmentById(R.id.nav_fragment_container);
+                if (recycler == null || recycler.getAdapter() == null || discover == null) {
+                    return;
+                }
+                Fragment browser = discover.getChildFragmentManager()
+                        .findFragmentById(R.id.discoverBrowserContainer);
+                if (!(browser instanceof DiscoverFilterListsFragment)) {
+                    return;
+                }
+                try {
+                    @SuppressWarnings("unchecked")
+                    List<FilterListsDirectoryApi.ListSummary> rows =
+                            (List<FilterListsDirectoryApi.ListSummary>) filtered.get(browser);
+                    Set<Integer> actual = new TreeSet<>();
+                    for (FilterListsDirectoryApi.ListSummary row : rows) actual.add(row.id);
+                    assertEquals("Adapter must expose every filtered identity exactly once",
+                            actual.size(), recycler.getAdapter().getItemCount());
+                    ids.set(actual);
+                } catch (IllegalAccessException exception) {
+                    throw new AssertionError(exception);
                 }
             });
-            last = count.get();
-            if (last == expected) {
+            last = ids.get();
+            if (expected.equals(last)) {
                 return;
             }
             SystemClock.sleep(100);
         }
-        assertEquals("Timed out waiting for FilterLists row count", expected, last);
+        assertEquals("Timed out waiting for FilterLists row identities", expected, last);
     }
 
     private static void drainDiskIo() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AppExecutors.getInstance().diskIO().execute(latch::countDown);
         assertTrue(latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    private static void waitForVisibleFilterName(ActivityScenario<HomeActivity> scenario,
+                                                 String expectedName) {
+        long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            AtomicReference<Boolean> visible = new AtomicReference<>(false);
+            scenario.onActivity(activity -> {
+                RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+                if (recycler == null) return;
+                RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(0);
+                if (holder == null) return;
+                TextView name = holder.itemView.findViewById(R.id.filterlistsItemName);
+                Rect bounds = new Rect();
+                visible.set(name != null && expectedName.contentEquals(name.getText())
+                        && name.isShown() && name.getGlobalVisibleRect(bounds)
+                        && bounds.width() > 0 && bounds.height() > 0);
+            });
+            if (visible.get()) return;
+            SystemClock.sleep(50);
+        }
+        throw new AssertionError("Filtered directory row must be visibly rendered: " + expectedName);
     }
 }

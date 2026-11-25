@@ -7,6 +7,7 @@ import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 
@@ -21,12 +22,21 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.ListType;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.lang.reflect.Proxy;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(AndroidJUnit4.class)
 public class VpnModelCacheInvalidationTest {
@@ -95,6 +105,74 @@ public class VpnModelCacheInvalidationTest {
         application.getSourceModel().syncHostEntries();
 
         assertEquals(ALLOWED, vpnModel.getEntry(childHost).getType());
+    }
+
+    @Test(timeout = 30_000)
+    public void inFlightAllowedLookupCannotRepopulateCacheAfterBlocking() throws Exception {
+        assertInFlightLookupCannotRepopulateCache(ALLOWED, BLOCKED);
+    }
+
+    @Test(timeout = 30_000)
+    public void inFlightBlockedLookupCannotRepopulateCacheAfterAllowing() throws Exception {
+        assertInFlightLookupCannotRepopulateCache(BLOCKED, ALLOWED);
+    }
+
+    private void assertInFlightLookupCannotRepopulateCache(ListType before, ListType after)
+            throws Exception {
+        insertHostListItem(suffixHost, BLOCKED, SUFFIX, TEST_SOURCE_ID);
+        if (before == ALLOWED) {
+            insertHostListItem(childHost, ALLOWED, EXACT, USER_SOURCE_ID);
+        }
+        hostEntryDao.sync();
+
+        CountDownLatch oldResultRead = new CountDownLatch(1);
+        CountDownLatch releaseOldResult = new CountDownLatch(1);
+        AtomicInteger lookups = new AtomicInteger();
+        HostEntryDao delayedDao = (HostEntryDao) Proxy.newProxyInstance(
+                HostEntryDao.class.getClassLoader(), new Class<?>[]{HostEntryDao.class},
+                (proxy, method, args) -> {
+                    if (!"resolveEntry".equals(method.getName())) {
+                        throw new AssertionError("Unexpected DAO call: " + method.getName());
+                    }
+                    HostEntry result = hostEntryDao.resolveEntry((String) args[0]);
+                    if (lookups.incrementAndGet() == 1) {
+                        oldResultRead.countDown();
+                        assertTrue("Old lookup was never released.",
+                                releaseOldResult.await(10, TimeUnit.SECONDS));
+                    }
+                    return result;
+                });
+        VpnModel vpnModel = new VpnModel(application, delayedDao);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<HostEntry> oldLookup = executor.submit(() -> vpnModel.getEntry(childHost));
+            assertTrue("Lookup must capture the old database result before mutation.",
+                    oldResultRead.await(5, TimeUnit.SECONDS));
+
+            if (after == ALLOWED) {
+                insertHostListItem(childHost, ALLOWED, EXACT, USER_SOURCE_ID);
+            } else {
+                hostListItemDao.deleteUserFromHost(childHost);
+            }
+            hostEntryDao.sync();
+            assertEquals(after, hostEntryDao.resolveEntry(childHost).getType());
+            // Invalidation must finish without waiting for the old database lookup.
+            executor.submit(vpnModel::invalidateRulesCache).get(5, TimeUnit.SECONDS);
+            releaseOldResult.countDown();
+            assertEquals(before, oldLookup.get(5, TimeUnit.SECONDS).getType());
+
+            // Do not read the new value before oldLookup completes: that would mask
+            // evictAll's race by inserting a competing value into the old cache.
+            assertEquals(after, vpnModel.getEntry(childHost).getType());
+            assertEquals(after, vpnModel.getEntry(childHost).getType());
+            assertEquals("The fresh result should be cached after one new DAO lookup.",
+                    2, lookups.get());
+        } finally {
+            releaseOldResult.countDown();
+            executor.shutdownNow();
+            assertTrue("No lookup task may outlive database fixture cleanup.",
+                    executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     private void insertSource() {

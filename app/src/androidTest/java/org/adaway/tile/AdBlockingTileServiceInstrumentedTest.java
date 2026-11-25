@@ -23,6 +23,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import org.adaway.AdAwayApplication;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -61,10 +62,16 @@ public class AdBlockingTileServiceInstrumentedTest {
         RecordingAdBlockModel second = new RecordingAdBlockModel(context);
         java.util.concurrent.atomic.AtomicReference<AdBlockModel> current =
                 new java.util.concurrent.atomic.AtomicReference<>(first);
+        SourceOperationCoordinator operations = new SourceOperationCoordinator();
         AdBlockingTileService service = new AdBlockingTileService() {
             @Override
             AdBlockModel getModel() {
                 return current.get();
+            }
+
+            @Override
+            SourceOperationCoordinator getSourceOperations() {
+                return operations;
             }
         };
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
@@ -72,13 +79,16 @@ public class AdBlockingTileServiceInstrumentedTest {
                 service.onStartListening();
                 service.onStartListening();
                 assertTrue(first.isApplied().hasObservers());
+                assertTrue(operations.getBusy().hasObservers());
                 current.set(second);
                 service.onStopListening();
                 assertFalse(first.isApplied().hasObservers());
+                assertFalse(operations.getBusy().hasObservers());
                 service.onStartListening();
                 assertTrue(second.isApplied().hasObservers());
                 service.onDestroy();
                 assertFalse(second.isApplied().hasObservers());
+                assertFalse(operations.getBusy().hasObservers());
             } finally {
                 service.onStopListening();
             }

@@ -1,15 +1,26 @@
 package org.adaway.model.backup;
 
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathFactory;
+
 public class AppBackupAgentContractTest {
+    private static final String ROOT_EXCLUSION = "<exclude domain=\"root\" path=\".\"/>";
+    private static final String ROOT_INCLUSION = "<include domain=\"root\" path=\".\"/>";
+
     @Test
     public void manifestKeepsBackupAgentEligibleAndConstrained() throws Exception {
         String manifest = readRepoFile("app/src/main/AndroidManifest.xml");
@@ -25,13 +36,62 @@ public class AppBackupAgentContractTest {
         assertTrue("Manifest must keep platform backup constrained by explicit XML rules.",
                 manifest.contains("android:dataExtractionRules=\"@xml/data_extraction_rules\"") &&
                         manifest.contains("android:fullBackupContent=\"@xml/full_backup_content\""));
-        assertTrue("Cloud and device-transfer backup must not include arbitrary root files.",
-                dataExtractionRules.contains("<cloud-backup>") &&
-                        dataExtractionRules.contains("<device-transfer>") &&
-                        dataExtractionRules.contains("domain=\"root\"") &&
-                        dataExtractionRules.contains("path=\".\"") &&
-                        fullBackupContent.contains("domain=\"root\"") &&
-                        fullBackupContent.contains("path=\".\""));
+        assertBackupRootExcluded(dataExtractionRules, fullBackupContent);
+    }
+
+    @Test
+    public void backupExclusionsRejectCloudIncludeSubstitution() {
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules(ROOT_INCLUSION, ROOT_EXCLUSION),
+                fullBackupContent(ROOT_EXCLUSION)));
+    }
+
+    @Test
+    public void backupExclusionsRejectDeviceTransferIncludeSubstitution() {
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules(ROOT_EXCLUSION, ROOT_INCLUSION),
+                fullBackupContent(ROOT_EXCLUSION)));
+    }
+
+    @Test
+    public void backupExclusionsRejectLegacyIncludeSubstitution() {
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules(ROOT_EXCLUSION, ROOT_EXCLUSION),
+                fullBackupContent(ROOT_INCLUSION)));
+    }
+
+    @Test
+    public void backupExclusionsRejectMissingCloudExclusion() {
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules("", ROOT_EXCLUSION), fullBackupContent(ROOT_EXCLUSION)));
+    }
+
+    @Test
+    public void backupExclusionsRejectMissingDeviceTransferExclusion() {
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules(ROOT_EXCLUSION, ""), fullBackupContent(ROOT_EXCLUSION)));
+    }
+
+    @Test
+    public void backupExclusionsRequireEachSection() {
+        String withoutCloud = "<data-extraction-rules><device-transfer>" + ROOT_EXCLUSION
+                + "</device-transfer></data-extraction-rules>";
+        String withoutTransfer = "<data-extraction-rules><cloud-backup>" + ROOT_EXCLUSION
+                + "</cloud-backup></data-extraction-rules>";
+
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                withoutCloud, fullBackupContent(ROOT_EXCLUSION)));
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                withoutTransfer, fullBackupContent(ROOT_EXCLUSION)));
+        assertThrows(AssertionError.class, () -> assertBackupRootExcluded(
+                dataExtractionRules(ROOT_EXCLUSION, ROOT_EXCLUSION), fullBackupContent("")));
+    }
+
+    @Test
+    public void backupExclusionsAcceptEquivalentXmlFormatting() throws Exception {
+        String exclusion = "<exclude\n path='.' domain='root' />";
+        assertBackupRootExcluded(dataExtractionRules(exclusion, exclusion),
+                fullBackupContent(exclusion));
     }
 
     @Test
@@ -68,6 +128,38 @@ public class AppBackupAgentContractTest {
                 exportIndex >= 0 && performBackupIndex > exportIndex);
         assertTrue("Rules restore must let FileBackupHelper materialize the file before import.",
                 restoreFileIndex >= 0 && importIndex > restoreFileIndex);
+    }
+
+    private static void assertBackupRootExcluded(String dataExtractionRules,
+            String fullBackupContent) throws Exception {
+        Document extractionRules = parseXml(dataExtractionRules);
+        assertRootExcluded(extractionRules, "/data-extraction-rules/cloud-backup");
+        assertRootExcluded(extractionRules, "/data-extraction-rules/device-transfer");
+        assertRootExcluded(parseXml(fullBackupContent), "/full-backup-content");
+    }
+
+    private static void assertRootExcluded(Document rules, String sectionPath) throws Exception {
+        assertTrue(sectionPath + " must directly exclude domain=root path=.",
+                (Boolean) XPathFactory.newInstance().newXPath().evaluate(
+                        sectionPath + "/exclude[@domain='root' and @path='.']",
+                        rules, XPathConstants.BOOLEAN));
+    }
+
+    private static Document parseXml(String xml) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        return factory.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
+    }
+
+    private static String dataExtractionRules(String cloudRules, String transferRules) {
+        return "<data-extraction-rules><cloud-backup>" + cloudRules
+                + "</cloud-backup><device-transfer>" + transferRules
+                + "</device-transfer></data-extraction-rules>";
+    }
+
+    private static String fullBackupContent(String rules) {
+        return "<full-backup-content>" + rules + "</full-backup-content>";
     }
 
     private static String readRepoFile(String relativePath) throws Exception {

@@ -17,6 +17,7 @@ import org.adaway.R;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.ui.hosts.HostsSourcesViewModel;
 import org.adaway.ui.hosts.HostsSourcesViewModel.ApplyStatus;
 import org.adaway.util.AppExecutors;
@@ -40,7 +41,7 @@ public class ApplyConfigurationSnackbar {
     /**
      * The notify snackbar when hosts update available.
      */
-    private final Snackbar notifySnackbar;
+    private Snackbar notifySnackbar;
     /**
      * The wait snackbar during hosts install.
      */
@@ -92,8 +93,7 @@ public class ApplyConfigurationSnackbar {
     private ApplyConfigurationSnackbar(@NonNull View view, boolean syncSources,
             boolean ignoreEventDuringInstall, @Nullable HostsSourcesViewModel sourceViewModel) {
         this.view = view;
-        this.notifySnackbar = Snackbar.make(this.view, R.string.notification_configuration_changed, LENGTH_INDEFINITE)
-                .setAction(R.string.notification_configuration_changed_action, v -> apply());
+        this.notifySnackbar = createNotifySnackbar();
         this.waitSnackbar = Snackbar.make(this.view, R.string.notification_configuration_installing, LENGTH_INDEFINITE);
         appendViewToSnackbar(this.waitSnackbar, new ProgressBar(this.view.getContext()));
         this.syncSources = syncSources;
@@ -122,8 +122,23 @@ public class ApplyConfigurationSnackbar {
         if (this.mSourceViewModel.getApplyState().isPending()) {
             notifyUpdateAvailable();
         } else {
-            this.notifySnackbar.dismiss();
+            dismissNotifySnackbar();
             if (changed && status == ApplyStatus.SUCCEEDED) showApplied();
+        }
+    }
+
+    private Snackbar createNotifySnackbar() {
+        return Snackbar.make(this.view, R.string.notification_configuration_changed,
+                LENGTH_INDEFINITE)
+                .setAction(R.string.notification_configuration_changed_action, v -> apply());
+    }
+
+    private void dismissNotifySnackbar() {
+        if (this.notifySnackbar.isShownOrQueued()) {
+            // A dismissing snackbar still reports shown; a new request needs its own callback.
+            Snackbar previous = this.notifySnackbar;
+            this.notifySnackbar = createNotifySnackbar();
+            previous.dismiss();
         }
     }
 
@@ -192,34 +207,44 @@ public class ApplyConfigurationSnackbar {
         showLoading();
         AdAwayApplication application =
                 (AdAwayApplication) this.view.getContext().getApplicationContext();
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            boolean successful = false;
-            try {
-                SourceModel sourceModel = application.getSourceModel();
-                AdBlockModel adBlockModel = application.getAdBlockModel();
-                boolean shouldApply = true;
-                if (this.syncSources) {
-                    shouldApply = sourceModel.checkAndRetrieveHostsSources();
-                } else {
-                    sourceModel.syncHostEntries();
+        SourceOperationCoordinator.Lease lease = application.getSourceOperations().tryAcquire();
+        if (lease == null) {
+            endLoading(false);
+            return;
+        }
+        try {
+            AppExecutors.getInstance().diskIO().execute(() -> {
+                boolean successful = false;
+                try (SourceOperationCoordinator.Lease ignored = lease) {
+                    SourceModel sourceModel = application.getSourceModel();
+                    AdBlockModel adBlockModel = application.getAdBlockModel();
+                    boolean shouldApply = true;
+                    if (this.syncSources) {
+                        shouldApply = sourceModel.checkAndRetrieveHostsSources();
+                    } else {
+                        sourceModel.syncHostEntries();
+                    }
+                    if (shouldApply) {
+                        adBlockModel.apply();
+                    }
+                    successful = shouldApply;
+                } catch (HostErrorException | RuntimeException exception) {
+                    Timber.w(exception, "Failed to apply configuration.");
                 }
-                if (shouldApply) {
-                    adBlockModel.apply();
-                }
-                successful = shouldApply;
-            } catch (HostErrorException | RuntimeException exception) {
-                successful = false;
-                Timber.w(exception, "Failed to apply configuration.");
-            }
-            boolean result = successful;
-            AppExecutors.getInstance().mainThread().execute(() -> endLoading(result));
-        });
+                boolean result = successful;
+                AppExecutors.getInstance().mainThread().execute(() -> endLoading(result));
+            });
+        } catch (RuntimeException exception) {
+            lease.close();
+            endLoading(false);
+            Timber.w(exception, "Failed to schedule configuration apply.");
+        }
     }
 
     private void showLoading() {
         // Clear notify snackbar
         dismissFailure();
-        this.notifySnackbar.dismiss();
+        dismissNotifySnackbar();
         // Show wait snackbar
         if (this.mSourceViewModel != null) {
             this.waitSnackbar.setText(R.string.sources_apply_installing);
@@ -260,7 +285,7 @@ public class ApplyConfigurationSnackbar {
     @UiThread
     public void showFailure(@Nullable Runnable retry) {
         dismissFailure();
-        this.notifySnackbar.dismiss();
+        dismissNotifySnackbar();
         this.mFailureSnackbar = Snackbar.make(this.view,
                 R.string.notification_configuration_failed,
                 retry == null ? LENGTH_LONG : LENGTH_INDEFINITE);

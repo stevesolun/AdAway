@@ -3,6 +3,7 @@ package org.adaway.model.source;
 import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -24,6 +25,7 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.util.AppExecutors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -123,6 +125,9 @@ public class SourceModelHttpConditionalTest {
             server.shutdown();
         }
         if (database != null) {
+            CountDownLatch drained = new CountDownLatch(1);
+            AppExecutors.getInstance().diskIO().execute(drained::countDown);
+            assertTrue("Runtime cache refresh must finish", drained.await(10, TimeUnit.SECONDS));
             database.close();
         }
     }
@@ -262,6 +267,91 @@ public class SourceModelHttpConditionalTest {
         assertTrue(request.cacheControl().noCache());
         assertNull(request.header(IF_NONE_MATCH));
         assertNull(request.header(IF_MODIFIED_SINCE));
+    }
+
+    @Test
+    public void failedFirstDownloadWithoutLastModifiedRemainsUpdateNeeded() throws Exception {
+        hostsSourceDao.applySourceSelection(SECOND_SOURCE_ID, false);
+        hostListItemDao.clearSourceHosts(FIRST_SOURCE_ID);
+        hostsSourceDao.clearProperties(FIRST_SOURCE_ID);
+        server.enqueue(new MockResponse().setResponseCode(500));
+        try {
+            sourceModel.retrieveHostsSource(FIRST_SOURCE_ID);
+            fail("The first download must fail");
+        } catch (HostErrorException expected) {
+            assertEquals(DOWNLOAD_FAILED, expected.getError());
+        }
+        assertEquals("GET", server.takeRequest(5, TimeUnit.SECONDS).getMethod());
+        assertNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow()
+                .getLocalModificationDate());
+
+        for (int check = 0; check < 2; check++) {
+            server.enqueue(new MockResponse().setResponseCode(200));
+            assertTrue(sourceModel.checkForUpdate());
+            RecordedRequest request = server.takeRequest(5, TimeUnit.SECONDS);
+            assertNotNull(request);
+            assertEquals("HEAD", request.getMethod());
+            assertNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow()
+                    .getOnlineModificationDate());
+        }
+    }
+
+    @Test
+    public void successfulEmptySourceWithoutLastModifiedUsesWeeklyRefresh() throws Exception {
+        hostsSourceDao.applySourceSelection(SECOND_SOURCE_ID, false);
+        server.enqueue(new MockResponse().setBody("# Valid empty source\n"));
+        sourceModel.retrieveHostsSource(FIRST_SOURCE_ID);
+        assertEquals("GET", server.takeRequest(5, TimeUnit.SECONDS).getMethod());
+        assertEquals(0, countRows(FIRST_SOURCE_ID, ACTIVE_GENERATION));
+        assertNotNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow()
+                .getLocalModificationDate());
+
+        server.enqueue(new MockResponse().setResponseCode(200));
+        assertFalse(sourceModel.checkForUpdate());
+        assertEquals("HEAD", server.takeRequest(5, TimeUnit.SECONDS).getMethod());
+
+        hostsSourceDao.updateModificationDates(FIRST_SOURCE_ID,
+                ZonedDateTime.now().minusDays(8), null);
+        server.enqueue(new MockResponse().setResponseCode(200));
+        assertTrue(sourceModel.checkForUpdate());
+        assertEquals("HEAD", server.takeRequest(5, TimeUnit.SECONDS).getMethod());
+    }
+
+    @Test
+    public void freshGoneSourceAbortsPartialGenerationWithoutDisablingSelection() throws Exception {
+        hostListItemDao.clearSourceHosts(FIRST_SOURCE_ID);
+        hostListItemDao.clearSourceHosts(SECOND_SOURCE_ID);
+        hostsSourceDao.clearProperties(FIRST_SOURCE_ID);
+        hostsSourceDao.clearProperties(SECOND_SOURCE_ID);
+        sourceModel.syncHostEntries();
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                return "/first.txt".equals(request.getPath())
+                        ? new MockResponse().setResponseCode(410)
+                        : new MockResponse().setBody("0.0.0.0 " + UPDATED_FIRST_HOST + "\n");
+            }
+        });
+
+        try {
+            sourceModel.checkAndRetrieveHostsSources();
+            fail("A selected fresh source with no previous coverage must abort publication");
+        } catch (HostErrorException expected) {
+            assertEquals(DOWNLOAD_FAILED, expected.getError());
+        }
+
+        assertEquals(2, server.getRequestCount());
+        assertEquals(ACTIVE_GENERATION, getActiveGeneration());
+        assertEquals(0, countRows(FIRST_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(0, countRows(SECOND_SOURCE_ID, STAGING_GENERATION));
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertTrue(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow().isEnabled());
+        assertTrue(hostsSourceDao.getById(SECOND_SOURCE_ID).orElseThrow().isEnabled());
+        assertNull(hostsSourceDao.getById(SECOND_SOURCE_ID).orElseThrow()
+                .getLocalModificationDate());
+        assertNotNull(hostsSourceDao.getById(FIRST_SOURCE_ID).orElseThrow()
+                .getLastDownloadError());
+        assertScratchTableAbsent();
     }
 
     private void assertTargetedDownloadFailure() throws Exception {
@@ -481,6 +571,9 @@ public class SourceModelHttpConditionalTest {
         Field field = SourceModel.class.getDeclaredField("cachedHttpClient");
         field.setAccessible(true);
         field.set(sourceModel, client);
+        Field headField = SourceModel.class.getDeclaredField("cachedHeadClient");
+        headField.setAccessible(true);
+        headField.set(sourceModel, client);
     }
 
     private Object invokeCheckAndRetrieveHostsSources() throws Exception {

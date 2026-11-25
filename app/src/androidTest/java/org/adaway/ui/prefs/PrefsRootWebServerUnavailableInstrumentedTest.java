@@ -69,6 +69,9 @@ public class PrefsRootWebServerUnavailableInstrumentedTest {
 
             assertAccessibilityText(this.context.getString(R.string.pref_webserver));
             assertAccessibilityText(this.context.getString(R.string.pref_webserver_enabled));
+            this.instrumentation.runOnMainSync(() ->
+                    currentFragment(PrefsRootFragment.class).scrollToPreference(
+                            this.context.getString(R.string.pref_webserver_test_key)));
             assertAccessibilityText(this.context.getString(R.string.pref_webserver_test));
             assertAccessibilityText(this.context.getString(R.string.pref_webserver_state_unavailable));
             assertRootWebServerPreferencesDisabled();

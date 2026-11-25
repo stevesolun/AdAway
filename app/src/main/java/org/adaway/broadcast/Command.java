@@ -32,15 +32,27 @@ public enum Command {
      * @return The read intent.
      */
     public static Command readFromIntent(Intent intent) {
+        return readFromIntent(intent, UNKNOWN);
+    }
+
+    /**
+     * Use the fallback only when no command was supplied, never for an invalid command.
+     *
+     * @param intent The intent to read command from.
+     * @param fallback The command for an absent extra.
+     * @return The supplied command, fallback, or UNKNOWN for an invalid extra.
+     */
+    public static Command readFromIntent(Intent intent, Command fallback) {
+        if (intent == null || !intent.hasExtra(INTENT_EXTRA_COMMAND)) {
+            return fallback;
+        }
         Command command = UNKNOWN;
-        if (intent != null && intent.hasExtra(INTENT_EXTRA_COMMAND)) {
-            String commandName = intent.getStringExtra(INTENT_EXTRA_COMMAND);
-            if (commandName != null) {
-                try {
-                    command = Command.valueOf(commandName);
-                } catch (IllegalArgumentException e) {
-                    Timber.w("Failed to read command named %s.", commandName);
-                }
+        String commandName = intent.getStringExtra(INTENT_EXTRA_COMMAND);
+        if (commandName != null) {
+            try {
+                command = Command.valueOf(commandName);
+            } catch (IllegalArgumentException e) {
+                Timber.w("Failed to read command named %s.", commandName);
             }
         }
         return command;

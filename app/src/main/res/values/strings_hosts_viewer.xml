@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="hosts_viewer_title">Hosts file (read-only)</string>
+    <string name="hosts_viewer_read_only">Read-only snapshot. The system hosts file is not changed.</string>
+    <string name="hosts_viewer_loading">Reading hosts file…</string>
+    <string name="hosts_viewer_complete">Snapshot loaded.</string>
+    <string name="hosts_viewer_truncated">Preview limited to the first 64 KiB. The rest of the file is not shown.</string>
+    <string name="hosts_viewer_error">Unable to read the hosts file. No changes were made.</string>
+</resources>

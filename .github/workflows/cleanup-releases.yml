@@ -28,19 +28,26 @@ jobs:
             exit 1
           fi
 
-          mapfile -t releases < <(
-            gh release list \
+          # Check enumeration before parsing; process substitution hides gh failures.
+          release_list=$(gh release list --repo "$GITHUB_REPOSITORY" \
               --limit 1000 \
               --json tagName,createdAt \
-              --jq 'sort_by(.createdAt) | reverse | .[].tagName'
-          )
+              --jq 'sort_by(.createdAt) | reverse | .[].tagName')
+          if [ -z "$release_list" ]; then
+            exit 0
+          fi
+
+          releases=()
+          while IFS= read -r release; do
+            releases+=("$release")
+          done <<< "$release_list"
 
           for index in "${!releases[@]}"; do
             if [ "$index" -lt "$KEEP_LATEST" ]; then
               continue
             fi
             # Keep tags: source archives and GPL source provenance are tag-addressed.
-            gh release delete "${releases[$index]}" --yes
+            gh release delete "${releases[$index]}" --repo "$GITHUB_REPOSITORY" --yes
           done
 
 

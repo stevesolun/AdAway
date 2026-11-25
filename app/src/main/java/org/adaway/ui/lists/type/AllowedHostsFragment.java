@@ -86,12 +86,13 @@ public class AllowedHostsFragment extends AbstractListFragment {
         // Set button validation behavior
         inputEditText.addTextChangedListener(
                 new AlertDialogValidator(alertDialog, input -> {
+                    inputEditText.setError(null);
                     String[] lines = input.split("\\r?\\n");
                     boolean hasContent = false;
                     for (String line : lines) {
                         String trimmed = line.trim();
                         if (!trimmed.isEmpty()) {
-                            if (!RegexUtils.isValidWildcardHostname(trimmed)) {
+                            if (!validateHostname(inputEditText, trimmed)) {
                                 return false; // Invalid line found
                             }
                             hasContent = true;
@@ -138,6 +139,15 @@ public class AllowedHostsFragment extends AbstractListFragment {
         alertDialog.show();
         // Set button validation behavior
         inputEditText.addTextChangedListener(
-                new AlertDialogValidator(alertDialog, RegexUtils::isValidWildcardHostname, true));
+                new AlertDialogValidator(alertDialog,
+                        input -> validateHostname(inputEditText, input),
+                        validateHostname(inputEditText, item.getHost())));
+    }
+
+    private boolean validateHostname(EditText input, String hostname) {
+        input.setError(hostname.length() > RegexUtils.MAX_HOSTNAME_LENGTH
+                ? getString(R.string.list_dialog_hostname_too_long, RegexUtils.MAX_HOSTNAME_LENGTH)
+                : null);
+        return RegexUtils.isValidWildcardHostname(hostname);
     }
 }

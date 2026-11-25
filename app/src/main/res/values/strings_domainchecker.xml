@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="domain_checker_invalid_input">Enter a valid domain or HTTP/HTTPS URL without login details.</string>
+    <string name="domain_checker_check_failed">Could not check this domain. Please try again.</string>
+    <string name="domain_checker_change_failed">Could not finish updating rules. Check the domain and try again.</string>
+</resources>

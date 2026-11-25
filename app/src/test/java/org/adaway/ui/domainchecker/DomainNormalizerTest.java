@@ -18,6 +18,49 @@ public class DomainNormalizerTest {
     }
 
     @Test
+    public void rejectsCredentialsInsteadOfCheckingUsername() {
+        assertNull(DomainNormalizer.normalize(
+                "https://account.example:secret@target.example/path"));
+        assertNull(DomainNormalizer.normalize("http://account.example@target.example"));
+        assertNull(DomainNormalizer.normalize("https://user:secret@b\u00fccher.example/path"));
+        assertNull(DomainNormalizer.normalize("account.example:secret@target.example/path"));
+    }
+
+    @Test
+    public void preservesBareHostPathQueryPortAndIdnContracts() {
+        assertEquals("target.example", DomainNormalizer.normalize("TARGET.example:8080/path"));
+        assertEquals("target.example", DomainNormalizer.normalize("target.example?q=1/path#x"));
+        assertEquals("target.example", DomainNormalizer.normalize("target.example#x/path"));
+        assertEquals("target.example", DomainNormalizer.normalize(
+                " HTTPS://TARGET.EXAMPLE.:443/path?q=1#x "));
+        assertEquals("xn--bcher-kva.example", DomainNormalizer.normalize(
+                "https://b\u00fccher.example:443/path?q=1#x"));
+        assertEquals("xn--bcher-kva.example", DomainNormalizer.normalize(
+                "b\u00fccher.example:8080/path"));
+    }
+
+    @Test
+    public void bareHostQueryMayContainAnotherUrl() {
+        assertEquals("target.example", DomainNormalizer.normalize(
+                "target.example/path?next=https://other.example/path"));
+        assertEquals("target.example", DomainNormalizer.normalize(
+                "target.example?next=http://other.example/path"));
+    }
+
+    @Test
+    public void rejectsMalformedOrUnsupportedAuthorities() {
+        for (String input : new String[]{
+                "https://account.example%40target.example/path",
+                "https://account.example\\@target.example/path",
+                "https://target.example:secret/path", "https://target.example:65536/path",
+                "https://target.example:/path", "https:///target.example/path",
+                "ftp://target.example/path", "target.example:secret@other.example",
+                "https://[::1]/", "https://127.0.0.1/path"}) {
+            assertNull(input, DomainNormalizer.normalize(input));
+        }
+    }
+
+    @Test
     public void testHttpUrl() {
         assertEquals("example.com", DomainNormalizer.normalize("http://example.com/path"));
     }

@@ -15,7 +15,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeNoException;
 
 public class ReleaseWorkflowRegressionTest {
     @Test
@@ -175,69 +174,10 @@ public class ReleaseWorkflowRegressionTest {
 
     private static void releaseToolchainFixture(boolean signerInstalled, boolean wrongCertificate)
             throws Exception {
-        assumeFalse("Mock SDK tools use Bash", System.getProperty("os.name").startsWith("Windows"));
-        Path fixture = Files.createTempDirectory("adaway-release-toolchain");
-        try {
-            Path sdk = fixture.resolve("sdk");
-            Path bin = fixture.resolve("bin");
-            String cert = "12".repeat(32);
-            String aapt = "echo \"package: name='org.adaway' versionCode='130503'\"\n";
-            String signer = "echo 'Signer #1 certificate SHA-256 digest: " + cert + "'\n";
-            writeTool(sdk.resolve("build-tools/36.0.0/aapt"),
-                    "echo tested-aapt >> \"$TOOL_CALLS\"\n" + aapt);
-            if (signerInstalled) {
-                writeTool(sdk.resolve("build-tools/36.0.0/apksigner"),
-                        "echo tested-signer >> \"$TOOL_CALLS\"\n" + signer);
-            }
-            writeTool(sdk.resolve("build-tools/37.0.0/aapt"),
-                    "echo newer-aapt >> \"$TOOL_CALLS\"\n" + aapt);
-            writeTool(sdk.resolve("build-tools/37.0.0/apksigner"),
-                    "echo newer-signer >> \"$TOOL_CALLS\"\n" + signer);
-            writeTool(bin.resolve("apksigner"),
-                    "echo path-signer >> \"$TOOL_CALLS\"\n" + signer);
-            Path apk = fixture.resolve("release.apk");
-            Files.write(apk, new byte[]{1});
-            Path calls = fixture.resolve("calls.txt");
-            Path output = fixture.resolve("output.txt");
-            ProcessBuilder builder = new ProcessBuilder("pwsh", "-NoProfile", "-File",
-                    root().resolve("scripts/run-release-smoke.ps1").toAbsolutePath().toString(),
-                    "-ApkPath", apk.toString(), "-ExpectedCertSha256",
-                    wrongCertificate ? "34".repeat(32) : cert, "-VerifyOnly");
-            builder.environment().put("ANDROID_HOME", sdk.toString());
-            builder.environment().put("ANDROID_SDK_ROOT", sdk.toString());
-            builder.environment().put("PATH", bin + ":" + builder.environment().get("PATH"));
-            builder.environment().put("TOOL_CALLS", calls.toString());
-            Process process;
-            try {
-                process = builder.redirectErrorStream(true).redirectOutput(output.toFile()).start();
-            } catch (IOException unavailable) {
-                assumeNoException("PowerShell is required for the mock release verifier", unavailable);
-                return;
-            }
-            try {
-                assertTrue("Mock release verifier must finish", process.waitFor(20, TimeUnit.SECONDS));
-                assertEquals(readFile(output), signerInstalled && !wrongCertificate,
-                        process.exitValue() == 0);
-            } finally {
-                if (process.isAlive()) {
-                    process.destroyForcibly();
-                    process.waitFor(5, TimeUnit.SECONDS);
-                }
-            }
-            assertEquals(signerInstalled ? "tested-aapt\ntested-signer\n" : "tested-aapt\n",
-                    readFile(calls));
-            if (!signerInstalled) {
-                assertTrue(readFile(output).contains("Android build-tools 36.0.0"));
-            } else if (wrongCertificate) {
-                assertTrue(readFile(output).contains("fingerprint does not match"));
-            }
-        } finally {
-            try (Stream<Path> paths = Files.walk(fixture)) {
-                for (Path path : paths.sorted(Comparator.reverseOrder()).toArray(Path[]::new)) {
-                    Files.delete(path);
-                }
-            }
-        }
+        String testCase = !signerInstalled ? "test_smoke_missing_pinned_signer_never_falls_back"
+                : wrongCertificate ? "test_smoke_wrong_certificate_and_actual_signer_fail_before_device_access"
+                : "test_smoke_prefers_pinned_tools_over_old_new_and_path";
+        ReleaseArtifactTestHarness.run(root(), testCase);
     }
 
     private static String step(String workflow, String name) {

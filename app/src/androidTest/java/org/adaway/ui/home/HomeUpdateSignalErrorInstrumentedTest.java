@@ -39,6 +39,7 @@ import org.adaway.model.error.HostError;
 import org.adaway.model.update.Manifest;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.update.UpdateActivity;
 import org.json.JSONObject;
 import org.junit.After;
@@ -130,6 +131,26 @@ public class HomeUpdateSignalErrorInstrumentedTest {
                     helpMonitor.getHits() > 0);
         } finally {
             instrumentation.removeMonitor(helpMonitor);
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void failedSourceOpensSourcesWithoutReplayingOldError() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            publishHostError(scenario, HostError.DOWNLOAD_FAILED);
+            waitForTextContaining(this.context.getString(R.string.error_download_failed_details));
+            AccessibilityNodeInfo sourcesButton =
+                    waitForClickableText(this.context.getString(R.string.nav_sources));
+            UiEvidence.capture(this.context, "failed-filter-sources-action");
+            assertTrue(sourcesButton.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> {
+                activity.getSupportFragmentManager().executePendingTransactions();
+                assertTrue(activity.getSupportFragmentManager().findFragmentById(
+                        R.id.nav_fragment_container) instanceof org.adaway.ui.hosts.HostsSourcesTabFragment);
+                org.junit.Assert.assertNull(new ViewModelProvider(activity).get(HomeViewModel.class)
+                        .getError().getValue());
+            });
         }
     }
 

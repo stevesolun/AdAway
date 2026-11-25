@@ -81,7 +81,7 @@ public class RootModel extends AdBlockModel {
         // Check if host list is applied
         Executor executor = AppExecutors.getInstance().diskIO();
         executor.execute(this::checkApplied);
-        executor.execute(() -> syncPreferences(context));
+        executor.execute(this::cleanupLegacyNativeProcesses);
     }
 
     @Override
@@ -157,8 +157,9 @@ public class RootModel extends AdBlockModel {
         this.applied.postValue(applied);
     }
 
-    private void syncPreferences(Context context) {
-        WebServerUtils.stopWebServer();
+    private void cleanupLegacyNativeProcesses() {
+        WebServerUtils.cleanupLegacyWebServer();
+        TcpdumpUtils.cleanupLegacyTcpdump();
     }
 
     private void deleteNewHostsFile() {
@@ -430,8 +431,9 @@ public class RootModel extends AdBlockModel {
 
         @Override
         public void close() throws IOException {
-            flushBuffer();
-            this.output.close();
+            try (OutputStream output = this.output) {
+                flushBuffer();
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package org.adaway.model.root;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
@@ -28,19 +29,21 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
+import java.util.UUID;
 
 @RunWith(AndroidJUnit4.class)
 public class RootModelApplyInstrumentedTest {
     private static final String ROOT_APPLY_SMOKE_ARG = "rootHostsApplySmoke";
     private static final String TEST_DATABASE_NAME = "root-model-apply-smoke.db";
-    private static final String HOSTS_BACKUP_PATH =
-            "/data/local/tmp/adaway-rootmodel-hosts.before";
     private static final String SMOKE_HOST = "codex-rootmodel-apply.local";
 
     private Context context;
     private AppDatabase database;
     private AppDatabase previousDatabase;
     private boolean restoreHostsFile;
+    private String backupDirectory;
+    private String backupPath;
+    private String originalDigest;
 
     @Before
     public void setUp() throws Exception {
@@ -110,22 +113,41 @@ public class RootModelApplyInstrumentedTest {
     }
 
     private void backupSystemHostsFile() {
-        Shell.Result result = Shell.cmd(
-                "cp /system/etc/hosts " + HOSTS_BACKUP_PATH,
-                "sha256sum " + HOSTS_BACKUP_PATH).exec();
+        this.originalDigest = readDigest("/system/etc/hosts");
+        this.backupDirectory = "/data/local/tmp/adaway-rootmodel-" + UUID.randomUUID();
+        this.backupPath = this.backupDirectory + "/hosts.before";
+        Shell.Result result = Shell.cmd("mkdir -m 700 " + this.backupDirectory
+                + " && cp /system/etc/hosts " + this.backupPath
+                + " && chmod 600 " + this.backupPath
+                + " && chown 0:0 " + this.backupPath).exec();
         assertShellSuccess("backup system hosts", result);
+        assertEquals("Backup must match the original system hosts file.",
+                this.originalDigest, readDigest(this.backupPath));
         this.restoreHostsFile = true;
-        System.out.println("RootModelApplySmoke backup=" + result.getOut());
+        System.out.println("RootModelApplySmoke verified backup=" + this.backupPath);
     }
 
-    private static void restoreSystemHostsFile() {
-        Shell.Result result = Shell.cmd(
-                "cp " + HOSTS_BACKUP_PATH + " /system/etc/hosts",
-                "chmod 644 /system/etc/hosts",
-                "chown 0:0 /system/etc/hosts",
-                "sha256sum /system/etc/hosts").exec();
+    private void restoreSystemHostsFile() {
+        assertEquals("Backup changed; retain it for recovery rather than copying unknown bytes.",
+                this.originalDigest, readDigest(this.backupPath));
+        Shell.Result result = Shell.cmd("cp " + this.backupPath + " /system/etc/hosts"
+                + " && chmod 644 /system/etc/hosts"
+                + " && chown 0:0 /system/etc/hosts").exec();
         assertShellSuccess("restore system hosts", result);
-        System.out.println("RootModelApplySmoke restore=" + result.getOut());
+        assertEquals("Restored system hosts must match the original digest.",
+                this.originalDigest, readDigest("/system/etc/hosts"));
+        this.restoreHostsFile = false;
+        assertShellSuccess("remove verified backup", Shell.cmd("rm " + this.backupPath
+                + " && rmdir " + this.backupDirectory).exec());
+    }
+
+    private static String readDigest(String path) {
+        Shell.Result result = Shell.cmd("sha256sum " + path).exec();
+        assertShellSuccess("hash " + path, result);
+        assertEquals("Expected exactly one SHA-256 result for " + path, 1, result.getOut().size());
+        String digest = result.getOut().get(0).split("\\s+", 2)[0];
+        assertTrue("Invalid SHA-256 result for " + path, digest.matches("[0-9a-f]{64}"));
+        return digest;
     }
 
     private void seedBlockedHost() {

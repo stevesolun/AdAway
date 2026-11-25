@@ -29,7 +29,7 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
     private static final DiffUtil.ItemCallback<HostListItem> DIFF_CALLBACK = new DiffUtil.ItemCallback<HostListItem>() {
         @Override
         public boolean areItemsTheSame(@NonNull HostListItem oldItem, @NonNull HostListItem newItem) {
-            return (oldItem.getHost().equals(newItem.getHost()));
+            return oldItem.getId() == newItem.getId();
         }
 
         @Override
@@ -80,19 +80,22 @@ class ListsAdapter extends PagingDataAdapter<HostListItem, ListsAdapter.ViewHold
             holder.clear();
             return;
         }
-        boolean editable = item.getSourceId() == USER_SOURCE_ID;
         holder.enabledCheckBox.setEnabled(true);
         holder.enabledCheckBox.setChecked(item.isEnabled());
-        holder.enabledCheckBox.setOnClickListener(
-                view -> this.viewCallback.onToggleListItem(item, holder.enabledCheckBox.isChecked()));
+        holder.enabledCheckBox.setOnClickListener(view -> {
+            boolean checked = holder.enabledCheckBox.isChecked();
+            // Downloaded rules may show a confirmation and never commit the requested change.
+            if (item.getSourceId() != USER_SOURCE_ID) {
+                holder.enabledCheckBox.setChecked(item.isEnabled());
+            }
+            this.viewCallback.onToggleListItem(item, checked);
+        });
         holder.hostTextView.setText(item.getHost());
         if (this.twoRows) {
             holder.redirectionTextView.setText(item.getRedirection());
         }
         holder.itemView.setOnClickListener(view -> {
-            boolean checked = !holder.enabledCheckBox.isChecked();
-            holder.enabledCheckBox.setChecked(checked);
-            this.viewCallback.onToggleListItem(item, checked);
+            holder.enabledCheckBox.performClick();
         });
         holder.itemView.setOnLongClickListener(view -> this.viewCallback.startAction(item, holder.itemView));
     }

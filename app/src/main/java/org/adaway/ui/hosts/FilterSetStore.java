@@ -172,6 +172,27 @@ public final class FilterSetStore {
                 .apply();
     }
 
+    /** Save a confirmed selection and its schedule together without changing active identity. */
+    static void saveScheduledSet(@NonNull Context context, @NonNull String name,
+            @NonNull Set<String> urls, int schedule, int weekdayIso, int hour24, int minute) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
+        String displayName = normalizeActiveProfile(name);
+        String id = resolveSetId(prefs, displayName);
+        Set<String> ids = getSetIds(prefs);
+        if (id == null) {
+            id = newUniqueOpaqueProfileId(ids, displayName);
+        }
+        SharedPreferences.Editor editor = prefs.edit();
+        putProfileMetadata(prefs, editor, ids, id, displayName);
+        editor.putStringSet(KEY_SET_IDS, ids)
+                .putStringSet(profileValueKey(KEY_SET_ID_PREFIX, id), new HashSet<>(urls))
+                .putInt(profileValueKey(KEY_SCHEDULE_ID_PREFIX, id), schedule)
+                .putInt(profileValueKey(KEY_SCHEDULE_WEEKDAY_ID_PREFIX, id), clamp(weekdayIso, 1, 7))
+                .putInt(profileValueKey(KEY_SCHEDULE_HOUR_ID_PREFIX, id), clamp(hour24, 0, 23))
+                .putInt(profileValueKey(KEY_SCHEDULE_MINUTE_ID_PREFIX, id), clamp(minute, 0, 59))
+                .apply();
+    }
+
     public static boolean renameSet(
             @NonNull Context context, @NonNull String oldName, @NonNull String newName) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);

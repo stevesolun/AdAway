@@ -12,7 +12,7 @@ import org.adaway.R;
 public enum HostError {
     // Source model errors
     NO_CONNECTION(R.string.error_no_connection_message, R.string.error_no_connection_details),
-    DOWNLOAD_FAILED(R.string.error_download_failed_message, R.string.error_no_connection_details),
+    DOWNLOAD_FAILED(R.string.error_download_failed_message, R.string.error_download_failed_details),
     UPDATE_IN_PROGRESS(R.string.error_update_in_progress_message,
             R.string.error_update_in_progress_details),
     // Host install model errors

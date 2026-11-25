@@ -66,6 +66,95 @@ function Get-SourceCommit {
     return "not-provided"
 }
 
+function Get-ReviewPacketStructureIssues([string[]] $Lines) {
+    # Matches Write-UxMatrixReviewManifest. Generator-backed tests detect schema drift.
+    $variants = @("baseline", "font-1.3", "font-1.6", "font-1.3-rtl", "font-1.6-rtl")
+    $screens = @("home", "discover", "sources", "more", "domain_checker",
+            "onboarding", "custom_rules", "update")
+    $globalChecks = @(
+        "Text is readable without clipping, ellipsizing, or overlap.",
+        "Touch targets remain reachable and visually stable.",
+        "The AdAway bird remains the first-screen brand signal.",
+        "FABs, cards, and bottom navigation do not hide primary actions.",
+        "RTL variants keep navigation, cards, and rule rows correctly anchored."
+    )
+    $required = @("title", "source commit", "global checklist")
+    $required += @($globalChecks | ForEach-Object { "global/$_" })
+    foreach ($variant in $variants) {
+        $required += "section/$variant", "screens/$variant"
+        $required += @($screens | ForEach-Object { "$variant/$_" })
+    }
+    $counts = @{}
+    foreach ($key in $required) { $counts[$key] = 0 }
+    $section = ""
+    $inScreens = $false
+    $lineNumber = 0
+    foreach ($line in $Lines) {
+        $lineNumber++
+        $trimmed = $line.Trim()
+        # Hidden/example checklists are not review evidence.
+        if ($trimmed -match '^(`{3,}|~{3,})' -or $line.Contains('<!--')) {
+            "line ${lineNumber}: Fenced blocks and HTML comments are not allowed in review packets."
+        }
+        if ($trimmed -match '^#{1,6}\s+') {
+            $section = ""
+            $inScreens = $false
+            if ($trimmed -ceq "# UX Matrix Review Packet") {
+                $counts["title"]++
+            } elseif ($trimmed -cmatch '^## (?<variant>.+)$' -and
+                    $variants -ccontains $Matches["variant"]) {
+                $section = $Matches["variant"]
+                $counts["section/$section"]++
+            } else {
+                "line ${lineNumber}: Unexpected review packet heading: $trimmed"
+            }
+            continue
+        }
+        if ($trimmed -match '^-\s+Source commit:') {
+            $counts["source commit"]++
+            continue
+        }
+        if ($trimmed -ceq "Manual sign-off checklist:") {
+            $counts["global checklist"]++
+            $section = "global"
+            $inScreens = $false
+            continue
+        }
+        if ($trimmed -ceq "- Screens:") {
+            if ($variants -ccontains $section) {
+                $counts["screens/$section"]++
+                $inScreens = $true
+            } else {
+                "line ${lineNumber}: Screens list is outside a variant section."
+            }
+            continue
+        }
+        if ($trimmed -notmatch '^-\s+\[[ xX]\]\s+(?<text>.+)$') { continue }
+        $text = $Matches["text"].Trim()
+        if ($section -ceq "global" -and $globalChecks -ccontains $text) {
+            $counts["global/$text"]++
+        } elseif ($variants -ccontains $section -and $inScreens -and
+                $text -cmatch '^(?<screen>[a-z_]+) - (?<path>.+)$' -and
+                $screens -ccontains $Matches["screen"]) {
+            $screen = $Matches["screen"]
+            $path = $Matches["path"]
+            $counts["$section/$screen"]++
+            # Both layouts are emitted by Get-UxScreenshotPath. CI receives only the packet.
+            if ($path -cne "$section/$screen.png" -and
+                    $path -cne "$section/ux-matrix/$screen.png") {
+                "line ${lineNumber}: Invalid screenshot path for ${section}/${screen}: $path"
+            }
+        } else {
+            "line ${lineNumber}: Unexpected or misplaced checklist item: $text"
+        }
+    }
+    foreach ($key in $required) {
+        if ($counts[$key] -ne 1) {
+            "Review packet requires exactly one '$key' entry; found $($counts[$key])."
+        }
+    }
+}
+
 function Write-UxSignOffReport(
     [string] $Status,
     [int] $CheckedCount,
@@ -129,9 +218,13 @@ $resolvedPacket = Resolve-RepoPath $ReviewPacket
 if (-not (Test-Path -LiteralPath $resolvedPacket -PathType Leaf)) {
     $issues.Add("Review packet does not exist: $ReviewPacket")
 } else {
+    $packetLines = @(Get-Content -LiteralPath $resolvedPacket)
+    foreach ($issue in Get-ReviewPacketStructureIssues $packetLines) {
+        $issues.Add($issue)
+    }
     $checkboxCount = 0
     $lineNumber = 0
-    foreach ($line in Get-Content -LiteralPath $resolvedPacket) {
+    foreach ($line in $packetLines) {
         $lineNumber++
         if ($line -notmatch "^\s*-\s+\[(?<mark>[ xX])\]\s+(?<text>.+)$") {
             continue

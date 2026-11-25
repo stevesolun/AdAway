@@ -35,7 +35,6 @@ import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.FragmentHomeBinding;
@@ -52,6 +51,7 @@ import org.adaway.ui.prefs.PrefsActivity;
 import org.adaway.util.AppExecutors;
 
 import java.text.NumberFormat;
+import java.util.List;
 import java.util.Locale;
 
 import timber.log.Timber;
@@ -64,15 +64,10 @@ public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
     private HomeViewModel homeViewModel;
-    private Snackbar filterListsProgressSnackbar;
-    private Snackbar scheduledUpdateSnackbar;
-    private boolean scheduledProgressActive = false;
-
-    // UI-side monotonic guards
-    private int filterListsLastDone = -1;
-    private int filterListsLastTotal = -1;
-    private int scheduledLastDone = -1;
-    private int scheduledLastTotal = -1;
+    @Nullable
+    private WorkInfo filterListsProgress;
+    @Nullable
+    private WorkInfo scheduledProgress;
     // Initial blocked count when progress starts
     private long initialBlockedCount = -1;
 
@@ -119,6 +114,7 @@ public class HomeFragment extends Fragment {
         bindPending();
         bindState();
         bindClickListeners();
+        bindProtectionControl();
         bindFilterListsSubscribeAllProgress();
         bindScheduledUpdateProgress();
         bindFilterOperationState();
@@ -129,15 +125,12 @@ public class HomeFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        detachHostCounterObservers();
+        this.initialBlockedCount = -1;
+        this.hostCountersPrimedDuringImport = false;
+        this.filterListsProgress = null;
+        this.scheduledProgress = null;
         super.onDestroyView();
-        if (this.filterListsProgressSnackbar != null) {
-            this.filterListsProgressSnackbar.dismiss();
-            this.filterListsProgressSnackbar = null;
-        }
-        if (this.scheduledUpdateSnackbar != null) {
-            this.scheduledUpdateSnackbar.dismiss();
-            this.scheduledUpdateSnackbar = null;
-        }
         this.binding = null;
     }
 
@@ -154,129 +147,100 @@ public class HomeFragment extends Fragment {
     private void bindFilterListsSubscribeAllProgress() {
         WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData(FilterListsSubscribeAllWorker.UNIQUE_WORK_NAME)
-                .observe(getViewLifecycleOwner(), infos -> {
-                    if (this.binding == null) return;
-                    WorkInfo info = null;
-                    if (infos != null) {
-                        for (WorkInfo wi : infos) {
-                            if (wi.getState() == WorkInfo.State.RUNNING) {
-                                info = wi;
-                                break;
-                            }
-                        }
-                        if (info == null) {
-                            for (WorkInfo wi : infos) {
-                                if (wi.getState() == WorkInfo.State.ENQUEUED) {
-                                    info = wi;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    boolean running = info != null && (info.getState() == WorkInfo.State.RUNNING
-                            || info.getState() == WorkInfo.State.ENQUEUED);
-                    if (!running || info == null) {
-                        if (filterListsProgressSnackbar != null) {
-                            filterListsProgressSnackbar.dismiss();
-                            filterListsProgressSnackbar = null;
-                        }
-                        filterListsLastDone = -1;
-                        filterListsLastTotal = -1;
-                        if (!scheduledProgressActive) {
-                            removeView(this.binding.content.filterListsSubscribeProgressTextView);
-                            removeView(this.binding.content.filterListsSubscribeProgressBar);
-                        }
-                        return;
-                    }
-
-                    int done = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_DONE, 0);
-                    int total = info.getProgress().getInt(FilterListsSubscribeAllWorker.PROGRESS_TOTAL, 0);
-
-                    if (total != filterListsLastTotal) {
-                        filterListsLastTotal = total;
-                        filterListsLastDone = -1;
-                    }
-                    if (done < filterListsLastDone) return;
-                    filterListsLastDone = done;
-                    String currentName = info.getProgress()
-                            .getString(FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME);
-                    int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
-                    String msg;
-                    if (total <= 0) {
-                        msg = "FilterLists subscribing: Preparing\u2026";
-                    } else {
-                        msg = "FilterLists subscribing: " + done + "/" + total + " (" + percent + "%)";
-                    }
-                    if (currentName != null && !currentName.isEmpty()) {
-                        msg += " \u2022 " + currentName;
-                    }
-
-                    this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
-                    this.binding.content.filterListsSubscribeProgressTextView
-                            .setOnClickListener(v -> navigateToDiscover());
-                    showView(this.binding.content.filterListsSubscribeProgressTextView);
-
-                    this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
-                    if (total > 0) {
-                        this.binding.content.filterListsSubscribeProgressBar.setMax(100);
-                        this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
-                    }
-                    showView(this.binding.content.filterListsSubscribeProgressBar);
-                });
+                .observe(getViewLifecycleOwner(), this::updateFilterListsSubscribeAllProgress);
     }
 
     private void bindScheduledUpdateProgress() {
         WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData(FilterSetUpdateService.WORK_NAME)
-                .observe(getViewLifecycleOwner(), infos -> {
-                    if (this.binding == null) return;
-                    WorkInfo info = null;
-                    if (infos != null) {
-                        for (WorkInfo wi : infos) {
-                            if (wi.getState() == WorkInfo.State.RUNNING) {
-                                info = wi;
-                                break;
-                            }
-                        }
-                    }
-                    if (info == null || info.getState() != WorkInfo.State.RUNNING) {
-                        if (scheduledUpdateSnackbar != null) {
-                            scheduledUpdateSnackbar.dismiss();
-                            scheduledUpdateSnackbar = null;
-                        }
-                        scheduledLastDone = -1;
-                        scheduledLastTotal = -1;
-                        scheduledProgressActive = false;
-                        return;
-                    }
-                    scheduledProgressActive = true;
+                .observe(getViewLifecycleOwner(), this::updateScheduledUpdateProgress);
+    }
 
-                    int done = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_DONE, 0);
-                    int total = info.getProgress().getInt(FilterSetUpdateWorker.PROGRESS_TOTAL, 0);
+    void updateFilterListsSubscribeAllProgress(@Nullable List<WorkInfo> infos) {
+        if (this.binding == null) return;
+        this.filterListsProgress = keepMonotonicProgress(this.filterListsProgress,
+                findActiveWork(infos, true), FilterListsSubscribeAllWorker.PROGRESS_DONE,
+                FilterListsSubscribeAllWorker.PROGRESS_TOTAL);
+        renderWorkProgress();
+    }
 
-                    if (total != scheduledLastTotal) {
-                        scheduledLastTotal = total;
-                        scheduledLastDone = -1;
-                    }
-                    if (done < scheduledLastDone) return;
-                    scheduledLastDone = done;
-                    String current = info.getProgress().getString(FilterSetUpdateWorker.PROGRESS_CURRENT);
-                    int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
+    void updateScheduledUpdateProgress(@Nullable List<WorkInfo> infos) {
+        if (this.binding == null) return;
+        this.scheduledProgress = keepMonotonicProgress(this.scheduledProgress,
+                findActiveWork(infos, false), FilterSetUpdateWorker.PROGRESS_DONE,
+                FilterSetUpdateWorker.PROGRESS_TOTAL);
+        renderWorkProgress();
+    }
 
-                    String msg = "Scheduled update: " + done + "/" + total + " (" + percent + "%)";
-                    if (current != null && !current.isEmpty()) msg += " \u2022 " + current;
+    @Nullable
+    private static WorkInfo findActiveWork(@Nullable List<WorkInfo> infos, boolean includeQueued) {
+        if (infos == null) return null;
+        for (WorkInfo info : infos) {
+            if (info.getState() == WorkInfo.State.RUNNING) return info;
+        }
+        if (includeQueued) {
+            for (WorkInfo info : infos) {
+                if (info.getState() == WorkInfo.State.ENQUEUED) return info;
+            }
+        }
+        return null;
+    }
 
-                    if (filterListsProgressSnackbar == null) {
-                        this.binding.content.filterListsSubscribeProgressTextView.setText(msg);
-                        showView(this.binding.content.filterListsSubscribeProgressTextView);
-                        this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
-                        if (total > 0) {
-                            this.binding.content.filterListsSubscribeProgressBar.setMax(100);
-                            this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
-                        }
-                        showView(this.binding.content.filterListsSubscribeProgressBar);
-                    }
-                });
+    @Nullable
+    private static WorkInfo keepMonotonicProgress(@Nullable WorkInfo previous,
+            @Nullable WorkInfo current, String doneKey, String totalKey) {
+        if (previous != null && current != null && previous.getId().equals(current.getId())
+                && previous.getRunAttemptCount() == current.getRunAttemptCount()
+                && previous.getGeneration() == current.getGeneration()
+                && previous.getProgress().getInt(totalKey, 0)
+                == current.getProgress().getInt(totalKey, 0)
+                && previous.getProgress().getInt(doneKey, 0)
+                > current.getProgress().getInt(doneKey, 0)) {
+            return previous;
+        }
+        return current;
+    }
+
+    private void renderWorkProgress() {
+        if (this.binding == null) return;
+        // Both observers own state; only this renderer owns the shared progress views.
+        boolean subscribing = this.filterListsProgress != null;
+        WorkInfo info = subscribing ? this.filterListsProgress : this.scheduledProgress;
+        TextView text = this.binding.content.filterListsSubscribeProgressTextView;
+        if (info == null) {
+            text.setText("");
+            text.setOnClickListener(null);
+            text.setClickable(false);
+            text.setVisibility(View.GONE);
+            this.binding.content.filterListsSubscribeProgressBar.setVisibility(View.GONE);
+            return;
+        }
+
+        int done = info.getProgress().getInt(subscribing
+                ? FilterListsSubscribeAllWorker.PROGRESS_DONE
+                : FilterSetUpdateWorker.PROGRESS_DONE, 0);
+        int total = info.getProgress().getInt(subscribing
+                ? FilterListsSubscribeAllWorker.PROGRESS_TOTAL
+                : FilterSetUpdateWorker.PROGRESS_TOTAL, 0);
+        String current = info.getProgress().getString(subscribing
+                ? FilterListsSubscribeAllWorker.PROGRESS_CURRENT_NAME
+                : FilterSetUpdateWorker.PROGRESS_CURRENT);
+        int percent = total > 0 ? (int) Math.floor(done * 100.0 / total) : 0;
+        String message = subscribing && total <= 0
+                ? "FilterLists subscribing: Preparing\u2026"
+                : (subscribing ? "FilterLists subscribing: " : "Scheduled update: ")
+                + done + "/" + total + " (" + percent + "%)";
+        if (current != null && !current.isEmpty()) message += " \u2022 " + current;
+        text.setText(message);
+        text.setOnClickListener(subscribing ? v -> navigateToDiscover() : null);
+        text.setClickable(subscribing);
+        text.setVisibility(View.VISIBLE);
+        this.binding.content.filterListsSubscribeProgressBar.setIndeterminate(total <= 0);
+        if (total > 0) {
+            this.binding.content.filterListsSubscribeProgressBar.setMax(100);
+            this.binding.content.filterListsSubscribeProgressBar.setProgressCompat(percent, true);
+        }
+        this.binding.content.filterListsSubscribeProgressBar.setVisibility(View.VISIBLE);
     }
 
     private void bindFilterOperationState() {
@@ -298,6 +262,7 @@ public class HomeFragment extends Fragment {
 
         this.homeViewModel.getFilterOperationState().observe(getViewLifecycleOwner(), progress -> {
             if (this.binding == null) return;
+            renderProtectionControl();
             if (progress == null
                     || progress.kind == FilterOperationState.Kind.IDLE
                     || progress.phase == FilterOperationState.Phase.IDLE) {
@@ -524,6 +489,11 @@ public class HomeFragment extends Fragment {
         this.allowedHostCountLiveData = this.homeViewModel.getAllowedHostCount();
         this.redirectHostCountLiveData = this.homeViewModel.getRedirectHostCount();
 
+        // Status follows the active rules snapshot even while display counters are frozen.
+        this.blockedHostCountLiveData.observe(getViewLifecycleOwner(),
+                count -> renderProtectionStatus());
+        renderProtectionStatus();
+
         TextView blockedHostCountTextView = this.binding.content.blockedHostCounterTextView;
         TextView allowedHostCountTextView = this.binding.content.allowedHostCounterTextView;
         TextView redirectHostCountTextView = this.binding.content.redirectHostCounterTextView;
@@ -662,6 +632,7 @@ public class HomeFragment extends Fragment {
     private void bindPending() {
         this.homeViewModel.getPending().observe(getViewLifecycleOwner(), pending -> {
             if (this.binding == null) return;
+            renderProtectionControl();
             if (pending) {
                 showView(this.binding.content.sourcesProgressBar);
                 showView(this.binding.content.stateTextView);
@@ -702,6 +673,27 @@ public class HomeFragment extends Fragment {
                 .setOnClickListener(v -> this.homeViewModel.sync());
     }
 
+    private void bindProtectionControl() {
+        this.binding.content.protectionSwitch.setOnClickListener(view -> {
+            boolean enabled = this.binding.content.protectionSwitch.isChecked();
+            renderProtectionControl();
+            if (getActivity() instanceof HomeActivity) {
+                ((HomeActivity) getActivity()).setProtectionEnabled(enabled);
+            }
+        });
+        this.homeViewModel.getProtectionControlPending().observe(
+                getViewLifecycleOwner(), pending -> renderProtectionControl());
+        renderProtectionControl();
+    }
+
+    private void renderProtectionControl() {
+        if (this.binding == null) return;
+        Boolean applied = this.homeViewModel.isAdBlocked().getValue();
+        this.binding.content.protectionSwitch.setChecked(Boolean.TRUE.equals(applied));
+        this.binding.content.protectionSwitch.setEnabled(
+                applied != null && this.homeViewModel.canChangeProtection());
+    }
+
     private void bindLeakStatus() {
         this.binding.content.leakStatusCardView
                 .setOnClickListener(v -> startActivity(new Intent(requireContext(), PrefsActivity.class)));
@@ -724,12 +716,8 @@ public class HomeFragment extends Fragment {
 
     private void notifyAdBlocked(boolean adBlocked) {
         if (this.binding == null) return;
-        this.binding.content.protectionStatusTextView.setText(adBlocked
-                ? R.string.home_protection_status_active
-                : R.string.home_protection_status_inactive);
-        this.binding.content.protectionStatusTextView.setTextColor(
-                getResources().getColor(adBlocked ? R.color.status_green : R.color.status_red,
-                        null));
+        renderProtectionControl();
+        renderProtectionStatus();
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
         renderLeakStatus();
@@ -739,11 +727,55 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    private void renderProtectionStatus() {
+        if (this.binding == null) return;
+        boolean applied = Boolean.TRUE.equals(this.homeViewModel.isAdBlocked().getValue());
+        Integer blocked = this.blockedHostCountLiveData == null
+                ? null : this.blockedHostCountLiveData.getValue();
+        boolean hasBlockingRules = blocked != null && blocked > 0;
+        int status;
+        if (!applied) {
+            status = R.string.home_protection_status_inactive;
+        } else if (blocked == null) {
+            status = PreferenceHelper.getAdBlockMethod(requireContext()) == VPN
+                    ? R.string.home_protection_status_vpn_checking_rules
+                    : R.string.home_protection_status_checking_rules;
+        } else if (!hasBlockingRules) {
+            status = PreferenceHelper.getAdBlockMethod(requireContext()) == VPN
+                    ? R.string.home_protection_status_vpn_no_rules
+                    : R.string.home_protection_status_no_rules;
+        } else {
+            status = R.string.home_protection_status_active;
+        }
+        this.binding.content.protectionStatusTextView.setMaxLines(Integer.MAX_VALUE);
+        this.binding.content.protectionStatusTextView.setEllipsize(null);
+        this.binding.content.protectionStatusTextView.setText(status);
+        int color = !applied ? R.color.status_red
+                : hasBlockingRules ? R.color.status_green : R.color.ui_text_primary;
+        this.binding.content.protectionStatusTextView.setTextColor(
+                getResources().getColor(color, null));
+    }
+
     private void notifyError(HostError error) {
         if (this.binding == null) return;
         removeView(this.binding.content.stateTextView);
         if (error == null) return;
 
+        if (error == HostError.DOWNLOAD_FAILED) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setTitle(error.getMessageKey())
+                    .setMessage(error.getDetailsKey())
+                    .setPositiveButton(R.string.nav_sources, (dialog, id) -> {
+                        this.homeViewModel.acknowledgeError(error);
+                        ((HomeActivity) requireActivity()).navigateTo(R.id.nav_sources);
+                    })
+                    .setNegativeButton(R.string.button_close, (dialog, id) ->
+                            this.homeViewModel.acknowledgeError(error))
+                    .setOnCancelListener(dialog -> this.homeViewModel.acknowledgeError(error))
+                    .show();
+            return;
+        }
         String message = getString(error.getDetailsKey()) + "\n\n"
                 + getString(R.string.error_dialog_help);
         new MaterialAlertDialogBuilder(requireContext())

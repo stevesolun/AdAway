@@ -11,6 +11,12 @@ param(
 
     [string] $ReleaseTag = "",
 
+    [string] $PublicKeyBase64 = $env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64,
+
+    [string] $MetadataSourceCommit = "",
+
+    [string] $MetadataSourceRef = "",
+
     [int] $LaunchWaitSeconds = 5,
 
     [string] $ReportPath = "",
@@ -45,26 +51,6 @@ function Find-CommandOrSdkTool([string] $commandName, [string] $sdkRelativePath)
     Fail "$commandName was not found. Set ANDROID_HOME or ANDROID_SDK_ROOT."
 }
 
-function Find-BuildTool([string] $toolName) {
-    $roots = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT) |
-        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    foreach ($root in $roots) {
-        $buildTools = Join-Path $root "build-tools/36.0.0"
-        if (-not (Test-Path -LiteralPath $buildTools -PathType Container)) {
-            continue
-        }
-        foreach ($suffix in @(".exe", ".bat", ".cmd", "")) {
-            $candidate = Join-Path $buildTools ($toolName + $suffix)
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                return (Resolve-Path -LiteralPath $candidate).Path
-            }
-        }
-    }
-
-    Fail "$toolName was not found in Android build-tools 36.0.0. Install that version and set ANDROID_HOME or ANDROID_SDK_ROOT."
-}
-
 function Normalize-Sha256([string] $value) {
     return ($value -replace "[:\s]", "").ToLowerInvariant()
 }
@@ -83,38 +69,19 @@ function Get-FileSha256Hex([string] $path) {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
 }
 
-function Get-ReportReleaseTag([string] $apkName) {
-    if (-not [string]::IsNullOrWhiteSpace($ReleaseTag)) {
-        return $ReleaseTag.Trim()
+function Get-VerifiedField([string] $field) {
+    $matches = [Regex]::Matches($script:artifactReport,
+        "(?m)^- " + [Regex]::Escape($field) + ":[ \t]*(.+?)[ \t]*\r?$")
+    if ($matches.Count -ne 1) {
+        Fail "Canonical artifact report must contain exactly one '$field'."
     }
-    if ($apkName -match "^AdAway_(.+)\.apk$") {
-        return "v$($Matches[1])"
-    }
-    return "not-provided"
+    return $matches[0].Groups[1].Value
 }
 
-function Get-SourceCommit {
-    if ($env:GITHUB_SHA -match "^[0-9a-fA-F]{40}$") {
-        return $env:GITHUB_SHA.ToLowerInvariant()
+function Assert-ApkUnchanged {
+    if ((Get-FileSha256Hex $apk.Path) -cne $apkSha256) {
+        Fail "APK changed after artifact verification."
     }
-
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $git) {
-        return "not-provided"
-    }
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $git.Source
-    $startInfo.Arguments = "rev-parse HEAD"
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.UseShellExecute = $false
-    $process = [System.Diagnostics.Process]::Start($startInfo)
-    $commit = $process.StandardOutput.ReadToEnd().Trim()
-    $process.WaitForExit()
-    if ($process.ExitCode -eq 0 -and $commit -match "^[0-9a-fA-F]{40}$") {
-        return $commit.ToLowerInvariant()
-    }
-    return "not-provided"
 }
 
 function Write-ReleaseSmokeReport(
@@ -149,12 +116,20 @@ function Write-ReleaseSmokeReport(
         "Generated: $(Get-Date -Format o)",
         "",
         "- Status: $Status",
-        "- Source commit: $(Get-SourceCommit)",
+        "- Artifact source commit: $(Get-VerifiedField 'Artifact source commit')",
+        "- Artifact source ref: $(Get-VerifiedField 'Artifact source ref')",
+        "- Artifact source workflow: $(Get-VerifiedField 'Artifact source workflow')",
+        "- Artifact provenance: $(Get-VerifiedField 'Artifact provenance')",
+        "- Tooling source commit: $(Get-VerifiedField 'Tooling source commit')",
         "- Mode: $Mode",
-        "- Release tag: $(Get-ReportReleaseTag $apkName)",
+        "- Release tag: $ReleaseTag",
         "- APK: $apkName",
         "- APK SHA-256: $ApkSha256",
         "- Package: $PackageName",
+        "- APK identity: verified",
+        "- APK version: $(Get-VerifiedField 'APK version')",
+        "- APK versionCode: $(Get-VerifiedField 'APK versionCode')",
+        "- APK debuggable: false",
         "- Signer certificate check: $signerCheck",
         "- Signer certificate SHA-256: $signerCertificate",
         "- Physical device: $PhysicalDevice"
@@ -170,44 +145,59 @@ function Write-ReleaseSmokeReport(
     Write-Host "Release smoke report=$resolvedReport"
 }
 
+if (-not [string]::IsNullOrWhiteSpace($ReportPath) -and
+        (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
+    Remove-Item -LiteralPath $ReportPath
+}
+if ($ReleaseTag -cnotmatch '^v[0-9][0-9A-Za-z._-]*$' -or $PackageName -cne 'org.adaway' -or
+        (Normalize-Sha256 $ExpectedCertSha256) -notmatch '^[0-9a-f]{64}$' -or
+        [string]::IsNullOrWhiteSpace($PublicKeyBase64)) {
+    Fail 'ReleaseTag, ExpectedCertSha256 and manifest PublicKeyBase64 are required for org.adaway.'
+}
 $apk = Resolve-Path -LiteralPath $ApkPath -ErrorAction Stop
 if ((Get-Item -LiteralPath $apk.Path).Length -le 0) {
     Fail "APK is empty: $($apk.Path)"
 }
 $apkSha256 = Get-FileSha256Hex $apk.Path
 
-$aapt = Find-BuildTool "aapt"
-
-$badging = & $aapt dump badging $apk.Path
-if ($LASTEXITCODE -ne 0) {
-    Fail "aapt dump badging failed for $($apk.Path)."
-}
-if (($badging -join "`n") -match "application-debuggable") {
-    Fail "Refusing to smoke-test a debuggable APK. Use the release APK."
-}
-$packagePattern = "package: name='$([Regex]::Escape($PackageName))'"
-if (-not (($badging -join "`n") -match $packagePattern)) {
-    Fail "APK package does not match $PackageName."
-}
-
-$actualCertSha256 = ""
-if (-not [string]::IsNullOrWhiteSpace($ExpectedCertSha256)) {
-    $apksigner = Find-BuildTool "apksigner"
-    $certOutput = & $apksigner verify --print-certs $apk.Path
+# Always verify the complete downloaded bundle before any device access.
+$bundle = Split-Path -Parent $apk.Path
+$verificationReport = [IO.Path]::GetTempFileName()
+try {
+    $version = $ReleaseTag.Substring(1)
+    $channel = if ($version.EndsWith('b')) { 'beta' } else { 'stable' }
+    $verifyArgs = @(
+        (Join-Path $PSScriptRoot 'VerifyReleaseArtifacts.java'),
+        '--apk', $apk.Path, '--apk-sha256', "$($apk.Path).sha256",
+        '--manifest', (Join-Path $bundle 'manifest.json'),
+        '--manifest-sha256', (Join-Path $bundle 'manifest.json.sha256'),
+        '--sbom', (Join-Path $bundle 'adaway.cdx.json'),
+        '--sbom-sha256', (Join-Path $bundle 'adaway.cdx.json.sha256'),
+        '--public-key-base64', $PublicKeyBase64,
+        '--expected-version', $version, '--expected-channel', $channel,
+        '--expected-store', 'adaway', '--expected-cert-sha256', $ExpectedCertSha256,
+        '--expected-apk-url', "https://github.com/stevesolun/AdAway/releases/download/$ReleaseTag/$(Split-Path -Leaf $apk.Path)",
+        '--repo', 'stevesolun/AdAway', '--verify-attestations', '--report', $verificationReport
+    )
+    if ($MetadataSourceCommit -or $MetadataSourceRef) {
+        $verifyArgs += @('--metadata-source-commit', $MetadataSourceCommit,
+            '--metadata-source-ref', $MetadataSourceRef)
+    }
+    & java @verifyArgs
     if ($LASTEXITCODE -ne 0) {
-        Fail "apksigner verification failed for $($apk.Path)."
+        Fail 'Canonical artifact identity/provenance verification failed; no device was accessed.'
     }
-    $actualCertLine = ($certOutput | Select-String "Signer #1 certificate SHA-256 digest" |
-            Select-Object -First 1).Line
-    if ([string]::IsNullOrWhiteSpace($actualCertLine)) {
-        Fail "Signer #1 certificate SHA-256 digest was not found."
+    $script:artifactReport = Get-Content -Raw -LiteralPath $verificationReport
+    $actualCertSha256 = Get-VerifiedField 'APK certificate SHA-256'
+    if ((Get-VerifiedField 'Artifact provenance') -cne 'verified' -or
+            (Get-VerifiedField 'Artifact source commit') -cnotmatch '^[0-9a-f]{40}$' -or
+            (Get-VerifiedField 'APK SHA-256') -cne $apkSha256) {
+        Fail 'Canonical artifact report has unknown or mismatched provenance.'
     }
-    $actualCert = ($actualCertLine -replace "^.*certificate SHA-256 digest:\s*", "")
-    $actualCertSha256 = Normalize-Sha256 $actualCert
-    if ($actualCertSha256 -ne (Normalize-Sha256 $ExpectedCertSha256)) {
-        Fail "Release APK signer fingerprint does not match ExpectedCertSha256."
-    }
+} finally {
+    Remove-Item -LiteralPath $verificationReport -ErrorAction SilentlyContinue
 }
+Assert-ApkUnchanged
 
 if ($VerifyOnly) {
     Write-ReleaseSmokeReport `
@@ -248,6 +238,7 @@ if ($serial.StartsWith("emulator-") -or $kernelQemu -eq "1" -or $bootQemu -eq "1
 }
 
 Write-Host "Running adb install for $PackageName on $serial..."
+Assert-ApkUnchanged
 & $adb @adbTarget install -r $apk.Path
 if ($LASTEXITCODE -ne 0) {
     Fail "adb install failed for $($apk.Path)."

@@ -4,16 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/schedulesToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        app:title="@string/menu_manage_schedules" />
-
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="?attr/actionBarSize"
         android:fillViewport="true">
 
         <LinearLayout

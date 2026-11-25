@@ -81,26 +81,17 @@ Language Distribution:
 └── Other       1.2%   ← Gradle, XML, configs
 ```
 
-This is a **systems project** wearing Android clothes. The real work happens in native code. Respect that.
+The large native source tree is historical. Use the active module boundaries linked
+below when tracing shipped behavior.
 
 ## Build Commands
-```bash
-./gradlew assembleDebug      # Debug build
-./gradlew assembleRelease    # Release build
-./gradlew test               # Unit tests
-./gradlew clean              # Clean build
-```
-
-**Requirements:** Android SDK, NDK 27.2.12479018, JDK 21
+See [Building the project](CONTRIBUTING.md#building-the-project) for toolchain
+requirements and debug builds, and [RELEASING.md](RELEASING.md) for signed builds.
 
 ## Modules
 
-| Module | Language | Purpose |
-|--------|----------|---------|
-| **app** | Java | Android application |
-| **tcpdump** | C | Native pcap/packet capture |
-| **webserver** | C | Native HTTP server (mongoose) |
-| **sentrystub** | Java | Sentry stub for release |
+See the [module structure](README.md#module-structure) and
+[settings.gradle](settings.gradle) for the active build boundary.
 
 ## Architecture
 ```
@@ -117,18 +108,15 @@ app/src/main/java/org/adaway/
 ├── util/
 │   └── AppExecutors.java    # Thread pools (CONTENTION?)
 └── vpn/
-    └── dns/                 # DNS proxy — THE MUSCLE (C code does heavy lifting)
+    └── dns/                 # VPN DNS proxy
 ```
 
 ## Database Schema (Room → SQLite)
 
-| Entity | Purpose |
-|--------|---------|
-| **HostsSource** | Filter list sources |
-| **HostListItem** | Parsed host entries |
-| **HostEntry** | Runtime entries |
-
-**Version:** 7 — The C engineers remind us: SQLite is C. Room is just Java wrapping it.
+The database version and entities are declared in
+[AppDatabase.java](app/src/main/java/org/adaway/db/AppDatabase.java); exported
+schema snapshots live in [app/schemas](app/schemas). Use those sources when
+reviewing migrations rather than a prose copy of the schema.
 
 ## Performance Investigation Targets
 
@@ -149,12 +137,8 @@ The **Architects** want to see:
 
 ## Code Style
 
-- Java 17 target
-- 4-space indentation, no tabs
-- 100 char line width
-- Non-public fields prefixed with `m`
-- Acronyms as words (`getUrl()` not `getURL()`)
-- **Git commits:** atomic, present tense, explain *why*
+See the [contribution style guidelines](CONTRIBUTING.md#style-guidelines).
+The Java target is configured in [app/build.gradle](app/build.gradle).
 
 ## Sacred Boundaries
 

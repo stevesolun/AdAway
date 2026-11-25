@@ -1,0 +1,2 @@
+bug,status,change,evidence,remaining
+NOV-VPN-04,implemented-awaiting-main-build-and-runtime,API28-30 one authoritative lifecycle-scoped non-VPN request; API26-27 direct default and API31 passive best retained; bound snapshot metadata reported,source reviewed; 24 test methods added but none executed; staged snapshot preserved,main compile and API30/API34 execution; actual same-transport bound DNS handoff; other supported API and OEM gates; exact-system-default and zero-power guarantees explicitly excluded

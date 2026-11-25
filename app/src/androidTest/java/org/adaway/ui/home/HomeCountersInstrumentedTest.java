@@ -78,6 +78,7 @@ public class HomeCountersInstrumentedTest {
 
     @Test
     public void homeFreshnessCountsNeverDownloadedSubscriptionsAndTracksChanges() {
+        int defaults = FilterListCatalog.getDefaults().size();
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
             runDatabaseWork(this.context, "seeding never-downloaded defaults", database -> {
@@ -90,11 +91,11 @@ public class HomeCountersInstrumentedTest {
             });
 
             waitForText(scenario, R.id.upToDateSourcesTextView, "0 up-to-date sources");
-            waitForText(scenario, R.id.outdatedSourcesTextView, "4 outdated sources");
+            waitForOutdatedSources(scenario, defaults);
             scenario.recreate();
             waitForText(scenario, R.id.upToDateSourcesTextView, "0 up-to-date sources");
-            waitForText(scenario, R.id.outdatedSourcesTextView, "4 outdated sources");
-            UiEvidence.capture(this.context, "home-never-downloaded-0-current-4-outdated");
+            waitForOutdatedSources(scenario, defaults);
+            UiEvidence.capture(this.context, "home-never-downloaded-0-current");
 
             runDatabaseWork(this.context, "recording a successful empty download", database -> {
                 HostsSource source = database.hostsSourceDao().getAll().get(0);
@@ -104,17 +105,23 @@ public class HomeCountersInstrumentedTest {
                 database.hostsSourceDao().clearDownloadError(source.getId());
             });
             waitForText(scenario, R.id.upToDateSourcesTextView, "1 up-to-date source");
-            waitForText(scenario, R.id.outdatedSourcesTextView, "3 outdated sources");
-            UiEvidence.capture(this.context, "home-empty-download-1-current-3-outdated");
+            waitForOutdatedSources(scenario, defaults - 1);
+            UiEvidence.capture(this.context, "home-empty-download-1-current");
 
             runDatabaseWork(this.context, "disabling a never-downloaded source", database -> {
                 HostsSource source = database.hostsSourceDao().getAll().get(1);
                 database.hostsSourceDao().applySourceSelection(source.getId(), false);
             });
             waitForText(scenario, R.id.upToDateSourcesTextView, "1 up-to-date source");
-            waitForText(scenario, R.id.outdatedSourcesTextView, "2 outdated sources");
-            UiEvidence.capture(this.context, "home-disabled-source-1-current-2-outdated");
+            waitForOutdatedSources(scenario, defaults - 2);
+            UiEvidence.capture(this.context, "home-disabled-source-1-current");
         }
+    }
+
+    private void waitForOutdatedSources(ActivityScenario<HomeActivity> scenario, int count) {
+        waitForText(scenario, R.id.outdatedSourcesTextView,
+                this.context.getResources().getQuantityString(
+                        R.plurals.outdated_source_label, count, count));
     }
 
     @Test

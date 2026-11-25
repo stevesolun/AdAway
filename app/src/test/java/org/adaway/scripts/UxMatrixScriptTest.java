@@ -39,6 +39,39 @@ public class UxMatrixScriptTest {
     };
 
     @Test
+    public void activeCaptureCallersDeclareSerialAndDestructiveAuthorization() throws IOException {
+        String readme = readUtf8(repoDir().resolve("README.md"));
+        String example = readme.substring(readme.indexOf("### UX Matrix Review Packet"),
+                readme.indexOf("After the reviewer marks"));
+        assertTrue(example.contains("-DeviceSerial emulator-5554 -AllowDestructiveCapture"));
+        assertTrue(example.contains("erases AdAway app data") &&
+                example.contains("physical devices are refused"));
+        try (Stream<Path> workflows = Files.list(repoDir().resolve(".github/workflows"))) {
+            for (Path workflow : (Iterable<Path>) workflows.filter(
+                    path -> path.toString().endsWith(".yml"))::iterator) {
+                for (String step : readUtf8(workflow).split("(?m)^\\s*- name:")) {
+                    if (step.contains("run-ux-matrix.ps1")) {
+                        assertTrue(workflow + ": capture needs an explicit authorized serial",
+                                step.contains("-DeviceSerial") &&
+                                        step.contains("-AllowDestructiveCapture"));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void captureRequiresAuthorizedEmulatorAndRestoresDeviceSettings() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise capture safety.", powershell != null);
+        ProcessResult result = runPowerShell(powershell,
+                "& " + quote(repoDir().resolve("scripts/tests/run-ux-matrix-safety.Tests.ps1")));
+        assertEquals("Mocked capture safety checks must pass.\n" + result.stdout + result.stderr,
+                0, result.exitCode);
+        assertTrue(result.stdout.contains("capture safety scenarios (mocked; no adb/Gradle)"));
+    }
+
+    @Test
     public void instrumentationParserAcceptsOkTranscriptWhenAdbExitCodeIsNonZero()
             throws Exception {
         String powershell = findPowerShell();
@@ -278,15 +311,9 @@ public class UxMatrixScriptTest {
         try {
             Path packet = fixture.resolve("ux-matrix-review.md");
             Path report = fixture.resolve("ux-signoff-report.md");
-            Files.write(packet, (
-                    "# UX Matrix Review Packet\n\n" +
-                            "- Source commit: " + SOURCE_COMMIT + "\n\n" +
-                            "Manual sign-off checklist:\n" +
-                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
-                            "- [ ] Touch targets remain reachable and visually stable.\n" +
-                            "## baseline\n" +
-                            "- [x] home - baseline/ux-matrix/home.png\n"
-            ).getBytes(StandardCharsets.UTF_8));
+            writeCompleteReviewPacket(powershell, fixture, SOURCE_COMMIT);
+            Files.write(packet, readUtf8(packet).replace(
+                    "[x] Touch targets", "[ ] Touch targets").getBytes(StandardCharsets.UTF_8));
 
             ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
                     "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
@@ -322,15 +349,7 @@ public class UxMatrixScriptTest {
         try {
             Path packet = fixture.resolve("ux-matrix-review.md");
             Path report = fixture.resolve("ux-signoff-report.md");
-            Files.write(packet, (
-                    "# UX Matrix Review Packet\n\n" +
-                            "- Source commit: " + OTHER_SOURCE_COMMIT + "\n\n" +
-                            "Manual sign-off checklist:\n" +
-                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
-                            "- [x] Touch targets remain reachable and visually stable.\n" +
-                            "## baseline\n" +
-                            "- [x] home - baseline/ux-matrix/home.png\n"
-            ).getBytes(StandardCharsets.UTF_8));
+            writeCompleteReviewPacket(powershell, fixture, OTHER_SOURCE_COMMIT);
 
             ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
                     "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
@@ -362,15 +381,7 @@ public class UxMatrixScriptTest {
         try {
             Path packet = fixture.resolve("ux-matrix-review.md");
             Path report = fixture.resolve("ux-signoff-report.md");
-            Files.write(packet, (
-                    "# UX Matrix Review Packet\n\n" +
-                            "- Source commit: " + SOURCE_COMMIT + "\n\n" +
-                            "Manual sign-off checklist:\n" +
-                            "- [x] Text is readable without clipping, ellipsizing, or overlap.\n" +
-                            "- [x] Touch targets remain reachable and visually stable.\n" +
-                            "## baseline\n" +
-                            "- [x] home - baseline/ux-matrix/home.png\n"
-            ).getBytes(StandardCharsets.UTF_8));
+            writeCompleteReviewPacket(powershell, fixture, SOURCE_COMMIT);
 
             ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
                     "$env:GITHUB_SHA = '" + SOURCE_COMMIT + "';" +
@@ -394,12 +405,23 @@ public class UxMatrixScriptTest {
                             Pattern.compile("(?m)^- Review packet SHA-256: [0-9a-f]{64}$")
                                     .matcher(reportText)
                                     .find() &&
-                            reportText.contains("- Checked items: 3") &&
+                            reportText.contains("- Checked items: 45") &&
                             reportText.contains("- Unchecked items: 0") &&
                             reportText.contains("- Review packet: ux-matrix-review.md"));
         } finally {
             deleteRecursively(fixture);
         }
+    }
+
+    @Test
+    public void uxSignOffRejectsMissingDuplicateOrMisplacedEvidence() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise sign-off safety.", powershell != null);
+        ProcessResult result = runPowerShell(powershell,
+                "& " + quote(repoDir().resolve("scripts/tests/verify-ux-signoff-safety.Tests.ps1")));
+        assertEquals("UX sign-off safety checks must pass.\n" + result.stdout + result.stderr,
+                0, result.exitCode);
+        assertTrue(result.stdout.contains("UX sign-off safety scenarios (generator-backed; no adb/Gradle)"));
     }
 
     @Test
@@ -417,6 +439,22 @@ public class UxMatrixScriptTest {
 
     private static Path createFakeAndroidHome(Path fixture) throws IOException {
         return createFakeAndroidHome(fixture, "adb.exe");
+    }
+
+    private static void writeCompleteReviewPacket(String powershell, Path fixture, String commit)
+            throws Exception {
+        Path androidHome = createFakeAndroidHome(fixture);
+        Path javaHome = fixture.resolve("java");
+        Files.createDirectories(javaHome);
+        createCompleteUxMatrixScreens(fixture);
+        ProcessResult result = runPowerShell(powershell, "$ErrorActionPreference = 'Stop';" +
+                "$env:GITHUB_SHA = '" + commit + "';" +
+                ". " + quote(repoDir().resolve("scripts/run-ux-matrix.ps1")) +
+                " -AndroidHome " + quote(androidHome) + " -JavaHome " + quote(javaHome) + ";" +
+                "Write-UxMatrixReviewManifest -Directory " + quote(fixture) + ";");
+        assertEquals("Fixture must use the actual generator.\n" + result.stderr, 0, result.exitCode);
+        Path packet = fixture.resolve("ux-matrix-review.md");
+        Files.write(packet, readUtf8(packet).replace("[ ]", "[x]").getBytes(StandardCharsets.UTF_8));
     }
 
     private static Path createFakeAndroidHome(Path fixture, String adbFileName) throws IOException {

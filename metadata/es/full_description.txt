@@ -6,4 +6,4 @@ Usando un dispositivo no rooteado, la aplicación utiliza la función VPN para b
 Por lo tanto, cuando una aplicación solicita un anuncio o un rastreador de un host en ese archivo, esta solicitud se redirige a la IP local 127.0.0.1, que no hace nada.
 
 Puedes descargar listas de anuncios y rastreadores predefinidas como archivos hosts desde la aplicación para incorporarlas. También es posible utilizar tus propios archivos y añadir hosts determinados a las listas de permitido o bloqueado.
-Existen opciones para ejecutar un servidor web local que responda a los nombres de los host bloqueados y, en su lugar, dirija las solicitudes a la dirección IP de tu elección.
+Existen opciones para dirigir las solicitudes a la dirección IP de tu elección.

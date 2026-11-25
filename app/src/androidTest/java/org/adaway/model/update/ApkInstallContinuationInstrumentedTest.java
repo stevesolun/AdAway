@@ -56,6 +56,19 @@ public class ApkInstallContinuationInstrumentedTest {
     }
 
     @Test
+    public void cancelledUpdateCannotResumePendingInstall() {
+        Context context = ApplicationProvider.getApplicationContext();
+        RecordingReceiver receiver = new RecordingReceiver();
+        receiver.installApk(context, APK);
+        receiver.cancel();
+        receiver.permissionGranted = true;
+        receiver.resumePendingInstall(context);
+        assertFalse(receiver.hasPendingInstall());
+        assertEquals(0, receiver.verificationCount);
+        assertEquals(1, receiver.launched.size());
+    }
+
+    @Test
     public void changedApkIsRejectedWhenPermissionReturns() {
         Context context = ApplicationProvider.getApplicationContext();
         RecordingReceiver receiver = new RecordingReceiver();

@@ -6,4 +6,4 @@ Korzystając z urządzenia niezrootowanego, aplikacja wykorzystuje funkcję VPN 
 Kiedy więc aplikacja żąda reklamy lub modułu śledzącego od hosta w tym pliku, żądanie to jest przekierowywane na lokalny adres IP 127.0.0.1, który nic nie robi.
 
 Możesz pobrać wstępnie zdefiniowane reklamy i listy blokujące jako pliki hostów z poziomu aplikacji, aby je załączyć. Możliwe jest również używanie własnych plików i dodawanie określonych hostów do list dozwolonych i blokowanych.
-Istnieją opcje uruchamiania lokalnego serwera WWW w celu odpowiedzi na zablokowane nazwy hostów i kierowania żądań na wybrany adres IP.
+Istnieją opcje kierowania żądań na wybrany adres IP.

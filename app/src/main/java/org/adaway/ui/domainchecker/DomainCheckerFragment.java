@@ -22,7 +22,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textfield.TextInputLayout;
 
 import org.adaway.R;
 import org.adaway.ui.domainchecker.DomainCheckResult.Status;
@@ -74,11 +73,45 @@ public class DomainCheckerFragment extends Fragment {
             return false;
         });
 
-        viewModel.loading.observe(getViewLifecycleOwner(), loading ->
-                checkButton.setEnabled(!Boolean.TRUE.equals(loading)));
+        viewModel.loading.observe(getViewLifecycleOwner(), loading -> {
+            boolean enabled = !Boolean.TRUE.equals(loading);
+            checkButton.setEnabled(enabled);
+            setMutationControlsEnabled(resultCard, enabled);
+        });
+
+        viewModel.getOperationResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null) return;
+            String message;
+            if (result.error != 0) {
+                message = getString(result.error);
+            } else {
+                switch (result.action) {
+                    case ALLOW:
+                        message = getString(R.string.domain_checker_allowed_snack, result.domain);
+                        break;
+                    case BLOCK:
+                        message = getString(R.string.domain_checker_blocked_snack, result.domain);
+                        break;
+                    case DELETE:
+                        message = getString(R.string.domain_checker_rule_deleted);
+                        break;
+                    case REMOVE_ALLOW:
+                        message = getString(R.string.domain_checker_allow_removed);
+                        break;
+                    default:
+                        return;
+                }
+            }
+            Snackbar.make(view, message, result.error == 0
+                    ? Snackbar.LENGTH_SHORT : Snackbar.LENGTH_LONG).show();
+            viewModel.consumeOperationResult(result);
+        });
 
         viewModel.checkResult.observe(getViewLifecycleOwner(), result -> {
-            if (result == null) return;
+            if (result == null) {
+                resultCard.setVisibility(View.GONE);
+                return;
+            }
             resultCard.setVisibility(View.VISIBLE);
             domainCheckedTextView.setText(getString(
                     R.string.domain_checker_checked_domain, result.domain));
@@ -122,10 +155,8 @@ public class DomainCheckerFragment extends Fragment {
                                 null, com.google.android.material.R.attr.borderlessButtonStyle);
                         del.setText(R.string.domain_checker_delete_rule);
                         del.setTextSize(11f);
-                        del.setOnClickListener(v2 -> {
-                            viewModel.deleteRule(src.itemId, result.domain);
-                            Snackbar.make(view, R.string.domain_checker_rule_deleted, Snackbar.LENGTH_SHORT).show();
-                        });
+                        del.setOnClickListener(v2 ->
+                                viewModel.deleteRule(src.itemId, result.domain));
                         row.addView(del);
                     }
                     sourcesContainer.addView(row);
@@ -134,35 +165,34 @@ public class DomainCheckerFragment extends Fragment {
                 if (result.userAllowed) {
                     alreadyAllowedLabel.setVisibility(View.VISIBLE);
                     removeAllowButton.setVisibility(View.VISIBLE);
-                    removeAllowButton.setOnClickListener(v -> {
-                        viewModel.removeUserAllowRule(result.domain);
-                        Snackbar.make(view, R.string.domain_checker_allow_removed, Snackbar.LENGTH_SHORT).show();
-                    });
+                    removeAllowButton.setOnClickListener(v ->
+                            viewModel.removeUserAllowRule(result.domain));
                 } else {
                     unblockButton.setVisibility(View.VISIBLE);
-                    unblockButton.setOnClickListener(v -> {
-                        viewModel.unblockDomain(result.domain);
-                        Snackbar.make(view, getString(R.string.domain_checker_allowed_snack, result.domain),
-                                Snackbar.LENGTH_SHORT).show();
-                    });
+                    unblockButton.setOnClickListener(v -> viewModel.unblockDomain(result.domain));
                 }
             } else if (result.status == Status.ALLOWED && result.userAllowed) {
                 alreadyAllowedLabel.setVisibility(View.VISIBLE);
                 removeAllowButton.setVisibility(View.VISIBLE);
-                removeAllowButton.setOnClickListener(v -> {
-                    viewModel.removeUserAllowRule(result.domain);
-                    Snackbar.make(view, R.string.domain_checker_allow_removed, Snackbar.LENGTH_SHORT).show();
-                });
+                removeAllowButton.setOnClickListener(v ->
+                        viewModel.removeUserAllowRule(result.domain));
             } else {
                 notBlockedLabel.setVisibility(View.VISIBLE);
                 blockButton.setVisibility(View.VISIBLE);
-                blockButton.setOnClickListener(v -> {
-                    viewModel.blockDomain(result.domain);
-                    Snackbar.make(view, getString(R.string.domain_checker_blocked_snack, result.domain),
-                            Snackbar.LENGTH_SHORT).show();
-                });
+                blockButton.setOnClickListener(v -> viewModel.blockDomain(result.domain));
             }
+            setMutationControlsEnabled(resultCard, !Boolean.TRUE.equals(viewModel.loading.getValue()));
         });
+    }
+
+    private static void setMutationControlsEnabled(View view, boolean enabled) {
+        if (view instanceof MaterialButton) view.setEnabled(enabled);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                setMutationControlsEnabled(group.getChildAt(i), enabled);
+            }
+        }
     }
 
     private static int statusText(Status status) {

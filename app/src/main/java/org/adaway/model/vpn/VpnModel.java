@@ -29,7 +29,7 @@ import timber.log.Timber;
 public class VpnModel extends AdBlockModel {
     private static final int MAX_LOG_ENTRIES = 1000;
     private final HostEntryDao hostEntryDao;
-    private final LruCache<String, HostEntry> blockCache;
+    private volatile LruCache<String, HostEntry> blockCache;
     private final LinkedHashSet<String> logs;
     private boolean recordingLogs;
     private int requestCount;
@@ -40,15 +40,13 @@ public class VpnModel extends AdBlockModel {
      * @param context The application context.
      */
     public VpnModel(Context context) {
+        this(context, AppDatabase.getInstance(context).hostEntryDao());
+    }
+
+    VpnModel(Context context, HostEntryDao hostEntryDao) {
         super(context);
-        AppDatabase database = AppDatabase.getInstance(context);
-        this.hostEntryDao = database.hostEntryDao();
-        this.blockCache = new LruCache<String, HostEntry>(4 * 1024) {
-            @Override
-            protected HostEntry create(String key) {
-                return VpnModel.this.hostEntryDao.resolveEntry(key);
-            }
-        };
+        this.hostEntryDao = hostEntryDao;
+        this.blockCache = createRulesCache();
         this.logs = new LinkedHashSet<>();
         this.recordingLogs = false;
         this.requestCount = 0;
@@ -77,8 +75,19 @@ public class VpnModel extends AdBlockModel {
      * Clear cached rule lookups after the runtime rule table changes.
      */
     public void invalidateRulesCache() {
-        this.blockCache.evictAll();
+        // LruCache.create runs outside its lock. Retire the entire cache so an in-flight
+        // lookup can only publish into its old cache, without blocking on database I/O.
+        this.blockCache = createRulesCache();
         this.requestCount = 0;
+    }
+
+    private LruCache<String, HostEntry> createRulesCache() {
+        return new LruCache<String, HostEntry>(4 * 1024) {
+            @Override
+            protected HostEntry create(String key) {
+                return VpnModel.this.hostEntryDao.resolveEntry(key);
+            }
+        };
     }
 
     @Override
@@ -118,11 +127,12 @@ public class VpnModel extends AdBlockModel {
      * @return The related host entry.
      */
     public HostEntry getEntry(String host) {
+        LruCache<String, HostEntry> cache = this.blockCache;
         // Compute miss rate periodically
         this.requestCount++;
         if (this.requestCount >= 1000) {
-            int hits = this.blockCache.hitCount();
-            int misses = this.blockCache.missCount();
+            int hits = cache.hitCount();
+            int misses = cache.missCount();
             double missRate = 100D * (hits + misses) / misses;
             Timber.d("Host cache miss rate: %s.", missRate);
             this.requestCount = 0;
@@ -137,6 +147,6 @@ public class VpnModel extends AdBlockModel {
             }
         }
         // Check cache
-        return this.blockCache.get(host);
+        return cache.get(host);
     }
 }

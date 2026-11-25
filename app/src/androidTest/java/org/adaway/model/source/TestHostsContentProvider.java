@@ -86,10 +86,19 @@ public class TestHostsContentProvider extends ContentProvider {
                 OpenableColumns.SIZE,
                 DocumentsContract.Document.COLUMN_LAST_MODIFIED
         });
+        Long modified = System.currentTimeMillis();
+        if (SUCCESS_PATH.equals(uri.getPath())) {
+            String requestedModified = uri.getQueryParameter("modified");
+            if ("unknown".equals(requestedModified)) {
+                modified = null;
+            } else if (requestedModified != null) {
+                modified = Long.valueOf(requestedModified);
+            }
+        }
         cursor.addRow(new Object[]{
                 displayName,
                 size,
-                System.currentTimeMillis()
+                modified
         });
         return cursor;
     }

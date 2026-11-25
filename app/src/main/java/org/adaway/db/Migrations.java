@@ -88,7 +88,6 @@ final class Migrations {
                     "COALESCE(SUM(CASE WHEN `type` = 2 THEN 1 ELSE 0 END), 0), " +
                     "COUNT(*) FROM (" +
                     "SELECT `type`, `kind` FROM `hosts_lists` " +
-                    "INDEXED BY `index_hosts_lists_kind_host` " +
                     "WHERE `enabled` = 1 AND (`source_id` = 1 OR (`generation` = " +
                     "(SELECT `active_generation` FROM `hosts_meta` WHERE `id` = 0) " +
                     "AND `source_id` != 1)))";
@@ -191,8 +190,15 @@ final class Migrations {
     static final Migration MIGRATION_4_5 = new Migration(4, 5) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase database) {
-            // Remove host_entries view
-            database.execSQL("DROP VIEW `host_entries`");
+            // Version 4 existed with either a view or the already-compatible table.
+            boolean hasLegacyView;
+            try (Cursor cursor = database.query("SELECT 1 FROM sqlite_master " +
+                    "WHERE name = 'host_entries' AND type = 'view'")) {
+                hasLegacyView = cursor.moveToNext();
+            }
+            if (hasLegacyView) {
+                database.execSQL("DROP VIEW `host_entries`");
+            }
             // Create new host_entries table
             database.execSQL("CREATE TABLE IF NOT EXISTS `host_entries` (`host` TEXT NOT NULL, `type` INTEGER NOT NULL, `redirection` TEXT, PRIMARY KEY(`host`))");
             database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_host_entries_host` ON `host_entries` (`host`)");

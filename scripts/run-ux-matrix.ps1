@@ -1,8 +1,16 @@
+<#
+.SYNOPSIS
+Captures UX variants on an explicitly authorized disposable emulator. App data is erased.
+.EXAMPLE
+./scripts/run-ux-matrix.ps1 -DeviceSerial emulator-5554 -AllowDestructiveCapture
+#>
 param(
     [string]$AndroidHome = $env:ANDROID_HOME,
     [string]$JavaHome = $env:JAVA_HOME,
     [string]$OutputDir = "app/build/reports/ux-matrix",
-    [int]$InstrumentationTimeoutSeconds = 300
+    [int]$InstrumentationTimeoutSeconds = 300,
+    [string]$DeviceSerial,
+    [switch]$AllowDestructiveCapture
 )
 
 $ErrorActionPreference = "Stop"
@@ -147,12 +155,42 @@ if (-not [string]::IsNullOrWhiteSpace($AndroidHome)) {
 }
 $pathParts.Add($env:PATH)
 $env:PATH = $pathParts -join $pathSeparator
+$script:AuthorizedDeviceSerial = $null
+
+function Authorize-CaptureDevice {
+    $script:AuthorizedDeviceSerial = $null
+    if ($DeviceSerial -cnotmatch '^emulator-[0-9]+$' -or -not $AllowDestructiveCapture) {
+        throw "Capture erases app data. Specify -DeviceSerial emulator-PORT and " +
+                "-AllowDestructiveCapture for a disposable emulator. Physical devices are refused."
+    }
+
+    # These probes are read-only and always target the explicitly selected serial.
+    $state = & $adb -s $DeviceSerial get-state
+    if ($LASTEXITCODE -ne 0 -or ($state -join "`n").Trim() -cne "device") {
+        throw "Selected emulator is not ready: $DeviceSerial"
+    }
+    $qemu = & $adb -s $DeviceSerial shell getprop ro.kernel.qemu
+    if ($LASTEXITCODE -ne 0 -or ($qemu -join "`n").Trim() -cne "1") {
+        throw "Selected serial is not a verified emulator: $DeviceSerial"
+    }
+    $script:AuthorizedDeviceSerial = $DeviceSerial
+}
+
+function Get-AuthorizedDeviceSerial {
+    if (-not $script:AuthorizedDeviceSerial -or
+            $script:AuthorizedDeviceSerial -cne $DeviceSerial -or
+            -not $AllowDestructiveCapture) {
+        throw "Destructive capture has not been authorized for this serial."
+    }
+    return $script:AuthorizedDeviceSerial
+}
 
 function Invoke-Adb {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    & $adb @Args
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArguments)
+    $serial = Get-AuthorizedDeviceSerial
+    & $adb -s $serial @CommandArguments
     if ($LASTEXITCODE -ne 0) {
-        throw "adb failed: $($Args -join ' ')"
+        throw "adb failed: $($CommandArguments -join ' ')"
     }
 }
 
@@ -181,6 +219,7 @@ function Test-UxInstrumentationResult {
 }
 
 function Install-TestPackages {
+    $null = Get-AuthorizedDeviceSerial
     Invoke-Gradle :app:assembleDebug :app:assembleDebugAndroidTest `
             --dependency-verification=strict --stacktrace
     Invoke-Adb install -r -g $appApk
@@ -188,16 +227,16 @@ function Install-TestPackages {
 }
 
 function Stop-TestPackages {
-    & $adb shell am force-stop org.adaway.test | Out-Null
-    & $adb shell am force-stop org.adaway | Out-Null
+    Invoke-Adb shell am force-stop org.adaway.test | Out-Null
+    Invoke-Adb shell am force-stop org.adaway | Out-Null
 }
 
 function Dismiss-ExternalSystemDialogs {
     # Locale/font-scale changes can leave launcher ANR/system dialogs focused on emulators.
-    & $adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS | Out-Null
-    & $adb shell input keyevent 4 | Out-Null
-    & $adb shell am force-stop com.google.android.apps.nexuslauncher | Out-Null
-    & $adb shell am force-stop com.android.launcher3 | Out-Null
+    Invoke-Adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS | Out-Null
+    Invoke-Adb shell input keyevent 4 | Out-Null
+    Invoke-Adb shell am force-stop com.google.android.apps.nexuslauncher | Out-Null
+    Invoke-Adb shell am force-stop com.android.launcher3 | Out-Null
 }
 
 function Invoke-UxTest {
@@ -210,6 +249,7 @@ function Invoke-UxTest {
     $stderrFile = New-TemporaryFile
     try {
         $process = Start-Process -FilePath $adb -ArgumentList @(
+            "-s", (Get-AuthorizedDeviceSerial),
             "shell", "am", "instrument", "-w", "-e", "class",
             "org.adaway.ui.UxDeviceMatrixTest", $testRunner
         ) -NoNewWindow -RedirectStandardOutput $stdoutFile `
@@ -240,8 +280,11 @@ function Invoke-UxTest {
             throw "UX matrix test failed for $Variant"
         }
     } finally {
-        Stop-TestPackages
-        Remove-Item -LiteralPath $stdoutFile, $stderrFile -Force -ErrorAction SilentlyContinue
+        try {
+            Stop-TestPackages
+        } finally {
+            Remove-Item -LiteralPath $stdoutFile, $stderrFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     $target = Join-Path $OutputDir $Variant
@@ -356,35 +399,83 @@ function Set-DeviceState {
         [string]$Locales
     )
 
-    if ($FontScale) {
-        Invoke-Adb shell settings put system font_scale $FontScale
-    } else {
-        Invoke-Adb shell settings delete system font_scale
-    }
-
-    if ($Locales) {
-        Invoke-Adb shell settings put system system_locales $Locales
-    } else {
-        Invoke-Adb shell settings delete system system_locales
-    }
+    Set-DeviceSetting -Name font_scale -Value $FontScale
+    Set-DeviceSetting -Name system_locales -Value $Locales
 
     Invoke-Adb shell am force-stop org.adaway
     Dismiss-ExternalSystemDialogs
 }
 
-function Invoke-UxMatrix {
-    New-Item -ItemType Directory -Force $OutputDir | Out-Null
-    Invoke-Adb wait-for-device
-    Install-TestPackages
+function Assert-DeviceSetting {
+    param([string]$Name, [string]$Value)
+    $pattern = switch ($Name) {
+        "font_scale" { '^[0-9]+(\.[0-9]+)?$' }
+        "system_locales" { '^[a-zA-Z0-9]+([-_,][a-zA-Z0-9]+)*$' }
+        default { throw "Unsupported device setting: $Name" }
+    }
+    if ($Value -and $Value -cne "null" -and $Value -notmatch $pattern) {
+        throw "Cannot safely preserve device setting: $Name"
+    }
+}
 
+function Set-DeviceSetting {
+    param([string]$Name, [string]$Value)
+    Assert-DeviceSetting -Name $Name -Value $Value
+    if (-not $Value -or $Value -ceq "null") {
+        Invoke-Adb shell settings delete system $Name
+    } else {
+        Invoke-Adb shell settings put system $Name $Value
+    }
+}
+
+function Get-DeviceState {
+    $state = @{}
+    foreach ($name in @("font_scale", "system_locales")) {
+        $value = ((Invoke-Adb shell settings get system $name) -join "`n").Trim()
+        if (-not $value) {
+            throw "No value returned for device setting: $name"
+        }
+        Assert-DeviceSetting -Name $name -Value $value
+        $state[$name] = $value
+    }
+    return $state
+}
+
+function Restore-DeviceState {
+    param([hashtable]$State)
+    $failures = @()
+    foreach ($name in @("font_scale", "system_locales")) {
+        try {
+            Set-DeviceSetting -Name $name -Value $State[$name]
+        } catch {
+            $failures += "$name`: $_"
+        }
+    }
+    if ($failures.Count -gt 0) {
+        throw "Failed to restore emulator settings: $($failures -join '; ')"
+    }
+}
+
+function Invoke-UxMatrix {
+    Authorize-CaptureDevice
+    $originalState = $null
     try {
+        $originalState = Get-DeviceState
+        New-Item -ItemType Directory -Force $OutputDir | Out-Null
+        Install-TestPackages
         foreach ($variant in $UxMatrixVariantSpecs) {
             Set-DeviceState -FontScale $variant.FontScale -Locales $variant.Locales
             Invoke-UxTest -Variant $variant.Name
         }
         Write-UxMatrixReviewManifest -Directory $OutputDir
     } finally {
-        Set-DeviceState -FontScale "" -Locales ""
+        try {
+            if ($null -ne $originalState) {
+                Restore-DeviceState -State $originalState
+            }
+        } finally {
+            $script:AuthorizedDeviceSerial = $null
+        }
     }
 }
 

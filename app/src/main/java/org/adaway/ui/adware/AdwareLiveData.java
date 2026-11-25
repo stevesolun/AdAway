@@ -7,6 +7,7 @@ import android.content.pm.ComponentInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
+import androidx.annotation.MainThread;
 import androidx.annotation.WorkerThread;
 import androidx.lifecycle.LiveData;
 
@@ -14,6 +15,7 @@ import org.adaway.util.AppExecutors;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static java.util.stream.Collectors.toList;
 
@@ -45,6 +47,10 @@ class AdwareLiveData extends LiveData<List<AdwareInstall>> {
      * The application context.
      */
     private final Context context;
+    private final Executor scanExecutor;
+    private final Executor mainExecutor;
+    // Requested and checked only on the main thread, including completion delivery.
+    private long scanGeneration;
 
     /**
      * Constructor.
@@ -52,23 +58,41 @@ class AdwareLiveData extends LiveData<List<AdwareInstall>> {
      * @param context The application context.
      */
     AdwareLiveData(Context context) {
+        this(context, AppExecutors.getInstance().packageScanIO(),
+                AppExecutors.getInstance().mainThread());
+    }
+
+    AdwareLiveData(Context context, Executor scanExecutor, Executor mainExecutor) {
         this.context = context;
-        AppExecutors.getInstance().packageScanIO().execute(this::loadData);
+        this.scanExecutor = scanExecutor;
+        this.mainExecutor = mainExecutor;
+    }
+
+    @MainThread
+    void refresh() {
+        long generation = ++this.scanGeneration;
+        this.scanExecutor.execute(() -> {
+            List<AdwareInstall> installs = loadData();
+            this.mainExecutor.execute(() -> {
+                // Checking before postValue would still allow a queued old result to win.
+                if (generation == this.scanGeneration) {
+                    setValue(installs);
+                }
+            });
+        });
     }
 
     @WorkerThread
-    private void loadData() {
+    List<AdwareInstall> loadData() {
         // Get the package manager
         PackageManager pm = this.context.getPackageManager();
         // Get the adware packages
         List<PackageInfo> adwarePackages = this.getAdwarePackages(pm);
         // Create related adware installs
-        List<AdwareInstall> adwareInstalls = adwarePackages.stream()
+        return adwarePackages.stream()
                 .map(this::createInstallFromPackageInfo)
                 .sorted()
                 .collect(toList());
-        // Post loaded adware installs
-        this.postValue(adwareInstalls);
     }
 
     /**

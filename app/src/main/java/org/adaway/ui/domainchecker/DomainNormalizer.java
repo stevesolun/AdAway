@@ -3,6 +3,10 @@ package org.adaway.ui.domainchecker;
 import org.adaway.util.RegexUtils;
 
 import java.net.IDN;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Locale;
 
 /**
@@ -35,35 +39,35 @@ public class DomainNormalizer {
             return null;
         }
 
-        // Strip protocol prefix
-        String host = trimmed;
-        if (host.regionMatches(true, 0, "https://", 0, "https://".length())) {
-            host = host.substring("https://".length());
-        } else if (host.regionMatches(true, 0, "http://", 0, "http://".length())) {
-            host = host.substring("http://".length());
+        boolean fullUrl = trimmed.regionMatches(true, 0, "https://", 0, 8)
+                || trimmed.regionMatches(true, 0, "http://", 0, 7);
+        String address = trimmed;
+        if (!fullUrl) {
+            // Keep the bare-host contract even when its path/query contains another URL.
+            int end = address.length();
+            for (char delimiter : new char[]{'/', '?', '#'}) {
+                int index = address.indexOf(delimiter);
+                if (index >= 0) end = Math.min(end, index);
+            }
+            address = "https://" + address.substring(0, end).trim();
         }
-
-        // Strip path, query, and fragment
-        int slashIdx = host.indexOf('/');
-        if (slashIdx != -1) {
-            host = host.substring(0, slashIdx);
+        String host;
+        try {
+            URI uri = new URI(address);
+            String authority = uri.getRawAuthority();
+            if (authority == null || authority.contains("@") || authority.endsWith(":")) {
+                return null;
+            }
+            // URL's host accessor also supports Unicode authorities, unlike URI.getHost().
+            // This only parses the URL; it does not open a connection.
+            URL url = uri.toURL();
+            if (url.getUserInfo() != null || url.getPort() < -1 || url.getPort() > 65535) {
+                return null;
+            }
+            host = url.getHost();
+        } catch (URISyntaxException | MalformedURLException exception) {
+            return null;
         }
-        int queryIdx = host.indexOf('?');
-        if (queryIdx != -1) {
-            host = host.substring(0, queryIdx);
-        }
-        int fragmentIdx = host.indexOf('#');
-        if (fragmentIdx != -1) {
-            host = host.substring(0, fragmentIdx);
-        }
-
-        // Strip port number (e.g. example.com:8080 → example.com)
-        int colonIdx = host.indexOf(':');
-        if (colonIdx != -1) {
-            host = host.substring(0, colonIdx);
-        }
-
-        host = host.trim();
         if (host.endsWith(".")) {
             host = host.substring(0, host.length() - 1);
         }

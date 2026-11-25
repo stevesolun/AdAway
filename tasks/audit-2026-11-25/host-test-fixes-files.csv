@@ -1,0 +1,4 @@
+path,sha256,assessment,bug_ids
+app/src/test/java/org/adaway/model/backup/AppBackupAgentContractTest.java,0271774dc8cb66d66fccb886da7f1a254890c34b1aa0dd1ed804de5ea6b7b721,Fully read 1-176 after scoped fix; DOM parse and absolute XPath require direct root/. exclusion under each cloud/device-transfer/legacy parent. Five exact negative regressions fail old predicate; final 10 host methods pass on standalone JDK21/JUnit4.13.2. Unstaged and frozen; integrated Gradle gate remains main-owned.,JVM-AUD-001
+app/src/main/res/xml/data_extraction_rules.xml,2d9361dacc7911f63fe96cf891b1fe6f36343dad2df35e281764d02560b3b801,Context only; fully read 1-13; current production cloud/device-transfer exclusions unchanged and accepted by actual file test.,""
+app/src/main/res/xml/full_backup_content.xml,c4a4d5ad5fb91fb839f02854272e8ebc22ce5ddbb041315fc9853d7146322380,Context only; fully read 1-6; current production legacy exclusion unchanged and accepted by actual file test.,""

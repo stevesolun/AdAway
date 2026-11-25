@@ -1,6 +1,15 @@
 # REL-001 License Boundary Source Reports - 2026-06-27
 
-Source commit: `6cb4d35b5178beb15625e8a4d6c8be6f7e5c9ef2`
+Historical source identities, as recorded in the preserved reports:
+- GitTracked: `6cb4d35b5178beb15625e8a4d6c8be6f7e5c9ef2`.
+- WorkingTree: `6cb4d35b5178beb15625e8a4d6c8be6f7e5c9ef2`.
+- GitTracked strict source archive: `fe5f66da46c149829d6d3883d6e9d532c06b71e2`.
+
+Evidence correction, 2026-11-25 (REM-EVID-001): this is a mixed-commit bundle,
+not three checks of one source snapshot. Raw reports, logs and exit codes are
+unchanged. The [June 28 refresh](2026-06-28-rel001-license-boundary-current-head-evidence.md)
+is a separate historical bundle at `c03030f89ec2337bb9213949cec2e2c3db69f309`,
+not evidence for the current branch tip.
 
 Environment:
 - PowerShell: 7.6.3, installed via Homebrew during this Mac setup
@@ -62,7 +71,8 @@ SecurityHardeningTest + ReleaseReadinessScriptTest + UxMatrixScriptTest +
   ApkIntegrityVerifierTest: BUILD SUCCESSFUL in 31s
 ```
 
-The local source boundary checks prove the working tree and tracked sources do not contain a
-premature MIT release claim or detected artifact-boundary drift. This advances `REL-001` evidence,
-but does not close the gate: legal/provenance clearance is still required before any MIT release
-claim can be made.
+The recorded source boundary checks found no premature MIT release claim or detected
+source-boundary drift in their respective historical snapshots. They do not establish
+one commit passing all three checks or verify release APK/SBOM artifacts. This advances
+historical `REL-001` evidence but does not close the gate: legal/provenance clearance
+is still required before any MIT release claim can be made.

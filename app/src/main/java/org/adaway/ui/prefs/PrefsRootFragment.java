@@ -1,12 +1,7 @@
 package org.adaway.ui.prefs;
 
 import static android.widget.Toast.LENGTH_SHORT;
-import static org.adaway.model.root.MountType.READ_ONLY;
-import static org.adaway.model.root.MountType.READ_WRITE;
-import static org.adaway.model.root.ShellUtils.isWritable;
-import static org.adaway.model.root.ShellUtils.remountPartition;
 import static org.adaway.ui.prefs.PrefsActivity.PREFERENCE_NOT_FOUND;
-import static org.adaway.util.Constants.ANDROID_SYSTEM_ETC_HOSTS;
 import static org.adaway.util.Constants.PREFS_NAME;
 import static org.adaway.util.WebServerUtils.TEST_URL;
 import static org.adaway.util.WebServerUtils.getWebServerState;
@@ -15,7 +10,6 @@ import static org.adaway.util.WebServerUtils.isWebServerRunning;
 import static org.adaway.util.WebServerUtils.startWebServer;
 import static org.adaway.util.WebServerUtils.stopWebServer;
 
-import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -23,25 +17,19 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
 import androidx.annotation.NonNull;
+import androidx.fragment.app.FragmentManager;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
-import org.adaway.ui.dialog.MissingAppDialog;
 import org.adaway.util.AppExecutors;
 
-import java.io.File;
-import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-
-import timber.log.Timber;
 
 /**
  * This fragment is the preferences fragment for root ad blocker.
@@ -49,18 +37,11 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class PrefsRootFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
-    /**
-     * The launcher to start open hosts file activity.
-     */
-    private ActivityResultLauncher<Intent> openHostsFileLauncher;
-
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         // Configure preferences
         getPreferenceManager().setSharedPreferencesName(PREFS_NAME);
         addPreferencesFromResource(R.xml.preferences_root);
-        // Register for activities
-        registerForOpenHostActivity();
         // Bind pref actions
         bindOpenHostsFile();
         bindRedirection();
@@ -96,7 +77,7 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         Context context = getContext();
-        if (context == null) {
+        if (context == null || !isWebServerAvailable(context)) {
             return;
         }
         // Restart web server on icon change
@@ -107,43 +88,20 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         }
     }
 
-    private void registerForOpenHostActivity() {
-        this.openHostsFileLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
-            try {
-                File hostFile = new File(ANDROID_SYSTEM_ETC_HOSTS).getCanonicalFile();
-                remountPartition(hostFile, READ_ONLY);
-            } catch (IOException e) {
-                Timber.e(e, "Failed to get hosts canonical file.");
-            }
-        });
-    }
-
     private void bindOpenHostsFile() {
         Preference openHostsFilePreference = findPreference(getString(R.string.pref_open_hosts_key));
         assert openHostsFilePreference != null : PREFERENCE_NOT_FOUND;
+        openHostsFilePreference.setSummary(R.string.hosts_viewer_read_only);
         openHostsFilePreference.setOnPreferenceClickListener(this::openHostsFile);
     }
 
     private boolean openHostsFile(Preference preference) {
-        try {
-            File hostFile = new File(ANDROID_SYSTEM_ETC_HOSTS).getCanonicalFile();
-            boolean remount = !isWritable(hostFile) && remountPartition(hostFile, READ_WRITE);
-            Intent intent = new Intent()
-                    .setAction(Intent.ACTION_VIEW)
-                    .setDataAndType(Uri.parse("file://" + hostFile.getAbsolutePath()), "text/plain");
-            if (remount) {
-                this.openHostsFileLauncher.launch(intent);
-            } else {
-                startActivity(intent);
-            }
-            return true;
-        } catch (IOException e) {
-            Timber.e(e, "Failed to get hosts canonical file.");
-        } catch (ActivityNotFoundException e) {
-            MissingAppDialog.showTextEditorMissingDialog(getContext());
-            return false;
+        FragmentManager manager = getChildFragmentManager();
+        if (!manager.isStateSaved()
+                && manager.findFragmentByTag(HostsFileViewerDialog.TAG) == null) {
+            new HostsFileViewerDialog().showNow(manager, HostsFileViewerDialog.TAG);
         }
-        return false;
+        return true;
     }
 
     private void bindRedirection() {
@@ -213,8 +171,6 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         if (isWebServerAvailable(requireContext())) {
             return;
         }
-
-        stopWebServer();
 
         SwitchPreferenceCompat webServerEnabledPref =
                 findPreference(getString(R.string.pref_webserver_enabled_key));

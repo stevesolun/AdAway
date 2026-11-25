@@ -26,6 +26,8 @@ public class ReleaseReadinessScriptTest {
             "0123456789abcdef0123456789abcdef01234567";
     private static final String OTHER_SOURCE_COMMIT =
             "fedcba9876543210fedcba9876543210fedcba98";
+    private static final String TOOLING_COMMIT =
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String RELEASE_APK_SHA256 =
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String RELEASE_CERT_SHA256 =
@@ -486,7 +488,7 @@ public class ReleaseReadinessScriptTest {
                             report.contains("- APK: " + RELEASE_APK) &&
                             report.contains("- APK SHA-256: " + RELEASE_APK_SHA256) &&
                             report.contains("- SBOM: " + RELEASE_SBOM) &&
-                            report.contains("- Source commit: " + SOURCE_COMMIT) &&
+                            report.contains("- Artifact source commit: " + SOURCE_COMMIT) &&
                             report.contains("- UX review packet SHA-256: " +
                                     UX_PACKET_SHA256) &&
                             report.contains("- Release artifact verification: passed") &&
@@ -499,6 +501,47 @@ public class ReleaseReadinessScriptTest {
                             containsSha256Field(report, "Physical smoke report SHA-256") &&
                             containsSha256Field(report, "UX sign-off report SHA-256") &&
                             containsSha256Field(report, "License boundary report SHA-256"));
+        } finally {
+            deleteRecursively(fixture);
+        }
+    }
+
+    @Test
+    public void releaseReadinessRejectsUnknownOrAmbiguousArtifactIdentity() throws Exception {
+        String powershell = findPowerShell();
+        assumeTrue("PowerShell is required to exercise the release-readiness script.",
+                powershell != null);
+        Path fixture = Files.createTempDirectory("adaway-readiness-explicit-provenance");
+        try {
+            Path release = fixture.resolve("artifact.md");
+            Path smoke = fixture.resolve("smoke.md");
+            Path ux = fixture.resolve("ux.md");
+            Path license = fixture.resolve("license.md");
+            Path readiness = fixture.resolve("readiness.md");
+            writePassingReleaseArtifactReport(release);
+            writePassingPhysicalSmokeReport(smoke, RELEASE_APK_SHA256, RELEASE_CERT_SHA256);
+            writePassingUxReport(ux);
+            writePassingLicenseReport(license);
+            String command = readinessCommand(release, smoke, ux, license, readiness);
+            assertEquals("The complete report control must pass before mutation.",
+                    0, runPowerShell(powershell, command).exitCode);
+            String original = readUtf8(release);
+            String[][] mutations = {
+                    {"Artifact source commit: " + SOURCE_COMMIT, "Source commit: " + TOOLING_COMMIT},
+                    {"Artifact source commit: " + SOURCE_COMMIT, "Artifact source commit: not-verified"},
+                    {"Artifact source ref: refs/tags/" + RELEASE_TAG, "Artifact source ref: refs/heads/main"},
+                    {"fork-release-apk.yml", "other-workflow.yml"},
+                    {"APK identity: verified", "APK identity: not-verified"},
+                    {"APK debuggable: false", "APK debuggable: true"},
+                    {"APK versionCode: 130500", "APK versionCode: 130501"},
+                    {"Artifact provenance: verified", "Artifact provenance: verified-not"},
+                    {"- Status: passed", "- Status: passed\n- Artifact source commit: " + SOURCE_COMMIT}
+            };
+            for (String[] mutation : mutations) {
+                writeUtf8(release, original.replace(mutation[0], mutation[1]));
+                assertTrue("Readiness must reject " + mutation[1],
+                        runPowerShell(powershell, command).exitCode != 0);
+            }
         } finally {
             deleteRecursively(fixture);
         }
@@ -587,13 +630,19 @@ public class ReleaseReadinessScriptTest {
         writeUtf8(path,
                 "# Release Artifact Verification Report\n\n" +
                         "- Status: passed\n" +
-                        "- Source commit: " + sourceCommit + "\n" +
+                        artifactProvenance(sourceCommit, releaseTag, TOOLING_COMMIT) +
+                        "- Metadata source commit: " + sourceCommit + "\n" +
+                        "- Metadata source ref: refs/tags/" + releaseTag + "\n" +
+                        "- Metadata source workflow: stevesolun/AdAway/.github/workflows/" +
+                        "fork-release-apk.yml\n" +
+                        apkIdentity(releaseTag) +
                         "- Release tag: " + releaseTag + "\n" +
                         "- APK: " + RELEASE_APK + "\n" +
                         "- SBOM: " + RELEASE_SBOM + "\n" +
                         "- APK SHA-256: " + RELEASE_APK_SHA256 + "\n" +
                         "- Expected certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
                         "- Manifest certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
+                        "- APK certificate SHA-256: " + RELEASE_CERT_SHA256 + "\n" +
                         "- Checksum verification: passed\n" +
                         "- Manifest signature: passed\n" +
                         "- Manifest payload: passed\n" +
@@ -631,16 +680,33 @@ public class ReleaseReadinessScriptTest {
                 "# Release Smoke Report\n\n" +
                         "- Status: passed\n" +
                         "- Mode: physical-device\n" +
-                        "- Source commit: " + sourceCommit + "\n" +
+                        artifactProvenance(sourceCommit, releaseTag, OTHER_SOURCE_COMMIT) +
+                        apkIdentity(releaseTag) +
                         "- Release tag: " + releaseTag + "\n" +
                         "- APK: " + RELEASE_APK + "\n" +
                         "- APK SHA-256: " + apkSha256 + "\n" +
-                        "- Package: org.adaway\n" +
                         "- Signer certificate check: True\n" +
                         "- Signer certificate SHA-256: " + certSha256 + "\n" +
                         "- Physical device: verified-real-device\n" +
                         "- Device serial SHA-256: " + RELEASE_APK_SHA256 + "\n" +
                         "- Launch pid observed: 4242\n");
+    }
+
+    private static String artifactProvenance(String commit, String tag, String toolingCommit) {
+        return "- Artifact source commit: " + commit + "\n" +
+                "- Artifact source ref: refs/tags/" + tag + "\n" +
+                "- Artifact source workflow: stevesolun/AdAway/.github/workflows/" +
+                "fork-release-apk.yml\n" +
+                "- Artifact provenance: verified\n" +
+                "- Tooling source commit: " + toolingCommit + "\n";
+    }
+
+    private static String apkIdentity(String tag) {
+        return "- APK identity: verified\n" +
+                "- APK debuggable: false\n" +
+                "- Package: org.adaway\n" +
+                "- APK version: " + tag.substring(1) + "\n" +
+                "- APK versionCode: 130500\n";
     }
 
     private static void writeSparsePhysicalSmokeReport(Path path, String apkSha256,

@@ -1,0 +1,5 @@
+path,scope,status,sha256,notes
+app/src/androidTest/java/org/adaway/vpn/LegacyVpnBoundRequestLifecycleInstrumentedTest.java,new-test-only,final-frozen-api30-three-pass-zero-skip,966575b4768f2de96402400836a0b35507d6b9b6dd35a9464a514c85636aa82d,Main executed one live lifecycle method and two parser methods; source hash unchanged; no production edits
+tasks/audit-2026-11-25/legacy-network-lifecycle-review.md,sidecar,final-freeze,,Observed instrumentation log and retained phase summary; APK hashes; sampling and API26-29 limits; no host raw-dump archive
+tasks/audit-2026-11-25/legacy-network-lifecycle-files.csv,sidecar,final-freeze,,Only three lifecycle sidecars changed in this result update
+tasks/audit-2026-11-25/legacy-network-lifecycle-tests.csv,sidecar,final-freeze,,Three methods observed passed on main's actual API30 run; zero skips

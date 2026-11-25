@@ -714,6 +714,20 @@ public class DiscoverPresetSubscriptionTest {
     }
 
     @Test
+    public void filterListIdentityAndFormatWrapWithoutTruncation() throws Exception {
+        String layout = readRepoFile(
+                "app/src/main/res/layout/filterlists_import_item.xml");
+        for (String id : new String[]{"filterlistsItemName", "filterlistsItemSyntax"}) {
+            String view = xmlTagById(layout, id);
+            assertTrue("Filter identity must have flexible height: " + id,
+                    view.contains("android:layout_height=\"wrap_content\""));
+            assertFalse("Filter identity must wrap: " + id, view.contains("android:maxLines="));
+            assertFalse("Filter identity must remain readable: " + id,
+                    view.contains("android:ellipsize="));
+        }
+    }
+
+    @Test
     public void filterListsBulkUnsupportedParserKeepsOnlyUniqueUnsupportedIds() {
         String ledger = "SUBSCRIBED\t10\tSafe hosts\thttps://safe.test/hosts.txt\n"
                 + "SKIPPED_NO_URL\t12\tNo URL\t\n"

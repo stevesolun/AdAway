@@ -29,14 +29,8 @@ categorized filter management, and one-tap onboarding.
 
 ## What's New
 
-| Version | Highlight |
-|---------|-----------|
-| **v13.4.9** | Runtime-truth, crash-safety, and release-gate hardening |
-| v13.4.8 | Fix literal `"null"` description in FilterLists.com Discover tab |
-| v13.4.6 | ATK-29b: dotless-i / dotted-I Unicode injection bypass closed |
-| v13.4.2 | Security hardening: 22 attack vectors fixed (SSRF, MitM CA pin, backup limits, etc.) |
-| v13.3.x | Reliability: NPE/race/threading fixes, Force English locale, download error feedback |
-| v13.0–v13.2 | Parallel pipeline, Conditional GET, WAL mode, FilterLists.com browser, presets |
+See the [changelog](CHANGELOG.md) for current beta changes, upgrade notes, and
+validation limits.
 
 ---
 
@@ -92,8 +86,9 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 
 ### Download APK (Quickest)
 
-1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases/latest).
-2. Download the latest `AdAway_<version>.apk` asset.
+1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases) and select
+   the release or beta you intend to install.
+2. Download its `AdAway_<version>.apk` asset and read its upgrade notes.
 3. **If you have the official AdAway installed**, uninstall it first — different signing key.
 4. Open the APK on your device → allow "Install unknown apps" if prompted.
 5. Open AdAway and complete one-tap onboarding.
@@ -109,6 +104,12 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 > signing-certificate verification before upload. Android prevents updating over
 > the official AdAway when signing keys differ. Uninstall first.
 
+For this fork's prior beta signing compatibility, follow the
+[changelog's upgrade notes](CHANGELOG.md). The in-app updater reports download,
+verification, and installer progress separately; opening the installer does not
+confirm installation. Use **Retry update** after a failed or canceled attempt,
+or **Check again** when update authorization has expired.
+
 ---
 
 ## Architecture
@@ -117,7 +118,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 
 ```
 AdAway/
-|-- app/                    # Android application (Java 17)
+|-- app/                    # Android application
 |-- sentrystub/             # Sentry stub for release builds
 `-- tcpdump/                # Source-only native packet-capture history; not packaged
 ```
@@ -136,15 +137,14 @@ app/src/main/java/org/adaway/
 │   └── Command.java               # Broadcast command enum
 ├── db/
 │   ├── dao/                       # HostsSourceDao, HostListItemDao, HostEntryDao
-│   ├── entity/                    # HostsSource, HostListItem, HostEntry, HostsMeta
-│   └── AppDatabase.java           # Room DB (WAL mode, v11, 10 migrations)
+│   ├── entity/                    # Persisted source and rule entities
+│   └── AppDatabase.java           # Room database and registered migrations
 ├── model/
 │   ├── source/
 │   │   ├── SourceModel.java           # Download → Parse → Insert pipeline
 │   │   ├── SourceLoader.java          # Parser (hosts/domains/adblock formats)
-│   │   ├── FilterListCatalog.java     # 60+ curated lists across 12 categories
-│   │   ├── FilterListCategory.java    # Category enum (ADS/PRIVACY/MALWARE/…)
-│   │   └── FilterSetStore.java        # Named presets + scheduling
+│   │   ├── FilterListCatalog.java     # Curated lists and preset membership
+│   │   └── FilterListCategory.java    # Category enum (ADS/PRIVACY/MALWARE/…)
 │   ├── adblocking/                # Root/VPN switching logic
 │   ├── backup/                    # Backup/restore (JSON format)
 │   ├── git/                       # GitHub/GitLab/Gist source types
@@ -155,7 +155,7 @@ app/src/main/java/org/adaway/
 │   ├── more/                      # Tools & settings navigation
 │   ├── onboarding/                # First-run single-screen wizard
 │   ├── lists/                     # Custom blocked/allowed/redirected rules
-│   ├── hosts/                     # Filter sources management (HostsSourcesActivity)
+│   ├── hosts/                     # Filter sources, FilterSetStore presets + scheduling
 │   ├── prefs/                     # Preferences screens
 │   ├── adware/                    # Installed app adware scanner
 │   ├── log/                       # Real-time DNS query log
@@ -178,51 +178,41 @@ WorkManager  → Long-running background jobs (subscribe-all, scheduled updates)
 
 **Rule**: Network on `networkIO()`. DB on `diskIO()`. UI on `mainThread()`. Never cross streams.
 
-### Database Schema (Room v11, SQLite WAL)
+### Database Schema
 
-```
-hosts_sources
-  id, label, url, enabled, type, entityTag, last_modified_online,
-  last_download_error, category, generation
-
-hosts_lists
-  id, host, type (0=block/1=allow/2=redirect), source_id, generation
-
-hosts_meta
-  id (single row), current_generation
-
-host_entries
-  id, host, type, redirect_target (runtime resolved entries for VPN)
-```
-
-**Generation system**: Each update cycle bumps the generation counter. Entries from the previous generation are cleaned up after the new generation is fully written — prevents partial state.
-
-**HTTP 304 handling (v13.3.3 fix)**: When a server returns 304 Not Modified, existing entries are migrated from generation G → G+1 *before* cleanup runs, so nothing is deleted.
+[`AppDatabase`](app/src/main/java/org/adaway/db/AppDatabase.java) declares the
+current Room version, entities, and registered migration chain. The generated
+[Room schema exports](app/schemas/org.adaway.db.AppDatabase) own the table and
+column definitions. Source-update generation and conditional HTTP handling live
+in [`SourceModel`](app/src/main/java/org/adaway/model/source/SourceModel.java).
 
 ## Filter Categories
 
-| Category | Safe? | Default On | Description |
-|----------|:-----:|:----------:|-------------|
-| **ADS** | ✅ Safe | ✅ Yes | Advertisement servers — rarely breaks anything |
-| **MALWARE** | ✅ Safe | ✅ Yes | Malware, phishing, ransomware domains |
-| **YOUTUBE** | ✅ Safe | ❌ No | YouTube in-stream ad servers |
-| **PRIVACY** | ✅ Safe | ❌ No | Trackers, analytics, fingerprinting |
-| **CRYPTO** | ✅ Safe | ❌ No | Browser-based cryptocurrency mining |
-| **ANNOYANCES** | ✅ Safe | ❌ No | Cookie banners, popup overlays |
-| **REGIONAL** | ✅ Safe | ❌ No | Region-specific ad networks |
-| **SERVICE** | ⚠️ Moderate | ❌ No | In-app ads (Spotify, etc.) — may break those apps |
-| **SOCIAL** | 🔴 Aggressive | ❌ No | Social media trackers — **may break Facebook/Instagram/WhatsApp** |
-| **DEVICE** | 🔴 Aggressive | ❌ No | OEM telemetry (Samsung/Xiaomi) — **may break OEM features** |
-| **USER** | — | — | Your personal blocked/allowed/redirected rules |
-| **CUSTOM** | — | — | Custom sources added via URL |
+| Category | Description |
+|----------|-------------|
+| **ADS** | Advertisement domains |
+| **MALWARE** | Malware, phishing, ransomware domains |
+| **YOUTUBE** | YouTube-related domains; does not guarantee removal of in-stream ads |
+| **PRIVACY** | Tracking and analytics domains |
+| **CRYPTO** | Browser-based cryptocurrency mining domains |
+| **ANNOYANCES** | Annoyance-related domains; does not hide cookie banners or overlays |
+| **REGIONAL** | Region-specific ad networks |
+| **SERVICE** | In-app ad domains (Spotify, etc.) — may break those apps |
+| **SOCIAL** | Social media trackers — **may break Facebook/Instagram/WhatsApp** |
+| **DEVICE** | OEM telemetry (Samsung/Xiaomi) — **may break OEM features** |
+| **USER** | Your personal blocked/allowed/redirected rules |
+| **CUSTOM** | Custom sources added via URL |
+
+Categories describe list topics, not a guarantee of compatibility or safety.
+See the [filter rule capability matrix](docs/filter-rule-capabilities.md) for
+supported DNS rules and the limits of browser filter lists.
 
 ### Quick-Start Presets
 
-| Preset | Categories Included |
-|--------|-------------------|
-| **Safe** | ADS + MALWARE |
-| **Balanced** | ADS + MALWARE + PRIVACY + YOUTUBE |
-| **Aggressive** | ADS + MALWARE + PRIVACY + YOUTUBE + CRYPTO + ANNOYANCES + REGIONAL |
+**Safe**, **Balanced**, and **Aggressive** add or re-enable curated lists without
+clearing your other subscriptions. They select individual lists, not entire
+categories. Default feeds and exact preset membership are defined in
+[`FilterListCatalog`](app/src/main/java/org/adaway/model/source/FilterListCatalog.java).
 
 ---
 
@@ -264,10 +254,14 @@ cd AdAway
 
 ### UX Matrix Review Packet
 
-For pre-release UI review, run the connected UX matrix on an emulator:
+For pre-release UI review, select a disposable emulator and explicitly authorize
+capture. The runner reinstalls test packages and erases AdAway app data on that
+emulator; physical devices are refused. Replace the example serial with your
+emulator's serial. Existing font and locale settings are restored afterward.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1 `
+  -DeviceSerial emulator-5554 -AllowDestructiveCapture `
   -OutputDir app\build\reports\ux-matrix
 ```
 
@@ -295,6 +289,38 @@ Successful runs upload a `ux-signoff-report` artifact with the current source
 commit and the checked packet's source commit; stale packets from another
 source revision are rejected.
 
+For release smoke, first download all six published assets into one directory:
+`AdAway_<version>.apk`, its `.sha256`, `manifest.json`, its `.sha256`,
+`adaway.cdx.json`, and its `.sha256`. Use JDK 21, PowerShell, GitHub CLI with
+read access, and Android build-tools 36.0.0 via `ANDROID_HOME` or
+`ANDROID_SDK_ROOT`. Supply the trusted manifest public key and release certificate
+pin independently of the downloaded metadata. See `RELEASING.md` for download commands.
+
+```powershell
+$Version = "<version>"
+$Tag = "v$Version"
+$Apk = "release-artifacts\AdAway_$Version.apk"
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -VerifyOnly -ReportPath release-smoke\identity-only-report.md
+# On the intended physical device; this installs/updates the app and launches it:
+.\scripts\run-release-smoke.ps1 `
+  -ApkPath $Apk -ReleaseTag $Tag `
+  -ExpectedCertSha256 "<trusted-release-certificate-sha256>" `
+  -PublicKeyBase64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
+  -DeviceSerial "<physical-device-serial>" `
+  -ReportPath release-smoke\release-smoke-report.md
+```
+
+Both modes verify actual APK identity, authenticated metadata and all six
+attestations before device access; `-VerifyOnly` is not an offline or metadata-only
+bypass and does not satisfy the physical smoke gate. For renewed metadata, add
+both `-MetadataSourceCommit "<40-hex-refresh-workflow-commit>"` and
+`-MetadataSourceRef "refs/heads/<refresh-branch>"` to each command, using the exact
+refresh run identity. Unknown or mismatched provenance fails closed.
+
 After release artifact verification, physical release smoke, UX sign-off, and
 license-boundary checks have all produced reports, aggregate them into one final
 readiness report:
@@ -309,18 +335,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
   -ReportPath release-readiness-report.md
 ```
 
-The readiness verifier requires all proof reports to describe the same source commit.
+The readiness verifier requires all proof reports to describe the same source commit
+as the artifact: artifact/smoke `Artifact source commit` must match UX/license
+`Source commit`. Each report's separate `Tooling source commit` may differ from
+the APK commit and from the other verifier's checkout.
 It also requires the artifact verifier and physical smoke report to
 describe the same release tag, APK name, APK SHA-256, and signing certificate
 digest; do not combine proof reports from different release attempts. The
 release artifact report must come from `verify-release-artifacts` and include
-`Source commit`,
+`Artifact source commit`, `Artifact source ref`, `Artifact source workflow`,
+`Artifact provenance: verified`, `Tooling source commit`, `APK identity: verified`,
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, and a checked `Expected certificate SHA-256`.
 The physical smoke report must come from `run-release-smoke.ps1` in
 physical-device mode and include `Release tag`, `Package`,
 `Signer certificate check: True`, `Signer certificate SHA-256`,
-`Device serial SHA-256`, `Launch pid observed`, and `Source commit`.
+`Device serial SHA-256`, `Launch pid observed`, and the same explicit artifact
+provenance and APK identity fields. Old `Source commit`-only artifact/smoke reports
+are rejected. Metadata refresh provenance is recorded separately from APK provenance.
 Use the tagged release artifact license-boundary report for
 `-LicenseBoundaryReport`; it must show `Strict artifacts: true` with the same APK and SBOM
 artifact names from the release artifact verification report, not the regular CI source-only
@@ -332,7 +364,7 @@ reviewer, review packet, `Source commit`, `Review packet source commit`,
 When `-UxReviewPacket` is provided, final readiness also hashes the checked
 review packet and requires the same review packet hash as the sign-off report.
 The generated `release-readiness-report.md` repeats the release tag, APK, APK
-SHA-256, SBOM, source commit, and UX review packet hash, then records
+SHA-256, SBOM, artifact source commit, and UX review packet hash, then records
 `Release artifact report SHA-256`, `Physical smoke report SHA-256`,
 `UX sign-off report SHA-256`, and `License boundary report SHA-256` so the final
 summary is tied to the exact proof reports it consumed.
@@ -385,7 +417,7 @@ release is created, run the manual `verify-release-artifacts.yml` workflow as
 the CI-backed post-publish artifact and attestation check; successful runs
 upload a `release-artifact-verification-report` artifact. For install/launch
 coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
-`android-device`; it downloads the tagged APK and runs the full release smoke
+`android-device`; it downloads all six tagged assets and runs the full release smoke
 against a physical device. Successful physical smoke runs upload a
 `physical-release-smoke-report` artifact with release tag, APK name, APK
 SHA-256, signer certificate identity, and the observed launch result. Regular
@@ -468,6 +500,11 @@ back. Later selection or URL changes can still need **Apply**; updating one sour
 does not acknowledge pending changes to other sources. If a Sources update/apply
 fails, its failure message keeps an **Apply** action that retries the same operation.
 
+When Home reports a failed source download, tap **Sources** to inspect each source's
+error, correct or disable the failing source, then apply again. A source failure does
+not necessarily mean the device is offline. See the [changelog](CHANGELOG.md) for
+retired-feed upgrade notes. Local file sources can be checked and refreshed offline.
+
 Home counts enabled external sources that have never downloaded as **outdated**.
 A successfully downloaded empty list can be up to date; disabled sources and custom
 user rules are excluded from both freshness totals.
@@ -506,8 +543,14 @@ user rules are excluded from both freshness totals.
 ### Backup & Restore
 
 1. **More → Preferences → Backup & Restore**.
-2. **Backup** — exports filter sources, custom rules, and settings as JSON.
-3. **Restore** — imports from a backup file.
+2. **Backup** — exports filter sources and custom rules as JSON; app preferences
+   are not included.
+3. **Restore** — imports from a backup file. If another operation is in progress,
+   wait for it to finish, then select **Restore** again.
+
+Restoring a source with the same URL updates its configuration while retaining its
+identity. Download newly restored sources or sources whose rule format changed, then
+apply. File-source read permission must be granted again when it is no longer available.
 
 ### Force English Locale
 
@@ -555,8 +598,8 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 | VPN disconnects randomly | Check **More → Preferences → VPN** settings |
 | WhatsApp stops working | Keep the built-in WaTg safety allowlist enabled; if a custom source still breaks messaging, use **Domain Checker** or **DNS Log** to add a targeted allow rule |
 | Samsung Pay / OEM feature broken | Disable the **DEVICE** category |
-| Filter list not updating | Check network; try **More → Filter Sources** and tap the source update icon |
-| App crashes on subscribe | Clear app data and re-onboard |
+| Filter list not updating | Follow [Source Update Feedback](#source-update-feedback) to inspect and retry the failed source |
+| App crashes on subscribe | Reopen the app and retry; report repeated failures through [this fork's issues](https://github.com/stevesolun/AdAway/issues) |
 | Can't install over official AdAway | Uninstall the official AdAway first (different signing key) |
 | "Install unknown apps" blocked | Android Settings → Apps → Special app access → Install unknown apps |
 | Domain Checker shows wrong result | Port numbers (e.g., `:8080`) are stripped automatically since v13.3.5 |
@@ -569,12 +612,8 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 - Bug reports: [this fork's issues](https://github.com/stevesolun/AdAway/issues)
 - PRs welcome — keep commits atomic, present tense, explain *why* not *what*
 
-**Code style:**
-- Java 17 target
-- 4-space indent, no tabs
-- 100-char line width
-- Non-public fields prefixed `m`
-- Acronyms as words: `getUrl()` not `getURL()`
+See [CONTRIBUTING.md](CONTRIBUTING.md#style-guidelines) for code style and
+[`app/build.gradle`](app/build.gradle) for Java compatibility settings.
 
 **Threading rules (mandatory):**
 - DB operations: `AppExecutors.getInstance().diskIO()`
@@ -582,7 +621,11 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 - UI: `AppExecutors.getInstance().mainThread()`
 - Never call `AppExecutors.getInstance()` in a `static final` field initializer
 
-**DB migrations:** Room v11. Any schema change requires a migration file in `db/migration/`. Test with `MigrationTest`.
+**DB migrations:** Preserve existing user data when changing the
+[database schema](#database-schema). Add the migration in
+[`Migrations`](app/src/main/java/org/adaway/db/Migrations.java), register it in
+`AppDatabase`, and cover it with
+[`MigrationTest`](app/src/androidTest/java/org/adaway/db/MigrationTest.java).
 
 ---
 

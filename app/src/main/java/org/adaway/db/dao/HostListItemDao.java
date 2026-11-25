@@ -54,6 +54,9 @@ public interface HostListItemDao {
     @Query("SELECT id FROM hosts_lists WHERE host = :host AND source_id = 1 LIMIT 1")
     Optional<Integer> getHostId(String host);
 
+    @Query("SELECT * FROM hosts_lists WHERE id = :id")
+    HostListItem getById(int id);
+
     @Query("SELECT COUNT(DISTINCT host) FROM hosts_lists WHERE type = 0 AND enabled = 1 AND (source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     LiveData<Integer> getBlockedHostCount();
 

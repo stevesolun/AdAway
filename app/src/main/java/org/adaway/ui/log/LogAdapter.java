@@ -10,6 +10,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
@@ -76,7 +77,10 @@ class LogAdapter extends ListAdapter<LogEntry, LogAdapter.ViewHolder> {
     }
 
     private void bindImageView(ImageView imageView, ListType type, LogEntry entry) {
-        if (type == entry.getType()) {
+        boolean selected = type == entry.getType();
+        imageView.setContentDescription(imageView.getContext().getString(
+                getActionDescription(type, selected)));
+        if (selected) {
             int primaryColor = this.callback.getColor(R.color.primary);
             imageView.setColorFilter(primaryColor, MULTIPLY);
             imageView.setOnClickListener(v -> this.callback.removeListItem(entry.getHost()));
@@ -84,6 +88,18 @@ class LogAdapter extends ListAdapter<LogEntry, LogAdapter.ViewHolder> {
             imageView.clearColorFilter();
             imageView.setOnClickListener(v -> this.callback.addListItem(entry.getHost(), type));
         }
+    }
+
+    @StringRes
+    static int getActionDescription(ListType type, boolean selected) {
+        return switch (type) {
+            case BLOCKED -> selected ? R.string.log_remove_blocked_entry
+                    : R.string.tcpdump_entry_add_blacklist;
+            case ALLOWED -> selected ? R.string.log_remove_allowed_entry
+                    : R.string.tcpdump_entry_add_whitelist;
+            case REDIRECTED -> selected ? R.string.log_remove_redirected_entry
+                    : R.string.tcpdump_entry_add_redirect;
+        };
     }
 
     /**

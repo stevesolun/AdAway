@@ -1,31 +1,26 @@
 package org.adaway.vpn.dns;
 
-import static android.content.Context.CONNECTIVITY_SERVICE;
-import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
-import static android.net.NetworkCapabilities.TRANSPORT_VPN;
-import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
 import static java.util.Collections.emptyList;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.LinkProperties;
 import android.net.Network;
-import android.net.NetworkCapabilities;
 import android.net.VpnService;
 
 import org.adaway.helper.PreferenceHelper;
 
+import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import timber.log.Timber;
 
@@ -42,8 +37,8 @@ public class DnsServerMapper {
      * Known DNS-over-HTTPS (DoH) provider IPv4 addresses.
      * Routing these through the VPN forces TCP/443 connections to them to enter the tunnel
      * where they are dropped (DnsPacketProxy only handles UDP/53).
-     * Chrome (and other DoH-capable apps) then falls back to system UDP/53 DNS, which IS
-     * captured by AdAway's fake-DNS mapping and properly filtered.
+     * Clients that permit fallback can then use system UDP/53 DNS through the fake-DNS
+     * mapping. Clients that require DoH may instead fail to resolve names.
      */
     private static final String[] DOH_PROVIDER_IPV4 = {
             "1.1.1.1", "1.0.0.1",              // Cloudflare
@@ -81,29 +76,49 @@ public class DnsServerMapper {
      */
     private final List<InetAddress> dnsServers;
     private final Map<InetAddress, InetAddress> dnsAliases;
+    private final Network mNetwork;
+    private final List<InetAddress> mNetworkDnsServers;
 
     /**
      * Constructor.
      */
     public DnsServerMapper() {
+        this(null, emptyList());
+    }
+
+    public DnsServerMapper(Network network, List<InetAddress> dnsServers) {
         this.dnsServers = new ArrayList<>();
         this.dnsAliases = new HashMap<>();
+        this.mNetwork = network;
+        this.mNetworkDnsServers = Collections.unmodifiableList(new ArrayList<>(dnsServers));
     }
 
     /**
      * Configure the VPN.
      * <p>
-     * Add interface address per IP family and fake DNS server per system DNS server.
+     * Build fake DNS aliases from the selected upstream snapshot so tunnel routes and
+     * bound DNS sockets use the same network.
      *
      * @param context The application context.
      * @param builder The builder of the VPN to configure.
      */
     public void configureVpn(Context context, VpnService.Builder builder) {
-        // Get DNS servers
-        List<InetAddress> dnsServers = getNetworkDnsServers(context);
+        configureVpn(builder, this.mNetworkDnsServers, PreferenceHelper.getEnableIpv6(context));
+    }
+
+    public void bindSocket(DatagramSocket socket) throws IOException {
+        if (this.mNetwork == null) {
+            throw new IOException("No upstream network selected for DNS.");
+        }
+        this.mNetwork.bindSocket(socket);
+    }
+
+    void configureVpn(VpnService.Builder builder, List<InetAddress> dnsServers,
+                      boolean isIpv6Enabled) {
         // Configure tunnel network address
         Subnet ipv4Subnet = addIpv4Address(builder);
-        Subnet ipv6Subnet = hasIpV6DnsServers(context, dnsServers) ? addIpv6Address(builder) : null;
+        Subnet ipv6Subnet = hasIpv6DnsServers(dnsServers, isIpv6Enabled)
+                ? addIpv6Address(builder) : null;
         // Configure DNS mapping
         this.dnsServers.clear();
         this.dnsAliases.clear();
@@ -123,14 +138,12 @@ public class DnsServerMapper {
         if (this.dnsServers.isEmpty()) {
             throw new IllegalStateException("No usable upstream DNS servers found.");
         }
-        // Block DoH providers so Chrome falls back to system UDP/53 DNS (captured by AdAway)
-        addDohBlockRoutes(builder, ipv6Subnet != null);
+        // Provider reachability is independent of the upstream DNS address family.
+        addDohBlockRoutes(builder, true);
     }
 
     /**
-     * Add /32 routes for known DoH provider IPs through the VPN tunnel.
-     * Since DnsPacketProxy only handles UDP/53, TCP/443 DoH connections entering the tunnel
-     * will be silently dropped, forcing browsers to fall back to system UDP/53 DNS.
+     * Route the providers documented at {@link #DOH_PROVIDER_IPV4} through the VPN tunnel.
      */
     private void addDohBlockRoutes(VpnService.Builder builder, boolean includeIpv6) {
         for (DohRoute route : commonDohBlockRoutes(includeIpv6)) {
@@ -198,143 +211,6 @@ public class DnsServerMapper {
     }
 
     /**
-     * Get the DNS server addresses from the device networks.
-     *
-     * @param context The application context.
-     * @return The DNS server addresses, an empty collection if no network.
-     */
-    private List<InetAddress> getNetworkDnsServers(Context context) {
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(CONNECTIVITY_SERVICE);
-        dumpNetworkInfo(connectivityManager);
-        Network activeNetwork = connectivityManager.getActiveNetwork();
-        if (activeNetwork == null) {
-            return getAnyNonVpnNetworkDns(connectivityManager);
-        } else if (isNotVpnNetwork(connectivityManager, activeNetwork)) {
-            Timber.d("Get DNS servers from active network %s", activeNetwork);
-            return getNetworkDnsServers(connectivityManager, activeNetwork);
-        } else {
-            return getDnsFromNonVpnNetworkWithMatchingTransportType(connectivityManager, activeNetwork);
-        }
-    }
-
-    /**
-     * Dump all network properties to logs.
-     *
-     * @param connectivityManager The connectivity manager.
-     */
-    private void dumpNetworkInfo(ConnectivityManager connectivityManager) {
-        Network activeNetwork = connectivityManager.getActiveNetwork();
-        Timber.d("Dumping network and dns configuration:");
-        for (Network network : connectivityManager.getAllNetworks()) {
-            NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(network);
-            boolean cellular = networkCapabilities != null && networkCapabilities.hasTransport(TRANSPORT_CELLULAR);
-            boolean wifi = networkCapabilities != null && networkCapabilities.hasTransport(TRANSPORT_WIFI);
-            boolean vpn = networkCapabilities != null && networkCapabilities.hasTransport(TRANSPORT_VPN);
-            LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
-            String dnsList = linkProperties == null ? "none" : linkProperties.getDnsServers()
-                    .stream()
-                    .map(InetAddress::toString)
-                    .collect(Collectors.joining(", "));
-            Timber.d(
-                    "Network %s %s: %s%s%s with dns %s",
-                    network,
-                    network.equals(activeNetwork) ? "[default]" : "[other]",
-                    cellular ? "cellular" : "",
-                    wifi ? "WiFi" : "",
-                    vpn ? " VPN" : "",
-                    dnsList);
-        }
-    }
-
-    /**
-     * Get the DNS server addresses of any network without VPN capability.
-     *
-     * @param connectivityManager The connectivity manager.
-     * @return The DNS server addresses, an empty collection if no applicable DNS server found.
-     */
-    private List<InetAddress> getAnyNonVpnNetworkDns(ConnectivityManager connectivityManager) {
-        for (Network network : connectivityManager.getAllNetworks()) {
-            if (isNotVpnNetwork(connectivityManager, network)) {
-                List<InetAddress> dnsServers = getNetworkDnsServers(connectivityManager, network);
-                if (!dnsServers.isEmpty()) {
-                    Timber.d("Get DNS servers from non VPN network %s", network);
-                    return dnsServers;
-                }
-            }
-        }
-        return emptyList();
-    }
-
-    /**
-     * Get the DNS server addresses of a network with the same transport type as the active network except VPN.
-     *
-     * @param connectivityManager The connectivity manager.
-     * @param activeNetwork       The active network to filter similar transport type.
-     * @return The DNS server addresses, an empty collection if no applicable DNS server found.
-     */
-    private List<InetAddress> getDnsFromNonVpnNetworkWithMatchingTransportType(
-            ConnectivityManager connectivityManager,
-            Network activeNetwork
-    ) {
-        // Get active network transport
-        NetworkCapabilities activeNetworkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork);
-        if (activeNetworkCapabilities == null) {
-            return emptyList();
-        }
-        int activeNetworkTransport = -1;
-        if (activeNetworkCapabilities.hasTransport(TRANSPORT_CELLULAR)) {
-            activeNetworkTransport = TRANSPORT_CELLULAR;
-        } else if (activeNetworkCapabilities.hasTransport(TRANSPORT_WIFI)) {
-            activeNetworkTransport = TRANSPORT_WIFI;
-        }
-        // Check all network to find one without VPN and matching transport
-        for (Network network : connectivityManager.getAllNetworks()) {
-            NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(network);
-            if (networkCapabilities == null) {
-                continue;
-            }
-            if (networkCapabilities.hasTransport(activeNetworkTransport) && !networkCapabilities.hasTransport(TRANSPORT_VPN)) {
-                List<InetAddress> dns = getNetworkDnsServers(connectivityManager, network);
-                if (!dns.isEmpty()) {
-                    Timber.d("Get DNS servers from non VPN matching type network %s", network);
-                    return dns;
-                }
-            }
-        }
-        return getAnyNonVpnNetworkDns(connectivityManager);
-    }
-
-    /**
-     * Get the DNS server addresses of a network.
-     *
-     * @param connectivityManager The connectivity manager.
-     * @param network             The network to get DNS server addresses.
-     * @return The DNS server addresses, an empty collection if no network.
-     */
-    private List<InetAddress> getNetworkDnsServers(ConnectivityManager connectivityManager, Network network) {
-        LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
-        if (linkProperties == null) {
-            return emptyList();
-        }
-        return linkProperties.getDnsServers();
-    }
-
-    /**
-     * Check a network does not have VPN transport.
-     *
-     * @param connectivityManager The connectivity manager.
-     * @param network             The network to check.
-     * @return <code>true</code> if a network is not a VPN, <code>false</code> otherwise.
-     */
-    private boolean isNotVpnNetwork(ConnectivityManager connectivityManager, Network network) {
-        if (network == null) {
-            return false;
-        }
-        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(network);
-        return networkCapabilities != null && !networkCapabilities.hasTransport(TRANSPORT_VPN);
-    }
-
-    /**
      * Add IPv4 network address to the VPN.
      *
      * @param builder The build of the VPN to configure.
@@ -369,10 +245,9 @@ public class DnsServerMapper {
     }
 
 
-    private boolean hasIpV6DnsServers(Context context, Collection<InetAddress> dnsServers) {
+    private boolean hasIpv6DnsServers(Collection<InetAddress> dnsServers, boolean isIpv6Enabled) {
         boolean hasIpv6Server = dnsServers.stream()
                 .anyMatch(server -> server instanceof Inet6Address);
-        boolean isIpv6Enabled = PreferenceHelper.getEnableIpv6(context);
         return shouldUseIpv6(dnsServers, isIpv6Enabled) && hasIpv6Server;
     }
 

@@ -9,12 +9,14 @@ import androidx.lifecycle.Observer;
 import org.adaway.AdAwayApplication;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executor;
 
 import static android.service.quicksettings.Tile.STATE_ACTIVE;
 import static android.service.quicksettings.Tile.STATE_INACTIVE;
+import static android.service.quicksettings.Tile.STATE_UNAVAILABLE;
 
 import timber.log.Timber;
 
@@ -24,21 +26,23 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class AdBlockingTileService extends TileService {
-    private final AtomicBoolean toggling = new AtomicBoolean(false);
-    private final Observer<Boolean> appliedObserver = applied -> updateTile(Boolean.TRUE.equals(applied));
+    private final Observer<Boolean> appliedObserver = applied -> updateTile();
+    private final Observer<Boolean> busyObserver = busy -> updateTile();
     private LiveData<Boolean> observedApplied;
+    private LiveData<Boolean> observedBusy;
 
     @Override
     public void onTileAdded() {
-        boolean adBlocked = getModel().isApplied().getValue() == Boolean.TRUE;
-        updateTile(adBlocked);
+        updateTile();
     }
 
     @Override
     public void onStartListening() {
         stopObserving();
         this.observedApplied = getModel().isApplied();
+        this.observedBusy = getSourceOperations().getBusy();
         this.observedApplied.observeForever(this.appliedObserver);
+        this.observedBusy.observeForever(this.busyObserver);
     }
 
     @Override
@@ -57,31 +61,53 @@ public class AdBlockingTileService extends TileService {
             this.observedApplied.removeObserver(this.appliedObserver);
             this.observedApplied = null;
         }
+        if (this.observedBusy != null) {
+            this.observedBusy.removeObserver(this.busyObserver);
+            this.observedBusy = null;
+        }
     }
 
     @Override
     public void onClick() {
-        AppExecutors.getInstance()
-                .diskIO()
-                .execute(this::toggleAdBlocking);
+        // Claim synchronously: queued clicks must not outlive a conflicting update.
+        SourceOperationCoordinator.Lease lease = getSourceOperations().tryAcquire();
+        if (lease == null) {
+            updateTile();
+            return;
+        }
+        try {
+            updateTile();
+            getCommandExecutor().execute(() -> toggleAdBlocking(lease));
+        } catch (RuntimeException | Error exception) {
+            lease.close();
+            updateTile();
+            throw exception;
+        }
     }
 
-    private void updateTile(boolean adBlocked) {
+    private void updateTile() {
+        publishTileState(getTileState());
+    }
+
+    int getTileState() {
+        if (getSourceOperations().isBusy()) {
+            return STATE_UNAVAILABLE;
+        }
+        return Boolean.TRUE.equals(getModel().isApplied().getValue()) ? STATE_ACTIVE : STATE_INACTIVE;
+    }
+
+    void publishTileState(int state) {
         Tile tile = getQsTile();
         if (tile == null) {
             return;
         }
-        tile.setState(adBlocked ? STATE_ACTIVE : STATE_INACTIVE);
+        tile.setState(state);
         tile.updateTile();
     }
 
-    private void toggleAdBlocking() {
-        if (this.toggling.get()) {
-            return;
-        }
-        AdBlockModel model = getModel();
+    private void toggleAdBlocking(SourceOperationCoordinator.Lease lease) {
         try {
-            this.toggling.set(true);
+            AdBlockModel model = getModel();
             if (model.isApplied().getValue() == Boolean.TRUE) {
                 model.revert();
             } else {
@@ -90,8 +116,16 @@ public class AdBlockingTileService extends TileService {
         } catch (HostErrorException e) {
             Timber.w(e, "Failed to toggle ad-blocking.");
         } finally {
-            this.toggling.set(false);
+            lease.close();
         }
+    }
+
+    SourceOperationCoordinator getSourceOperations() {
+        return ((AdAwayApplication) getApplication()).getSourceOperations();
+    }
+
+    Executor getCommandExecutor() {
+        return AppExecutors.getInstance().diskIO();
     }
 
     AdBlockModel getModel() {

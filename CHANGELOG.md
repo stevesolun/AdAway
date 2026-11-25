@@ -1,5 +1,19 @@
 # Changelog
 
+## [13.5.5b] - Unreleased
+
+- Preserve selected filters across updates and make failed operations easier to retry.
+- A failed source update now links to Sources instead of reporting that the phone
+  is offline. When upgrading from 13.5.4b, turn off the retired URLhaus Malware
+  source if it reports HTTP 410, then apply again. Other subscriptions are preserved.
+- Fix rapid rule toggles, downloaded-rule cancellation, and the display of filter labels.
+- Keep saved subscriptions and custom rules when upgrading legacy databases on Android 11.
+- Release the older Android VPN's network request when protection stops, including
+  when Android keeps the service bound.
+- This beta targets non-root VPN use. It does not complete the exhaustive audit or
+  claim physical-phone, root, or full UI-variant verification; see the
+  [audit scope and evidence](tasks/audit-2026-11-25/README.md).
+
 ## [13.5.4b] - 2026-10-14
 
 - Download the default filters automatically after first-run VPN setup, including

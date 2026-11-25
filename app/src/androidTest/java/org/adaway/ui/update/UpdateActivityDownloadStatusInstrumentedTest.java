@@ -11,6 +11,8 @@ package org.adaway.ui.update;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import android.app.Activity;
 import android.content.Context;
@@ -142,11 +144,16 @@ public class UpdateActivityDownloadStatusInstrumentedTest {
     }
 
     private Manifest createManifest() throws Exception {
+        return createManifest(false);
+    }
+
+    private Manifest createManifest(boolean currentVersion) throws Exception {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         KeyPair keyPair = generator.generateKeyPair();
         String publicKey = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
-        int nextVersion = this.application.getUpdateModel().getVersionCode() + 1;
+        int installedVersion = this.application.getUpdateModel().getVersionCode();
+        int nextVersion = installedVersion + (currentVersion ? 0 : 1);
         String sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         JSONObject payload = new JSONObject()
                 .put("version", "13.5.2-test")
@@ -165,7 +172,33 @@ public class UpdateActivityDownloadStatusInstrumentedTest {
         JSONObject envelope = new JSONObject()
                 .put("payload", payloadText)
                 .put("signature", Base64.getEncoder().encodeToString(signer.sign()));
-        return new Manifest(envelope.toString(), nextVersion - 1, publicKey, "stable", "adaway");
+        return new Manifest(envelope.toString(), installedVersion, publicKey, "stable", "adaway");
+    }
+
+    @Test(timeout = 60_000)
+    public void currentSignedVersionRendersUpToDateAcrossRecreation() throws Exception {
+        Manifest manifest = createManifest(true);
+        assertFalse(manifest.updateAvailable);
+        publishManifest(manifest);
+        try (ActivityScenario<UpdateActivity> scenario =
+                     ActivityScenario.launch(UpdateActivity.class)) {
+            assertUpToDate(scenario, manifest.changelog);
+            scenario.recreate();
+            assertUpToDate(scenario, manifest.changelog);
+            publishProgress(scenario, null);
+            assertUpToDate(scenario, manifest.changelog);
+        }
+    }
+
+    private static void assertUpToDate(ActivityScenario<UpdateActivity> scenario, String changelog) {
+        scenario.onActivity(activity -> {
+            TextView header = activity.findViewById(R.id.headerTextView);
+            TextView details = activity.findViewById(R.id.changelogTextView);
+            assertEquals(activity.getString(R.string.update_up_to_date_header),
+                    header.getText().toString());
+            assertEquals(changelog, details.getText().toString());
+            assertEquals(GONE, activity.findViewById(R.id.update_button).getVisibility());
+        });
     }
 
     private static void publishProgress(

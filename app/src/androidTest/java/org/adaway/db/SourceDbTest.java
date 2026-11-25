@@ -248,6 +248,10 @@ public class SourceDbTest extends DbTest {
         assertEquals(3, this.hostEntryDao.getBlockedEntryCountNow());
         assertEquals(2, this.hostEntryDao.getBlockedExactEntryCountNow());
         assertEquals(5, this.hostEntryDao.getActiveRuntimeRuleCountNow());
+        this.hostEntryDao.refreshStatsFromActiveRows();
+        assertEquals(3, this.hostEntryDao.getBlockedEntryCountNow());
+        assertEquals(2, this.hostEntryDao.getBlockedExactEntryCountNow());
+        assertEquals(5, this.hostEntryDao.getActiveRuntimeRuleCountNow());
     }
 
     @Test
@@ -491,7 +495,7 @@ public class SourceDbTest extends DbTest {
         assertTrue(hasIndex("index_hosts_lists_active_allow_source_kind_reverse_host"));
         assertTrue(hasIndex("index_hosts_lists_active_allow_generation_kind_reverse_host"));
 
-        String exactPlan = queryPlan("EXPLAIN QUERY PLAN " +
+        String exactSql = "EXPLAIN QUERY PLAN " +
                 "WITH active_suffix_allow AS (" +
                 "SELECT reverse_host FROM hosts_lists " +
                 "INDEXED BY index_hosts_lists_active_allow_source_kind_reverse_host " +
@@ -507,12 +511,13 @@ public class SourceDbTest extends DbTest {
                 "JOIN host_entries AS entry INDEXED BY index_host_entries_kind_reverse_host " +
                 "ON entry.kind = 0 " +
                 "AND entry.reverse_host >= allowed.reverse_host || '.' " +
-                "AND entry.reverse_host < allowed.reverse_host || '/'");
+                "AND entry.reverse_host < allowed.reverse_host || '/'";
+        String exactPlan = queryPlan(exactSql);
         assertTrue(exactPlan, exactPlan.contains("index_host_entries_kind_reverse_host"));
         assertFalse(exactPlan, exactPlan.contains("SCAN entry"));
         assertFalse(exactPlan, exactPlan.contains("USE TEMP B-TREE"));
 
-        String suffixPlan = exactPlan.replace("entry.kind = 0", "entry.kind = 1");
+        String suffixPlan = queryPlan(exactSql.replace("entry.kind = 0", "entry.kind = 1"));
         assertTrue(suffixPlan, suffixPlan.contains("index_host_entries_kind_reverse_host"));
         assertFalse(suffixPlan, suffixPlan.contains("SCAN entry"));
         assertFalse(suffixPlan, suffixPlan.contains("USE TEMP B-TREE"));

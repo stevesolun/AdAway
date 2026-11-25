@@ -79,8 +79,8 @@ public interface HostEntryDao {
             "(`entry`.`generation` = :activeGeneration AND `entry`.`source_id` != 1 " +
             "AND EXISTS (SELECT 1 FROM `hosts_sources` AS `source` " +
             "WHERE `source`.`id` = `entry`.`source_id` AND `source`.`enabled` = 1)))";
-    String ROOT_STAGE_MATERIALIZED_SOURCE_WHERE = "(`entry`.`source_id` = 1 OR " +
-            "(`entry`.`generation` = :activeGeneration AND `entry`.`source_id` != 1))";
+    // Stage rows survive source selection changes and source deletion.
+    String ROOT_STAGE_MATERIALIZED_SOURCE_WHERE = ROOT_STAGE_ACTIVE_SOURCE_WHERE;
     String ROOT_STAGE_SKIP_WHERE = "NOT EXISTS (SELECT 1 FROM `" +
             TEMP_ROOT_EXPORT_SKIP_STAGE_IDS + "` AS `skipped` " +
             "WHERE `skipped`.`id` = `entry`.`id`)";
@@ -96,7 +96,6 @@ public interface HostEntryDao {
             "(SELECT `active_generation` FROM `hosts_meta` WHERE `id` = 0)";
     String ACTIVE_STATS_ROWS_SQL = "(" +
             "SELECT `type`, `kind` FROM `hosts_lists` " +
-            "INDEXED BY `index_hosts_lists_kind_host` " +
             "WHERE `enabled` = 1 AND (`source_id` = 1 OR (`generation` = " +
             ACTIVE_GENERATION_SQL + " AND `source_id` != 1)))";
     String ACTIVE_ALLOW_NOT_EXISTS = "NOT EXISTS (" +
@@ -1437,13 +1436,15 @@ public interface HostEntryDao {
                         "AND NOT EXISTS (SELECT 1 FROM `" + ROOT_EXPORT_STAGE_TABLE +
                         "` AS user_entry WHERE user_entry.`host` = entry.`host` " +
                         "AND user_entry.`type` = 2 AND user_entry.`source_id` = 1)";
+        // Dedupe keeps MIN(id): assign export IDs in priority order, not import order.
+        // Only blocked copies need their stage IDs for the earlier allow-skip deletion.
         db.execSQL("INSERT INTO `root_host_entries` " +
-                "(`id`, `host`, `reverse_host`, `kind`, `type`, `redirection`) " +
-                "SELECT entry.`id`, entry.`host`, '', 0, 2, entry.`redirection` " +
+                "(`host`, `reverse_host`, `kind`, `type`, `redirection`) " +
+                "SELECT entry.`host`, '', 0, 2, entry.`redirection` " +
                 "FROM `" + ROOT_EXPORT_STAGE_TABLE + "` AS entry " +
                 "WHERE entry.`type` = 2 AND " + sourceWhere + " " +
                 "ORDER BY entry.`host`, CASE WHEN entry.`source_id` = 1 THEN 0 ELSE 1 END, " +
-                "entry.`source_id`, COALESCE(entry.`redirection`, '')");
+                "entry.`source_id`, COALESCE(entry.`redirection`, ''), entry.`id`");
     }
 
     @FunctionalInterface
