@@ -63,7 +63,8 @@ public class VpnModel extends AdBlockModel {
         // Clear cache
         invalidateRulesCache();
         // Start VPN
-        boolean started = VpnServiceControls.start(this.context);
+        boolean started = android.net.VpnService.prepare(this.context) == null
+                && VpnServiceControls.start(this.context);
         this.applied.postValue(started);
         if (!started) {
             throw new HostErrorException(ENABLE_VPN_FAIL);

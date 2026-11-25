@@ -1,11 +1,14 @@
 package org.adaway.vpn;
 
+import static android.content.Context.ACTIVITY_SERVICE;
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static org.adaway.broadcast.Command.START;
 import static org.adaway.broadcast.Command.STOP;
 import static org.adaway.vpn.VpnStatus.RUNNING;
 
+import android.app.ActivityManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
@@ -67,6 +70,25 @@ public final class VpnServiceControls {
      */
     public static boolean isStarted(Context context) {
         return PreferenceHelper.getVpnServiceStatus(context).isStarted();
+    }
+
+    static boolean isVpnServiceRunning(Context context) {
+        return findRunningVpnService(context) != null;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static ActivityManager.RunningServiceInfo findRunningVpnService(Context context) {
+        ActivityManager manager = (ActivityManager) context.getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) {
+            return null;
+        }
+        ComponentName component = new ComponentName(context, VpnService.class);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (component.equals(service.service) && service.pid > 0 && service.restarting == 0) {
+                return service;
+            }
+        }
+        return null;
     }
 
     /**
@@ -148,7 +170,8 @@ public final class VpnServiceControls {
             return false;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return true;
+            ActivityManager.RunningServiceInfo service = findRunningVpnService(context);
+            return service != null && service.foreground;
         }
         return networkCapabilities.getOwnerUid() == context.getApplicationInfo().uid;
     }
