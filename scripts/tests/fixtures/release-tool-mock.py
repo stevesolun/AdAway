@@ -35,6 +35,9 @@ elif args[:1] == ['api']:
     print(config.get('moved_commit', config['commit']) if state > 1 else config['commit'])
 elif args[:2] == ['attestation', 'verify']:
     assert '--deny-self-hosted-runners' in args
+    identities = {'--cert-identity', '--cert-identity-regex', '--signer-repo', '--signer-workflow'}
+    if len(identities.intersection(args)) != 1:
+        sys.exit('gh requires exactly one signer selector for this policy')
     values = dict(zip(args[3:-1:2], args[4:-1:2]))
     metadata = Path(args[2]).name in ('manifest.json', 'manifest.json.sha256')
     refreshed = metadata and config.get('metadata_commit')
@@ -44,7 +47,7 @@ elif args[:2] == ['attestation', 'verify']:
         'refresh-update-manifest.yml' if refreshed else config.get('workflow', 'fork-release-apk.yml'))
     expected = {
         '--repo': 'stevesolun/AdAway', '--source-ref': ref, '--source-digest': commit,
-        '--signer-workflow': workflow, '--signer-digest': commit,
+        '--signer-digest': commit,
         '--cert-identity': 'https://github.com/' + workflow + '@' + ref,
         '--predicate-type': 'https://slsa.dev/provenance/v1',
     }

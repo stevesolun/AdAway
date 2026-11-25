@@ -6,6 +6,21 @@ completion. Emulator runs use disposable API 34 `adaway-review-ci-api34` at
 `adaway-review-ci-api30` at `emulator-5558`, JDK 21 and strict Gradle dependency
 verification. No personal phone or privileged root apply was used.
 
+## Publication Follow-up
+
+PR #13 merged with all six required checks green; the Android 14 CI report
+contained 612 cases, 593 passed, 19 skipped, no failures or errors. The
+[signed upgrade check](https://github.com/stevesolun/AdAway/pull/13#issuecomment-7163553814)
+retained the named Hebrew filter, 182 rows and two disabled sources on Android 11.
+
+The [13.5.5b tag run](https://github.com/stevesolun/AdAway/actions/runs/45627113141)
+verified the signed APK and manifest but stopped before release: the GitHub CLI
+rejected simultaneous signer-workflow and certificate-identity selectors.
+The 13.5.6b follow-up keeps the exact workflow-and-ref certificate identity
+and both commit pins. The real CLI accepted the preceding public beta and
+rejected a different workflow. The new offline CI test uses the actual CLI
+parser, not a mocked acceptance of its flags. No application behavior changed.
+
 ## Candidate 13.5.5b
 
 - Final local direct-release SHA-256:

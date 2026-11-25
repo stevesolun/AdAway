@@ -1,6 +1,11 @@
 # Changelog
 
-## [13.5.5b] - Unreleased
+## [13.5.6b] - 2026-11-25
+
+The signed 13.5.5b tag did not publish: GitHub rejected two mutually exclusive
+signer selectors. This beta retains the exact workflow identity, source tag,
+source and signer commits, and hosted-runner checks with one supported selector.
+It includes the application changes tested for 13.5.5b:
 
 - Preserve selected filters across updates and make failed operations easier to retry.
 - A failed source update now links to Sources instead of reporting that the phone

@@ -478,7 +478,8 @@ public final class VerifyReleaseArtifacts {
                 checkedCommand(ghCommand(), "attestation", "verify",
                         artifact.toAbsolutePath().toString(), "--repo", options.repository,
                         "--source-ref", ref, "--source-digest", commit,
-                        "--signer-workflow", workflow, "--signer-digest", commit,
+                        "--signer-digest", commit,
+                        // The exact identity pins both workflow and ref. gh forbids a second identity selector.
                         "--cert-identity", "https://github.com/" + workflow + "@" + ref,
                         "--predicate-type", "https://slsa.dev/provenance/v1",
                         "--deny-self-hosted-runners");

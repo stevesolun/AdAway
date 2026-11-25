@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Host regression gate: real Android APK tooling, ephemeral keys, mocked gh/adb only.
+"""Host regression gate: real APK tools, ephemeral keys, mocked GitHub/device operations.
 
-Requires JDK 21, Android SDK build-tools 36.0.0/platform android-36, openssl, pwsh.
+Requires JDK 21, Android SDK build-tools 36.0.0/platform android-36, openssl, pwsh, gh.
 No Gradle, Android runtime, release download, or network calls are performed.
 """
 import base64
@@ -274,6 +274,19 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         checks = [call for call in self.calls() if call[1] == 'attestation']
         self.assertEqual(7, len(checks))
         self.assertEqual(checks[0], checks[1])
+
+    def test_real_gh_accepts_generated_policy_before_reading_local_evidence(self):
+        self.verify(attested=True)
+        call = next(call for call in self.calls() if call[1] == 'attestation')
+        gh = shutil.which('gh')
+        self.assertIsNotNone(gh, 'The real gh CLI is required for the release policy check.')
+        # Missing local inputs keep this offline. Flag conflicts fail before either file is read.
+        root = self.case / 'absent-trusted-root.json'
+        bundle = self.case / 'absent-bundle.jsonl'
+        result = self.exec([gh, *call[1:], '--bundle', bundle, '--custom-trusted-root', root],
+                           check=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertTrue(any(str(path) in result.stderr for path in (root, bundle)), result.stderr)
 
     def test_mismatched_provenance_rejects_even_when_metadata_and_apk_match(self):
         for change in (dict(attested_commit=OTHER), dict(attested_ref='refs/heads/main'),
