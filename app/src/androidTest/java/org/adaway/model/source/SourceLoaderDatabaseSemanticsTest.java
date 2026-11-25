@@ -9,6 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import android.content.Context;
@@ -33,6 +34,7 @@ import java.io.BufferedReader;
 import java.io.StringReader;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
@@ -170,6 +172,76 @@ public class SourceLoaderDatabaseSemanticsTest {
         return new SourceLoader(source, GENERATION).parse(
                 new BufferedReader(new StringReader(content)), hostListItemDao,
                 database.getOpenHelper().getWritableDatabase(), null, null);
+    }
+
+    @Test
+    public void boundedDrainsRollBackRowsStageAndSeenKeysOnWriterFailure() {
+        assertEquals(0, parseText("0.0.0.0 retained.example\n"));
+        SupportSQLiteDatabase db = database.getOpenHelper().getWritableDatabase();
+        db.execSQL("UPDATE hosts_meta SET active_generation = ? WHERE id = 0",
+                new Object[]{GENERATION});
+        int candidate = GENERATION + 1;
+        int pendingLimit = 16_000;
+        StringBuilder input = new StringBuilder();
+        for (int i = 0; i < 36_001; i++) {
+            input.append("0.0.0.0 row-").append(i).append(".example\n");
+        }
+        SqlUpdateDeduper deduper = new SqlUpdateDeduper(db);
+        try {
+            // A different source has already succeeded in this update's shared deduper.
+            HostsSource other = insertSource(database.hostsSourceDao(), SOURCE_ID + 1, false);
+            assertEquals(0, new SourceLoader(other, candidate).parse(
+                    new BufferedReader(new StringReader("0.0.0.0 other.example\n")),
+                    hostListItemDao, db, null, deduper));
+            AtomicLong accepted = new AtomicLong();
+            RuntimeException injected = new IllegalStateException("test failure after SQL drains");
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> new SourceLoader(source, candidate).parse(
+                            new BufferedReader(new StringReader(input.toString())),
+                            hostListItemDao, db, batch -> {
+                                // The progress hook runs on the writer and sees its uncommitted rows.
+                                long total = accepted.addAndGet(batch);
+                                long pending = deduper.pendingCount();
+                                assertTrue("Pending rows at " + total + " accepted: " + pending,
+                                        pending <= pendingLimit);
+                                if (total >= 34_000) {
+                                    long flushed = deduper.count() - 1;
+                                    assertTrue("Expected intermediate drains", flushed >= 2 * pendingLimit);
+                                    assertEquals(total, flushed + pending);
+                                    assertEquals(flushed, hostListItemDao.countSourceHostsForGeneration(
+                                            SOURCE_ID, candidate));
+                                    assertEquals(flushed, scalarLong("SELECT COUNT(*) FROM "
+                                                    + "root_host_entries_stage WHERE source_id = ? AND generation = ?",
+                                            SOURCE_ID, candidate));
+                                    assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+                                    assertHostRow("retained.example", EXACT.getValue());
+                                    throw injected;
+                                }
+                            }, deduper));
+            // Propagate an unexpected parser or assertion failure with its original stack.
+            Throwable cause = failure;
+            while (cause != null && cause != injected) {
+                cause = cause.getCause();
+            }
+            if (cause != injected) {
+                throw failure;
+            }
+            assertEquals(0L, deduper.pendingCount());
+            assertEquals(1L, deduper.count());
+            assertEquals(1L, scalarLong("SELECT COUNT(*) FROM update_seen_hosts "
+                    + "WHERE source_id = ? AND host = 'other.example'", other.getId()));
+            assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, candidate));
+            assertEquals(0L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage "
+                    + "WHERE source_id = ? AND generation = ?", SOURCE_ID, candidate));
+            assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("retained.example").getType());
+            assertEquals(1L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage "
+                            + "WHERE source_id = ? AND generation = ? AND host = 'retained.example'",
+                    SOURCE_ID, GENERATION));
+        } finally {
+            deduper.drop();
+        }
+        assertScratchTableAbsent();
     }
 
     @Test

@@ -62,6 +62,7 @@ class SourceLoader {
     // 2000 is tuned for throughput on large filter sets. This increases per-batch latency, but can
     // significantly reduce overall parse time when SQLite/Room is the bottleneck.
     private static final int INSERT_BATCH_SIZE = 2000;
+    private static final int STAGED_FLUSH_ROWS = INSERT_BATCH_SIZE * 8;
     // Queue capacity - balances throughput vs memory usage.
     // 20,000 allows reader to stay ahead of parsers without blocking.
     private static final int QUEUE_CAPACITY = 20000;
@@ -761,6 +762,8 @@ class SourceLoader {
         @Override
         public Integer call() {
             int inserted = 0;
+            int publishedToStaging = 0;
+            int pendingRows = 0;
             int workerStopped = 0;
             HostListItem[] batch = new HostListItem[INSERT_BATCH_SIZE];
             int cacheSize = 0;
@@ -832,6 +835,18 @@ class SourceLoader {
                                             batch, cacheSize, this.generation, sourceEnabled);
                                     long batchDbMs = result.dbMs;
                                     inserted += result.inserted;
+                                    // Bound each SQLite statement's scratch space on a refresh of
+                                    // an already-large database. The transaction still spans the
+                                    // whole source; a failed parse rolls back rows and seen keys.
+                                    if (this.sqlDeduper != null) {
+                                        pendingRows += result.inserted;
+                                        if (pendingRows >= STAGED_FLUSH_ROWS) {
+                                            long flushStart = SystemClock.elapsedRealtime();
+                                            publishedToStaging += this.sqlDeduper.flushPendingRowsToHostsLists();
+                                            batchDbMs += SystemClock.elapsedRealtime() - flushStart;
+                                            pendingRows = 0;
+                                        }
+                                    }
                                     if (perfLog) {
                                         totalDbInsertMs += batchDbMs;
                                         insertedSinceLastLog += result.inserted;
@@ -917,7 +932,7 @@ class SourceLoader {
                 int acceptedRows = inserted + finalInserted;
                 if (db != null && this.sqlDeduper != null) {
                     long flushStartedNs = SystemClock.elapsedRealtimeNanos();
-                    int flushed = this.sqlDeduper.flushPendingRowsToHostsLists();
+                    int flushed = publishedToStaging + this.sqlDeduper.flushPendingRowsToHostsLists();
                     long flushMs = (SystemClock.elapsedRealtimeNanos() - flushStartedNs) / 1_000_000L;
                     totalDbInsertMs += flushMs;
                     if (perfLog) {
