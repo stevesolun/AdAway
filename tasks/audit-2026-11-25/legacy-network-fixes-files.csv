@@ -1,0 +1,11 @@
+path,sha256,ownership,verification
+app/src/main/AndroidManifest.xml,0f297dab30f9281fabbb24da87cf191670ee45d839957f3113b9826693f91fe8,unstaged permission-only addition; existing staged REQUEST_DELETE_PACKAGES preserved,parsed XML and diff reviewed; not built
+app/src/main/java/org/adaway/vpn/VpnNetworkMonitor.java,2acce83dd80298b84175762fca015c1d4f56a6521f676f49dfc52b20cb18b976,unstaged owned production,API28-30 authoritative request state and cleanup; source reviewed only
+app/src/main/java/org/adaway/vpn/VpnService.java,4994fc2a8a9daaef74f88adb5e6bad0d1f10dddb1140c2382e5529b3c30a6fc7,unstaged narrow lifecycle and approved foreground failure correction,source reviewed; no build or service execution
+app/src/main/java/org/adaway/vpn/worker/VpnBuilder.java,9fd5972be82d84a90eefb7b3b2e5b9adc9ae9f1b9704a0e0c74738fa0d435881,unstaged underlying-network metadata only,snapshot supplied before establish; no runtime proof
+app/src/main/java/org/adaway/vpn/worker/VpnWorker.java,8de3a21f0c02c4b34359029c571faf986af35a39a0a84bb8a85317aac0524bf6,unstaged immutable Network propagation only,protected bound paths and current stop guards unchanged
+app/src/androidTest/java/org/adaway/vpn/VpnNetworkMonitorInstrumentedTest.java,6192bdba873b63e0fc5a0f5d4401a97bc0c98fff33abaff6cf7fd9b131deb499,unstaged existing tests adapted,14 methods not run; explicit passive/direct-default simulation
+app/src/androidTest/java/org/adaway/vpn/VpnServiceNetworkCallbackInstrumentedTest.java,1454c1aa4c2ec9fa6eb466f928a9b40789ba127ed6aa9d4df05283c6ef92e6d8,unstaged existing tests adapted and extended,5 methods including 2 new; not run
+app/src/androidTest/java/org/adaway/vpn/LegacyVpnNetworkMonitorInstrumentedTest.java,9ad72b4fff82e9d652d8d7df81fa23e3a35746f7911bb98e5dda291201d0a215,new owned deterministic tests,15 methods not run; synthetic identities and registration adapter are not routing evidence
+app/src/androidTest/java/org/adaway/vpn/LegacyVpnNetworkCallbackLiveInstrumentedTest.java,ce7d4840d77bc93fefe8f17c89e40688c10fa188e2b78a2471d53e531fa5ae32,new owned opt-in real-callback fixtures,2 methods not run; real registration but no packet or TUN proof
+app/src/test/java/org/adaway/vpn/LegacyVpnNetworkContractTest.java,ee487bebb41f2d7a601557624fa0feea7e82f906c4b454a350264d80b2ef296c,new owned manifest/source guards,5 methods not run; includes foreground failure check

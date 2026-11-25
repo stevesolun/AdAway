@@ -14,18 +14,16 @@
 
 Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
-Latest checkpoint: 69 logged findings, with 47 scoped fixes verified. Full host
-validation passed 665 JVM cases (three skipped) and lint (34 warnings, no errors).
-The full API34 run executed 488 cases: 476 passed, ten skipped, two failed.
-Notification cleanup timing and truncated filter labels were corrected; all 22
-focused follow-up cases passed without skips. Prepared-consent notification and
-live VPN/DNS tests also passed separately. This is not yet a green full rerun.
-Release-safety changes are committed as `cce7b5b78`; the first Android batch is
-being recorded separately from the remaining specialists' fixes. Rule actions,
-domain checks, backup/settings, support and system-command fixes remain under
-validation. File/workflow coverage, protected delivery and final release remain
-open. No new audit release yet.
-
+Latest checkpoint: 118 logged findings, 93 scoped fixes verified. Phase-five
+Android 14 full suite: 602 cases, 584 passed, 18 skipped, none failed. Host:
+718 cases, three skips, no failures. The two subsequent fixes (Android 11
+fallback recount and actionable source-download feedback) passed all four
+focused Android 14 checks. The Android 11 SQLite regression was reproduced
+before and after the fix on that platform. Signed beta 13.5.5b upgrades over
+the public beta without clearing app data. The old beta can retain its retired
+URLhaus source; users can disable it without losing their other selections.
+One intermittent VPN DNS timeout, remaining files and UI variants, protected
+delivery and public release are not closed by these results.
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log

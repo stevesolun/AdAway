@@ -1,0 +1,10 @@
+class,method,status,limits
+org.adaway.db.LegacyV4MigrationInstrumentedTest,tableForm4To32PreservesUserRulesAndSources,compiled-not-run,Unchanged v4 export; source42 disabled selection and stable identity; four saved rules retain IDs/types/enabled/redirection/source IDs; cached redirect survives; final32 Room schema and FK checks.
+org.adaway.db.LegacyV4MigrationInstrumentedTest,viewForm4To32PreservesUserRulesAndSources,compiled-not-run,Actual3->4 creates historical view fixture then user_version4; same saved state through full28-edge chain; no historical JSON changes.
+org.adaway.db.LegacyV4MigrationInstrumentedTest,tableForm4To5RetainsCachedRowsAndUniqueIndex,compiled-not-run,Direct5 schema validation plus cached redirect row and original unique-index SQL; guards against destructive table replacement.
+host.LegacyV4Probe,table4To5,host-passed,Baseline exact DROP VIEW failure; corrected actual migration passes with saved rows/source selection/cache intact; host JDBC not Room.
+host.LegacyV4Probe,table4To32,host-passed,Baseline exact DROP VIEW failure; corrected actual migration passes with saved rows/source selection/cache intact; host JDBC not Room.
+host.LegacyV4Probe,view4To5,host-passed,Actual migration; baseline and corrected view control pass; host JDBC not Room.
+host.LegacyV4Probe,view4To32,host-passed,Actual migration; baseline and corrected view control pass; host JDBC not Room.
+host.LegacyV4Probe,table-missing-index4To5,host-passed,Baseline exact DROP VIEW failure; corrected actual migration passes with saved rows/source selection/cache intact; host JDBC not Room.
+host.LegacyV4Probe,table-missing-index4To32,host-passed,Baseline exact DROP VIEW failure; corrected actual migration passes with saved rows/source selection/cache intact; host JDBC not Room.

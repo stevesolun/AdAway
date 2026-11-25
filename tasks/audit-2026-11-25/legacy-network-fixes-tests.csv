@@ -1,0 +1,8 @@
+class,methods,added,kind,status,preconditions,limits
+org.adaway.vpn.LegacyVpnNetworkContractTest,5,5,JVM source and manifest contracts,not-run,combined source checkout,not service execution
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest,15,15,Android deterministic registration and state,not-run,combined APK and Android test APK; no consent needed,simulated API choices and fabricated handles; no routing proof
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest,14,0,Android existing passive state regressions,not-run,combined APK and Android test APK; no consent needed,explicit mode fixtures; information-limit case is not repaired-path failure
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest,5,2,Android real handler with recording service,not-run,combined APK and Android test APK; no consent needed,no actual service start bind or TUN
+org.adaway.vpn.LegacyVpnNetworkCallbackLiveInstrumentedTest,2,2,Android opt-in real callback fixtures,not-run,adawayLiveNetworkCallbacks=true; handoff also adawayLiveNetworkHandoff=true and active VPN with external same-transport transition,additional request can affect retention; no DNS traffic or exact-default proof
+org.adaway.vpn.VpnServiceRuntimeStateTest,3,0,unchanged Android current-worker guards,not-run,main rerun API30 and API34,not owned edit
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest,10,0,unchanged Android mapper snapshot and route configuration,not-run,main rerun API30 and API34,not owned edit; no real routing proof

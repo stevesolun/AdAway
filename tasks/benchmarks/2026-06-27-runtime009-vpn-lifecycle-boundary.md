@@ -21,7 +21,7 @@ Result:
 - Watchdog restart behavior remains covered.
 - Idle timeout behavior remains covered.
 
-Connected proof already landed:
+Recorded connected live-method invocation (June 27 outcome not established here):
 
 ```bash
 ./gradlew --no-daemon --no-build-cache :app:connectedDebugAndroidTest \
@@ -29,14 +29,24 @@ Connected proof already landed:
   --dependency-verification=strict --stacktrace
 ```
 
-Result:
-- The connected lifecycle class passed its heartbeat start/stop proof on `adaway-api34-16g`.
-- The full start/stop/resume live tunnel method is intentionally precondition-gated.
-- When VPN consent is not already granted, or another VPN is active, the method skips instead of
-  pretending that Android consent UI can be automated safely.
+Historical result attribution, corrected 2026-11-25 (REM-EVID-003):
+- The original narrative reports that the lifecycle class passed its heartbeat start/stop
+  proof on `adaway-api34-16g`. Its exact heartbeat invocation and matching result artifact
+  are not recorded in this document. The command above selects the live method, so it
+  must not be used as the invocation for that separate heartbeat claim.
+- This June 27 record does not establish the displayed live invocation's pass, fail or
+  skip outcome. Its precondition description is not an observed skip count.
+- The live method is intentionally precondition-gated: absent prepared consent or an
+  already active VPN can cause a skip. No Android consent UI execution is claimed here.
+
+Subsequent historical proof:
+- The [June 28 prepared-device follow-up](2026-06-28-runtime009-prepared-vpn-lifecycle-evidence.md)
+  records the exact direct live-method invocation, instrumentation status `0`, `OK (1 test)`,
+  start/stop/resume tunnel logs and post-run cleanup. That is a separate prepared-device
+  result, not a retroactive outcome for the command above or proof of the current revision.
 
 Release interpretation:
-- This closes the local documentation slice for `RUNTIME-009`.
+- This document retains the June 27 evidence boundary and points to the later prepared-device proof.
 - It does not close physical/manual VPN lifecycle smoke.
-- Final release signoff still needs a prepared device where AdAway VPN consent is granted and the
-  live tunnel can be started, stopped, resumed, and observed through `tun0`/heartbeat evidence.
+- Current release decisions still need evidence tied to the intended artifact and device;
+  the historical emulator result does not replace physical-device release smoke under `REL-003`.
