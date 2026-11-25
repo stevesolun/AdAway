@@ -23,6 +23,15 @@ The bounded beta release does not complete this ongoing audit.
 
 ### Next public Android beta: 13.5.7b
 
+- [x] Map non-root controls to explicit expected outcomes and tests. The
+  [inventory](audit-2026-11-25/deep-signoff/README.md) is not an execution count.
+- [x] Exercise a non-regional URL through the editor with the active VPN:
+  HaGeZi Multi LIGHT imported 85,887 rules alongside three default sources.
+  Verify ordinary sites and list-specific domains in Android Chrome.
+- [x] Recheck the combined candidate after fixes for reproduced cross-screen
+  and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
+  Handset testing remains user-deferred.
+
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.
   - [x] Confirm delayed authorized delivery in the Android 14 CI device log;
@@ -31,9 +40,10 @@ The bounded beta release does not complete this ongoing audit.
     locally on API 34, then all four security cases passed after a cold reboot.
     See [bounded CI evidence](audit-2026-11-25/validation.md#pr-15-connected-test-correction).
 
-- [ ] Verify the signed candidate upgrades 13.5.6b without losing selected
-  filters. Exercise the non-root VPN and distinguish ordinary site content from
-  third-party verification screens.
+- [x] Verify the signed candidate upgrades 13.5.6b without losing selected
+  filters: [signed upgrade and browser evidence](audit-2026-11-25/deep-signoff/signed-upgrade.md).
+- [ ] Close the repeated 5M refresh low-memory failure on the retained
+  3 GiB emulator with [matched evidence](audit-2026-11-25/deep-stress-bugs.csv).
 - [ ] Merge the batched fixes only when all six required PR checks pass.
 - [ ] Publish the signed beta from the merged commit. Verify the public APK and
   manifest, install the downloaded APK over 13.5.6b, and link the evidence.

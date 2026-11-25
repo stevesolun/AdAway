@@ -8,6 +8,16 @@
   does not offer to remove a rule that also allows its siblings.
 - Correct allow-rule matching for literal underscores and preserve user-rule
   flags when migrating very old databases.
+- Distinguish an update already in progress from a failed filter download.
+  Leaving Sources closes its add menu, so a late tap cannot crash the app.
+- Make enabled bulk subscription buttons easier to distinguish from disabled
+  ones and keep filter details clear of their switches at large text sizes.
+- Recheck the Home protection switch when returning from Android VPN settings.
+  Keep protection status readable at large text sizes.
+- Validate remote filter destinations on each request and redirect. Unsupported
+  browser-only rules in an allow list no longer grant a domain-wide exception.
+- Refresh large filters in bounded batches. The previous rules stay active
+  until the replacement is ready, and a failed import does not remove them.
 - Keep Home download errors actionable when leaving or rotating the screen.
   Opening Updates no longer claims the app is current before checking; a
   missing browser no longer crashes the Donate or Sponsor buttons.

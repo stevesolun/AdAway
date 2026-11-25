@@ -1,0 +1,105 @@
+resource,selector_or_layout_widgets,oracle_ids_or_scope,disposition
+app/src/main/res/layout/about_activity.xml,(rendered surface / runtime listeners),A-03,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/activity_home_nav.xml,(rendered surface / runtime listeners),WF:HOME-QA-005,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/activity_onboarding.xml,"onboarding_vpn_card, onboarding_root_card, onboarding_start_button",ON-01 ON-02 ON-03 ON-04 ON-05 F-03 F-04,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/adware_fragment.xml,(rendered surface / runtime listeners),A-01 A-02,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/checkbox_list_entry.xml,checkbox_list_checkbox,L-05 L-06 L-07 L-08,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/checkbox_list_two_entries.xml,checkbox_list_checkbox,L-05 L-06 L-07 L-08,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/filter_catalog_item.xml,catalogItemSwitch,LEGACY,Unrouted catalog or unused Sources adapter; excluded from active routes.
+app/src/main/res/layout/filter_category_header.xml,categorySwitch,WF:SRC-002 WF:SRC-003 WF:SRC-004,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/filter_source_item.xml,"sourceCard, updateIndicator",WF:SRC-005 WF:SRC-006 WF:SRC-007 WF:SRC-008,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/filterlists_import_item.xml,"filterlistsItemSelectionCheckBox, filterlistsItemSwitch",WF:DISC-018 WF:DISC-022 WF:DISC-024 WF:DISC-026 WF:DISC-029 WF:DISC-032 F-06,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_discover.xml,"chipDiscoverSafe, chipDiscoverBalanced, chipDiscoverAggressive",WF:DISC-001 WF:DISC-002 WF:DISC-003 WF:DISC-004 WF:DISC-005,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_discover_catalog.xml,"searchEditText, catalogSelectAllSwitch, chipSafe, chipBalanced, chipAggressive, chipCustom, addSelectedButton",LEGACY,Unrouted catalog or unused Sources adapter; excluded from active routes.
+app/src/main/res/layout/fragment_discover_filterlists.xml,"filterlistsSearchEditText, languageSpinner, filterlistsCompatibleOnlySwitch, filterlistsShowSubscribedSwitch, filterlistsSubscribeVisibleButton, filterlistsRemoveVisibleButton, filterlistsSubscribeAllButton, filterlistsRemoveAllButton, filterlistsCancelBulkButton, filterlistsReviewLastRunButton, filterlistsRetryLastRunButton, filterlistsReviewUnsupportedButton, filterlistsStateRetryButton",WF:DISC-007 WF:DISC-010 WF:DISC-012 WF:DISC-013 WF:DISC-014 WF:DISC-015 WF:DISC-034 WF:DISC-037 WF:DISC-039 WF:DISC-040 WF:DISC-043 WF:DISC-048 WF:DISC-049 WF:DISC-050,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_domain_checker.xml,"domainEditText, checkButton, unblockButton, removeAllowButton, blockButton",D-01 D-02 D-03 D-04,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_home.xml,discoverCta,WF:HOME-QA-009,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_hosts_sources_tab.xml,(rendered surface / runtime listeners),WF:SRC-001,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/fragment_more.xml,"domainCheckerCard, more_row_dns_log, more_row_custom_rules, more_row_filter_sources, more_row_adware_scanner, more_row_preferences, more_row_backup, more_row_about, more_row_github",M-01 M-02 M-03 M-04 M-05 M-06 M-07 M-08 M-09,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/home_content.xml,"blockedHostCardView, allowedHostCardView, redirectHostCardView, protectionSwitch, sourcesCardView, checkForUpdateImageView, updateImageView, pauseResumeButton, stopButton, leakStatusCardView, leakPrivateDnsButton, leakVpnSettingsButton",WF:HOME-QA-001 WF:HOME-QA-006 WF:HOME-QA-007 WF:HOME-QA-008 WF:HOME-QA-009 H-01 H-02 H-03 H-04 H-05 H-06 H-07,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/hosts_add_options_sheet.xml,"browseCatalogOption, addCustomOption",WF:SRC-016 WF:SRC-017 WF:SRC-018 WF:SRC-019,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/hosts_file_viewer.xml,(rendered surface / runtime listeners),ROOT,Excluded: only reachable in root settings.
+app/src/main/res/layout/hosts_lists_fragment.xml,"hostsSearchEditText, hostsListsStateRetryButton",L-02 L-09,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/hosts_sources_card.xml,sourceEnabledCheckBox,LEGACY,Unrouted catalog or unused Sources adapter; excluded from active routes.
+app/src/main/res/layout/hosts_sources_fragment.xml,hosts_sources_add,WF:SRC-001 WF:SRC-011 WF:SRC-016 WF:SRC-047,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/list_two_entries.xml,(rendered surface / runtime listeners),A-01 A-02,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/lists_allowed_dialog.xml,list_dialog_hostname,L-04 L-05,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/lists_blocked_dialog.xml,list_dialog_hostname,L-04 L-05,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/lists_fragment.xml,lists_add,L-01 L-04 L-10,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/lists_redirected_dialog.xml,"list_dialog_hostname, list_dialog_ip",L-04 L-05,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/log_activity.xml,toggle_log_recording,G-01 G-02 G-03,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/log_entry.xml,(rendered surface / runtime listeners),G-04 G-05 G-06,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/log_redirect_dialog.xml,redirect_ip,G-06,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/pref_edittext_dialog.xml,edit,ROOT,Excluded: only reachable in root settings.
+app/src/main/res/layout/schedules_activity.xml,"globalEditButton, editFilterSetSchedulesButton, editSourceSchedulesButton",WF:SCH-001 WF:SCH-003 WF:SCH-004 WF:SCH-005 WF:SCH-007 WF:SCH-012,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/source_edit_activity.xml,"labelEditText, block_format_button, allow_format_button, url_button, file_button, location_edit_text, redirected_hosts_checkbox",E-01 E-02 E-03 E-04 E-05,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/update_actity.xml,"update_button, update_donate_button, update_sponsor_button",WF:PB-QA-U01 WF:PB-QA-U02 WF:PB-QA-U03 U-01 U-02 U-03,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/vpn_excluded_app_activity.xml,(rendered surface / runtime listeners),PV-05 PV-06 PV-07 F-07,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/layout/vpn_excluded_app_entry.xml,rowLayout,PV-05,Layout-level owner set; see individual action rows and Java-bound controls.
+app/src/main/res/menu/bottom_nav_menu.xml,nav_home,WF:HOME-QA-005,active route; no execution implied
+app/src/main/res/menu/bottom_nav_menu.xml,nav_discover,WF:DISC-001,active route; no execution implied
+app/src/main/res/menu/bottom_nav_menu.xml,nav_sources,WF:SRC-001,active route; no execution implied
+app/src/main/res/menu/bottom_nav_menu.xml,nav_more,M-01,active route; no execution implied
+app/src/main/res/menu/checkbox_list_context.xml,edit_action,L-05,active route; no execution implied
+app/src/main/res/menu/checkbox_list_context.xml,move_action,L-06,active route; no execution implied
+app/src/main/res/menu/checkbox_list_context.xml,delete_action,L-05,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_check_updates,WF:SRC-009,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_update_all,WF:SRC-010,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_save_filter_set,WF:SRC-020,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_apply_filter_set,WF:SRC-028,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_schedule_filter_set,WF:SRC-037,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_manage_filter_sets,WF:SRC-023,active route; no execution implied
+app/src/main/res/menu/hosts_sources_menu.xml,action_hosts_manage_schedules,WF:SRC-044,active route; no execution implied
+app/src/main/res/menu/list_menu.xml,menu_search,L-11,active route; no execution implied
+app/src/main/res/menu/list_menu.xml,menu_toggle_source,L-03,active route; no execution implied
+app/src/main/res/menu/lists_navigation.xml,lists_navigation_blocked,L-01,active route; no execution implied
+app/src/main/res/menu/lists_navigation.xml,lists_navigation_allowed,L-01,active route; no execution implied
+app/src/main/res/menu/lists_navigation.xml,lists_navigation_redirected,L-01,active route; no execution implied
+app/src/main/res/menu/log_menu.xml,sort,G-02,active route; no execution implied
+app/src/main/res/menu/log_menu.xml,delete,G-03,active route; no execution implied
+app/src/main/res/menu/source_edit_menu.xml,delete_action,E-06,active route; no execution implied
+app/src/main/res/menu/source_edit_menu.xml,apply_action,E-01,active route; no execution implied
+app/src/main/res/menu/source_edit_menu.xml,auto_update_action,E-07,active route; no execution implied
+app/src/main/res/menu/vpn_excluded_app_menu.xml,select_all,PV-06,active route; no execution implied
+app/src/main/res/menu/vpn_excluded_app_menu.xml,deselect_all,PV-07,active route; no execution implied
+app/src/main/res/xml/data_extraction_rules.xml,backup eligibility rules,B-03,active route; no execution implied
+app/src/main/res/xml/full_backup_content.xml,backup eligibility rules,B-03,active route; no execution implied
+app/src/main/res/xml/list_searchable.xml,SEARCH metadata,L-11,active route; no execution implied
+app/src/main/res/xml/preferences_backup_restore.xml,@string/pref_backup_key,B-01,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_backup_restore.xml,@string/pref_restore_key,B-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_dark_theme_mode_key,P-01,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,org.adaway.ui.prefs.PrefsUpdateFragment,F-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_force_english_key,P-03,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_root_ad_block_method_key,P-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_vpn_ad_block_method_key,P-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_enable_ipv6_key,P-06,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,org.adaway.ui.prefs.PrefsBackupRestoreFragment,F-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_enable_telemetry_key,P-04,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,@string/pref_enable_debug_key,P-05,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,pref_dns_log,P-07,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,pref_help,P-08,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,pref_donate,P-08,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_main.xml,pref_about,A-03,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_root.xml,@string/pref_open_hosts_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_never_reboot_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_redirection_ipv4_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_redirection_ipv6_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_webserver_enabled_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_webserver_test_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_root.xml,@string/pref_webserver_icon_key,ROOT,"Excluded: privileged mode settings, not failed."
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_open_notification_preferences_key,PU-06,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_check_app_startup_key,PU-01,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_check_app_daily_key,PU-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_include_beta_releases_key,PU-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_check_key,PU-03,Exposed switch; no production startup consumer found.
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_check_hosts_daily_key,PU-04,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_automatic_update_daily_key,PU-05,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_update.xml,@string/pref_update_only_on_wifi_key,PU-04,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_vpn.xml,@string/pref_vpn_service_on_boot_key,PV-01,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_vpn.xml,@string/pref_vpn_watchdog_enabled_key,PV-02,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_vpn.xml,@string/pref_vpn_allow_app_bypass_key,PV-03,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_vpn.xml,@string/pref_vpn_excluded_system_apps_key,PV-04,active preference; inspect handler and effect separately
+app/src/main/res/xml/preferences_vpn.xml,@string/pref_vpn_excluded_user_apps_key,PV-05,XML fragment string is stale; click opens PrefsVpnExcludedAppsActivity.
+app/src/main/res/xml/shortcuts.xml,preferences,S-04,active route; no execution implied
+app/src/main/res/xml/shortcuts.xml,dns_requests,S-05,active route; no execution implied
+app/src/main/res/xml/shortcuts.xml,your_lists,S-06,active route; no execution implied

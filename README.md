@@ -266,7 +266,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1 
   -OutputDir app\build\reports\ux-matrix
 ```
 
-The runner covers baseline, 1.3/1.6 font scales, and RTL pseudo-locale variants.
+The runner covers English at baseline and 1.3/1.6 font scales, plus Hebrew RTL at 1.3/1.6.
+It checks the rendered locale, layout direction and font scale on each screen in VPN mode.
 It pulls screenshots for the key app shells and writes
 `app/build/reports/ux-matrix/ux-matrix-review.md`, a checklist packet for manual
 review of clipping, overlap, touch targets, RTL anchoring, FAB clearance, and the
@@ -491,10 +492,16 @@ update-manifest trust material above.
 ### Add a Custom Filter List
 
 1. Open the **Sources** tab.
-2. Tap the **+** button.
-3. Enter a compatible filter URL; the name is optional.
+2. Tap **+**, then **Add custom source**.
+3. Enter the public HTTPS URL of a DNS-compatible filter; the name is optional.
 4. Save with the toolbar checkmark. The enabled source downloads and applies automatically.
    See [Source Update Feedback](#source-update-feedback).
+
+The region or publisher does not matter. Hosts files and domain lists are
+supported; a DNS filter cannot apply browser-only cosmetic rules. To use a
+local list, choose **File** in the editor and select it with Android's picker.
+Remote refreshes require a direct public HTTPS route. AdAway does not fetch
+private network addresses or silently bypass a required system proxy.
 
 ### Source Update Feedback
 
@@ -503,6 +510,8 @@ for the configuration it applied. Download metadata alone does not bring the pro
 back. Later selection or URL changes can still need **Apply**; updating one source
 does not acknowledge pending changes to other sources. If a Sources update/apply
 fails, its failure message keeps an **Apply** action that retries the same operation.
+When another update already owns the operation, Sources reports that it is busy
+instead of reporting a download failure.
 
 When Home reports a failed source download, tap **Sources** to inspect each source's
 error, correct or disable the failing source, then apply again. A source failure does

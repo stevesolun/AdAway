@@ -35,6 +35,12 @@ The bounded beta release is distinct from completing this audit. Its observed
 
 ## Work Lanes
 
+The [deep non-root control inventory](deep-signoff/README.md) links stories,
+screens and specific test methods. Actual outcomes are in the separate
+`deep-*-journeys.csv` files; planned, blocked, baseline failures and verified
+fixes are not interchangeable. The filter URL and VPN acceptance criteria
+apply to arbitrary supported lists, not a particular locale or publisher.
+
 1. Main: complete repository inventory; Home controls and consent; integrated QA.
 2. Data: all database and source-import files and cross-boundary behavior.
 3. VPN: all DNS/VPN and VPN-model files, protocol and lifecycle cases.
