@@ -72,7 +72,7 @@ public class UxMatrixScriptTest {
     }
 
     @Test
-    public void instrumentationParserAcceptsOkTranscriptWhenAdbExitCodeIsNonZero()
+    public void instrumentationParserRequiresSuccessfulTransportAndPassingTranscript()
             throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the UX matrix parser.",
@@ -93,11 +93,14 @@ public class UxMatrixScriptTest {
                     "'INSTRUMENTATION_STATUS: test=rendersHome'," +
                     "'OK (1 test)'" +
                     ") -join [Environment]::NewLine;" +
-                    "if (-not (Test-UxInstrumentationResult -ExitCode 1 -Output $output)) {" +
-                    " throw 'OK transcript rejected';" +
+                    "if (-not (Test-UxInstrumentationResult -ExitCode 0 -Output $output)) {" +
+                    " throw 'Passing run rejected';" +
+                    "};" +
+                    "if (Test-UxInstrumentationResult -ExitCode 1 -Output $output) {" +
+                    " throw 'Transport error accepted';" +
                     "}");
 
-            assertEquals("OK instrumentation output must be authoritative over adb exit drift.\n" +
+            assertEquals("A passing transcript is valid only with a successful adb exit.\n" +
                     result.stderr, 0, result.exitCode);
         } finally {
             deleteRecursively(fixture);
