@@ -107,8 +107,10 @@ public class CommandReceiverSecurityInstrumentedTest {
         injectAdBlockModel(application, recordingAdBlockModel);
         try {
             assertSame(recordingAdBlockModel, application.getAdBlockModel());
+            // Give both controls foreground delivery priority while boot broadcasts are queued.
             Intent intent = new Intent(CommandReceiver.SEND_COMMAND_ACTION)
-                    .setComponent(new ComponentName(targetContext, CommandReceiver.class));
+                    .setComponent(new ComponentName(targetContext, CommandReceiver.class))
+                    .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             Command.START.appendToIntent(intent);
 
             // Instrumentation runs as the target UID, even when using the test package context.
@@ -116,7 +118,7 @@ public class CommandReceiverSecurityInstrumentedTest {
             assertTrue(senderUid != targetContext.getApplicationInfo().uid);
             assertEquals(PERMISSION_DENIED,
                     targetContext.checkPermission(SEND_COMMAND_PERMISSION, -1, senderUid));
-            String output = shell("am broadcast --user current -a " + intent.getAction()
+            String output = shell("am broadcast --user current --receiver-foreground -a " + intent.getAction()
                     + " -n " + intent.getComponent().flattenToShortString()
                     + " --es COMMAND START");
             assertTrue("Ordered external broadcast did not finish: " + output,

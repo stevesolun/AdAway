@@ -79,6 +79,25 @@ Other integrated checks (overlapping cases are not additive):
   fixes do not verify the other locales. Local debug checks do not verify a
   public signed artifact or complete the overall audit.
 
+### PR #15 connected-test correction
+
+POST-BETA-CI-001: [CI run 45654968250](https://github.com/stevesolun/AdAway/actions/runs/45654968250)
+failed only the authorized broadcast control: its assertion expired at
+`16:45:58.965`, but START arrived at `16:46:03.954` after cleanup restored the
+real model. Both test broadcasts now request foreground delivery priority;
+actual permission checks, the recording-model latch, timeouts and production
+behavior are unchanged. Evidence below is under `app/build/ci-investigation/`.
+
+| Local API 34 arm64 check | Result | Evidence |
+| --- | --- | --- |
+| Baseline attempts | Installation before readiness, then disk-executor startup barrier failure; neither reproduces the exact CI timeout | `baseline-test.log`, `baseline-ready-test.log` |
+| Broadcast package on disposable `ci-api34`, `emulator-5580` | 17 passed; zero skipped/failed/errors; strict Gradle verification | `fixed-broadcast-tests.log`, `fixed-broadcast-results/`, `fixed-broadcast-logcat.txt` |
+| Security class after cold reboot | Four passed again; zero skipped/failed/errors; overlapping coverage | `fixed-reboot-security-tests.log`, `fixed-reboot-security-results/`, `fixed-reboot-security-logcat.txt` |
+
+The emulator was stopped afterward. Full connected CI, signed upgrade and
+publication remain outer-owner gates. No root, physical-device or intermittent
+DNS coverage is claimed by these focused tests.
+
 ## Candidate 13.5.5b
 
 - Final local direct-release SHA-256:

@@ -23,6 +23,14 @@ The bounded beta release does not complete this ongoing audit.
 
 ### Next public Android beta: 13.5.7b
 
+- CI follow-up for PR #15 (Connected Android tests):
+  - [x] Identify the failing test and inspect the retained device log.
+  - [x] Confirm delayed authorized delivery in the Android 14 CI device log;
+    local baseline attempts stopped at unrelated startup prerequisites.
+  - [x] Correct test delivery priority; all 17 broadcast-package cases passed
+    locally on API 34, then all four security cases passed after a cold reboot.
+    See [bounded CI evidence](audit-2026-11-25/validation.md#pr-15-connected-test-correction).
+
 - [ ] Verify the signed candidate upgrades 13.5.6b without losing selected
   filters. Exercise the non-root VPN and distinguish ordinary site content from
   third-party verification screens.
