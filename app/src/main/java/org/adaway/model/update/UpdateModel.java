@@ -13,6 +13,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -62,7 +63,8 @@ public class UpdateModel {
     private final MutableLiveData<InstallState> installState =
             new MutableLiveData<>(InstallState.IDLE);
     private volatile InstallState currentInstallState = InstallState.IDLE;
-    private long activeDownloadId = -1;
+    private volatile long activeDownloadId = -1;
+    private volatile long downloadStartedAt;
 
     /**
      * Constructor.
@@ -132,6 +134,14 @@ public class UpdateModel {
 
     public InstallState getCurrentInstallState() {
         return this.currentInstallState;
+    }
+
+    public long getActiveDownloadId() {
+        return this.currentInstallState == InstallState.DOWNLOADING ? this.activeDownloadId : -1;
+    }
+
+    public long getDownloadStartedAt() {
+        return this.downloadStartedAt;
     }
 
     private void setInstallState(InstallState state) {
@@ -328,6 +338,7 @@ public class UpdateModel {
             setInstallState(InstallState.DOWNLOAD_FAILED);
             return -1;
         }
+        this.downloadStartedAt = SystemClock.elapsedRealtime();
         this.activeDownloadId = downloadId;
         // Register new broadcast receiver
         ApkDownloadReceiver receiver = new ApkDownloadReceiver(

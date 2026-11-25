@@ -41,7 +41,10 @@ import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
 import org.adaway.db.entity.RuleKind;
+import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
@@ -50,8 +53,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.Optional;
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,6 +83,9 @@ public class SourceEditAddEditInstrumentedTest {
     private static final String DELETE_URL = "https://example.com/adaway-delete-proof.txt";
 
     private Context context;
+    private AdAwayApplication application;
+    private AdBlockModel previousAdBlockModel;
+    private boolean adBlockModelInjected;
     private SourceModel sourceModel;
     private OkHttpClient previousHttpClient;
 
@@ -85,6 +93,11 @@ public class SourceEditAddEditInstrumentedTest {
     public void setUp() throws Exception {
         this.context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(this.context, "set up source add edit");
+        this.application = (AdAwayApplication) this.context.getApplicationContext();
+        Field adBlockModel = adBlockModelField();
+        this.previousAdBlockModel = (AdBlockModel) adBlockModel.get(this.application);
+        adBlockModel.set(this.application, new InertAdBlockModel(this.context));
+        this.adBlockModelInjected = true;
         AppDatabase.getInstance(this.context).getOpenHelper().getWritableDatabase();
         waitForDiskIoIdle();
         resetSources(this.context);
@@ -104,14 +117,45 @@ public class SourceEditAddEditInstrumentedTest {
     public void tearDown() throws Exception {
         finishResumedActivities();
         if (this.context != null) {
-            InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down source add edit");
-            resetSources(this.context);
+            waitForDiskIoIdle();
+            if (this.adBlockModelInjected) {
+                try (SourceOperationCoordinator.Lease ignored = awaitIdleOperation()) {
+                    InstrumentedTestState.resetForPassiveRootUi(
+                            this.context, "tear down source add edit");
+                    resetSources(this.context);
+                    if (this.sourceModel != null) {
+                        Field client = SourceModel.class.getDeclaredField("cachedHttpClient");
+                        client.setAccessible(true);
+                        client.set(this.sourceModel, this.previousHttpClient);
+                    }
+                    adBlockModelField().set(this.application, this.previousAdBlockModel);
+                    this.adBlockModelInjected = false;
+                }
+            } else {
+                InstrumentedTestState.resetForPassiveRootUi(
+                        this.context, "tear down source add edit");
+                resetSources(this.context);
+            }
         }
-        if (this.sourceModel != null) {
-            Field client = SourceModel.class.getDeclaredField("cachedHttpClient");
-            client.setAccessible(true);
-            client.set(this.sourceModel, this.previousHttpClient);
+    }
+
+    private SourceOperationCoordinator.Lease awaitIdleOperation() {
+        long deadline = SystemClock.elapsedRealtime() + TIMEOUT_MS;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            SourceOperationCoordinator.Lease lease =
+                    this.application.getSourceOperations().tryAcquire();
+            if (lease != null) {
+                return lease;
+            }
+            SystemClock.sleep(50);
         }
+        throw new AssertionError("Refusing to restore the real model while source work is active.");
+    }
+
+    private static Field adBlockModelField() throws Exception {
+        Field field = AdAwayApplication.class.getDeclaredField("adBlockModel");
+        field.setAccessible(true);
+        return field;
     }
 
     @Test(timeout = 120_000)
@@ -1249,5 +1293,44 @@ public class SourceEditAddEditInstrumentedTest {
 
     private interface DatabaseWork {
         void run(AppDatabase database);
+    }
+
+    private static final class InertAdBlockModel extends AdBlockModel {
+        InertAdBlockModel(Context context) {
+            super(context);
+        }
+
+        @Override
+        public AdBlockMethod getMethod() {
+            return AdBlockMethod.ROOT;
+        }
+
+        @Override
+        public void apply() {
+            this.applied.postValue(true);
+        }
+
+        @Override
+        public void revert() {
+            this.applied.postValue(false);
+        }
+
+        @Override
+        public boolean isRecordingLogs() {
+            return false;
+        }
+
+        @Override
+        public void setRecordingLogs(boolean recording) {
+        }
+
+        @Override
+        public List<String> getLogs() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void clearLogs() {
+        }
     }
 }

@@ -11,8 +11,10 @@ import static android.app.DownloadManager.STATUS_SUCCESSFUL;
 import android.app.Application;
 import android.app.DownloadManager;
 import android.database.Cursor;
+import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -26,6 +28,7 @@ import org.adaway.ui.adware.AdwareViewModel;
 import org.adaway.util.AppExecutors;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import timber.log.Timber;
@@ -48,6 +51,7 @@ public class UpdateViewModel extends AdwareViewModel {
         this.downloadProgress.addSource(this.updateModel.getInstallState(), state ->
                 this.downloadProgress.setValue(state == InstallState.IDLE ? null
                         : new InstallDownloadStatus(state)));
+        startTracking(this.updateModel.getActiveDownloadId());
     }
 
     public LiveData<Manifest> getAppManifest() {
@@ -63,10 +67,8 @@ public class UpdateViewModel extends AdwareViewModel {
             return;
         }
         long downloadId = this.updateModel.update();
-        this.trackedDownload.set(downloadId);
-        if (downloadId != -1) {
-            AppExecutors.getInstance().networkIO().execute(() -> trackProgress(downloadId));
-        } else if (this.updateModel.getCurrentInstallState() == InstallState.IDLE) {
+        startTracking(downloadId);
+        if (downloadId == -1 && this.updateModel.getCurrentInstallState() == InstallState.IDLE) {
             this.downloadProgress.setValue(null);
         }
     }
@@ -82,7 +84,14 @@ public class UpdateViewModel extends AdwareViewModel {
         AppExecutors.getInstance().networkIO().execute(this.updateModel::resumePendingInstall);
     }
 
-    private void trackProgress(long downloadId) {
+    private void startTracking(long downloadId) {
+        if (this.trackedDownload.getAndSet(downloadId) != downloadId && downloadId != -1) {
+            long startedAt = this.updateModel.getDownloadStartedAt();
+            AppExecutors.getInstance().networkIO().execute(() -> trackProgress(downloadId, startedAt));
+        }
+    }
+
+    private void trackProgress(long downloadId, long startedAt) {
         DownloadManager downloadManager = getApplication().getSystemService(DownloadManager.class);
         if (downloadManager == null) {
             Timber.w("Download service unavailable; stopping progress tracking.");
@@ -90,14 +99,13 @@ public class UpdateViewModel extends AdwareViewModel {
             return;
         }
         DownloadManager.Query query = new DownloadManager.Query().setFilterById(downloadId);
-        long startedAt = System.currentTimeMillis();
         int missingCount = 0;
+        AtomicBoolean completionPending = new AtomicBoolean();
         try {
-            boolean finishDownload = false;
-            while (!finishDownload && this.trackedDownload.get() == downloadId
+            while (this.trackedDownload.get() == downloadId
                     && this.updateModel.getCurrentInstallState() == InstallState.DOWNLOADING) {
                 // Hard timeout: avoid infinite background loops.
-                if (System.currentTimeMillis() - startedAt > TRACKING_TIMEOUT_MS) {
+                if (SystemClock.elapsedRealtime() - startedAt > TRACKING_TIMEOUT_MS) {
                     Timber.w("Stopping download progress tracking (timeout).");
                     trackingFailed(downloadId);
                     return;
@@ -114,7 +122,7 @@ public class UpdateViewModel extends AdwareViewModel {
                 }
 
                 // Query download manager
-                try (Cursor cursor = downloadManager.query(query)) {
+                try (Cursor cursor = queryDownload(downloadManager, query)) {
                     if (cursor == null || !cursor.moveToFirst()) {
                         // Download entry may not be immediately available; don't spin forever if it never shows up.
                         missingCount++;
@@ -143,9 +151,19 @@ public class UpdateViewModel extends AdwareViewModel {
                     switch (status) {
                         case STATUS_FAILED:
                         case STATUS_SUCCESSFUL:
-                            AppExecutors.getInstance().mainThread().execute(() ->
-                                    this.updateModel.handleDownloadCompletion(downloadId));
-                            finishDownload = true;
+                            if (completionPending.compareAndSet(false, true)) {
+                                AppExecutors.getInstance().mainThread().execute(() -> {
+                                    try {
+                                        if (this.trackedDownload.get() == downloadId
+                                                && this.updateModel.getCurrentInstallState()
+                                                == InstallState.DOWNLOADING) {
+                                            this.updateModel.handleDownloadCompletion(downloadId);
+                                        }
+                                    } finally {
+                                        completionPending.set(false);
+                                    }
+                                });
+                            }
                             break;
                         case STATUS_RUNNING:
                             int totalSizeColumnIndex = cursor.getColumnIndex(COLUMN_TOTAL_SIZE_BYTES);
@@ -171,6 +189,11 @@ public class UpdateViewModel extends AdwareViewModel {
             Timber.w(exception, "Unable to track APK download.");
             trackingFailed(downloadId);
         }
+    }
+
+    @VisibleForTesting
+    Cursor queryDownload(DownloadManager downloadManager, DownloadManager.Query query) {
+        return downloadManager.query(query);
     }
 
     private void postProgress(long downloadId, DownloadStatus progress) {

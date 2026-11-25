@@ -207,6 +207,56 @@ public class SourceModelOfflineFileTest {
     }
 
     @Test
+    public void offlineCheckInvalidatesLegacyFileDateBeforeAutomaticImport() throws Exception {
+        insertSource(FILE_SOURCE_ID, FILE_URL + "?modified=1700000000000", true);
+        insertHost(OLD_HOST, FILE_SOURCE_ID);
+        ZonedDateTime corruptDate = ZonedDateTime.parse("+55840-11-08T22:13:20Z");
+        database.hostsSourceDao().updateModificationDates(FILE_SOURCE_ID, corruptDate, corruptDate);
+
+        assertTrue(sourceModel.checkForUpdate());
+
+        HostsSource pending = database.hostsSourceDao().getById(FILE_SOURCE_ID).orElseThrow();
+        assertNull(pending.getLocalModificationDate());
+        assertEquals(Instant.ofEpochMilli(1700000000000L),
+                pending.getOnlineModificationDate().toInstant());
+        assertEquals(BLOCKED, database.hostEntryDao().resolveEntry(OLD_HOST).getType());
+        Instant before = Instant.now().minusSeconds(1);
+        assertTrue(sourceModel.checkAndRetrieveHostsSources());
+        assertImportedFile();
+        assertFileDates(before);
+        assertFalse(sourceModel.checkForUpdate());
+    }
+
+    @Test
+    public void offlineCheckInvalidatesLegacyFileDateWhenProviderDateIsUnknown() throws Exception {
+        insertSource(FILE_SOURCE_ID, FILE_URL + "?modified=unknown", true);
+        ZonedDateTime corruptDate = ZonedDateTime.parse("+55840-11-08T22:13:20Z");
+        database.hostsSourceDao().updateModificationDates(FILE_SOURCE_ID, corruptDate, corruptDate);
+
+        assertTrue(sourceModel.checkForUpdate());
+
+        HostsSource pending = database.hostsSourceDao().getById(FILE_SOURCE_ID).orElseThrow();
+        assertNull(pending.getLocalModificationDate());
+        assertNull(pending.getOnlineModificationDate());
+        assertTrue(sourceModel.checkForUpdate());
+        sourceModel.retrieveHostsSource(FILE_SOURCE_ID);
+        assertFalse(sourceModel.checkForUpdate());
+    }
+
+    @Test
+    public void offlineCheckPreservesMatchingFutureFileDates() throws Exception {
+        ZonedDateTime future = ZonedDateTime.now().plusDays(1).withNano(0);
+        insertSource(FILE_SOURCE_ID, FILE_URL + "?modified=" + future.toInstant().toEpochMilli(), true);
+        database.hostsSourceDao().updateModificationDates(FILE_SOURCE_ID, future, future);
+
+        assertFalse(sourceModel.checkForUpdate());
+
+        HostsSource unchanged = database.hostsSourceDao().getById(FILE_SOURCE_ID).orElseThrow();
+        assertEquals(future.toInstant(), unchanged.getLocalModificationDate().toInstant());
+        assertEquals(future.toInstant(), unchanged.getOnlineModificationDate().toInstant());
+    }
+
+    @Test
     public void targetedMultipleLocalFilesImportOfflineWithoutChangingGeneration() throws Exception {
         insertSource(FILE_SOURCE_ID, FILE_URL, true);
         insertSource(FILE_SOURCE_ID + 2, FILE_URL + "?second=true", true);

@@ -2,6 +2,7 @@ package org.adaway.model.source;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED;
+import static org.adaway.db.entity.SourceType.FILE;
 import static org.adaway.db.entity.SourceType.URL;
 import static org.adaway.model.error.HostError.DOWNLOAD_FAILED;
 import static org.adaway.model.error.HostError.NO_CONNECTION;
@@ -408,7 +409,16 @@ public class SourceModel {
             Timber.d("lastModifiedLocal: %s", dateToString(lastModifiedLocal));
             Timber.d("lastModifiedOnline: %s", dateToString(lastModifiedOnline));
             // Save last modified online
-            this.hostsSourceDao.updateOnlineModificationDate(source.getId(), lastModifiedOnline);
+            if (source.getType() == FILE && lastModifiedLocal != null
+                    && lastModifiedLocal.isAfter(ZonedDateTime.now())
+                    && (lastModifiedOnline == null
+                    || lastModifiedLocal.isAfter(lastModifiedOnline))) {
+                lastModifiedLocal = null;
+                this.hostsSourceDao.updateModificationDates(source.getId(), null,
+                        lastModifiedOnline);
+            } else {
+                this.hostsSourceDao.updateOnlineModificationDate(source.getId(), lastModifiedOnline);
+            }
             // Check if last modified online retrieved
             if (lastModifiedLocal == null) {
                 updateAvailable = true;

@@ -94,8 +94,13 @@ public class ListsViewModel extends AndroidViewModel {
         updated.setEnabled(enabled);
         AppExecutors.getInstance().diskIO().execute(() -> {
             this.database.runInTransaction(() -> {
-                this.hostListItemDao.update(updated);
-                this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+                HostListItem current = this.hostListItemDao.getById(updated.getId());
+                if (current == null) {
+                    return;
+                }
+                current.setEnabled(updated.isEnabled());
+                this.hostListItemDao.update(current);
+                this.hostsSourceDao.updateActiveRuleStats(current.getSourceId());
             });
             this.modelChanged.postValue(true);
         });
@@ -141,8 +146,15 @@ public class ListsViewModel extends AndroidViewModel {
         updated.setRedirection(redirection);
         AppExecutors.getInstance().diskIO().execute(() -> {
             this.database.runInTransaction(() -> {
-                this.hostListItemDao.update(updated);
-                this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+                HostListItem current = this.hostListItemDao.getById(updated.getId());
+                if (current == null || !isValidListItem(current.getType(),
+                        updated.getHost(), updated.getRedirection())) {
+                    return;
+                }
+                current.setHost(updated.getHost());
+                current.setRedirection(updated.getRedirection());
+                this.hostListItemDao.update(current);
+                this.hostsSourceDao.updateActiveRuleStats(current.getSourceId());
             });
             this.modelChanged.postValue(true);
         });
@@ -169,7 +181,13 @@ public class ListsViewModel extends AndroidViewModel {
             updated.setRedirection(null);
             AppExecutors.getInstance().diskIO().execute(() -> {
                 this.database.runInTransaction(() -> {
-                    this.hostListItemDao.update(updated);
+                    HostListItem current = this.hostListItemDao.getById(updated.getId());
+                    if (current == null || !canMoveListItem(current)) {
+                        return;
+                    }
+                    current.setType(updated.getType());
+                    current.setRedirection(null);
+                    this.hostListItemDao.update(current);
                     this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
                 });
                 this.modelChanged.postValue(true);
@@ -186,10 +204,15 @@ public class ListsViewModel extends AndroidViewModel {
             AppExecutors.getInstance().diskIO().execute(() -> {
                 // Redirects outrank allows: disable this row with the exact exception.
                 this.database.runInTransaction(() -> {
+                    HostListItem current = this.hostListItemDao.getById(updated.getId());
+                    if (current == null) {
+                        return;
+                    }
                     addOrUpdateItemInternal(newItem);
-                    this.hostListItemDao.update(updated);
+                    current.setEnabled(updated.isEnabled());
+                    this.hostListItemDao.update(current);
                     this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
-                    this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+                    this.hostsSourceDao.updateActiveRuleStats(current.getSourceId());
                 });
                 this.modelChanged.postValue(true);
             });

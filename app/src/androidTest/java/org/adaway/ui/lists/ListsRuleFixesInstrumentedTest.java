@@ -256,6 +256,69 @@ public class ListsRuleFixesInstrumentedTest {
         assertTrue(rule(USER_SOURCE_ID, HOST).isEnabled());
     }
 
+    @Test(timeout = 60_000)
+    public void editingSelectedSnapshotPreservesCompletedCheckboxChange() throws Exception {
+        insertRule(BLOCKED, HOST, USER_SOURCE_ID);
+        HostListItem selected = rule(USER_SOURCE_ID, HOST);
+        ListsViewModel model = newModel();
+        onMain(() -> model.setItemEnabled(selected, false));
+        awaitDisk();
+        onMain(() -> assertTrue(model.updateListItem(selected, "edited-rule.invalid", null)));
+        awaitDisk();
+
+        HostListItem edited = rule(USER_SOURCE_ID, "edited-rule.invalid");
+        assertNotNull(edited);
+        assertFalse(edited.isEnabled());
+        assertEquals(selected.getId(), edited.getId());
+        assertNull(rule(USER_SOURCE_ID, HOST));
+        assertTrue(selected.isEnabled());
+        assertEquals(HOST, selected.getHost());
+    }
+
+    @Test(timeout = 60_000)
+    public void movingSelectedSnapshotPreservesCompletedCheckboxAndEditChanges() throws Exception {
+        insertRule(BLOCKED, HOST, USER_SOURCE_ID);
+        HostListItem selected = rule(USER_SOURCE_ID, HOST);
+        ListsViewModel model = newModel();
+        onMain(() -> model.setItemEnabled(selected, false));
+        awaitDisk();
+        onMain(() -> assertTrue(model.updateListItem(selected, "edited-rule.invalid", null)));
+        awaitDisk();
+        onMain(() -> model.moveListItem(selected));
+        awaitDisk();
+
+        HostListItem moved = rule(USER_SOURCE_ID, "edited-rule.invalid");
+        assertNotNull(moved);
+        assertEquals(ALLOWED, moved.getType());
+        assertFalse(moved.isEnabled());
+        assertNull(rule(USER_SOURCE_ID, HOST));
+        assertEquals(BLOCKED, selected.getType());
+        assertTrue(selected.isEnabled());
+        assertEquals(HOST, selected.getHost());
+    }
+
+    @Test(timeout = 60_000)
+    public void staleCheckboxSnapshotPreservesCompletedEditAndMoveChanges() throws Exception {
+        insertRule(BLOCKED, HOST, USER_SOURCE_ID);
+        HostListItem selected = rule(USER_SOURCE_ID, HOST);
+        ListsViewModel model = newModel();
+        onMain(() -> assertTrue(model.updateListItem(selected, "edited-rule.invalid", null)));
+        awaitDisk();
+        onMain(() -> model.moveListItem(selected));
+        awaitDisk();
+        onMain(() -> model.setItemEnabled(selected, false));
+        awaitDisk();
+
+        HostListItem disabled = rule(USER_SOURCE_ID, "edited-rule.invalid");
+        assertNotNull(disabled);
+        assertEquals(ALLOWED, disabled.getType());
+        assertFalse(disabled.isEnabled());
+        assertNull(rule(USER_SOURCE_ID, HOST));
+        assertEquals(BLOCKED, selected.getType());
+        assertTrue(selected.isEnabled());
+        assertEquals(HOST, selected.getHost());
+    }
+
     @Test(timeout = 90_000)
     public void retainedTabsShareQueryAndKeepNewestQueryAfterRecreation() throws Exception {
         for (ListType type : new ListType[]{BLOCKED, ALLOWED}) {
