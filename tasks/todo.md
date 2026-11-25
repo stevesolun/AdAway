@@ -15,6 +15,7 @@
 Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
 Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
+Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
 

@@ -4,6 +4,10 @@ Date: 2026-11-25. Branch: `codex/full-codebase-audit`.
 Scope: five release implementation/workflow files and two new focused test files.
 SHA-256 snapshot: `artifact-verification-fixes-files.csv`. No base audit ledger edits.
 
+Historical snapshot: results below apply to the recorded hashes. See the
+[publication follow-up](validation.md#publication-follow-up) for later CLI
+compatibility and live provenance evidence.
+
 ## REL-005: Actual APK Identity
 
 - Canonical verifier uses installed Android build-tools **36.0.0**: real `apksigner.jar verify --verbose --print-certs` and `aapt dump badging`. It does not parse APK binary structures itself.
@@ -15,7 +19,7 @@ SHA-256 snapshot: `artifact-verification-fixes-files.csv`. No base audit ledger 
 ## REL-006: Artifact Versus Tooling Provenance
 
 - Tool checkout deliberately remains the workflow dispatch checkout so current verification code can inspect older releases. Reports use separate `Artifact source commit/ref/workflow` and `Tooling source commit` fields. `GITHUB_SHA` is never substituted for APK provenance.
-- The verifier resolves the exact `refs/tags/<tag>` through the read-only GitHub commits API, requires the signed repository/tag/version/APK URL to agree, and uses `gh attestation verify` with `--source-ref`, `--source-digest`, `--signer-workflow`, `--signer-digest`, exact certificate identity, SLSA v1 predicate and hosted-runner policy. All six artifact subjects are checked. The tag target is resolved again before report success.
+- The current provenance policy and supported signer selector are owned by the [release guide](../../RELEASING.md#stable-releases).
 - Original artifacts must come from the exact tagged commit and `fork-release-apk.yml`. Renewed manifest and manifest checksum are accepted only with an explicitly supplied 40-hex `--metadata-source-commit` and `--metadata-source-ref refs/heads/...`; those two subjects must come from `refresh-update-manifest.yml` at that identity. APK and SBOM provenance never inherit the metadata refresh identity. Metadata provenance is reported separately.
 - Both manual workflows expose the optional refresh pins. Their permissions remain read-only, actions stay immutable-pinned, and the self-hosted physical-device runner selection is unchanged. No branch protection or publish workflow edits.
 - Unattested local bundle checks remain available for the existing pre-attestation build gate, but report `Artifact source commit: not-verified` / `Artifact provenance: not-verified`. Readiness rejects them, old ambiguous reports, missing/duplicate fields, mismatched artifact commits/refs/workflows and unverified APK identity. It compares UX/license source commits with the actual artifact commit, while allowing different verified-tool checkout revisions.

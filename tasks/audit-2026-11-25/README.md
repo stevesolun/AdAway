@@ -8,9 +8,10 @@ active until coverage and fixes are verified, not merely until a test suite pass
 Baseline: `d51eb7aea06871c2c6ad2bbedb9ddbaaaca48d77` (merged 13.5.4b).
 Initial inventory: 2,534 tracked files. Branch: `codex/full-codebase-audit`.
 
-The bounded 13.5.5b beta is distinct from completing this audit. Its observed
-results and limits belong in [validation.md](validation.md#candidate-1355b);
-release mechanics belong in [RELEASING.md](../../RELEASING.md).
+The bounded beta release is distinct from completing this audit. Its observed
+[candidate results](validation.md#candidate-1355b) and
+[publication follow-up](validation.md#publication-follow-up) belong in
+`validation.md`; release mechanics belong in [RELEASING.md](../../RELEASING.md).
 
 ## Evidence Rules
 

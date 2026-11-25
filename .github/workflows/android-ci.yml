@@ -133,6 +133,11 @@ jobs:
             --dependency-verification=strict \
             --stacktrace
 
+      - name: Check release policy with the installed GitHub CLI
+        run: >-
+          python3 scripts/tests/test_release_artifact_identity.py
+          ReleaseArtifactIdentityTests.test_real_gh_accepts_generated_policy_before_reading_local_evidence
+
       - name: Run unit tests
         run: ./gradlew test --dependency-verification=strict --stacktrace
 
@@ -306,6 +311,37 @@ jobs:
             "system-images;android-34;google_apis;x86_64" \
             "ndk;27.2.12479018"
 
+      - name: Test connected APK preparation retries
+        run: python3 scripts/tests/test_connected_test_preparation.py
+
+      - name: Prepare connected test APKs
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          mkdir -p app/build/ci-artifacts
+          # Retry Maven Central throttling before starting any device tests.
+          for attempt in 1 2 3; do
+            log="app/build/ci-artifacts/connected-apk-build-$attempt.log"
+            set +e
+            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
+              --dependency-verification=strict --stacktrace --console=plain 2>&1 | tee "$log"
+            build_status=("${PIPESTATUS[@]}")
+            set -e
+            if [ "${build_status[1]}" -ne 0 ]; then
+              exit "${build_status[1]}"
+            fi
+            if [ "${build_status[0]}" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ] || ! grep -Eq \
+              "Could not (GET|HEAD) 'https://repo\\.maven\\.apache\\.org/[^']+'\\. Received status code 429 from server:" "$log"; then
+              exit "${build_status[0]}"
+            fi
+            echo "::warning::Maven Central rate limited APK preparation (attempt $attempt/3); retrying in $((attempt * 30)) seconds."
+            sleep "$((attempt * 30))"
+          done
+
       - name: Enable KVM
         shell: bash
         run: |
@@ -354,6 +390,7 @@ jobs:
           echo "$!" > app/build/ci-artifacts/emulator.pid
 
           timeout 300 adb wait-for-device
+          # shellcheck disable=SC2016 # Expand the boot check inside the timed child shell.
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
           adb devices -l | tee app/build/ci-artifacts/adb-devices-after-boot.txt
           adb shell settings put global window_animation_scale 0

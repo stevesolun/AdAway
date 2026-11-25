@@ -152,6 +152,8 @@ releases such as F-Droid are separate store/build-pipeline work and should use
 the normal `release` variant, not the direct APK updater variant.
 Merge release changes through a protected pull request and its required checks
 before tagging the reviewed merge commit; do not bypass branch protections.
+Preserve existing signed tags, including failed publication attempts. Use a new
+version and signed tag for a corrected release.
 Once ready, create and push a signed tag on this GitHub repository using
 `vX.Y.Z` format (or `vX.Y.Zb` for pre-releases). Tags ending in `b` are
 published as GitHub pre-releases and use the `beta` update-manifest channel;
@@ -167,7 +169,21 @@ uploads:
 * `app/build/reports/sbom/adaway.cdx.json`
 * `app/build/reports/sbom/adaway.cdx.json.sha256`
 
-Before pushing a release tag locally, run:
+Android CI runs an offline check of the generated attestation arguments with
+the installed GitHub CLI before tag time. To run that same check locally, use
+the host prerequisites listed in the
+[release-policy test](scripts/tests/test_release_artifact_identity.py):
+
+```sh
+python3 scripts/tests/test_release_artifact_identity.py \
+  ReleaseArtifactIdentityTests.test_real_gh_accepts_generated_policy_before_reading_local_evidence
+```
+
+This check proves CLI option compatibility by reaching a missing local evidence
+file; it does not verify a live attestation. The tagged workflow's
+post-attestation verification remains required.
+
+Before pushing a release tag locally, also run:
 
 ```powershell
 $Version = "<version>"
@@ -352,6 +368,13 @@ For renewed metadata, supply both `metadata_source_commit` and `metadata_source_
 inputs (CLI: `--metadata-source-commit` and `--metadata-source-ref`). Only the
 manifest pair may use that pinned refresh identity; APK/SBOM provenance stays
 bound to the release tag. Old ambiguous `Source commit`-only reports cannot pass readiness.
+
+The [canonical verifier](scripts/VerifyReleaseArtifacts.java) uses
+`--cert-identity` as its sole signer selector to pin the exact workflow and ref;
+do not combine it with `--signer-workflow`. It also requires the repository,
+expected source ref, source and signer commits, SLSA v1 predicate, and
+GitHub-hosted runners. The release tag target must remain unchanged throughout
+verification.
 
 ```powershell
 $Version = "<version>"

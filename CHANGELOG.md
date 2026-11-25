@@ -1,6 +1,11 @@
 # Changelog
 
-## [13.5.5b] - Unreleased
+## [13.5.6b] - Unreleased
+
+Fix signed-beta publication while preserving provenance verification. See the
+[publication follow-up](tasks/audit-2026-11-25/validation.md#publication-follow-up)
+for delivery status and evidence. This beta includes the application changes
+tested for 13.5.5b:
 
 - Preserve selected filters across updates and make failed operations easier to retry.
 - A failed source update now links to Sources instead of reporting that the phone
