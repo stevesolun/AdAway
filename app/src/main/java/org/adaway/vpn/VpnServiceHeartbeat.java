@@ -43,8 +43,9 @@ public class VpnServiceHeartbeat extends Worker {
         Context context = getApplicationContext();
         if (VpnServiceControls.isStarted(context) && !VpnServiceControls.isVpnServiceRunning(context)) {
             Timber.i("VPN service is not running. Starting VPN service…");
-            VpnServiceControls.start(context);
-            Timber.i("VPN service started.");
+            if (!VpnServiceControls.start(context)) {
+                Timber.w("VPN service restart request was not accepted.");
+            }
         }
         return success();
     }

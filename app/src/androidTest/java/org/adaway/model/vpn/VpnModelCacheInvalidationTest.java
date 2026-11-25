@@ -7,6 +7,7 @@ import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -30,7 +31,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -173,6 +176,35 @@ public class VpnModelCacheInvalidationTest {
             assertTrue("No lookup task may outlive database fixture cleanup.",
                     executor.awaitTermination(5, TimeUnit.SECONDS));
         }
+    }
+
+    @Test(timeout = 15_000)
+    public void pauseAndClearCannotBeUndoneByAWaitingDnsWriter() throws Exception {
+        VpnModel model = new VpnModel(application, hostEntryDao);
+        model.setRecordingLogs(true);
+        model.getEntry(suffixHost);
+        assertEquals(Collections.singletonList(suffixHost), model.getLogs());
+
+        // Hold the same monitor as a log snapshot to make the in-flight append deterministic.
+        Field field = VpnModel.class.getDeclaredField("logs");
+        field.setAccessible(true);
+        Thread lookup = new Thread(() -> model.getEntry(childHost));
+        synchronized (field.get(model)) {
+            lookup.start();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (lookup.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+            }
+            assertEquals(Thread.State.BLOCKED, lookup.getState());
+            model.setRecordingLogs(false);
+            model.clearLogs();
+        }
+        lookup.join(5000);
+        assertFalse("DNS lookup must finish", lookup.isAlive());
+        assertTrue("A paused, cleared log must stay empty", model.getLogs().isEmpty());
+        model.setRecordingLogs(true);
+        model.getEntry(childHost);
+        assertEquals(Collections.singletonList(childHost), model.getLogs());
     }
 
     private void insertSource() {

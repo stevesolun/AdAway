@@ -38,6 +38,7 @@ public class LogViewModel extends AndroidViewModel {
     private final MutableLiveData<List<LogEntry>> logEntries;
     private final MutableLiveData<Boolean> recording;
     private LogEntrySort sort;
+    private long refreshRevision;
 
     public LogViewModel(@NonNull Application application) {
         super(application);
@@ -60,23 +61,30 @@ public class LogViewModel extends AndroidViewModel {
     }
 
     public void clearLogs() {
+        ++this.refreshRevision;
         this.adBlockModel.clearLogs();
-        this.logEntries.postValue(Collections.emptyList());
+        this.logEntries.setValue(Collections.emptyList());
     }
 
     public void updateLogs() {
-        AppExecutors.getInstance().diskIO().execute(
-                () -> {
-                    // Get tcpdump logs
-                    List<LogEntry> logItems = this.adBlockModel.getLogs()
-                            .parallelStream()
-                            .map(this::readEntry)
-                            .sorted(this.sort.comparator())
-                            .collect(Collectors.toList());
-                    // Post result
-                    this.logEntries.postValue(logItems);
-                }
-        );
+        long revision = ++this.refreshRevision;
+        LogEntrySort requestedSort = this.sort;
+        AppExecutors executors = AppExecutors.getInstance();
+        executors.diskIO().execute(() -> {
+            List<LogEntry> entries = readLogEntries(requestedSort);
+            executors.mainThread().execute(() -> {
+                if (revision != this.refreshRevision) return;
+                if (requestedSort != this.sort) entries.sort(this.sort.comparator());
+                this.logEntries.setValue(entries);
+            });
+        });
+    }
+
+    List<LogEntry> readLogEntries(LogEntrySort order) {
+        return this.adBlockModel.getLogs().parallelStream()
+                .map(this::readEntry)
+                .sorted(order.comparator())
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private LogEntry readEntry(String host) {
@@ -154,7 +162,7 @@ public class LogViewModel extends AndroidViewModel {
         if (entries != null) {
             List<LogEntry> sortedEntries = new ArrayList<>(entries);
             sortedEntries.sort(this.sort.comparator());
-            this.logEntries.postValue(sortedEntries);
+            this.logEntries.setValue(sortedEntries);
         }
         // Notify user
         Toast.makeText(

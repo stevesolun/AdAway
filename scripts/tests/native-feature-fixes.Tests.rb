@@ -179,7 +179,8 @@ Dir.mktmpdir('adaway-native-features-') do |tmp|
         public void setRecordingLogs(boolean value) { calls++; if (!reject) state = value; }
       }
       static class VpnModel extends Model {
-        boolean recordingLogs;
+        final Object logs = new Object();
+        volatile boolean recordingLogs;
         #{method(vpn, 'public boolean isRecordingLogs()')}
         #{method(vpn, 'public void setRecordingLogs(boolean recording)')}
       }
