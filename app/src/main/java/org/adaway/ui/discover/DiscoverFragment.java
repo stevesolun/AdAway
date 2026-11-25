@@ -8,11 +8,10 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
@@ -39,6 +38,15 @@ import java.util.Set;
 public class DiscoverFragment extends Fragment {
 
     private FragmentDiscoverBinding binding;
+    private int mProfileStatusGeneration;
+    private final FragmentManager.FragmentLifecycleCallbacks mBrowserLifecycle =
+            new FragmentManager.FragmentLifecycleCallbacks() {
+                @Override
+                public void onFragmentViewCreated(@NonNull FragmentManager manager,
+                        @NonNull Fragment fragment, @NonNull View view, @Nullable Bundle state) {
+                    if (fragment instanceof DiscoverFilterListsFragment) attachHeader(view);
+                }
+            };
 
     @Nullable
     @Override
@@ -54,19 +62,23 @@ public class DiscoverFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
 
+        getChildFragmentManager().registerFragmentLifecycleCallbacks(mBrowserLifecycle, false);
         // Embed the full FilterLists.com browser as child fragment
         if (savedInstanceState == null) {
             getChildFragmentManager().beginTransaction()
                     .replace(R.id.discoverBrowserContainer, new DiscoverFilterListsFragment())
                     .commit();
         }
+        Fragment browser = getChildFragmentManager().findFragmentById(R.id.discoverBrowserContainer);
+        if (browser != null && browser.getView() != null) attachHeader(browser.getView());
 
         // Quick-start preset chips — subscribe a curated set in one tap
         this.binding.chipDiscoverSafe.setOnClickListener(v -> applyPreset("safe"));
         this.binding.chipDiscoverBalanced.setOnClickListener(v -> applyPreset("balanced"));
         this.binding.chipDiscoverAggressive.setOnClickListener(v -> applyPreset("aggressive"));
 
-        updateProfileStatus();
+        AppDatabase.getInstance(requireContext()).hostsSourceDao().loadAll()
+                .observe(getViewLifecycleOwner(), sources -> updateProfileStatus());
     }
 
     @Override
@@ -77,8 +89,33 @@ public class DiscoverFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        getChildFragmentManager().unregisterFragmentLifecycleCallbacks(mBrowserLifecycle);
         super.onDestroyView();
         this.binding = null;
+    }
+
+    private void attachHeader(View browser) {
+        if (binding == null) return;
+        ViewGroup slot = browser.findViewById(R.id.filterlistsHeaderContainer);
+        View header = binding.discoverHeader;
+        if (header.getParent() == slot) return;
+        // Keep presets and filters in one scrolling header so neither can crowd out the list.
+        ViewGroup previous = (ViewGroup) header.getParent();
+        if (previous != null) previous.removeView(header);
+        slot.addView(header, 0);
+        browser.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View view, int left, int top, int right, int bottom,
+                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                AppBarLayout appBar = view.findViewById(R.id.filterlistsAppBar);
+                if (view.getHeight() == 0 || appBar.getHeight() == 0) return;
+                view.removeOnLayoutChangeListener(this);
+                int listSpace = Math.round(120 * view.getResources().getDisplayMetrics().density);
+                if (view.getHeight() < appBar.getHeight() + listSpace) {
+                    appBar.setExpanded(false, false);
+                }
+            }
+        });
     }
 
     /**
@@ -153,9 +190,11 @@ public class DiscoverFragment extends Fragment {
 
     private void updateProfileStatus() {
         Context context = getContext();
-        if (context == null) {
+        if (context == null || binding == null) {
             return;
         }
+        final FragmentDiscoverBinding observedBinding = binding;
+        final int generation = ++mProfileStatusGeneration;
         final Context appContext = context.getApplicationContext();
         AppExecutors.getInstance().diskIO().execute(() -> {
             Set<String> enabledUrls = getEnabledSourceUrls(appContext);
@@ -163,7 +202,9 @@ public class DiscoverFragment extends Fragment {
             Set<String> profileUrls = FilterSetStore.getSetUrls(appContext, activeProfile);
             FilterProfileState state = FilterProfileState.resolve(profileUrls, enabledUrls);
             AppExecutors.getInstance().mainThread().execute(() -> {
-                if (this.binding == null) return;
+                if (this.binding != observedBinding || generation != mProfileStatusGeneration) {
+                    return;
+                }
                 this.binding.discoverProfileStatus.setText(
                         formatProfileStatus(activeProfile, state));
             });

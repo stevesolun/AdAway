@@ -78,7 +78,9 @@ public class OnboardingFirstRunContractTest {
                 homeActivity.contains("HomeViewModel homeViewModel = " +
                         "provider.get(HomeViewModel.class)") &&
                         homeActivity.contains(".initialize(getApplicationContext(), " +
-                                "homeViewModel::update)"));
+                                "homeViewModel::update,") &&
+                        homeActivity.contains("homeViewModel::beginInitialSources, " +
+                                "homeViewModel::endInitialSources)"));
     }
 
     private static String getMethodBody(String source, String methodName) {

@@ -20,6 +20,7 @@ import android.net.NetworkCapabilities;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
@@ -65,7 +66,13 @@ public class VpnLifecycleInstrumentedTest {
     public void tearDown() throws Exception {
         try {
             if (this.lifecycleStarted) {
-                VpnServiceControls.stop(this.context);
+                ActivityManager manager = this.context.getSystemService(ActivityManager.class);
+                assertNotNull(manager);
+                // A failed start may already have destroyed the service; do not recreate it.
+                if (manager.getRunningServices(Integer.MAX_VALUE).stream().anyMatch(service ->
+                        VpnService.class.getName().equals(service.service.getClassName()))) {
+                    VpnServiceControls.stop(this.context);
+                }
                 waitUntilStopped();
             }
         } finally {
@@ -98,6 +105,55 @@ public class VpnLifecycleInstrumentedTest {
 
         assertTrue("Stopping the VPN heartbeat must cancel unique WorkManager work.",
                 waitForHeartbeatStopped());
+    }
+
+    @Test(timeout = 90_000)
+    public void frameworkStartIntentEstablishesForegroundTunnelAndResumesAfterStop()
+            throws Exception {
+        assumeTrue("Live VPN smoke is opt-in.", "true".equals(
+                InstrumentationRegistry.getArguments().getString("adawayLiveVpnSmoke")));
+        assumeFalse("Do not interrupt an existing VPN.", hasAnyVpnNetwork());
+        ActivityManager manager = this.context.getSystemService(ActivityManager.class);
+        assertNotNull(manager);
+        assumeFalse("Do not interrupt an existing VPN service.",
+                manager.getRunningServices(Integer.MAX_VALUE).stream().anyMatch(service ->
+                        VpnService.class.getName().equals(service.service.getClassName())));
+        assumeTrue("AdAway must be stopped before the framework-start test.",
+                this.originalStatus == STOPPED);
+        assumeTrue("VPN consent must already be prepared.",
+                android.net.VpnService.prepare(this.context) == null);
+        this.originalMethod = PreferenceHelper.getAdBlockMethod(this.context);
+        PreferenceHelper.setAbBlockMethod(this.context, VPN);
+
+        // Same action/package and absent private extra as Android's always-on start.
+        // The test uses foreground start to satisfy app background-start restrictions.
+        Intent frameworkStart = new Intent(android.net.VpnService.SERVICE_INTERFACE)
+                .setPackage(this.context.getPackageName());
+        this.lifecycleStarted = true;
+        assertNotNull(this.context.startForegroundService(frameworkStart));
+        waitForForegroundTunnel(manager);
+
+        VpnServiceControls.stop(this.context);
+        waitUntilStopped();
+        assertNotNull(this.context.startForegroundService(frameworkStart));
+        waitForForegroundTunnel(manager);
+    }
+
+    private void waitForForegroundTunnel(ActivityManager manager) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(LIFECYCLE_TIMEOUT_MS);
+        do {
+            boolean foreground = manager.getRunningServices(Integer.MAX_VALUE).stream()
+                    .anyMatch(service -> VpnService.class.getName()
+                            .equals(service.service.getClassName()) && service.foreground);
+            if (foreground && hasAnyVpnNetwork()
+                    && PreferenceHelper.getVpnServiceStatus(this.context) == RUNNING
+                    && VpnServiceControls.isTunnelEstablished(this.context)
+                    && findUpTunnelInterface() != null) {
+                return;
+            }
+            Thread.sleep(POLL_INTERVAL_MS);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("Framework start must establish a foreground VPN tunnel.");
     }
 
     @Test

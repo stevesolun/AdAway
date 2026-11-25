@@ -16,7 +16,7 @@ import static org.adaway.model.source.FilterListCategory.*;
  * <p>
  * This catalog provides:
  * - 60+ curated sources across 12 categories
- * - Smart defaults (ads + malware ON, others OFF)
+ * - Conservative public-feed defaults (other sources opt-in)
  * - Built-in Facebook/Meta whitelist for safety
  * - YouTube-specific blockers for ad-free viewing
  * - Device-specific blockers (Samsung, Xiaomi telemetry)
@@ -228,12 +228,9 @@ public class FilterListCatalog {
                                 PRIVACY, false));
 
                 // ====================================================================
-                // MALWARE - Security protection (DEFAULT: ON)
+                // MALWARE - Optional security protection
                 // ====================================================================
-                CATALOG.add(new CatalogEntry(
-                                "URLhaus Malware",
-                                "https://urlhaus.abuse.ch/downloads/hostfile/",
-                                MALWARE, true));
+                // URLhaus retired its public hostfile. Authenticated feeds belong in custom sources.
                 CATALOG.add(new CatalogEntry(
                                 "Phishing Army Extended",
                                 "https://phishing.army/download/phishing_army_blocklist_extended.txt",

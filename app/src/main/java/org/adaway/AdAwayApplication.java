@@ -12,6 +12,7 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.model.vpn.VpnModel;
 import org.adaway.ui.hosts.FilterSetStore;
@@ -38,6 +39,7 @@ public class AdAwayApplication extends Application {
      * The common update model for the whole application.
      */
     private UpdateModel updateModel;
+    private final SourceOperationCoordinator sourceOperations = new SourceOperationCoordinator();
 
     @Override
     public void onCreate() {
@@ -79,6 +81,10 @@ public class AdAwayApplication extends Application {
      */
     public SourceModel getSourceModel() {
         return this.sourceModel;
+    }
+
+    public SourceOperationCoordinator getSourceOperations() {
+        return this.sourceOperations;
     }
 
     /**

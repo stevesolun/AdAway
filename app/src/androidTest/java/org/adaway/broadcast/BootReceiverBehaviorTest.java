@@ -10,11 +10,9 @@ package org.adaway.broadcast;
 
 import static android.content.Intent.ACTION_BOOT_COMPLETED;
 import static android.content.Intent.ACTION_PACKAGE_REPLACED;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -89,11 +87,12 @@ public class BootReceiverBehaviorTest {
 
         assertEquals(0, gateway.prepareCalls);
         assertEquals(0, gateway.startCalls);
+        assertEquals(0, gateway.notificationRequests);
         assertEquals(0, recordingContext.startedActivities.size());
     }
 
     @Test
-    public void bootRestoreRequestsVpnPermissionWithoutStartingServiceWhenPermissionIsMissing() {
+    public void bootRestoreRequestsNotificationWithoutLaunchingConsentOrStartingService() {
         RecordingContext recordingContext = new RecordingContext(context);
         RecordingVpnGateway gateway = new RecordingVpnGateway();
         gateway.permissionRequired = true;
@@ -105,9 +104,8 @@ public class BootReceiverBehaviorTest {
 
         assertEquals(1, gateway.prepareCalls);
         assertEquals(0, gateway.startCalls);
-        assertEquals(1, recordingContext.startedActivities.size());
-        assertTrue((recordingContext.startedActivities.get(0).getFlags()
-                & FLAG_ACTIVITY_NEW_TASK) != 0);
+        assertEquals(1, gateway.notificationRequests);
+        assertEquals(0, recordingContext.startedActivities.size());
     }
 
     @Test
@@ -122,6 +120,7 @@ public class BootReceiverBehaviorTest {
 
         assertEquals(1, gateway.prepareCalls);
         assertEquals(1, gateway.startCalls);
+        assertEquals(0, gateway.notificationRequests);
         assertEquals(0, recordingContext.startedActivities.size());
     }
 
@@ -152,11 +151,18 @@ public class BootReceiverBehaviorTest {
         private boolean permissionRequired;
         private int prepareCalls;
         private int startCalls;
+        private int notificationRequests;
 
         @Override
         public Intent prepare(Context context) {
             prepareCalls++;
             return permissionRequired ? new Intent("org.adaway.TEST_VPN_PERMISSION") : null;
+        }
+
+        @Override
+        public void requestPermissionNotification(Context context) {
+            // Record the request only; this is not a real notification or consent grant.
+            notificationRequests++;
         }
 
         @Override

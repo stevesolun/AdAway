@@ -22,6 +22,8 @@ package org.adaway.model.root;
 
 import android.content.Context;
 
+import androidx.annotation.WorkerThread;
+
 import com.topjohnwu.superuser.Shell;
 
 import java.io.File;
@@ -74,12 +76,12 @@ class TcpdumpUtils {
      * @return returns true if starting worked
      */
     static boolean startTcpdump(Context context) {
-        Timber.w("Root tcpdump DNS logging is disabled pending a maintained native capture path.");
-        stopTcpdump();
-        clearLogFile(context);
         if (!TCPDUMP_CAPTURE_ENABLED) {
+            Timber.w("Root tcpdump DNS logging is disabled pending a maintained native capture path.");
             return false;
         }
+        stopTcpdump();
+        clearLogFile(context);
 
         File file = getLogFile(context);
         try {
@@ -108,6 +110,15 @@ class TcpdumpUtils {
      * Stop tcpdump.
      */
     static void stopTcpdump() {
+        if (!TCPDUMP_CAPTURE_ENABLED) {
+            return;
+        }
+        killBundledExecutable(TCPDUMP_EXECUTABLE);
+    }
+
+    /** Stop an old installation's capture process during background model initialization. */
+    @WorkerThread
+    static void cleanupLegacyTcpdump() {
         killBundledExecutable(TCPDUMP_EXECUTABLE);
     }
 

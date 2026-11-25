@@ -9,26 +9,26 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class CrashSurfaceHardeningTest {
 
     @Test
-    public void bootReceiverAddsNewTaskFlagBeforeStartingVpnPermissionActivity() throws IOException {
+    public void bootReceiverRequestsUserRecoveryWithoutStartingAnActivityOrVpn() throws IOException {
         String source = read("app/src/main/java/org/adaway/broadcast/BootRestoreController.java");
         int permissionBranch = source.indexOf("if (prepareIntent != null)");
-        int addNewTaskFlag = source.indexOf("prepareIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);",
+        int requestNotification = source.indexOf("this.mVpnGateway.requestPermissionNotification(context);",
                 permissionBranch);
-        int startPermissionActivity = source.indexOf("context.startActivity(prepareIntent);",
-                addNewTaskFlag);
-        int returnAfterPermissionRequest = source.indexOf("return;", startPermissionActivity);
+        int returnAfterPermissionRequest = source.indexOf("return;", requestNotification);
         int startVpnService = source.indexOf("this.mVpnGateway.start(context);",
                 returnAfterPermissionRequest);
 
-        assertTrue("Broadcast receivers must add FLAG_ACTIVITY_NEW_TASK before starting a VPN "
-                        + "permission Activity.",
-                addNewTaskFlag >= 0 && addNewTaskFlag < startPermissionActivity);
+        assertTrue("Missing consent must offer user-initiated recovery.",
+                permissionBranch >= 0 && requestNotification > permissionBranch);
+        assertFalse("Boot recovery must not launch a background permission Activity.",
+                source.contains("startActivity("));
         assertTrue("Boot restore must not start the VPN service until VPN permission is granted.",
-                startPermissionActivity < returnAfterPermissionRequest
+                requestNotification < returnAfterPermissionRequest
                         && returnAfterPermissionRequest < startVpnService);
     }
 

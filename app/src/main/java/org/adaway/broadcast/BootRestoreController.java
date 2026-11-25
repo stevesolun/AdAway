@@ -19,7 +19,6 @@
 
 package org.adaway.broadcast;
 
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 
 import android.content.Context;
@@ -27,6 +26,7 @@ import android.content.Intent;
 
 import androidx.annotation.Nullable;
 
+import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.vpn.VpnServiceControls;
@@ -50,8 +50,7 @@ class BootRestoreController {
 
         Intent prepareIntent = this.mVpnGateway.prepare(context);
         if (prepareIntent != null) {
-            prepareIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(prepareIntent);
+            this.mVpnGateway.requestPermissionNotification(context);
             return;
         }
 
@@ -62,6 +61,8 @@ class BootRestoreController {
         @Nullable
         Intent prepare(Context context);
 
+        void requestPermissionNotification(Context context);
+
         boolean start(Context context);
     }
 
@@ -70,6 +71,11 @@ class BootRestoreController {
         @Override
         public Intent prepare(Context context) {
             return android.net.VpnService.prepare(context);
+        }
+
+        @Override
+        public void requestPermissionNotification(Context context) {
+            NotificationHelper.showVpnPermissionNotification(context);
         }
 
         @Override

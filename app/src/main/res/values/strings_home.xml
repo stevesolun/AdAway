@@ -8,6 +8,12 @@
     <string name="home_count_zero">0</string>
     <string name="home_protection_status_active">Protection active</string>
     <string name="home_protection_status_inactive">Protection off</string>
+    <string name="home_protection_control">Ad blocking</string>
+    <string name="home_vpn_permission_required">VPN permission was not granted. Protection remains off.</string>
+    <string name="home_protection_status_vpn_no_rules">VPN enabled; no blocking rules loaded</string>
+    <string name="home_protection_status_no_rules">Ad blocking enabled; no blocking rules loaded</string>
+    <string name="home_protection_status_vpn_checking_rules">VPN enabled; checking blocking rules</string>
+    <string name="home_protection_status_checking_rules">Ad blocking enabled; checking blocking rules</string>
 
     <!-- Source card -->
     <plurals name="up_to_date_source_label">

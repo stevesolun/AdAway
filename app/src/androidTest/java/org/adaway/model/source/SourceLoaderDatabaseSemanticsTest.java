@@ -1,6 +1,7 @@
 package org.adaway.model.source;
 
 import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.db.entity.RuleKind.SUFFIX;
 import static org.junit.Assert.assertEquals;
@@ -168,6 +169,89 @@ public class SourceLoaderDatabaseSemanticsTest {
         return new SourceLoader(source, GENERATION).parse(
                 new BufferedReader(new StringReader(content)), hostListItemDao,
                 database.getOpenHelper().getWritableDatabase(), null, null);
+    }
+
+    @Test
+    public void hostsAliasesUseFastPathDeduplicationAndIgnoreComments() {
+        SqlUpdateDeduper deduper =
+                new SqlUpdateDeduper(database.getOpenHelper().getWritableDatabase());
+        try {
+            assertEquals(0, new SourceLoader(source, GENERATION).parse(
+                    new BufferedReader(new StringReader(
+                            "0.0.0.0 one.example\ttwo.example one.example # comment.example\n"
+                                    + "127.0.0.1 two.example three.example#ignored.example\n"
+                                    + "::1 four.example five.example\n")),
+                    hostListItemDao, database.getOpenHelper().getWritableDatabase(),
+                    null, deduper));
+        } finally {
+            deduper.drop();
+        }
+        database.getOpenHelper().getWritableDatabase().execSQL(
+                "UPDATE hosts_meta SET active_generation = ? WHERE id = 0",
+                new Object[]{GENERATION});
+        for (String host : new String[]{"one.example", "two.example", "three.example",
+                "four.example", "five.example"}) {
+            assertHostRow(host, EXACT.getValue());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry(host).getType());
+        }
+        assertEquals(5, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+        assertEquals(5L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage"));
+        assertMissingHost("comment.example");
+        assertMissingHost("ignored.example");
+        assertScratchTableAbsent();
+    }
+
+    @Test
+    public void hostsAliasesUseRoomPathAndCountMalformedLinesOnce() {
+        int skipped = new SourceLoader(source, GENERATION).parse(
+                new BufferedReader(new StringReader(
+                        "0.0.0.0 one.example two.example # comment.example\n"
+                                + "127.0.0.1 localhost three.example *.invalid.example bad/host\n")),
+                hostListItemDao);
+
+        assertEquals(1, skipped);
+        assertHostRow("one.example", EXACT.getValue());
+        assertHostRow("two.example", EXACT.getValue());
+        assertHostRow("three.example", EXACT.getValue());
+        assertEquals(3, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+        assertMissingHost("localhost");
+        assertMissingHost("*.invalid.example");
+        assertMissingHost("bad/host");
+        assertMissingHost("comment.example");
+    }
+
+    @Test
+    public void redirectAliasesPreservePublicAddressAndRejectPrivateAddresses() {
+        source.setRedirectEnabled(true);
+        database.hostsSourceDao().update(source);
+        assertEquals(1, parseText("9.9.9.9 one.example two.example # comment.example\n"
+                + "192.168.1.1 private-one.example private-two.example\n"));
+
+        for (String host : new String[]{"one.example", "two.example"}) {
+            assertEquals(1L, scalarLong("SELECT COUNT(*) FROM hosts_lists "
+                            + "WHERE host = ? AND type = ? AND redirection = ? "
+                            + "AND source_id = ? AND generation = ?",
+                    host, REDIRECTED.getValue(), "9.9.9.9", SOURCE_ID, GENERATION));
+        }
+        assertMissingHost("private-one.example");
+        assertMissingHost("private-two.example");
+        assertMissingHost("comment.example");
+    }
+
+    @Test
+    public void hostsAliasesDoNotEnableRedirectsOrBroadenAllowListSyntax() {
+        assertEquals(1, parseText("9.9.9.9 one.example two.example\n"
+                + "0.0.0.0 blocked.example\n"));
+        assertMissingHost("one.example");
+        assertMissingHost("two.example");
+        assertHostRow("blocked.example", EXACT.getValue());
+
+        source.setAllowEnabled(true);
+        database.hostsSourceDao().update(source);
+        assertEquals(1, parseText("0.0.0.0 one.example two.example\nallowed.example\n"));
+        assertMissingHost("one.example");
+        assertMissingHost("two.example");
+        assertEquals(1, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
     }
 
     @Test

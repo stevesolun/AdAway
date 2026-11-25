@@ -1,0 +1,10 @@
+path,sha256,scope,verification
+app/src/test/java/org/adaway/security/SecurityHardeningTest.java,7c0bca9fe765a0899ab0324f85c62e15e8dbf265c106199903262b4b35c0f4f3,Four release artifact/smoke cases only; all 53 methods retained,Standalone javac17 and selected JUnit cases
+app/src/test/java/org/adaway/security/ReleaseWorkflowRegressionTest.java,b687e2fe41a225b0a1763ed9aec1ad0a714b4c902bc83c43be18507fe9f3f274,Shared fixture for the three smoke cases; all 17 methods retained,Standalone javac17 and three selected JUnit cases
+app/src/test/java/org/adaway/scripts/ReleaseReadinessScriptTest.java,6badd9ef06d0e0c2225fa8305ba06c1ec614fbb844108581517b5de9fbf38964,Report schema migration and one added fail-closed mutation case,Standalone javac17 and all 14 readiness JUnit cases
+app/src/test/java/org/adaway/security/ReleaseArtifactTestHarness.java,24743d1e72ec9e28f4aa72f645b54115f5a025cd845c34f0ee0be362705b156d,New JUnit bridge to shared real-APK fixture cases,Standalone javac17; requires unskipped successful behavioral subprocesses
+scripts/tests/test_release_artifact_identity.py,58658f60b65cfb208e2dce6030d777b8627e4c7aceb6f9badc17722210b9214d,Real APK and authenticated metadata fixtures; pin/retry/report/physical mocks,Full 21-case Python suite passed
+scripts/tests/fixtures/release-tool-mock.py,20e2411ae0b066c2ce96a82901f556a21b9b903588b1d28080e94ce057ede093,Local-only gh and adb mocks; transient lookup and emulator responses,Full 21-case Python suite passed; no command forwarding
+scripts/tests/RunReleaseMigrationTests.java,70ae891270b4c9ed91c517a6dd1f0289f6c6edaec465469ecbe889d7c0662cbe,Standalone exact-case JUnit entry point; skips count as failures,Standalone javac17 and execution
+README.md,1a640bc92976bbd6da9cf3aaa734e4518f00be89f3673c0c5e5d9735ff36b026,Release smoke/readiness examples only; existing dirty content preserved,PowerShell smoke snippet parsed without execution
+RELEASING.md,88c16bf96dd8158db79e13286540c3095f267d95fb40e2bee24745250786d470,Local pre-attestation versus full bundle smoke and explicit provenance contract,PowerShell smoke snippet parsed without execution

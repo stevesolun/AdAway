@@ -532,14 +532,11 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_schedule_filter_set)
                 .setItems(arr, (d, which) -> {
-                    String choice = arr[which];
-                    if (choice.equals(getString(R.string.filter_set_schedule_current_selection))) {
-                        // Save current selection as a real set so it can be scheduled.
-                        String name = createScheduledSelectionName();
-                        saveFilterSet(name);
-                        promptScheduleForOne(name);
+                    if (which == 0) {
+                        // Keep the selected URLs in memory until the final time is confirmed.
+                        promptScheduleForOne(arr[which], getEnabledSourceUrls());
                     } else {
-                        promptScheduleForOne(choice);
+                        promptScheduleForOne(arr[which], null);
                     }
                 })
                 .setNegativeButton(R.string.button_cancel, null)
@@ -560,7 +557,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         return candidate;
     }
 
-    private void promptScheduleForOne(String name) {
+    private void promptScheduleForOne(String name, @Nullable Set<String> pendingUrls) {
         CharSequence[] scheduleOptions = new CharSequence[]{
                 getString(R.string.filter_set_schedule_off),
                 getString(R.string.filter_set_schedule_daily),
@@ -570,29 +567,43 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 .setTitle(name)
                 .setItems(scheduleOptions, (d, which) -> {
                     if (which == 0) {
-                        FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_OFF);
-                        FilterSetUpdateService.enable(requireContext());
+                        if (pendingUrls == null) {
+                            FilterSetStore.setSchedule(requireContext(), name,
+                                    FilterSetStore.SCHEDULE_OFF);
+                            FilterSetUpdateService.enable(requireContext());
+                        }
                         showScheduleApplied(scheduleOptions[which]);
                         return;
                     }
                     if (which == 1) {
                         // Daily -> pick time
                         pickTime((hour, minute) -> {
-                            FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
-                            FilterSetUpdateService.enable(requireContext());
+                            saveConfirmedSchedule(name, pendingUrls,
+                                    FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
                             showScheduleApplied(scheduleOptions[which]);
                         });
                         return;
                     }
                     // Weekly -> pick day then time
                     pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
-                        FilterSetStore.setSchedule(requireContext(), name, FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
-                        FilterSetUpdateService.enable(requireContext());
+                        saveConfirmedSchedule(name, pendingUrls,
+                                FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
                         showScheduleApplied(scheduleOptions[which]);
                     }));
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+    }
+
+    private void saveConfirmedSchedule(String name, @Nullable Set<String> pendingUrls,
+            int schedule, int weekdayIso, int hour, int minute) {
+        if (pendingUrls != null) {
+            FilterSetStore.saveScheduledSet(requireContext(), createScheduledSelectionName(),
+                    pendingUrls, schedule, weekdayIso, hour, minute);
+        } else {
+            FilterSetStore.setSchedule(requireContext(), name, schedule, weekdayIso, hour, minute);
+        }
+        FilterSetUpdateService.enable(requireContext());
     }
 
     private void showScheduleApplied(@NonNull CharSequence scheduleLabel) {

@@ -35,3 +35,6 @@ build
 
 # Local benchmark process markers
 tasks/benchmarks/*.pid
+
+# Python audit tooling caches
+__pycache__/

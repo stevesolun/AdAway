@@ -59,6 +59,59 @@ public class NotificationHelperContractTest {
     }
 
     @Test
+    public void bootRecoveryRequestsNotificationWithoutLaunchingConsentActivity() throws Exception {
+        String source = readRepoFile(
+                "app/src/main/java/org/adaway/broadcast/BootRestoreController.java");
+
+        assertFalse("A boot receiver must not launch the system consent activity.",
+                source.contains("startActivity(") || source.contains("FLAG_ACTIVITY_NEW_TASK"));
+        int missingConsent = source.indexOf("if (prepareIntent != null)");
+        int notification = source.indexOf("this.mVpnGateway.requestPermissionNotification(context)");
+        int start = source.indexOf("this.mVpnGateway.start(context)");
+        assertTrue("Missing consent must request a notification through the injected gateway.",
+                missingConsent >= 0 && notification > missingConsent);
+        assertTrue("Only the already-prepared branch may start the service.",
+                start > notification && source.substring(notification, start).contains("return;"));
+        assertTrue("The platform gateway must use the permission-respecting helper.",
+                source.contains("NotificationHelper.showVpnPermissionNotification(context)"));
+    }
+
+    @Test
+    public void vpnPermissionNotificationOnlyOpensHomeForExplicitUserResume() throws Exception {
+        String source = readNotificationHelperSource();
+        String show = methodBlock(source, "showVpnPermissionNotification");
+        String build = methodBlock(source, "buildVpnPermissionNotification");
+
+        int guard = show.indexOf("if (!canPostNotification(notificationManager, " +
+                "VPN_SERVICE_NOTIFICATION_CHANNEL))");
+        int notify = show.indexOf("notificationManager.notify(");
+        assertTrue("Boot alerts must respect notification permission and channel settings.",
+                guard >= 0 && notify > guard && show.substring(guard, notify).contains("return;"));
+        assertTrue("Service START must be able to clear a stale boot alert using its existing id.",
+                show.contains("VPN_RESUME_SERVICE_NOTIFICATION_ID,"));
+        assertTrue(build.contains("new Intent(context, HomeActivity.class)"));
+        assertTrue(build.contains("getActivity(context, VPN_RESUME_SERVICE_NOTIFICATION_ID,"));
+        assertTrue(build.contains("FLAG_IMMUTABLE"));
+        assertTrue(build.contains("VPN_SERVICE_NOTIFICATION_CHANNEL"));
+        assertTrue(build.contains(".setAutoCancel(true)"));
+        assertFalse("Opening Home must not carry an automatic activation or onboarding extra.",
+                build.contains("putExtra(") || build.contains("appendToIntent("));
+        assertFalse("The notification must not issue a service/broadcast command.",
+                build.contains("getBroadcast(") || build.contains("getService("));
+    }
+
+    @Test
+    public void notificationPostingGuardChecksAppAndChannelAvailability() throws Exception {
+        String guard = methodBlock(readNotificationHelperSource(), "canPostNotification");
+
+        assertTrue(guard.contains("notificationManager == null || " +
+                "!notificationManager.areNotificationsEnabled()"));
+        assertTrue(guard.contains("notificationManager.getNotificationChannel(channelId)"));
+        assertTrue(guard.contains("channel != null"));
+        assertTrue(guard.contains("channel.getImportance() != NotificationManager.IMPORTANCE_NONE"));
+    }
+
+    @Test
     public void vpnChannelReceivesVpnDescription() throws Exception {
         String source = readNotificationHelperSource();
 
@@ -110,8 +163,8 @@ public class NotificationHelperContractTest {
     }
 
     private static void assertNotificationBlockHasPermissionGuard(String block) {
-        int guard = block.indexOf("if (notificationManager == null || " +
-                "!notificationManager.areNotificationsEnabled())");
+        int guard = block.indexOf("if (!canPostNotification(notificationManager, " +
+                "UPDATE_NOTIFICATION_CHANNEL))");
         int builder = block.indexOf("buildUpdate");
         int notify = block.indexOf("notificationManager.notify(");
 
@@ -132,6 +185,9 @@ public class NotificationHelperContractTest {
         int start = source.indexOf("void " + methodName);
         if (start < 0) {
             start = source.indexOf("Notification " + methodName);
+        }
+        if (start < 0) {
+            start = source.indexOf("boolean " + methodName);
         }
         if (start < 0) {
             throw new AssertionError("Missing method: " + methodName);

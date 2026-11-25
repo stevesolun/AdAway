@@ -107,7 +107,14 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
         /*
          * Configure fab.
          */
-        this.binding.toggleLogRecording.setOnClickListener(v -> this.mViewModel.toggleRecording());
+        boolean loggingAvailable = !this.mViewModel.isDnsRequestLoggingUnavailable();
+        this.binding.toggleLogRecording.setEnabled(loggingAvailable);
+        if (loggingAvailable) {
+            this.binding.toggleLogRecording.setOnClickListener(v -> this.mViewModel.toggleRecording());
+        } else {
+            this.binding.toggleLogRecording.setContentDescription(
+                    getString(R.string.log_root_recording_unavailable));
+        }
         this.mViewModel.isRecording().observe(this, recoding ->
                 this.binding.toggleLogRecording.setImageResource(TRUE.equals(recoding) ?
                         R.drawable.ic_pause_24dp :

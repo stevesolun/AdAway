@@ -83,10 +83,10 @@ public class Manifest {
         requireExpectedToken("store", this.store, expectedStore);
 
         this.expiresAt = parseAndValidateExpiry(manifestObject.optString("expiresAt", null));
-        if (this.versionCode <= currentVersionCode) {
-            throw new JSONException("Manifest version is not newer than current version.");
+        if (this.versionCode < currentVersionCode) {
+            throw new JSONException("Manifest version is older than current version.");
         }
-        this.updateAvailable = true;
+        this.updateAvailable = this.versionCode > currentVersionCode;
     }
 
     private static void verifyPayloadSignature(

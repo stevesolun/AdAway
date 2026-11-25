@@ -236,6 +236,50 @@ public class DefaultListsSubscriberTest {
                 .get(InitialSourcesViewModel.class);
     }
 
+    @Test
+    public void preparationRemainsBusyThroughUpdateHandoffAndRunsOnce() {
+        Queue<Runnable> disk = new ArrayDeque<>();
+        Queue<Runnable> main = new ArrayDeque<>();
+        List<String> events = new ArrayList<>();
+        InitialSourcesViewModel initializer = new InitialSourcesViewModel();
+        Runnable update = () -> events.add("update");
+        Runnable started = () -> events.add("started");
+        Runnable finished = () -> events.add("finished");
+        initializer.initialize(disk::add, main::add, () -> true, update, started, finished);
+        initializer.initialize(disk::add, main::add, () -> true, update, started, finished);
+        assertEquals(java.util.Collections.singletonList("started"), events);
+        disk.remove().run();
+        assertEquals(java.util.Collections.singletonList("started"), events);
+        main.remove().run();
+        assertEquals(java.util.Arrays.asList("started", "update", "finished"), events);
+        assertTrue(disk.isEmpty());
+        assertTrue(main.isEmpty());
+    }
+
+    @Test
+    public void noDownloadPreparationAndCallbackFailuresReleaseBusyExactlyOnce() {
+        for (int mode = 0; mode < 3; mode++) {
+            final int outcome = mode;
+            AtomicInteger finished = new AtomicInteger();
+            AtomicInteger updates = new AtomicInteger();
+            try {
+                new InitialSourcesViewModel().initialize(Runnable::run, Runnable::run, () -> {
+                    if (outcome == 1) throw new IllegalStateException("prepare");
+                    return outcome == 2;
+                }, () -> {
+                    updates.incrementAndGet();
+                    throw new IllegalStateException("callback");
+                }, () -> { }, finished::incrementAndGet);
+                assertEquals(0, outcome);
+            } catch (IllegalStateException expected) {
+                assertTrue(outcome > 0);
+            }
+            assertEquals("Busy must be released exactly once for outcome " + outcome,
+                    1, finished.get());
+            assertEquals(outcome == 2 ? 1 : 0, updates.get());
+        }
+    }
+
     private static SourceStore productionSeededStore() {
         SourceStore store = new SourceStore();
         // Same conversion used by AppDatabase.initialize, not an empty Room test database.

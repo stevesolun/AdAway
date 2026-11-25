@@ -46,7 +46,8 @@ public class LogViewModel extends AndroidViewModel {
         this.hostListItemDao = this.database.hostsListItemDao();
         this.hostEntryDao = this.database.hostEntryDao();
         this.logEntries = new MutableLiveData<>();
-        this.recording = new MutableLiveData<>(this.adBlockModel.isRecordingLogs());
+        this.recording = new MutableLiveData<>(
+                !isDnsRequestLoggingUnavailable() && this.adBlockModel.isRecordingLogs());
         this.sort = LogEntrySort.TOP_LEVEL_DOMAIN;
     }
 
@@ -93,9 +94,13 @@ public class LogViewModel extends AndroidViewModel {
     }
 
     public void toggleRecording() {
+        if (isDnsRequestLoggingUnavailable()) {
+            this.recording.postValue(false);
+            return;
+        }
         boolean recording = !this.adBlockModel.isRecordingLogs();
         this.adBlockModel.setRecordingLogs(recording);
-        this.recording.postValue(recording);
+        this.recording.postValue(this.adBlockModel.isRecordingLogs());
     }
 
     public void addListItem(@NonNull String host, @NonNull ListType type, String redirection) {

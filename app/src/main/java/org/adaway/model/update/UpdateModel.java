@@ -12,6 +12,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Looper;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -21,6 +22,7 @@ import androidx.core.content.ContextCompat;
 import org.adaway.BuildConfig;
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
+import org.adaway.util.AppExecutors;
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -40,6 +42,12 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class UpdateModel {
+    public enum InstallState {
+        IDLE, DOWNLOADING, VERIFYING, PERMISSION_REQUIRED, INSTALLER_OPENED,
+        DOWNLOAD_FAILED, VERIFICATION_FAILED, INSTALL_FAILED, METADATA_EXPIRED,
+        CHECKING, CHECK_FAILED
+    }
+
     private static final String DOWNLOAD_URL = "https://app.adaway.org/adaway.apk?versionCode=";
     private final Context context;
     private final VersionInfo versionInfo;
@@ -51,6 +59,10 @@ public class UpdateModel {
     private final MutableLiveData<Manifest> manifest;
     private ApkDownloadReceiver receiver;
     private volatile ApkDownloadReceiver pendingInstaller;
+    private final MutableLiveData<InstallState> installState =
+            new MutableLiveData<>(InstallState.IDLE);
+    private volatile InstallState currentInstallState = InstallState.IDLE;
+    private long activeDownloadId = -1;
 
     /**
      * Constructor.
@@ -112,6 +124,60 @@ public class UpdateModel {
      */
     public LiveData<Manifest> getManifest() {
         return this.manifest;
+    }
+
+    public LiveData<InstallState> getInstallState() {
+        return this.installState;
+    }
+
+    public InstallState getCurrentInstallState() {
+        return this.currentInstallState;
+    }
+
+    private void setInstallState(InstallState state) {
+        this.currentInstallState = state;
+        if (state == InstallState.METADATA_EXPIRED) {
+            this.manifest.postValue(null);
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            this.installState.setValue(state);
+        } else {
+            this.installState.postValue(state);
+        }
+    }
+
+    private void onInstallState(long downloadId, InstallState state) {
+        Runnable publish = () -> {
+            if (this.activeDownloadId == downloadId) {
+                setInstallState(state);
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            publish.run();
+        } else {
+            AppExecutors.getInstance().mainThread().execute(publish);
+        }
+    }
+
+    /** Cancel any old authorization before explicitly fetching a new signed manifest. */
+    public void prepareManifestRefresh() {
+        unregisterReceiver();
+        if (this.pendingInstaller != null) {
+            this.pendingInstaller.cancel();
+            this.pendingInstaller = null;
+        }
+        setInstallState(InstallState.CHECKING);
+    }
+
+    public void refreshManifest() {
+        try {
+            Manifest refreshed = checkForUpdateManifest();
+            setInstallState(refreshed == null ? InstallState.CHECK_FAILED : InstallState.IDLE);
+        } catch (RuntimeException exception) {
+            Timber.w(exception, "Unable to refresh update authorization.");
+            this.manifest.postValue(null);
+            setInstallState(InstallState.CHECK_FAILED);
+        }
     }
 
     /**
@@ -235,39 +301,64 @@ public class UpdateModel {
         }
         // Check manifest
         Manifest manifest = this.manifest.getValue();
-        if (manifest == null) {
+        if (manifest == null || !manifest.updateAvailable) {
             return -1;
         }
         if (manifest.isExpired()) {
-            this.manifest.postValue(null);
+            setInstallState(InstallState.METADATA_EXPIRED);
             return -1;
         }
         // Check previous broadcast receiver
         unregisterReceiver();
+        if (this.pendingInstaller != null) {
+            this.pendingInstaller.cancel();
+        }
         this.pendingInstaller = null;
         // Queue download
-        long downloadId = download(manifest);
-        if (downloadId == -1) {
+        setInstallState(InstallState.DOWNLOADING);
+        long downloadId;
+        try {
+            downloadId = download(manifest);
+        } catch (RuntimeException exception) {
+            Timber.w(exception, "Unable to queue APK download.");
+            setInstallState(InstallState.DOWNLOAD_FAILED);
             return -1;
         }
+        if (downloadId == -1) {
+            setInstallState(InstallState.DOWNLOAD_FAILED);
+            return -1;
+        }
+        this.activeDownloadId = downloadId;
         // Register new broadcast receiver
-        this.receiver = new ApkDownloadReceiver(
+        ApkDownloadReceiver receiver = new ApkDownloadReceiver(
                 downloadId,
-                manifest.apkSha256,
-                manifest.signingCertificateSha256,
-                this::clearReceiver);
+                manifest,
+                this::clearReceiver,
+                state -> onInstallState(downloadId, state));
+        this.receiver = receiver;
         IntentFilter filter = new IntentFilter(ACTION_DOWNLOAD_COMPLETE);
-        ContextCompat.registerReceiver(
-                this.context, this.receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-        this.receiver.handleTerminalDownload(this.context);
+        // DownloadProvider can run under a different privileged UID, not the system UID.
+        // The receiver independently checks our download row and verifies the APK.
+        try {
+            ContextCompat.registerReceiver(
+                    this.context, receiver, filter, ContextCompat.RECEIVER_EXPORTED);
+            receiver.handleTerminalDownload(this.context);
+        } catch (RuntimeException exception) {
+            Timber.w(exception, "Unable to monitor APK download.");
+            unregisterReceiver();
+            setInstallState(InstallState.DOWNLOAD_FAILED);
+            return -1;
+        }
         // Return download identifier
         return downloadId;
     }
 
     private void unregisterReceiver() {
+        this.activeDownloadId = -1;
         if (this.receiver == null) {
             return;
         }
+        this.receiver.cancel();
         try {
             this.context.unregisterReceiver(this.receiver);
         } catch (IllegalArgumentException exception) {
@@ -296,6 +387,22 @@ public class UpdateModel {
             if (!installer.hasPendingInstall() && this.pendingInstaller == installer) {
                 this.pendingInstaller = null;
             }
+        }
+    }
+
+    /** Polling is only a hint, just like the broadcast; the receiver rechecks the owned row. */
+    public void handleDownloadCompletion(long downloadId) {
+        ApkDownloadReceiver receiver = this.receiver;
+        if (downloadId == this.activeDownloadId && receiver != null) {
+            receiver.handleTerminalDownload(this.context);
+        }
+    }
+
+    public void downloadTrackingFailed(long downloadId) {
+        if (downloadId == this.activeDownloadId
+                && this.currentInstallState == InstallState.DOWNLOADING) {
+            unregisterReceiver();
+            setInstallState(InstallState.DOWNLOAD_FAILED);
         }
     }
 

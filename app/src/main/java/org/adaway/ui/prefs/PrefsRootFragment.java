@@ -96,7 +96,7 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         Context context = getContext();
-        if (context == null) {
+        if (context == null || !isWebServerAvailable(context)) {
             return;
         }
         // Restart web server on icon change
@@ -213,8 +213,6 @@ public class PrefsRootFragment extends PreferenceFragmentCompat implements Share
         if (isWebServerAvailable(requireContext())) {
             return;
         }
-
-        stopWebServer();
 
         SwitchPreferenceCompat webServerEnabledPref =
                 findPreference(getString(R.string.pref_webserver_enabled_key));

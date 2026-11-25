@@ -1,5 +1,6 @@
 package org.adaway.ui.hosts;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.text.format.DateFormat;
 import android.widget.TextView;
@@ -7,8 +8,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.Lifecycle;
 
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 
 import org.adaway.R;
@@ -44,6 +45,7 @@ public class SchedulesActivity extends AppCompatActivity {
     private TextView globalStatus;
     private TextView filterSetSummary;
     private TextView sourceSummary;
+    private int mScreenGeneration;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -51,8 +53,10 @@ public class SchedulesActivity extends AppCompatActivity {
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.schedules_activity);
 
-        MaterialToolbar toolbar = findViewById(R.id.schedulesToolbar);
-        toolbar.setNavigationOnClickListener(v -> finish());
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(R.string.menu_manage_schedules);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         globalStatus = findViewById(R.id.globalStatus);
         filterSetSummary = findViewById(R.id.filterSetSchedulesSummary);
@@ -69,9 +73,27 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onSupportNavigateUp() {
+        finish();
+        return true;
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         refreshSummary();
+    }
+
+    @Override
+    protected void onPause() {
+        // Work queued for a screen being left must not reopen its picker on return.
+        mScreenGeneration++;
+        super.onPause();
+    }
+
+    private boolean canDeliverResult(int generation) {
+        return generation == mScreenGeneration && !isFinishing() && !isDestroyed()
+                && getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED);
     }
 
     private void refreshSummary() {
@@ -102,9 +124,12 @@ public class SchedulesActivity extends AppCompatActivity {
 
         // Source schedules summary
         // Room queries must not run on the main thread.
+        Context appContext = getApplicationContext();
+        int generation = mScreenGeneration;
         AppExecutors.getInstance().diskIO().execute(() -> {
-            android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-            HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
+            android.content.SharedPreferences prefs = appContext.getSharedPreferences(
+                    PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+            HostsSourceDao dao = AppDatabase.getInstance(appContext).hostsSourceDao();
             int scheduledSources = 0;
             for (HostsSource s : dao.getAll()) {
                 if (s.getId() == HostsSource.USER_SOURCE_ID) continue;
@@ -112,12 +137,15 @@ public class SchedulesActivity extends AppCompatActivity {
                 if (schedule != SCHEDULE_OFF) scheduledSources++;
             }
             final int finalScheduledSources = scheduledSources;
-            AppExecutors.getInstance().mainThread().execute(() -> sourceSummary.setText(finalScheduledSources == 0
-                    ? getString(R.string.schedule_off)
-                    : getResources().getQuantityString(
-                            R.plurals.schedule_sources_count,
-                            finalScheduledSources,
-                            finalScheduledSources)));
+            AppExecutors.getInstance().mainThread().execute(() -> {
+                if (!canDeliverResult(generation)) return;
+                sourceSummary.setText(finalScheduledSources == 0
+                        ? getString(R.string.schedule_off)
+                        : getResources().getQuantityString(
+                                R.plurals.schedule_sources_count,
+                                finalScheduledSources,
+                                finalScheduledSources));
+            });
         });
     }
 
@@ -137,7 +165,6 @@ public class SchedulesActivity extends AppCompatActivity {
                         refreshSummary();
                         return;
                     }
-                    FilterSetStore.setGlobalEnabled(this, true);
                     if (which == 1) {
                         pickTime((h, m) -> {
                             FilterSetStore.setGlobalSchedule(this, FilterSetStore.SCHEDULE_DAILY, 1, h, m);
@@ -208,8 +235,10 @@ public class SchedulesActivity extends AppCompatActivity {
 
     private void editSourceSchedules() {
         // Room query must not run on main thread.
+        Context appContext = getApplicationContext();
+        int generation = mScreenGeneration;
         AppExecutors.getInstance().diskIO().execute(() -> {
-            HostsSourceDao dao = AppDatabase.getInstance(this).hostsSourceDao();
+            HostsSourceDao dao = AppDatabase.getInstance(appContext).hostsSourceDao();
             List<HostsSource> sources = dao.getAll();
             List<HostsSource> pickable = new ArrayList<>();
             for (HostsSource s : sources) {
@@ -220,11 +249,15 @@ public class SchedulesActivity extends AppCompatActivity {
             String[] labels = new String[pickable.size()];
             for (int i = 0; i < pickable.size(); i++) labels[i] = pickable.get(i).getLabel();
 
-            AppExecutors.getInstance().mainThread().execute(() -> new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(R.string.source_edit_auto_update)
-                    .setItems(labels, (d, which) -> promptScheduleForUrl(pickable.get(which).getUrl()))
-                    .setNegativeButton(R.string.button_cancel, null)
-                    .show());
+            AppExecutors.getInstance().mainThread().execute(() -> {
+                if (!canDeliverResult(generation)) return;
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle(R.string.source_edit_auto_update)
+                        .setItems(labels,
+                                (d, which) -> promptScheduleForUrl(pickable.get(which).getUrl()))
+                        .setNegativeButton(R.string.button_cancel, null)
+                        .show();
+            });
         });
     }
 

@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import org.adaway.R;
@@ -106,7 +107,7 @@ public final class NotificationHelper {
     public static void showUpdateHostsNotification(@NonNull Context context) {
         // Get notification manager
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-        if (notificationManager == null || !notificationManager.areNotificationsEnabled()) {
+        if (!canPostNotification(notificationManager, UPDATE_NOTIFICATION_CHANNEL)) {
             return;
         }
         notificationManager.notify(
@@ -152,7 +153,7 @@ public final class NotificationHelper {
     public static void showUpdateApplicationNotification(@NonNull Context context) {
         // Get notification manager
         NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
-        if (notificationManager == null || !notificationManager.areNotificationsEnabled()) {
+        if (!canPostNotification(notificationManager, UPDATE_NOTIFICATION_CHANNEL)) {
             return;
         }
         notificationManager.notify(
@@ -169,6 +170,53 @@ public final class NotificationHelper {
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent pendingIntent = getActivity(context, 0, intent, FLAG_IMMUTABLE);
         return buildUpdateNotification(context, color, title, text, pendingIntent);
+    }
+
+    /**
+     * Offer Home's user-initiated resume flow when boot cannot restore VPN consent.
+     */
+    public static void showVpnPermissionNotification(@NonNull Context context) {
+        NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
+        if (!canPostNotification(notificationManager, VPN_SERVICE_NOTIFICATION_CHANNEL)) {
+            return;
+        }
+        notificationManager.notify(
+                VPN_RESUME_SERVICE_NOTIFICATION_ID,
+                buildVpnPermissionNotification(context)
+        );
+    }
+
+    /**
+     * Opening Home does not authorize or start the VPN; the user must choose Resume.
+     */
+    static Notification buildVpnPermissionNotification(@NonNull Context context) {
+        Intent intent = new Intent(context, HomeActivity.class);
+        intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent pendingIntent = getActivity(context, VPN_RESUME_SERVICE_NOTIFICATION_ID,
+                intent, FLAG_IMMUTABLE);
+        return new NotificationCompat.Builder(context, VPN_SERVICE_NOTIFICATION_CHANNEL)
+                .setSmallIcon(R.drawable.logo)
+                .setColor(context.getColor(R.color.notification))
+                .setShowWhen(false)
+                .setContentTitle(context.getString(R.string.notification_vpn_permission_title))
+                .setContentText(context.getString(R.string.notification_vpn_permission_text))
+                .setContentIntent(pendingIntent)
+                .setPriority(PRIORITY_LOW)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .build();
+    }
+
+    /**
+     * Channel suppression is independent of app-wide notification permission.
+     */
+    static boolean canPostNotification(@Nullable NotificationManager notificationManager,
+            @NonNull String channelId) {
+        if (notificationManager == null || !notificationManager.areNotificationsEnabled()) {
+            return false;
+        }
+        NotificationChannel channel = notificationManager.getNotificationChannel(channelId);
+        return channel != null && channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
     }
 
     /**

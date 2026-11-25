@@ -29,8 +29,19 @@ public class FilterListCatalogPresetTest {
                 containsLabel(defaults, "AdAway Official"));
         assertTrue("StevenBlack Unified remains a safe default",
                 containsLabel(defaults, "StevenBlack Unified"));
-        assertTrue("URLhaus Malware remains a security default",
-                containsLabel(defaults, "URLhaus Malware"));
+        assertTrue("Peter Lowe's list remains a safe default",
+                containsLabel(defaults, "Peter Lowe's Ad Servers"));
+    }
+
+    @Test
+    public void catalogAndPresets_excludeRetiredUnauthenticatedUrlhausFeed() {
+        String retiredUrl = "https://urlhaus.abuse.ch/downloads/hostfile/";
+        for (List<FilterListCatalog.CatalogEntry> entries : List.of(
+                FilterListCatalog.getAll(), FilterListCatalog.getDefaults(),
+                FilterListCatalog.getBalancedPreset(), FilterListCatalog.getAggressivePreset())) {
+            assertFalse("The retired HTTP 410 feed must not break a fresh installation",
+                    containsUrl(entries, retiredUrl));
+        }
     }
 
     @Test

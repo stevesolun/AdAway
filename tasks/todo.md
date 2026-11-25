@@ -1,3 +1,31 @@
+# Full File-by-File Audit - 2026-11-25 (Active)
+
+- [x] Revalidate clean worktree, merged baseline, previous completed review run,
+  and current open PRs; start `codex/full-codebase-audit` from `origin/master`.
+- [ ] Inventory every repository file with hash-bound review status; preserve
+  pending/stale coverage rather than infer review from passing tests.
+- [ ] Review every file, log confirmed bugs in
+  `tasks/audit-2026-11-25/bugs.csv`, and fix them with regression proof.
+- [ ] Enumerate and exercise every UI control and workflow, including cancellation,
+  denial, failure/retry, rotation, back navigation and multi-step operations.
+- [ ] Validate consolidated fixes locally, then through protected review/CI.
+- [ ] Audit full goal coverage before claiming completion. October release delivery
+  is historical evidence, not completion of this expanded audit.
+
+Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
+
+Latest checkpoint: 69 logged findings, with 47 scoped fixes verified. Full host
+validation passed 665 JVM cases (three skipped) and lint (34 warnings, no errors).
+The full API34 run executed 488 cases: 476 passed, ten skipped, two failed.
+Notification cleanup timing and truncated filter labels were corrected; all 22
+focused follow-up cases passed without skips. Prepared-consent notification and
+live VPN/DNS tests also passed separately. This is not yet a green full rerun.
+Release-safety changes are committed as `cce7b5b78`; the first Android batch is
+being recorded separately from the remaining specialists' fixes. Rule actions,
+domain checks, backup/settings, support and system-command fixes remain under
+validation. File/workflow coverage, protected delivery and final release remain
+open. No new audit release yet.
+
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log

@@ -14,6 +14,7 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -129,7 +130,7 @@ public class FilterSetUpdateWorker extends Worker {
 
         Timber.i("Scheduled update due (global=%b, sets=%d, sources=%d)",
                 globalScheduleDue, dueSetNames.size(), dueSourcesByUrl.size());
-        try {
+        try (SourceOperationCoordinator.Lease ignored = app.getSourceOperations().acquire()) {
             // Set scheduler task name for UI display
             String taskName = dueSetNames.isEmpty() ? "Scheduled Update" : String.join(", ", dueSetNames);
             sourceModel.setSchedulerTaskName(taskName);

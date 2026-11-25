@@ -4,10 +4,13 @@ import static org.adaway.model.adblocking.AdBlockMethod.UNDEFINED;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
 import android.net.VpnService;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -18,6 +21,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.ActivityHomeNavBinding;
@@ -42,7 +46,7 @@ import timber.log.Timber;
  *   - Sources  → {@link HostsSourcesTabFragment}
  *   - More     → {@link MoreFragment}
  *
- * All heavy home-screen logic (stats, progress, FAB) lives in {@link HomeFragment}.
+ * Home status, progress and inline controls live in {@link HomeFragment}.
  */
 public class HomeActivity extends AppCompatActivity {
 
@@ -50,9 +54,12 @@ public class HomeActivity extends AppCompatActivity {
     /** When set to {@code true} on the launch intent, the Discover tab is shown on open. */
     public static final String EXTRA_NAV_DISCOVER = "nav_discover";
     private static final String KEY_SELECTED_TAB = "selected_tab";
+    private static final String KEY_VPN_ENABLE_REQUESTED = "vpn_enable_requested";
 
     private ActivityHomeNavBinding binding;
     private int currentSelectedId = R.id.nav_home;
+    private boolean vpnEnableRequested;
+    private ActivityResultLauncher<Intent> prepareVpnLauncher;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -65,11 +72,33 @@ public class HomeActivity extends AppCompatActivity {
         this.binding = ActivityHomeNavBinding.inflate(getLayoutInflater());
         setContentView(this.binding.getRoot());
 
+        HomeViewModel protectionModel = new ViewModelProvider(this).get(HomeViewModel.class);
+        this.vpnEnableRequested = savedInstanceState != null
+                && savedInstanceState.getBoolean(KEY_VPN_ENABLE_REQUESTED);
+        protectionModel.setVpnConsentPending(this.vpnEnableRequested);
+        this.prepareVpnLauncher = registerForActivityResult(new StartActivityForResult(), result -> {
+            boolean requested = this.vpnEnableRequested;
+            this.vpnEnableRequested = false;
+            if (!requested) {
+                protectionModel.setVpnConsentPending(false);
+                return;
+            }
+            boolean vpnMethod = PreferenceHelper.getAdBlockMethod(this) == VPN;
+            boolean authorized = vpnMethod && result.getResultCode() == RESULT_OK
+                    && VpnService.prepare(this) == null;
+            protectionModel.onVpnConsentResult(authorized);
+            if (vpnMethod && !authorized) {
+                Snackbar.make(this.binding.getRoot(), R.string.home_vpn_permission_required,
+                        Snackbar.LENGTH_LONG).show();
+            }
+        });
+
         if (getIntent().getBooleanExtra(EXTRA_ONBOARDING_COMPLETE, false)) {
             ViewModelProvider provider = new ViewModelProvider(this);
             HomeViewModel homeViewModel = provider.get(HomeViewModel.class);
             provider.get(InitialSourcesViewModel.class)
-                    .initialize(getApplicationContext(), homeViewModel::update);
+                    .initialize(getApplicationContext(), homeViewModel::update,
+                            homeViewModel::beginInitialSources, homeViewModel::endInitialSources);
         }
 
         if (savedInstanceState != null) {
@@ -103,12 +132,14 @@ public class HomeActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         checkFirstStep();
+        new ViewModelProvider(this).get(HomeViewModel.class).resumeDeferredOperations();
     }
 
     @Override
     protected void onSaveInstanceState(@Nullable Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(KEY_SELECTED_TAB, this.currentSelectedId);
+        outState.putBoolean(KEY_VPN_ENABLE_REQUESTED, this.vpnEnableRequested);
     }
 
     @Override
@@ -185,15 +216,30 @@ public class HomeActivity extends AppCompatActivity {
             onboardingIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(onboardingIntent);
             finish();
-        } else if (adBlockMethod == VPN) {
-            // VPN permission may have been revoked; if so, let HomeFragment handle the
-            // re-authorization via its FAB click handler. No redirect needed here.
-            Intent prepareIntent = VpnService.prepare(this);
-            if (prepareIntent != null) {
-                // HomeFragment will re-ask when the user taps the FAB.
-                // We don't launch it automatically here to avoid interrupting navigation.
+        }
+    }
+
+    public void setProtectionEnabled(boolean enabled) {
+        HomeViewModel model = new ViewModelProvider(this).get(HomeViewModel.class);
+        if (!model.canChangeProtection()) return;
+        if (enabled && PreferenceHelper.getAdBlockMethod(this) == VPN) {
+            Intent prepare = VpnService.prepare(this);
+            if (prepare != null) {
+                this.vpnEnableRequested = true;
+                model.setVpnConsentPending(true);
+                try {
+                    this.prepareVpnLauncher.launch(prepare);
+                } catch (ActivityNotFoundException | SecurityException exception) {
+                    this.vpnEnableRequested = false;
+                    model.onVpnConsentResult(false);
+                    Timber.w(exception, "VPN authorization could not be opened.");
+                    Snackbar.make(this.binding.getRoot(), R.string.error_enable_vpn_failed_message,
+                            Snackbar.LENGTH_LONG).show();
+                }
+                return;
             }
         }
+        model.setProtectionEnabled(enabled);
     }
 
     private void checkAppUpdateAtStartup(@Nullable Bundle savedInstanceState) {

@@ -23,6 +23,7 @@ package org.adaway.util;
 import android.content.Context;
 
 import androidx.annotation.StringRes;
+import androidx.annotation.WorkerThread;
 
 import org.adaway.R;
 
@@ -46,6 +47,7 @@ import static org.adaway.model.root.ShellUtils.killBundledExecutable;
  */
 public class WebServerUtils {
     public static final String TEST_URL = "https://localhost/internal-test";
+    private static final boolean WEB_SERVER_ENABLED = false;
     private static final String WEB_SERVER_EXECUTABLE = "webserver";
 
     /**
@@ -65,6 +67,15 @@ public class WebServerUtils {
      * Stop the web server.
      */
     public static void stopWebServer() {
+        if (!WEB_SERVER_ENABLED) {
+            return;
+        }
+        killBundledExecutable(WEB_SERVER_EXECUTABLE);
+    }
+
+    /** Stop an old installation's server during background model initialization. */
+    @WorkerThread
+    public static void cleanupLegacyWebServer() {
         killBundledExecutable(WEB_SERVER_EXECUTABLE);
     }
 
@@ -74,11 +85,11 @@ public class WebServerUtils {
      * @return <code>true</code> if webs server is running, <code>false</code> otherwise.
      */
     public static boolean isWebServerRunning() {
-        return isBundledExecutableRunning(WEB_SERVER_EXECUTABLE);
+        return WEB_SERVER_ENABLED && isBundledExecutableRunning(WEB_SERVER_EXECUTABLE);
     }
 
     public static boolean isWebServerAvailable(Context context) {
-        return false;
+        return WEB_SERVER_ENABLED;
     }
 
     /**
@@ -88,6 +99,9 @@ public class WebServerUtils {
      */
     @StringRes
     public static int getWebServerState() {
+        if (!WEB_SERVER_ENABLED) {
+            return R.string.pref_webserver_state_unavailable;
+        }
         OkHttpClient client = new OkHttpClient();
         Request request = new Request.Builder()
                 .url(TEST_URL)

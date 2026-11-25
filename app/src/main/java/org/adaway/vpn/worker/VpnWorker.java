@@ -28,6 +28,7 @@ import static org.adaway.vpn.VpnStatus.STOPPED;
 import static org.adaway.vpn.VpnStatus.STOPPING;
 import static org.adaway.vpn.worker.VpnBuilder.establish;
 
+import android.net.Network;
 import android.os.ParcelFileDescriptor;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -45,6 +46,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.Collections;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -111,15 +115,19 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
      * @param vpnService The VPN service, also used as {@link android.content.Context}.
      */
     public VpnWorker(VpnService vpnService) {
+        this(vpnService, null, Collections.emptyList());
+    }
+
+    public VpnWorker(VpnService vpnService, Network network, List<InetAddress> dnsServers) {
         this.vpnService = vpnService;
         this.deviceWrites = new ConcurrentLinkedQueue<>();
         this.dnsQueryQueue = new DnsQueryQueue();
-        this.dnsServerMapper = new DnsServerMapper();
+        this.dnsServerMapper = new DnsServerMapper(network, dnsServers);
         this.dnsPacketProxy = new DnsPacketProxy(this, this.dnsServerMapper);
         this.connectionThrottler = new VpnConnectionThrottler();
         this.connectionMonitor = new VpnConnectionMonitor(
                 () -> this.vpnService.requestReconnect(this));
-        this.vpnWatchDog = new VpnWatchdog(this.vpnService::protect);
+        this.vpnWatchDog = new VpnWatchdog(this::protectWatchdogSocket);
         this.packetProcessor = new VpnPacketProcessor(
                 this.deviceWrites,
                 this.dnsPacketProxy::handleDnsRequest,
@@ -359,7 +367,8 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
 
     @Override
     public void forwardPacket(DatagramPacket packet) throws IOException {
-        try (DatagramSocket dnsSocket = openDnsSocket(packet, this.vpnService::protect)) {
+        try (DatagramSocket dnsSocket = openDnsSocket(packet, this.vpnService::protect,
+                this.dnsServerMapper::bindSocket)) {
             dnsSocket.send(packet);
         } catch (IOException e) {
             throw new IOException("Failed to forward packet.", e);
@@ -368,7 +377,8 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
 
     @Override
     public void forwardPacket(DatagramPacket outPacket, Consumer<byte[]> callback) throws IOException {
-        DatagramSocket dnsSocket = openDnsSocket(outPacket, this.vpnService::protect);
+        DatagramSocket dnsSocket = openDnsSocket(outPacket, this.vpnService::protect,
+                this.dnsServerMapper::bindSocket);
         try {
             dnsSocket.send(outPacket);
             // Enqueue DNS query
@@ -394,17 +404,41 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
 
     static DatagramSocket openDnsSocket(DatagramPacket packet, SocketProtector protector)
             throws IOException {
+        return openDnsSocket(packet, protector, socket -> { });
+    }
+
+    static DatagramSocket openDnsSocket(DatagramPacket packet, SocketProtector protector,
+                                        SocketBinder binder) throws IOException {
         DatagramSocket socket = new DatagramSocket();
         try {
             if (!protector.protect(socket)) {
                 throw new IOException("Failed to protect DNS socket from the VPN.");
             }
+            binder.bind(socket);
             // Accept replies only from the resolver and port this query was sent to.
             socket.connect(packet.getAddress(), packet.getPort());
             return socket;
         } catch (IOException | RuntimeException e) {
             socket.close();
             throw e;
+        }
+    }
+
+    @FunctionalInterface
+    interface SocketBinder {
+        void bind(DatagramSocket socket) throws IOException;
+    }
+
+    private boolean protectWatchdogSocket(DatagramSocket socket) {
+        if (!this.vpnService.protect(socket)) {
+            return false;
+        }
+        try {
+            this.dnsServerMapper.bindSocket(socket);
+            return true;
+        } catch (IOException exception) {
+            Timber.w(exception, "Failed to bind check-alive socket to upstream network.");
+            return false;
         }
     }
 

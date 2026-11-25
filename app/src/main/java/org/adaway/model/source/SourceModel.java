@@ -2,6 +2,7 @@ package org.adaway.model.source;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED;
+import static org.adaway.db.entity.SourceType.URL;
 import static org.adaway.model.error.HostError.DOWNLOAD_FAILED;
 import static org.adaway.model.error.HostError.NO_CONNECTION;
 import static org.adaway.model.error.HostError.UPDATE_IN_PROGRESS;
@@ -31,7 +32,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
-import org.adaway.db.converter.ZonedDateTimeConverter;
 import org.adaway.db.dao.HostEntryDao;
 import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
@@ -50,6 +50,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -380,10 +382,6 @@ public class SourceModel {
      * @throws HostErrorException If the hosts sources could not be checked.
      */
     public boolean checkForUpdate() throws HostErrorException {
-        // Check current connection
-        if (isDeviceOffline()) {
-            throw new HostErrorException(NO_CONNECTION);
-        }
         // Initialize update status
         boolean updateAvailable = false;
         // Get enabled hosts sources
@@ -392,6 +390,9 @@ public class SourceModel {
             // Return no update as no source
             this.updateAvailable.postValue(false);
             return false;
+        }
+        if (sources.stream().anyMatch(source -> source.getType() == URL) && isDeviceOffline()) {
+            throw new HostErrorException(NO_CONNECTION);
         }
         // Update state
         setState(R.string.status_check);
@@ -409,15 +410,17 @@ public class SourceModel {
             // Save last modified online
             this.hostsSourceDao.updateOnlineModificationDate(source.getId(), lastModifiedOnline);
             // Check if last modified online retrieved
-            if (lastModifiedOnline == null) {
+            if (lastModifiedLocal == null) {
+                updateAvailable = true;
+            } else if (lastModifiedOnline == null) {
                 // If not, consider update is available if install is older than a week
                 ZonedDateTime lastWeek = ZonedDateTime.now().minus(1, WEEKS);
-                if (lastModifiedLocal != null && lastModifiedLocal.isBefore(lastWeek)) {
+                if (lastModifiedLocal.isBefore(lastWeek)) {
                     updateAvailable = true;
                 }
             } else {
-                // Check if source was never installed or installed before the last update
-                if (lastModifiedLocal == null || lastModifiedOnline.isAfter(lastModifiedLocal)) {
+                // Check if source was installed before the last update
+                if (lastModifiedOnline.isAfter(lastModifiedLocal)) {
                     updateAvailable = true;
                 }
             }
@@ -537,7 +540,10 @@ public class SourceModel {
                 Timber.w("The content resolver does not support last modified column %s.", fileUri);
                 return null;
             }
-            return ZonedDateTimeConverter.fromTimestamp(cursor.getLong(columnIndex));
+            if (cursor.isNull(columnIndex)) {
+                return null;
+            }
+            return Instant.ofEpochMilli(cursor.getLong(columnIndex)).atZone(ZoneOffset.UTC);
         } catch (SecurityException e) {
             Timber.i(e, "The SAF permission was removed.");
             return null;
@@ -1534,10 +1540,6 @@ public class SourceModel {
 
     private TargetedSourceUpdate retrieveHostsSource(int sourceId, boolean syncAfter)
             throws HostErrorException {
-        // Check connection status
-        if (isDeviceOffline()) {
-            throw new HostErrorException(NO_CONNECTION);
-        }
         HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
         if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) {
             return null;
@@ -1555,6 +1557,9 @@ public class SourceModel {
                 postProgress(1, 1, source.getLabel(), 10000, 100);
             }
             return syncAfter ? null : TargetedSourceUpdate.disabled(sourceId);
+        }
+        if (source.getType() == URL && isDeviceOffline()) {
+            throw new HostErrorException(NO_CONNECTION);
         }
 
         // Compute current date in UTC timezone

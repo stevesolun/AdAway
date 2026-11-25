@@ -68,26 +68,37 @@ public class UpdateActivity extends AppCompatActivity {
             } else {
                 markUpToDate(manifest);
             }
+            renderProgress(this.updateViewModel.getDownloadProgress().getValue());
         });
     }
 
     private void bindProgress() {
-        this.updateViewModel.getDownloadProgress().observe(this, progress -> {
-            if (progress == null) {
-                Manifest manifest = this.updateViewModel.getAppManifest().getValue();
-                this.binding.updateButton.setVisibility(
-                        manifest != null && manifest.updateAvailable && !manifest.isExpired()
-                                ? VISIBLE : GONE);
-                this.binding.downloadProgressBar.setVisibility(GONE);
-                this.binding.downloadProgressBar.setProgress(0);
-                this.binding.progressTextView.setText(null);
-                return;
-            }
-            this.binding.updateButton.setVisibility(INVISIBLE);
-            this.binding.downloadProgressBar.setVisibility(VISIBLE);
-            this.binding.downloadProgressBar.setProgress(progress.getProgress(), true);
-            this.binding.progressTextView.setText(progress.format(this));
-        });
+        this.updateViewModel.getDownloadProgress().observe(this, this::renderProgress);
+    }
+
+    private void renderProgress(@Nullable DownloadStatus progress) {
+        if (progress == null) {
+            Manifest manifest = this.updateViewModel.getAppManifest().getValue();
+            this.binding.updateButton.setText(R.string.update_update_button);
+            this.binding.updateButton.setVisibility(
+                    manifest != null && manifest.updateAvailable && !manifest.isExpired()
+                            ? VISIBLE : GONE);
+            this.binding.downloadProgressBar.setVisibility(GONE);
+            this.binding.downloadProgressBar.setIndeterminate(false);
+            this.binding.downloadProgressBar.setProgress(0);
+            this.binding.progressTextView.setText(null);
+            return;
+        }
+        InstallDownloadStatus install = progress instanceof InstallDownloadStatus
+                ? (InstallDownloadStatus) progress : null;
+        boolean retry = install != null && install.canRetry();
+        this.binding.updateButton.setText(retry
+                ? install.actionLabel() : R.string.update_update_button);
+        this.binding.updateButton.setVisibility(retry ? VISIBLE : INVISIBLE);
+        this.binding.downloadProgressBar.setVisibility(retry ? GONE : VISIBLE);
+        this.binding.downloadProgressBar.setIndeterminate(install != null && !retry);
+        this.binding.downloadProgressBar.setProgress(progress.getProgress(), true);
+        this.binding.progressTextView.setText(progress.format(this));
     }
 
     private void markUpToDate(Manifest manifest) {
@@ -114,6 +125,7 @@ public class UpdateActivity extends AppCompatActivity {
     private void startUpdate(View view) {
         this.binding.updateButton.setVisibility(INVISIBLE);
         this.binding.downloadProgressBar.setVisibility(VISIBLE);
+        this.binding.downloadProgressBar.setIndeterminate(false);
         this.binding.downloadProgressBar.setProgress(0);
         this.binding.progressTextView.setText(null);
         this.updateViewModel.update();

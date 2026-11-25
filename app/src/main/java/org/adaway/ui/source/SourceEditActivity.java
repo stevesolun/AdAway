@@ -1,7 +1,6 @@
 package org.adaway.ui.source;
 
 import android.content.Intent;
-import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.format.DateFormat;
@@ -16,19 +15,15 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
 
-import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.databinding.SourceEditActivityBinding;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
-import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.FilterListsSourceMetadata;
-import org.adaway.model.source.SourceModel;
-import org.adaway.model.source.SourceUpdateService;
-import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 
@@ -45,6 +40,12 @@ import static org.adaway.ui.Animations.hideView;
 import static org.adaway.ui.Animations.setHidden;
 import static org.adaway.ui.Animations.setShown;
 import static org.adaway.ui.Animations.showView;
+import static org.adaway.ui.source.SourceEditViewModel.KEY_HOUR_PREFIX;
+import static org.adaway.ui.source.SourceEditViewModel.KEY_LAST_RUN_PREFIX;
+import static org.adaway.ui.source.SourceEditViewModel.KEY_MINUTE_PREFIX;
+import static org.adaway.ui.source.SourceEditViewModel.KEY_SCHEDULE_PREFIX;
+import static org.adaway.ui.source.SourceEditViewModel.KEY_WEEKDAY_PREFIX;
+import static org.adaway.ui.source.SourceEditViewModel.PREFS_SOURCE_SCHEDULES;
 
 /**
  * This activity create, edit and delete a hosts source.
@@ -73,23 +74,19 @@ public class SourceEditActivity extends AppCompatActivity {
      * The any type mime type.
      */
     private static final String ANY_MIME_TYPE = "*/*";
-    private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
-    private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
-    private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
-    private static final String KEY_HOUR_PREFIX = "hour_url_";
-    private static final String KEY_MINUTE_PREFIX = "minute_url_";
-    private static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
+    private static final String STATE_DRAFT = "sourceDraft";
 
     private static final int SCHEDULE_OFF = 0;
     private static final int SCHEDULE_DAILY = 1;
     private static final int SCHEDULE_WEEKLY = 2;
 
     private SourceEditActivityBinding binding;
-    private AppDatabase database;
     private HostsSourceDao hostsSourceDao;
+    private SourceEditViewModel mViewModel;
     private ActivityResultLauncher<Intent> startActivityLauncher;
     private boolean editing;
-    private boolean saving;
+    private boolean formInitialized;
+    private boolean restoringState;
     private HostsSource edited;
     private int initialFilterListId;
     @Nullable
@@ -122,12 +119,40 @@ public class SourceEditActivity extends AppCompatActivity {
         /*
          * Get database access.
          */
-        this.database = AppDatabase.getInstance(this);
-        this.hostsSourceDao = this.database.hostsSourceDao();
+        this.hostsSourceDao = AppDatabase.getInstance(this).hostsSourceDao();
+        this.mViewModel = new ViewModelProvider(this).get(SourceEditViewModel.class);
         // Register for activity
         registerForStartActivity();
         // Set up values
-        checkInitialValueFromIntent();
+        Bundle draft = savedInstanceState == null ? null : savedInstanceState.getBundle(STATE_DRAFT);
+        checkInitialValueFromIntent(draft);
+        this.mViewModel.getStatus().observe(this, this::renderMutationStatus);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (!this.formInitialized) return;
+        Bundle draft = new Bundle();
+        draft.putString("label", requireNonNull(this.binding.labelEditText.getText()).toString());
+        draft.putString("url", requireNonNull(this.binding.locationEditText.getText()).toString());
+        draft.putString("file", this.binding.fileLocationTextView.getText().toString());
+        draft.putBoolean("isFile", this.binding.typeButtonGroup.getCheckedButtonId() == R.id.file_button);
+        draft.putBoolean("allow", this.binding.allowFormatButton.isChecked());
+        draft.putBoolean("redirect", this.binding.redirectedHostsCheckbox.isChecked());
+        outState.putBundle(STATE_DRAFT, draft);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        // Restoring a checked type is not a request to launch the document picker.
+        this.restoringState = true;
+        try {
+            super.onRestoreInstanceState(savedInstanceState);
+        } finally {
+            this.restoringState = false;
+        }
+        renderMutationStatus(this.mViewModel.getStatus().getValue());
     }
 
     private void registerForStartActivity() {
@@ -146,19 +171,36 @@ public class SourceEditActivity extends AppCompatActivity {
         });
     }
 
-    private void checkInitialValueFromIntent() {
+    private void checkInitialValueFromIntent(@Nullable Bundle draft) {
         Intent intent = getIntent();
         int sourceId = intent.getIntExtra(SOURCE_ID, -1);
         this.editing = sourceId != -1;
+        if (draft != null) {
+            this.binding.labelEditText.setText(draft.getString("label"));
+            this.binding.locationEditText.setText(draft.getString("url"));
+            this.binding.fileLocationTextView.setText(draft.getString("file"));
+            this.binding.typeButtonGroup.check(draft.getBoolean("isFile")
+                    ? R.id.file_button : R.id.url_button);
+            this.binding.formatButtonGroup.check(draft.getBoolean("allow")
+                    ? R.id.allow_format_button : R.id.block_format_button);
+            this.binding.redirectedHostsCheckbox.setChecked(draft.getBoolean("redirect"));
+            initializeForm();
+        }
         if (this.editing) {
+            renderFormState();
             AppExecutors.getInstance().diskIO().execute(() -> {
                 Optional<HostsSource> hostsSource = this.hostsSourceDao.getById(sourceId);
                 hostsSource.ifPresent(source -> {
-                    this.edited = source;
                     AppExecutors.getInstance().mainThread().execute(() -> {
-                        applyInitialValues(source);
-                        bindLocation();
-                        bindFormats();
+                        if (isFinishing() || isDestroyed()) return;
+                        this.edited = source;
+                        if (!this.formInitialized) {
+                            // Material buttons ignore setChecked while disabled. Keep listeners
+                            // unbound until the source has supplied its initial type and format.
+                            setFormEnabled(true);
+                            applyInitialValues(source);
+                            initializeForm();
+                        }
                         invalidateOptionsMenu();
                     });
                 });
@@ -167,11 +209,11 @@ public class SourceEditActivity extends AppCompatActivity {
             setTitle(R.string.source_edit_add_title);
             // Prefill from optional extras
             String initialLabel = intent.getStringExtra(EXTRA_INITIAL_LABEL);
-            if (initialLabel != null) {
+            if (draft == null && initialLabel != null) {
                 this.binding.labelEditText.setText(initialLabel);
             }
             String initialUrl = intent.getStringExtra(EXTRA_INITIAL_URL);
-            if (initialUrl != null) {
+            if (draft == null && initialUrl != null) {
                 this.binding.typeButtonGroup.check(R.id.url_button);
                 this.binding.locationEditText.setText(initialUrl);
             }
@@ -185,13 +227,44 @@ public class SourceEditActivity extends AppCompatActivity {
                     intent.getIntArrayExtra(EXTRA_FILTER_LIST_LANGUAGE_IDS);
             this.initialFilterListSelectedUrl =
                     intent.getStringExtra(EXTRA_FILTER_LIST_SELECTED_URL);
-            this.binding.blockFormatButton.setChecked(!initialAllow);
-            this.binding.allowFormatButton.setChecked(initialAllow);
-            this.binding.redirectedHostsCheckbox.setChecked(!initialAllow && initialRedirect);
-            bindLocation();
-            bindFormats();
+            if (draft == null) {
+                this.binding.blockFormatButton.setChecked(!initialAllow);
+                this.binding.allowFormatButton.setChecked(initialAllow);
+                this.binding.redirectedHostsCheckbox.setChecked(!initialAllow && initialRedirect);
+                initializeForm();
+            }
             hideAddSourceAdvancedControls();
         }
+    }
+
+    private void initializeForm() {
+        this.formInitialized = true;
+        bindLocation();
+        bindFormats();
+        renderFormState();
+    }
+
+    private void renderFormState() {
+        boolean isFile = this.binding.typeButtonGroup.getCheckedButtonId() == R.id.file_button;
+        setFormEnabled(this.formInitialized && !this.mViewModel.isMutationBlocked());
+        this.binding.urlTextInputLayout.setVisibility(isFile ? INVISIBLE : VISIBLE);
+        this.binding.fileLocationTextView.setVisibility(isFile ? VISIBLE : INVISIBLE);
+        int redirectVisibility = this.binding.allowFormatButton.isChecked() ? View.GONE : VISIBLE;
+        this.binding.redirectedHostsCheckbox.setVisibility(redirectVisibility);
+        this.binding.redirectedHostsWarningTextView.setVisibility(redirectVisibility);
+        if (!this.editing) hideAddSourceAdvancedControls();
+    }
+
+    private void setFormEnabled(boolean enabled) {
+        boolean isFile = this.binding.typeButtonGroup.getCheckedButtonId() == R.id.file_button;
+        this.binding.labelEditText.setEnabled(enabled);
+        this.binding.urlButton.setEnabled(enabled);
+        this.binding.fileButton.setEnabled(enabled);
+        this.binding.blockFormatButton.setEnabled(enabled);
+        this.binding.allowFormatButton.setEnabled(enabled);
+        this.binding.redirectedHostsCheckbox.setEnabled(enabled);
+        this.binding.locationEditText.setEnabled(enabled && !isFile);
+        this.binding.fileLocationTextView.setEnabled(enabled);
     }
 
     private void hideAddSourceAdvancedControls() {
@@ -229,6 +302,7 @@ public class SourceEditActivity extends AppCompatActivity {
 
     private void bindLocation() {
         this.binding.typeButtonGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (this.restoringState) return;
             // Keep always one button checked
             if (group.getCheckedButtonId() == View.NO_ID) {
                 group.check(checkedId);
@@ -250,6 +324,7 @@ public class SourceEditActivity extends AppCompatActivity {
 
     private void bindFormats() {
         this.binding.blockFormatButton.addOnCheckedChangeListener((button, isChecked) -> {
+            if (this.restoringState) return;
             if (isChecked) {
                 showView(this.binding.redirectedHostsCheckbox);
                 showView(this.binding.redirectedHostsWarningTextView);
@@ -271,7 +346,8 @@ public class SourceEditActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        boolean ready = !this.saving && (!this.editing || this.edited != null);
+        boolean ready = !this.mViewModel.isMutationBlocked()
+                && (!this.editing || this.edited != null);
         menu.findItem(R.id.apply_action).setEnabled(ready);
         menu.findItem(R.id.delete_action).setEnabled(ready);
         menu.findItem(R.id.auto_update_action).setEnabled(ready);
@@ -280,19 +356,22 @@ public class SourceEditActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if ((item.getItemId() == R.id.apply_action || item.getItemId() == R.id.delete_action
+                || item.getItemId() == R.id.auto_update_action)
+                && (this.mViewModel.isMutationBlocked()
+                || (this.editing && this.edited == null))) {
+            return true;
+        }
         // Check item identifier
         if (item.getItemId() == R.id.delete_action) {
             confirmDeleteSource();
             return true;
         } else if (item.getItemId() == R.id.apply_action) {
-            if (this.saving || (this.editing && this.edited == null)) {
-                return true;
-            }
             HostsSource source = validate();
             if (source == null) {
                 return true;
             }
-            saveSource(source);
+            this.mViewModel.saveSource(this.editing ? this.edited.getId() : -1, source);
             return true;
         } else if (item.getItemId() == R.id.auto_update_action) {
             if (!this.editing) {
@@ -308,84 +387,6 @@ public class SourceEditActivity extends AppCompatActivity {
         return false;
     }
 
-    private void saveSource(HostsSource values) {
-        this.saving = true;
-        invalidateOptionsMenu();
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            boolean[] needsDownload = {false};
-            boolean[] runtimeChanged = {false};
-            String[] previousUrl = {null};
-            int error;
-            SourceModel sourceModel = ((AdAwayApplication) getApplication()).getSourceModel();
-            try {
-                error = sourceModel.runSourceMutation(() -> {
-                    int result = this.database.runInTransaction(() -> {
-                        int editedId = this.editing ? this.edited.getId() : -1;
-                        HostsSource duplicate = this.hostsSourceDao.getByUrl(values.getUrl())
-                                .orElse(null);
-                        if (duplicate != null && duplicate.getId() != editedId) {
-                            return R.string.source_edit_duplicate_url;
-                        }
-                        if (!this.editing) {
-                            this.hostsSourceDao.insert(values);
-                            needsDownload[0] = true;
-                            return 0;
-                        }
-                        HostsSource current = this.hostsSourceDao.getById(editedId).orElse(null);
-                        if (current == null || editedId == HostsSource.USER_SOURCE_ID) {
-                            return R.string.source_edit_save_failed;
-                        }
-                        boolean contentChanged = !current.getUrl().equals(values.getUrl())
-                                || current.isAllowEnabled() != values.isAllowEnabled()
-                                || current.isRedirectEnabled() != values.isRedirectEnabled();
-                        if (!current.getUrl().equals(values.getUrl())) {
-                            previousUrl[0] = current.getUrl();
-                        }
-                        // Updating in place preserves selection, downloaded rules and HTTP validators
-                        // for label-only edits. Recreating the row cascaded away all imported rules.
-                        current.setLabel(values.getLabel());
-                        current.setUrl(values.getUrl());
-                        current.setAllowEnabled(values.isAllowEnabled());
-                        current.setRedirectEnabled(values.isRedirectEnabled());
-                        FilterListsSourceMetadata.copy(values, current);
-                        this.hostsSourceDao.update(current);
-                        if (contentChanged) {
-                            this.database.hostsListItemDao().clearSourceHosts(editedId);
-                            this.database.getOpenHelper().getWritableDatabase().execSQL(
-                                    "DELETE FROM root_host_entries_stage WHERE source_id = ?",
-                                    new Object[]{editedId});
-                            this.hostsSourceDao.clearProperties(editedId);
-                            this.hostsSourceDao.updateSkippedCount(editedId, 0);
-                            this.hostsSourceDao.clearDownloadError(editedId);
-                            this.database.hostEntryDao().invalidateRootExportMaterializedCache();
-                            runtimeChanged[0] = true;
-                            needsDownload[0] = current.isEnabled();
-                        }
-                        return 0;
-                    });
-                    if (result == 0 && runtimeChanged[0]) {
-                        sourceModel.syncHostEntries();
-                    }
-                    return result;
-                });
-            } catch (HostErrorException exception) {
-                error = R.string.error_update_in_progress_message;
-            } catch (SQLiteException exception) {
-                error = R.string.source_edit_save_failed;
-            }
-            if (error == 0) {
-                if (previousUrl[0] != null) {
-                    clearSchedule(previousUrl[0]);
-                }
-                FilterSetStore.markCustomProfile(getApplicationContext());
-                if (needsDownload[0]) {
-                    SourceUpdateService.enqueueUpdateNow(getApplicationContext());
-                }
-            }
-            postMutationResult(error);
-        });
-    }
-
     private void confirmDeleteSource() {
         HostsSource source = this.edited;
         if (source == null) {
@@ -398,63 +399,29 @@ public class SourceEditActivity extends AppCompatActivity {
                         source.getLabel()))
                 .setNegativeButton(R.string.button_cancel, null)
                 .setPositiveButton(R.string.source_edit_delete_confirm_action,
-                        (dialog, which) -> deleteSource(source))
+                        (dialog, which) -> this.mViewModel.deleteSource(source.getId()))
                 .show();
     }
 
-    private void deleteSource(HostsSource source) {
-        if (this.saving) return;
-        this.saving = true;
+    private void renderMutationStatus(SourceEditViewModel.Status status) {
+        if (isFinishing() || isDestroyed()) return;
+        renderFormState();
         invalidateOptionsMenu();
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            SourceModel sourceModel = ((AdAwayApplication) getApplication()).getSourceModel();
-            String[] deletedUrl = {null};
-            int error;
-            try {
-                error = sourceModel.runSourceMutation(() -> {
-                    int result = this.database.runInTransaction(() -> {
-                        HostsSource current = this.hostsSourceDao.getById(source.getId())
-                                .orElse(null);
-                        if (current == null || current.getId() == HostsSource.USER_SOURCE_ID) {
-                            return R.string.source_edit_save_failed;
-                        }
-                        deletedUrl[0] = current.getUrl();
-                        this.hostsSourceDao.delete(current);
-                        this.database.getOpenHelper().getWritableDatabase().execSQL(
-                                "DELETE FROM root_host_entries_stage WHERE source_id = ?",
-                                new Object[]{current.getId()});
-                        this.database.hostEntryDao().invalidateRootExportMaterializedCache();
-                        return 0;
-                    });
-                    if (result == 0) sourceModel.syncHostEntries();
-                    return result;
-                });
-            } catch (HostErrorException exception) {
-                error = R.string.error_update_in_progress_message;
-            } catch (SQLiteException exception) {
-                error = R.string.source_edit_save_failed;
-            }
-            if (error == 0) {
-                clearSchedule(deletedUrl[0]);
-                FilterSetStore.markCustomProfile(getApplicationContext());
-            }
-            postMutationResult(error);
-        });
-    }
-
-    private void postMutationResult(int error) {
-        AppExecutors.getInstance().mainThread().execute(() -> {
-            this.saving = false;
-            if (isFinishing() || isDestroyed()) return;
-            invalidateOptionsMenu();
-            if (error == 0) {
-                finish();
-            } else if (this.binding.typeButtonGroup.getCheckedButtonId() == R.id.url_button) {
-                this.binding.locationEditText.setError(getString(error));
+        if (status == SourceEditViewModel.Status.SUCCEEDED) {
+            finish();
+            return;
+        }
+        if (status != SourceEditViewModel.Status.IDLE) {
+            this.binding.locationEditText.setError(null);
+            this.binding.fileLocationTextView.setError(null);
+        }
+        if (status.mError != 0) {
+            if (this.binding.typeButtonGroup.getCheckedButtonId() == R.id.url_button) {
+                this.binding.locationEditText.setError(getString(status.mError));
             } else {
-                this.binding.fileLocationTextView.setError(getString(error));
+                this.binding.fileLocationTextView.setError(getString(status.mError));
             }
-        });
+        }
     }
 
     private void promptAutoUpdateSchedule(String url) {
@@ -497,17 +464,6 @@ public class SourceEditActivity extends AppCompatActivity {
         // Reset last-run when schedule changes so it runs next occurrence.
         e.remove(KEY_LAST_RUN_PREFIX + url);
         e.apply();
-    }
-
-    private void clearSchedule(String url) {
-        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-        prefs.edit()
-                .remove(KEY_SCHEDULE_PREFIX + url)
-                .remove(KEY_WEEKDAY_PREFIX + url)
-                .remove(KEY_HOUR_PREFIX + url)
-                .remove(KEY_MINUTE_PREFIX + url)
-                .remove(KEY_LAST_RUN_PREFIX + url)
-                .apply();
     }
 
     private interface TimePicked {

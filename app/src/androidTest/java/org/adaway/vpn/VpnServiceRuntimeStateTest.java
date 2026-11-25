@@ -14,7 +14,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 @RunWith(AndroidJUnit4.class)
 public class VpnServiceRuntimeStateTest {
@@ -69,10 +68,9 @@ public class VpnServiceRuntimeStateTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             try {
                 VpnService service = new VpnService();
-                Method available = VpnService.class.getDeclaredMethod(
-                        "addNetworkType", VpnService.NetworkType.class);
-                available.setAccessible(true);
-                available.invoke(service, VpnService.NetworkType.WIFI);
+                VpnNetworkMonitor monitor = (VpnNetworkMonitor) field("networkMonitor").get(service);
+                monitor.onAvailable(VpnNetworkMonitorInstrumentedTest.network(100));
+                service.applyNetworkChange();
                 assertNull(field("vpnWorker").get(service));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
