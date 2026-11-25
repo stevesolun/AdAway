@@ -208,6 +208,7 @@ function Test-UxInstrumentationResult {
         [AllowNull()][string]$Output
     )
 
+    if ($null -eq $ExitCode -or $ExitCode -ne 0) { return $false }
     $text = if ($null -eq $Output) { "" } else { $Output }
     $hasFailure = $text -match "(?im)^\s*FAILURES!!!\s*$|Process crashed|" +
             "^\s*INSTRUMENTATION_(RESULT|STATUS):\s*(shortMsg|stack)="
@@ -215,7 +216,7 @@ function Test-UxInstrumentationResult {
         return $false
     }
 
-    return $text -match "(?m)^\s*OK\s+\(\d+\s+tests?\)\s*$"
+    return $text -match "(?m)^\s*OK\s+\([1-9]\d*\s+tests?\)\s*$"
 }
 
 function Install-TestPackages {
