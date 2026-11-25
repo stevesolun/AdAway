@@ -15,13 +15,18 @@ import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.ListType;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.ui.lists.type.AbstractListFragment;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.RegexUtils;
 
 import java.util.Optional;
 
 import static androidx.lifecycle.Transformations.switchMap;
+import static androidx.lifecycle.Transformations.distinctUntilChanged;
+import static androidx.lifecycle.Transformations.map;
 import static androidx.paging.PagingLiveData.getLiveData;
+import static androidx.paging.PagingLiveData.cachedIn;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
@@ -35,9 +40,11 @@ import static org.adaway.ui.lists.ListsFilter.ALL;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class ListsViewModel extends AndroidViewModel {
+    private final AppDatabase database;
     private final HostListItemDao hostListItemDao;
     private final HostsSourceDao hostsSourceDao;
     private final MutableLiveData<ListsFilter> filter;
+    private final LiveData<String> searchQuery;
     private final LiveData<PagingData<HostListItem>> blockedListItems;
     private final LiveData<PagingData<HostListItem>> allowedListItems;
     private final LiveData<PagingData<HostListItem>> redirectedListItems;
@@ -45,23 +52,24 @@ public class ListsViewModel extends AndroidViewModel {
 
     public ListsViewModel(@NonNull Application application) {
         super(application);
-        AppDatabase database = AppDatabase.getInstance(application);
+        this.database = AppDatabase.getInstance(application);
         this.hostListItemDao = database.hostsListItemDao();
         this.hostsSourceDao = database.hostsSourceDao();
         this.filter = new MutableLiveData<>(ALL);
+        this.searchQuery = distinctUntilChanged(map(this.filter, value -> value.query));
         PagingConfig pagingConfig = new PagingConfig(50, 150, true);
-        this.blockedListItems = switchMap(
+        this.blockedListItems = cachedIn(switchMap(
                 this.filter,
                 filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao.loadList(BLOCKED.getValue(),
-                        filter.sourcesIncluded, filter.sqlQuery))));
-        this.allowedListItems = switchMap(
+                        filter.sourcesIncluded, filter.sqlQuery)))), this);
+        this.allowedListItems = cachedIn(switchMap(
                 this.filter,
                 filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao.loadList(ALLOWED.getValue(),
-                        filter.sourcesIncluded, filter.sqlQuery))));
-        this.redirectedListItems = switchMap(
+                        filter.sourcesIncluded, filter.sqlQuery)))), this);
+        this.redirectedListItems = cachedIn(switchMap(
                 this.filter,
                 filter -> getLiveData(new Pager<>(pagingConfig, () -> this.hostListItemDao
-                        .loadList(REDIRECTED.getValue(), filter.sourcesIncluded, filter.sqlQuery))));
+                        .loadList(REDIRECTED.getValue(), filter.sourcesIncluded, filter.sqlQuery)))), this);
         this.modelChanged = new MutableLiveData<>(false);
     }
 
@@ -81,18 +89,21 @@ public class ListsViewModel extends AndroidViewModel {
         return this.modelChanged;
     }
 
-    public void toggleItemEnabled(HostListItem item) {
-        item.setEnabled(!item.isEnabled());
+    public void setItemEnabled(HostListItem item, boolean enabled) {
+        HostListItem updated = copyItem(item);
+        updated.setEnabled(enabled);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            this.hostListItemDao.update(item);
-            this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
+            this.database.runInTransaction(() -> {
+                this.hostListItemDao.update(updated);
+                this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+            });
             this.modelChanged.postValue(true);
         });
     }
 
-    public void addListItem(@NonNull ListType type, @NonNull String host, String redirection) {
-        if (host.isEmpty() || host.length() > 253) {
-            return; // DNS hostname max is 253 characters
+    public boolean addListItem(@NonNull ListType type, @NonNull String host, String redirection) {
+        if (!isValidListItem(type, host, redirection)) {
+            return false;
         }
         HostListItem item = new HostListItem();
         item.setType(type);
@@ -101,11 +112,13 @@ public class ListsViewModel extends AndroidViewModel {
         item.setEnabled(true);
         item.setSourceId(USER_SOURCE_ID);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            addOrUpdateItemInternal(item);
-            this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+            this.database.runInTransaction(() -> {
+                addOrUpdateItemInternal(item);
+                this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+            });
             this.modelChanged.postValue(true);
-            this.refresh();
         });
+        return true;
     }
 
     private void addOrUpdateItemInternal(HostListItem item) {
@@ -118,15 +131,22 @@ public class ListsViewModel extends AndroidViewModel {
         }
     }
 
-    public void updateListItem(@NonNull HostListItem item, @NonNull String host, String redirection) {
-        item.setHost(host);
-        item.setRedirection(redirection);
+    public boolean updateListItem(@NonNull HostListItem item, @NonNull String host,
+            String redirection) {
+        if (!isValidListItem(item.getType(), host, redirection)) {
+            return false;
+        }
+        HostListItem updated = copyItem(item);
+        updated.setHost(host);
+        updated.setRedirection(redirection);
         AppExecutors.getInstance().diskIO().execute(() -> {
-            this.hostListItemDao.update(item);
-            this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
+            this.database.runInTransaction(() -> {
+                this.hostListItemDao.update(updated);
+                this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+            });
             this.modelChanged.postValue(true);
-            this.refresh();
         });
+        return true;
     }
 
     public void removeListItem(HostListItem list) {
@@ -138,58 +158,75 @@ public class ListsViewModel extends AndroidViewModel {
     }
 
     public void moveListItem(HostListItem item) {
-        ListType newType;
-        if (item.getType() == BLOCKED) {
-            newType = ALLOWED;
-        } else if (item.getType() == ALLOWED) {
-            newType = BLOCKED;
-        } else {
-            return; // Ignore REDIRECTED or other types for now
+        if (!canMoveListItem(item)) {
+            return;
         }
+        ListType newType = item.getType() == ALLOWED ? BLOCKED : ALLOWED;
+        HostListItem updated = copyItem(item);
 
         if (item.getSourceId() == USER_SOURCE_ID) {
-            item.setType(newType);
+            updated.setType(newType);
+            updated.setRedirection(null);
             AppExecutors.getInstance().diskIO().execute(() -> {
-                this.hostListItemDao.update(item);
-                this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+                this.database.runInTransaction(() -> {
+                    this.hostListItemDao.update(updated);
+                    this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+                });
                 this.modelChanged.postValue(true);
-                this.refresh();
             });
         } else {
-            // Source item -> Add new User Item override
             HostListItem newItem = new HostListItem();
             newItem.setType(newType);
-            newItem.setKind(item.getKind());
+            newItem.setKind(item.getType() == REDIRECTED ? RuleKind.EXACT : item.getKind());
             newItem.setHost(item.getHost());
-            newItem.setRedirection(item.getRedirection());
             newItem.setEnabled(true);
             newItem.setSourceId(USER_SOURCE_ID);
+            updated.setEnabled(false);
 
-            // Execute as atomic transaction block
             AppExecutors.getInstance().diskIO().execute(() -> {
-                // 1. Add/Update the User Override Rule
-                addOrUpdateItemInternal(newItem);
-
-                // 2. Disable the original Source Item (visual only)
-                item.setEnabled(false);
-                this.hostListItemDao.update(item);
-                this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
-                this.hostsSourceDao.updateActiveRuleStats(item.getSourceId());
-
-                // 3. Notify and Refresh once
+                // Redirects outrank allows: disable this row with the exact exception.
+                this.database.runInTransaction(() -> {
+                    addOrUpdateItemInternal(newItem);
+                    this.hostListItemDao.update(updated);
+                    this.hostsSourceDao.updateActiveRuleStats(USER_SOURCE_ID);
+                    this.hostsSourceDao.updateActiveRuleStats(updated.getSourceId());
+                });
                 this.modelChanged.postValue(true);
-                this.refresh();
             });
         }
     }
 
-    private void refresh() {
-        ListsFilter current = getFilter();
-        setFilter(new ListsFilter(current.sourcesIncluded, current.query));
+    public static boolean canMoveListItem(HostListItem item) {
+        return item.getType() == BLOCKED || item.getType() == ALLOWED
+                || (item.getType() == REDIRECTED && item.getSourceId() != USER_SOURCE_ID);
+    }
+
+    private static boolean isValidListItem(ListType type, String host, String redirection) {
+        if (type == ALLOWED) {
+            return RegexUtils.isValidWildcardHostname(host);
+        }
+        return RegexUtils.isValidHostname(host) && (type != REDIRECTED
+                || (redirection != null && RegexUtils.isValidRedirectIp(redirection)));
+    }
+
+    private static HostListItem copyItem(HostListItem item) {
+        HostListItem copy = new HostListItem();
+        copy.setId(item.getId());
+        copy.setHost(item.getHost());
+        copy.setType(item.getType());
+        copy.setKind(item.getKind());
+        copy.setEnabled(item.isEnabled());
+        copy.setRedirection(item.getRedirection());
+        copy.setSourceId(item.getSourceId());
+        copy.setGeneration(item.getGeneration());
+        return copy;
     }
 
     public void search(String query) {
         ListsFilter currentFilter = getFilter();
+        if (currentFilter.query.equals(query)) {
+            return;
+        }
         ListsFilter newFilter = new ListsFilter(currentFilter.sourcesIncluded, query);
         setFilter(newFilter);
     }
@@ -212,6 +249,10 @@ public class ListsViewModel extends AndroidViewModel {
 
     public String getSearchQuery() {
         return getFilter().query;
+    }
+
+    public LiveData<String> getSearchQueryData() {
+        return this.searchQuery;
     }
 
     private ListsFilter getFilter() {

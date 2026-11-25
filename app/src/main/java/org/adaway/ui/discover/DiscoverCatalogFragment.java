@@ -44,7 +44,7 @@ import java.util.Set;
 /**
  * Fragment for browsing and adding filter lists from the curated catalog.
  *
- * Ported from FilterCatalogActivity. Embedded into DiscoverFragment as the first sub-tab.
+ * Legacy catalog ported from FilterCatalogActivity; not mounted by current app navigation.
  */
 public class DiscoverCatalogFragment extends Fragment {
 
@@ -54,6 +54,7 @@ public class DiscoverCatalogFragment extends Fragment {
     private CatalogAdapter adapter;
     private Set<String> existingUrls = new HashSet<>();
     private Set<FilterListCatalog.CatalogEntry> selectedEntries = new HashSet<>();
+    private boolean updatingSelectAll;
 
     private List<FilterListCatalog.CatalogEntry> allEntries;
     private List<FilterListCatalog.CatalogEntry> filteredEntries;
@@ -82,7 +83,7 @@ public class DiscoverCatalogFragment extends Fragment {
         binding.addSelectedButton.setOnClickListener(v -> addSelectedSources());
 
         binding.catalogSelectAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (this.binding == null) return;
+            if (this.binding == null || updatingSelectAll) return;
             if (filteredEntries == null) return;
             markCustomSelection();
             selectedEntries.clear();
@@ -163,11 +164,9 @@ public class DiscoverCatalogFragment extends Fragment {
         }
 
         updateFilteredEntries(nextFilteredEntries);
+        pruneHiddenSelection();
         updateSubtitle();
-
-        if (binding != null && binding.catalogSelectAllSwitch.isChecked()) {
-            binding.catalogSelectAllSwitch.setChecked(false);
-        }
+        updateAddButton();
     }
 
     private void applyPreset(String preset) {
@@ -197,6 +196,7 @@ public class DiscoverCatalogFragment extends Fragment {
             }
         }
 
+        pruneHiddenSelection();
         notifyCatalogRowsChanged();
         updateAddButton();
 
@@ -232,6 +232,30 @@ public class DiscoverCatalogFragment extends Fragment {
         selectedProfileUrls.clear();
         if (binding != null) {
             binding.chipCustom.setChecked(true);
+        }
+    }
+
+    private void pruneHiddenSelection() {
+        if (filteredEntries != null && selectedEntries.retainAll(filteredEntries)) {
+            markCustomSelection();
+        }
+    }
+
+    private void updateSelectAllSwitch() {
+        if (binding == null || filteredEntries == null) return;
+        boolean hasSelectable = false;
+        boolean allSelected = true;
+        for (FilterListCatalog.CatalogEntry entry : filteredEntries) {
+            if (existingUrls.contains(entry.url)) continue;
+            hasSelectable = true;
+            if (!selectedEntries.contains(entry)) allSelected = false;
+        }
+        // Reflect row state without invoking the user's select/clear-all command.
+        updatingSelectAll = true;
+        try {
+            binding.catalogSelectAllSwitch.setChecked(hasSelectable && allSelected);
+        } finally {
+            updatingSelectAll = false;
         }
     }
 
@@ -302,6 +326,7 @@ public class DiscoverCatalogFragment extends Fragment {
 
     private void updateAddButton() {
         if (binding == null) return;
+        updateSelectAllSwitch();
         int count = selectedEntries.size();
         if (count > 0) {
             binding.addSelectedButton.setText(
@@ -451,9 +476,6 @@ public class DiscoverCatalogFragment extends Fragment {
                     selectedEntries.add(entry);
                 } else {
                     selectedEntries.remove(entry);
-                    if (binding != null && binding.catalogSelectAllSwitch.isChecked()) {
-                        binding.catalogSelectAllSwitch.setChecked(false);
-                    }
                 }
                 updateAddButton();
                 if (binding != null) binding.chipCustom.setChecked(true);

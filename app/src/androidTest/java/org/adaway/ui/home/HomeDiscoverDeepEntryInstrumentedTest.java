@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -73,6 +74,14 @@ public class HomeDiscoverDeepEntryInstrumentedTest {
             scenario.onActivity(activity -> {
                 View cta = activity.findViewById(R.id.discoverCta);
                 assertNotNull(cta);
+                View scroll = activity.findViewById(R.id.home_scroll_view);
+                Rect ctaBounds = new Rect();
+                Rect scrollBounds = new Rect();
+                assertTrue("Discover command must be visible", cta.getGlobalVisibleRect(ctaBounds));
+                assertTrue("Home content must be visible", scroll.getGlobalVisibleRect(scrollBounds));
+                assertTrue("Discover command must not cover scrolling status content: "
+                                + ctaBounds + " vs " + scrollBounds,
+                        scrollBounds.bottom <= ctaBounds.top);
                 cta.performClick();
             });
 

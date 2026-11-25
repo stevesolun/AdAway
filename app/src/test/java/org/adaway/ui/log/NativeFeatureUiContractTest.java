@@ -50,7 +50,7 @@ public class NativeFeatureUiContractTest {
         assertTrue(configure.contains("webServerIcon.setEnabled(false)"));
         assertTrue(configure.contains("webServerIcon.setChecked(false)"));
         String listener = source.substring(source.indexOf("public void onSharedPreferenceChanged"),
-                source.indexOf("private void registerForOpenHostActivity"));
+                source.indexOf("private void bindOpenHostsFile"));
         assertTrue(listener.contains("if (context == null || !isWebServerAvailable(context)) {\n"
                 + "            return;\n"));
         assertFalse(source.contains("cleanupLegacy"));

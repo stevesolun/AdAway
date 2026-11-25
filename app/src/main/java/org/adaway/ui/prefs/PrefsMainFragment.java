@@ -3,6 +3,7 @@ package org.adaway.ui.prefs;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -34,7 +35,10 @@ import static org.adaway.util.Constants.PREFS_NAME;
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
-public class PrefsMainFragment extends PreferenceFragmentCompat {
+public class PrefsMainFragment extends PreferenceFragmentCompat
+        implements SharedPreferences.OnSharedPreferenceChangeListener {
+    private SharedPreferences vpnPreferences;
+
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         // Configure preferences
@@ -46,6 +50,26 @@ public class PrefsMainFragment extends PreferenceFragmentCompat {
         bindTelemetryPrefAction();
         bindToolsAndSupportActions();
         bindLanguagePref();
+        this.vpnPreferences = getPreferenceManager().getSharedPreferences();
+        if (this.vpnPreferences != null) {
+            this.vpnPreferences.registerOnSharedPreferenceChangeListener(this);
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (this.vpnPreferences != null) {
+            this.vpnPreferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
+        Context context = getContext();
+        if (context != null && context.getString(R.string.pref_enable_ipv6_key).equals(key)) {
+            PrefsVpnFragment.restartRunningVpn(context);
+        }
     }
 
     @Override

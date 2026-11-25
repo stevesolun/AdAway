@@ -36,6 +36,7 @@ import org.adaway.util.Clipboard;
 import kotlin.Unit;
 
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
+import static org.adaway.db.entity.ListType.REDIRECTED;
 
 /**
  * This class is a {@link Fragment} to display and manage lists of
@@ -133,6 +134,7 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
                 boolean editable = mActionItem.getSourceId() == USER_SOURCE_ID;
                 menu.findItem(R.id.edit_action).setVisible(editable);
                 menu.findItem(R.id.delete_action).setVisible(editable);
+                menu.findItem(R.id.move_action).setVisible(ListsViewModel.canMoveListItem(mActionItem));
                 return true;
             }
 
@@ -186,28 +188,45 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
         this.mViewModel = new ViewModelProvider(this.mActivity).get(ListsViewModel.class);
         getData().observe(getViewLifecycleOwner(),
                 data -> adapter.submitData(getViewLifecycleOwner().getLifecycle(), data));
-        /*
-         * Wire search bar.
-         */
         TextInputEditText searchEditText = view.findViewById(R.id.hostsSearchEditText);
+        searchEditText.setSaveEnabled(false);
+        return view;
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        View view = requireView();
+        RecyclerView recyclerView = view.findViewById(R.id.hosts_lists_list);
+        ListsAdapter adapter = (ListsAdapter) recyclerView.getAdapter();
+        TextInputEditText searchEditText = view.findViewById(R.id.hostsSearchEditText);
+        // The shared query wins over any older tab-local hierarchy state.
+        searchEditText.setText(this.mViewModel.getSearchQuery());
+        boolean[] updatingFromModel = {false};
         searchEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                mViewModel.search(s.toString());
-                updateListState(view, recyclerView, adapter);
+                if (!updatingFromModel[0]) {
+                    mViewModel.search(s.toString());
+                }
             }
             @Override
             public void afterTextChanged(Editable s) {}
         });
-        // Restore search query if one is active (e.g. after config change)
-        String currentQuery = this.mViewModel.getSearchQuery();
-        if (!currentQuery.isEmpty()) {
-            searchEditText.setText(currentQuery);
-        }
-        // Return created view
-        return view;
+        this.mViewModel.getSearchQueryData().observe(getViewLifecycleOwner(), query -> {
+            if (!query.contentEquals(searchEditText.getText())) {
+                updatingFromModel[0] = true;
+                try {
+                    searchEditText.setText(query);
+                    searchEditText.setSelection(query.length());
+                } finally {
+                    updatingFromModel[0] = false;
+                }
+            }
+            updateListState(view, recyclerView, adapter);
+        });
     }
 
     @Override
@@ -277,24 +296,23 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
     @Override
     public void onToggleListItem(HostListItem item, boolean isChecked) {
         if (item.getSourceId() == USER_SOURCE_ID) {
-            mViewModel.toggleItemEnabled(item);
+            mViewModel.setItemEnabled(item, isChecked);
         } else {
             if (!isChecked) {
                 // User turned it OFF -> Prompt to override (whitelist)
                 new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                         .setTitle(R.string.checkbox_list_context_move)
-                        .setMessage(R.string.checkbox_list_override_downloaded_message)
+                        .setMessage(item.getType() == REDIRECTED
+                                ? R.string.checkbox_list_override_redirect_message
+                                : R.string.checkbox_list_override_downloaded_message)
                         .setPositiveButton(android.R.string.yes, (dialog, which) -> {
                             mViewModel.moveListItem(item);
                         })
-                        .setNegativeButton(android.R.string.no, (dialog, which) -> {
-                            // Refresh list to revert checkbox state
-                            mViewModel.search(mViewModel.isSearching() ? mViewModel.getSearchQuery() : "");
-                        })
+                        .setNegativeButton(android.R.string.no, null)
                         .show();
             } else {
-                // User turned it ON -> Just re-enable the block
-                mViewModel.toggleItemEnabled(item);
+                // Re-enable only the selected downloaded row.
+                mViewModel.setItemEnabled(item, true);
             }
         }
     }
@@ -329,10 +347,5 @@ public abstract class AbstractListFragment extends Fragment implements ListsView
                 .setPositiveButton(R.string.list_delete_confirm_action,
                         (dialog, which) -> this.mViewModel.removeListItem(item))
                 .show();
-    }
-
-    @Override
-    public void toggleItemEnabled(HostListItem item) {
-        this.mViewModel.toggleItemEnabled(item);
     }
 }

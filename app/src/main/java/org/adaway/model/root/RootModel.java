@@ -431,8 +431,9 @@ public class RootModel extends AdBlockModel {
 
         @Override
         public void close() throws IOException {
-            flushBuffer();
-            this.output.close();
+            try (OutputStream output = this.output) {
+                flushBuffer();
+            }
         }
     }
 

@@ -5,4 +5,5 @@
     <string name="pref_backup_summary">Backup to external storage your block rules</string>
     <string name="pref_restore">Restore</string>
     <string name="pref_restore_summary">Restore your block rules from backup file</string>
+    <string name="import_busy_retry">Restore could not start because another operation is in progress. Wait for it to finish, then select Restore again.</string>
 </resources>

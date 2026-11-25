@@ -84,10 +84,15 @@ public class BackupExporter {
     }
 
     static void exportBackup(Context context, Uri backupUri) throws IOException {
+        exportBackup(context, backupUri, AppDatabase.getInstance(context));
+    }
+
+    static void exportBackup(Context context, Uri backupUri, AppDatabase database)
+            throws IOException {
         // Open writer on the export file
         try {
             // Build first so a database/serialization failure cannot truncate an existing backup.
-            String backup = makeBackup(context).toString(4);
+            String backup = BackupFormat.serializeBackup(makeBackup(database));
             try (OutputStream outputStream = context.getContentResolver().openOutputStream(backupUri, "wt")) {
                 if (outputStream == null) {
                     throw new IOException("Backup provider returned no output stream.");
@@ -106,8 +111,7 @@ public class BackupExporter {
         }
     }
 
-    private static JSONObject makeBackup(Context context) throws JSONException {
-        AppDatabase database = AppDatabase.getInstance(context);
+    private static JSONObject makeBackup(AppDatabase database) throws JSONException {
         HostsSourceDao hostsSourceDao = database.hostsSourceDao();
         HostListItemDao hostListItemDao = database.hostsListItemDao();
 

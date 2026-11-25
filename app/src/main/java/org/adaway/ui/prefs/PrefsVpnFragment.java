@@ -2,19 +2,21 @@ package org.adaway.ui.prefs;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
 import androidx.annotation.NonNull;
-import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
 import org.adaway.R;
+import org.adaway.helper.PreferenceHelper;
 import org.adaway.ui.prefs.exclusion.PrefsVpnExcludedAppsActivity;
 import org.adaway.vpn.VpnServiceControls;
 
+import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.adaway.ui.prefs.PrefsActivity.PREFERENCE_NOT_FOUND;
 import static org.adaway.util.Constants.PREFS_NAME;
 
@@ -23,8 +25,10 @@ import static org.adaway.util.Constants.PREFS_NAME;
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
-public class PrefsVpnFragment extends PreferenceFragmentCompat {
+public class PrefsVpnFragment extends PreferenceFragmentCompat
+        implements SharedPreferences.OnSharedPreferenceChangeListener {
     private ActivityResultLauncher<Intent> startActivityLauncher;
+    private SharedPreferences vpnPreferences;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -34,9 +38,30 @@ public class PrefsVpnFragment extends PreferenceFragmentCompat {
         // Register for activity
         registerForStartActivity();
         // Bind pref actions
-        bindAllowAppBypass();
-        bindExcludedSystemApps();
         bindExcludedUserApps();
+        this.vpnPreferences = getPreferenceManager().getSharedPreferences();
+        if (this.vpnPreferences != null) {
+            this.vpnPreferences.registerOnSharedPreferenceChangeListener(this);
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (this.vpnPreferences != null) {
+            this.vpnPreferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
+        Context context = getContext();
+        if (context != null && (context.getString(R.string.pref_vpn_watchdog_enabled_key).equals(key)
+                || context.getString(R.string.pref_vpn_allow_app_bypass_key).equals(key)
+                || context.getString(R.string.pref_vpn_excluded_system_apps_key).equals(key))) {
+            // SharedPreferences has already published the new value before this callback.
+            restartRunningVpn(context);
+        }
     }
 
     @Override
@@ -48,27 +73,13 @@ public class PrefsVpnFragment extends PreferenceFragmentCompat {
     private void registerForStartActivity() {
         this.startActivityLauncher = registerForActivityResult(
                 new StartActivityForResult(),
-                result -> restartVpn()
+                result -> {
+                    Context context = getContext();
+                    if (context != null) {
+                        restartRunningVpn(context);
+                    }
+                }
         );
-    }
-
-    private void bindExcludedSystemApps() {
-        ListPreference excludeUserAppsPreferences = findPreference(getString(R.string.pref_vpn_excluded_system_apps_key));
-        assert excludeUserAppsPreferences != null : PREFERENCE_NOT_FOUND;
-        excludeUserAppsPreferences.setOnPreferenceChangeListener((preference, newValue) -> {
-            restartVpn();
-            return true;
-        });
-    }
-
-    private void bindAllowAppBypass() {
-        Preference allowAppBypassPreference =
-                findPreference(getString(R.string.pref_vpn_allow_app_bypass_key));
-        assert allowAppBypassPreference != null : PREFERENCE_NOT_FOUND;
-        allowAppBypassPreference.setOnPreferenceChangeListener((preference, newValue) -> {
-            restartVpn();
-            return true;
-        });
     }
 
     private void bindExcludedUserApps() {
@@ -82,9 +93,9 @@ public class PrefsVpnFragment extends PreferenceFragmentCompat {
         });
     }
 
-    private void restartVpn() {
-        Context context = requireContext();
-        if (VpnServiceControls.isRunning(context)) {
+    static void restartRunningVpn(Context context) {
+        if (PreferenceHelper.getAdBlockMethod(context) == VPN
+                && VpnServiceControls.isRunning(context)) {
             VpnServiceControls.restart(context);
         }
     }

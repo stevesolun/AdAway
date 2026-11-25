@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import timber.log.Timber;
 
 public class RegexUtils {
+    public static final int MAX_HOSTNAME_LENGTH = 253;
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("[*?]");
 
     /**
@@ -49,7 +50,7 @@ public class RegexUtils {
 
         int len = hostname.length();
         // Max DNS hostname length is 253 characters
-        if (len > 253) {
+        if (len > MAX_HOSTNAME_LENGTH) {
             return false;
         }
 
@@ -116,13 +117,16 @@ public class RegexUtils {
      * Wildcard validation is quite tricky, because wildcards can be placed anywhere and can match
      * with anything. To make sure we don't dismiss certain valid wildcard host names, we trim
      * wildcards or replace them with an alphanumeric character for further validation.<br/>
-     * We only reject whitelist host names which cannot match against valid host names under any
-     * circumstances.
+     * Patterns must also fit the same raw length limit as stored hostnames. Within that limit,
+     * reject patterns which cannot match valid hostnames under any circumstances.
      *
      * @param hostname The wildcard hostname to validate.
      * @return return {@code true} if wildcard hostname is valid, {@code false} otherwise.
      */
     public static boolean isValidWildcardHostname(String hostname) {
+        if (hostname == null || hostname.isEmpty() || hostname.length() > MAX_HOSTNAME_LENGTH) {
+            return false;
+        }
         // Clear wildcards from host name then validate it
         Matcher matcher = WILDCARD_PATTERN.matcher(hostname);
         String clearedHostname = matcher.replaceAll("");

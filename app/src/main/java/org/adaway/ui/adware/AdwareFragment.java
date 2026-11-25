@@ -53,6 +53,7 @@ public class AdwareFragment extends Fragment {
      * The status text.
      */
     private TextView mStatusText;
+    private AdwareViewModel mModel;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -75,9 +76,9 @@ public class AdwareFragment extends Fragment {
         // Get the model scope
         FragmentActivity activity = requireActivity();
         // Get the model
-        AdwareViewModel model = new ViewModelProvider(activity).get(AdwareViewModel.class);
+        this.mModel = new ViewModelProvider(activity).get(AdwareViewModel.class);
         // Bind model to views
-        model.getAdware().observe(getViewLifecycleOwner(), data -> {
+        this.mModel.getAdware().observe(getViewLifecycleOwner(), data -> {
             if (data == null) {
                 this.displayStatusText(R.string.adware_scanning);
             } else if (data.isEmpty()) {
@@ -88,6 +89,20 @@ public class AdwareFragment extends Fragment {
         });
         // Return created view
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        this.mModel.refreshAdware();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        this.mListView = null;
+        this.mStatusText = null;
+        this.mModel = null;
     }
 
     /**

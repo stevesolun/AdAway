@@ -82,9 +82,12 @@ public class CommandReceiverSecurityContractTest {
                 SEND_COMMAND_ACTION, stringConstant(source, "SEND_COMMAND_ACTION"));
 
         int actionGuard = source.indexOf("if (SEND_COMMAND_ACTION.equals(intent.getAction()))");
-        int modelLookup = source.indexOf("getAdBlockModel()", actionGuard);
+        int modelLookup = source.indexOf("getModel(context)", actionGuard);
         int commandRead = source.indexOf("Command.readFromIntent(intent)", actionGuard);
-        int dispatch = source.indexOf("AppExecutors.getInstance().diskIO().execute", actionGuard);
+        int unknownGuard = source.indexOf("if (command == Command.UNKNOWN)", commandRead);
+        int claim = source.indexOf("getSourceOperations(context).tryAcquire()", commandRead);
+        int busyGuard = source.indexOf("if (lease == null)", claim);
+        int dispatch = source.indexOf("getCommandExecutor().execute", actionGuard);
 
         assertTrue("Receiver must gate all command work on the canonical action.",
                 actionGuard >= 0);
@@ -92,8 +95,19 @@ public class CommandReceiverSecurityContractTest {
                 actionGuard < modelLookup);
         assertTrue("Command parsing must happen only after the action guard.",
                 actionGuard < commandRead);
+        assertTrue("Malformed commands must return without looking up a model or claiming work.",
+                commandRead < unknownGuard && unknownGuard < claim && claim < modelLookup
+                        && source.substring(unknownGuard, claim).contains("return;"));
+        assertTrue("Busy commands must return with feedback before model lookup or dispatch.",
+                claim < busyGuard && busyGuard < modelLookup && modelLookup < dispatch
+                        && source.substring(busyGuard, modelLookup).contains("showBusy(context)")
+                        && source.substring(busyGuard, modelLookup).contains("return;"));
         assertTrue("Command execution must stay off the broadcast thread after validation.",
                 commandRead < dispatch);
+        assertTrue("The production executor must remain the disk executor.",
+                source.contains("return AppExecutors.getInstance().diskIO();"));
+        assertTrue("The model must remain application-owned.",
+                source.contains("context.getApplicationContext()).getAdBlockModel()"));
     }
 
     private static Document manifest() throws Exception {

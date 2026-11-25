@@ -3,11 +3,16 @@ package org.adaway.broadcast;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.widget.Toast;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.model.adblocking.AdBlockModel;
+import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
+
+import java.util.concurrent.Executor;
 
 import timber.log.Timber;
 
@@ -25,12 +30,51 @@ public class CommandReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (SEND_COMMAND_ACTION.equals(intent.getAction())) {
-            AdBlockModel adBlockModel = ((AdAwayApplication) context.getApplicationContext()).getAdBlockModel();
-            Command command = Command.readFromIntent(intent);
-            Timber.d("CommandReceiver invoked with command %s", command);
-            AppExecutors.getInstance().diskIO().execute(() -> executeCommand(adBlockModel, command));
+        if (intent == null) {
+            return;
         }
+        if (SEND_COMMAND_ACTION.equals(intent.getAction())) {
+            Command command = Command.readFromIntent(intent);
+            if (command == Command.UNKNOWN) {
+                return;
+            }
+            Timber.d("CommandReceiver invoked with command %s", command);
+            SourceOperationCoordinator.Lease lease = getSourceOperations(context).tryAcquire();
+            if (lease == null) {
+                showBusy(context);
+                return;
+            }
+            try {
+                AdBlockModel adBlockModel = getModel(context);
+                getCommandExecutor().execute(() -> {
+                    try {
+                        executeCommand(adBlockModel, command);
+                    } finally {
+                        lease.close();
+                    }
+                });
+            } catch (RuntimeException | Error exception) {
+                lease.close();
+                throw exception;
+            }
+        }
+    }
+
+    SourceOperationCoordinator getSourceOperations(Context context) {
+        return ((AdAwayApplication) context.getApplicationContext()).getSourceOperations();
+    }
+
+    AdBlockModel getModel(Context context) {
+        return ((AdAwayApplication) context.getApplicationContext()).getAdBlockModel();
+    }
+
+    Executor getCommandExecutor() {
+        return AppExecutors.getInstance().diskIO();
+    }
+
+    void showBusy(Context context) {
+        Toast.makeText(context.getApplicationContext(), HostError.UPDATE_IN_PROGRESS.getMessageKey(),
+                Toast.LENGTH_SHORT).show();
     }
 
     private void executeCommand(AdBlockModel adBlockModel, Command command) {

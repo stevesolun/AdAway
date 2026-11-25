@@ -12,24 +12,12 @@ import org.adaway.ui.lists.type.AbstractListFragment;
  */
 public interface ListsViewCallback {
     /**
-     * Toggle item enable status.
-     *
-     * @param item The list to toggle status.
-     */
-    /**
      * Called when a list item toggle is clicked.
      *
      * @param item      The list item.
      * @param isChecked The new checked state.
      */
     void onToggleListItem(HostListItem item, boolean isChecked);
-
-    /**
-     * Toggle item enable status.
-     *
-     * @param item The list to toggle status.
-     */
-    void toggleItemEnabled(HostListItem item);
 
     /**
      * Start an action.

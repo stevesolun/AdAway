@@ -169,9 +169,10 @@ public class DomainCheckerTest {
         assertTrue("AppExecutors must expose a separate package scan executor.",
                 appExecutors.contains("packageScanIO()"));
         assertTrue("Adware package scans must not run on the single DB disk executor.",
-                adwareLiveData.contains("packageScanIO().execute(this::loadData)"));
+                adwareLiveData.contains("this(context, AppExecutors.getInstance().packageScanIO()")
+                        && adwareLiveData.contains("this.scanExecutor.execute("));
         assertFalse("Adware package scans must not starve domain checker DB lookups.",
-                adwareLiveData.contains("diskIO().execute(this::loadData)"));
+                adwareLiveData.contains("AppExecutors.getInstance().diskIO()"));
     }
 
     private static String readRepoFile(String relativePath) throws Exception {

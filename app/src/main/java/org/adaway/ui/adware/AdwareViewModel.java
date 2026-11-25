@@ -3,6 +3,7 @@ package org.adaway.ui.adware;
 import android.app.Application;
 
 import androidx.lifecycle.AndroidViewModel;
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 
 /**
@@ -22,8 +23,17 @@ public class AdwareViewModel extends AndroidViewModel {
      * @param application The application context.
      */
     public AdwareViewModel(@NonNull Application application) {
+        this(application, new AdwareLiveData(application));
+    }
+
+    AdwareViewModel(@NonNull Application application, AdwareLiveData adware) {
         super(application);
-        this.adware = new AdwareLiveData(application);
+        this.adware = adware;
+    }
+
+    @MainThread
+    public void refreshAdware() {
+        this.adware.refresh();
     }
 
     /**
