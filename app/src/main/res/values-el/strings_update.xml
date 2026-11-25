@@ -14,7 +14,7 @@
 
     <string name="update_support_title">Υποστήριξη ανάπτυξης</string>
     <string name="update_donate_button">Δωρίστε</string>
-    <string name="update_sponsor_button">Sponsor</string>
+    <string name="update_sponsor_button">Γίνετε χορηγός</string>
 
     <!-- Notification -->
     <string name="update_notification_description">Λήψη της τελευταίας έκδοσης AdAway…</string>

@@ -22,9 +22,81 @@ The 13.5.6b follow-up corrects signer selection under the
 The real CLI accepted the preceding public beta and rejected a different
 workflow. The offline CLI compatibility check is documented in the release
 guide; it is separate from that live provenance evidence. Android changes are
-limited to the version bump. This follow-up's protected merge, build dispatches
-and publication remain the release operator's responsibility; no 13.5.6b
-publication is claimed here.
+limited to the version bump. [PR #14](https://github.com/stevesolun/AdAway/pull/14)
+subsequently merged through protection. The [tagged build](https://github.com/stevesolun/AdAway/actions/runs/45646475720)
+published the [13.5.6b beta](https://github.com/stevesolun/AdAway/releases/tag/v13.5.6b).
+The [post-publication check](https://github.com/stevesolun/AdAway/pull/14#issuecomment-7167258440)
+verified the six public artifacts and the in-place upgrade from 13.5.4b on Android
+11. The named Hebrew filter retained its 182 hosts. Ynet and Walla rendered
+through the VPN; KSP stopped at verification on this run.
+
+## Post-beta Review
+
+These changes follow the public 13.5.6b tag; they are not in the published APK.
+On the disposable Android 14 emulator, the Balanced preset skipped an update
+when one downloaded source had a known-newer online copy. Before the fix, the
+profile assertions passed but the worker never ran (2 passed, 1 failed). After
+the shared date comparison, all four DiscoverQuickPresetInstrumentedTest cases
+passed. Real screen taps, stored profiles, Room selections, added/no-op messages
+and immediate WorkManager jobs were exercised; download and apply used recording
+models, not internet lists. Local reports: `post-beta-presets-before.xml` and
+`post-beta-presets-after.xml` under `app/build/reports/audit-2026-11-25/`.
+
+Other integrated checks (overlapping cases are not additive):
+
+- Android 14: the first Home/DB run passed 40/41; ActivityScenario lost track
+  of the singleTop activity after its test intent changed the launcher action.
+  Preserving action/category while setting SINGLE_TOP fixed the fixture.
+  All 80 Home/Room/source cases in `post-beta-integration-second.xml` passed.
+- Failed-download recovery: an actual orientation change kept the error dialog.
+  Pressing system Back acknowledged it; the More tab was accessible and a second
+  recreation did not replay the error (`post-beta-home-rotation.xml`). The selected
+  Home tab itself is not a reliable clickable accessibility target.
+- Android 14: 44 updater, rule-entry, preset and conditional HTTP tests passed
+  (`post-beta-updates-and-rules.xml`). A cold update notification could check,
+  handle failure and retry. A local HTTP fixture served the newer list before
+  allowing a 304 to retain the new body; no live upstream was used for this test.
+- Android 11: ran MigrationTest, LegacyV4MigrationInstrumentedTest,
+  HostListSnapshotTest, SourceDbTest and SourceModelHttpConditionalTest together
+  on a disposable read-only AVD session: `OK (78 tests)`. This verified database
+  and resolver behavior, not a privileged hosts-file write.
+- Android 14 Domain Checker: all 15 connected cases passed, including source
+  attribution for wildcard allows, preservation of sibling rules, redirect
+  priority and button visibility. See `post-beta-domain-checker.xml`.
+- Update support links: the missing-browser case threw before the fix. After it,
+  a refused/policy-blocked handoff left the screen usable; the subsequent Donate
+  and Sponsor actions still emitted the intended HTTPS destinations. The test
+  intercepted every link before Android opened it. All nine cases in
+  `post-beta-support-after.xml` passed. No external payment was attempted.
+- Integrated debug check before the version-only bump to 13.5.7b: all 107
+  selected Android 14 cases passed without skips (`post-beta-final.xml`).
+  The complete JVM debug suite recorded 720 cases, three skipped, zero failures
+  or errors. Debug lint reported 35 warnings and zero errors. The nine focused
+  checker SQL, root export SQL and hostname resource tests also passed.
+- [Interaction evidence](post-beta-workflows.csv) distinguishes tested actions
+  from untested variants. The [translation inventory](post-beta-res-localized-overrides.csv)
+  still identifies 135 misleading backup/root declarations; the default and Hebrew copy
+  fixes do not verify the other locales. Local debug checks do not verify a
+  public signed artifact or complete the overall audit.
+
+### PR #15 connected-test correction
+
+POST-BETA-CI-001: [CI run 45654968250](https://github.com/stevesolun/AdAway/actions/runs/45654968250)
+failed only the authorized broadcast control: its assertion expired at
+`16:45:58.965`, but START arrived at `16:46:03.954` after cleanup restored the
+real model. Both test broadcasts now request foreground delivery priority;
+actual permission checks, the recording-model latch, timeouts and production
+behavior are unchanged. Evidence below is under `app/build/ci-investigation/`.
+
+| Local API 34 arm64 check | Result | Evidence |
+| --- | --- | --- |
+| Baseline attempts | Installation before readiness, then disk-executor startup barrier failure; neither reproduces the exact CI timeout | `baseline-test.log`, `baseline-ready-test.log` |
+| Broadcast package on disposable `ci-api34`, `emulator-5580` | 17 passed; zero skipped/failed/errors; strict Gradle verification | `fixed-broadcast-tests.log`, `fixed-broadcast-results/`, `fixed-broadcast-logcat.txt` |
+| Security class after cold reboot | Four passed again; zero skipped/failed/errors; overlapping coverage | `fixed-reboot-security-tests.log`, `fixed-reboot-security-results/`, `fixed-reboot-security-logcat.txt` |
+
+The emulator was stopped afterward. Full connected CI, signed upgrade and
+publication remain outer-owner gates. No root, physical-device or intermittent
+DNS coverage is claimed by these focused tests.
 
 ## Candidate 13.5.5b
 

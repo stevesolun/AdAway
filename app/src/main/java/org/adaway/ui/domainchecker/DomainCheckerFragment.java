@@ -24,6 +24,8 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputEditText;
 
 import org.adaway.R;
+import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.RuleKind;
 import org.adaway.ui.domainchecker.DomainCheckResult.Status;
 
 public class DomainCheckerFragment extends Fragment {
@@ -129,6 +131,24 @@ public class DomainCheckerFragment extends Fragment {
             statusBadge.setText(statusText(result.status));
             statusBadge.setTextColor(getResources().getColor(statusColor(result.status), null));
 
+            if (result.status == Status.ALLOWED) {
+                sourcesContainer.setVisibility(View.VISIBLE);
+                for (DomainCheckResult.AllowSource source : result.allowSources) {
+                    TextView row = new TextView(requireContext());
+                    int format = source.sourceId == HostsSource.USER_SOURCE_ID
+                            ? R.string.domain_checker_user_source_format
+                            : R.string.domain_checker_filter_source_format;
+                    String rule = source.kind == RuleKind.SUFFIX ? "||" + source.host + "^" : source.host;
+                    row.setText(getString(R.string.domain_checker_allow_source_rule_format,
+                            getString(format, source.name), rule));
+                    sourcesContainer.addView(row);
+                }
+            }
+            if (result.hasRemovableAllow()) {
+                removeAllowButton.setVisibility(View.VISIBLE);
+                removeAllowButton.setOnClickListener(v ->
+                        viewModel.removeUserAllowRule(result.domain));
+            }
             if (result.status == Status.BLOCKED || result.status == Status.REDIRECTED) {
                 sourcesLabel.setVisibility(View.VISIBLE);
                 sourcesContainer.setVisibility(View.VISIBLE);
@@ -164,19 +184,13 @@ public class DomainCheckerFragment extends Fragment {
 
                 if (result.userAllowed) {
                     alreadyAllowedLabel.setVisibility(View.VISIBLE);
-                    removeAllowButton.setVisibility(View.VISIBLE);
-                    removeAllowButton.setOnClickListener(v ->
-                            viewModel.removeUserAllowRule(result.domain));
                 } else {
                     unblockButton.setVisibility(View.VISIBLE);
                     unblockButton.setOnClickListener(v -> viewModel.unblockDomain(result.domain));
                 }
             } else if (result.status == Status.ALLOWED && result.userAllowed) {
                 alreadyAllowedLabel.setVisibility(View.VISIBLE);
-                removeAllowButton.setVisibility(View.VISIBLE);
-                removeAllowButton.setOnClickListener(v ->
-                        viewModel.removeUserAllowRule(result.domain));
-            } else {
+            } else if (result.status == Status.UNKNOWN) {
                 notBlockedLabel.setVisibility(View.VISIBLE);
                 blockButton.setVisibility(View.VISIBLE);
                 blockButton.setOnClickListener(v -> viewModel.blockDomain(result.domain));

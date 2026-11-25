@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">Редагувати хост з Білого списку</string>
     <string name="list_edit_dialog_redirect">Редагувати перенаправлення</string>
     <string name="list_dialog_hostname">Ім\'я джерела:</string>
-    <string name="list_dialog_hostname_hint">URL джерела хостів</string>
     <string name="list_dialog_wildcard">(Допускають символи підстановки * та ?)</string>
     <string name="list_dialog_ip">IP (IPv4 або IPv6):</string>
 </resources>

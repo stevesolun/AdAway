@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">Upraviť hostiteľa na bielej listine</string>
     <string name="list_edit_dialog_redirect">Upraviť presmerovania</string>
     <string name="list_dialog_hostname">Názov hostiteľa:</string>
-    <string name="list_dialog_hostname_hint">URL zdroja hosts súboru</string>
     <string name="list_dialog_wildcard">(Zástupné znaky * a ? sú povolené!)</string>
     <string name="list_dialog_ip">IP (IPv4 alebo IPv6):</string>
 </resources>

@@ -107,11 +107,13 @@ public class SourceDbTest extends DbTest {
     public void testRuntimeRedirectsUseCanonicalRedirectionWithinSource() {
         setActiveGeneration(2);
 
-        insertRedirectedHost("same-source-redirect.example", "1.1.1.1",
-                EXTERNAL_SOURCE_ID, 2);
         insertRedirectedHost("same-source-redirect.example", "9.9.9.9",
                 EXTERNAL_SOURCE_ID, 2);
+        insertRedirectedHost("same-source-redirect.example", "1.1.1.1",
+                EXTERNAL_SOURCE_ID, 2);
 
+        assertEquals(Collections.singleton("same-source-redirect.example|0|2|1.1.1.1"),
+                rootRowsFromCursor());
         this.hostEntryDao.sync();
 
         HostEntry runtimeEntry = this.hostEntryDao.getEntry("same-source-redirect.example");
@@ -124,6 +126,25 @@ public class SourceDbTest extends DbTest {
         assertTrue(rootRows.contains("same-source-redirect.example|0|2|1.1.1.1"));
         assertFalse(rootRows.contains("same-source-redirect.example|0|2|9.9.9.9"));
         assertEquals(rootRows, rootRowsFromCursor());
+    }
+
+    @Test
+    public void testUnderscoreIsLiteralForRuntimeAndRootAllowRules() {
+        insertAllowedHost("slot_?.example", USER_SOURCE_ID);
+        insertSuffixAllowedHost("suffix_key.example", USER_SOURCE_ID, 0);
+        for (String host : Arrays.asList("slot_a.example", "slotxa.example",
+                "child.suffix_key.example", "child.suffixxkey.example")) {
+            insertBlockedHost(host, EXTERNAL_SOURCE_ID);
+        }
+        Set<String> expected = new HashSet<>(Arrays.asList(
+                "slotxa.example|0|0|null", "child.suffixxkey.example|0|0|null"));
+        assertEquals(expected, rootRowsFromCursor());
+        this.hostEntryDao.sync();
+        assertEquals(expected, rootRowsFromCursor());
+        assertEquals(BLOCKED, this.hostEntryDao.getTypeForHost("slotxa.example"));
+        assertEquals(ALLOWED, this.hostEntryDao.getTypeForHost("slot_a.example"));
+        assertEquals(BLOCKED, this.hostEntryDao.getTypeForHost("child.suffixxkey.example"));
+        assertEquals(ALLOWED, this.hostEntryDao.getTypeForHost("child.suffix_key.example"));
     }
 
     @Test

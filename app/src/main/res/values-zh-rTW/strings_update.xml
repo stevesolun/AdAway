@@ -14,7 +14,7 @@
 
     <string name="update_support_title">支援開發</string>
     <string name="update_donate_button">資助</string>
-    <string name="update_sponsor_button">贊助者</string>
+    <string name="update_sponsor_button">贊助</string>
 
     <!-- Notification -->
     <string name="update_notification_description">正在下載最新的 AdAway 版本…</string>

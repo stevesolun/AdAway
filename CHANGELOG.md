@@ -1,6 +1,20 @@
 # Changelog
 
-## [13.5.6b] - Unreleased
+## [13.5.7b] - Unreleased
+
+- Applying a Discover preset now refreshes selected filters known to be out of
+  date. A previous update check no longer makes the next download skip new rules.
+- Domain Checker shows matching wildcard allow rules. Checking a single domain
+  does not offer to remove a rule that also allows its siblings.
+- Correct allow-rule matching for literal underscores and preserve user-rule
+  flags when migrating very old databases.
+- Keep Home download errors actionable when leaving or rotating the screen.
+  Opening Updates no longer claims the app is current before checking; a
+  missing browser no longer crashes the Donate or Sponsor buttons.
+- Clarify host entry, backup and restore guidance, including Hebrew. This beta
+  targets Android VPN use; see the [tested scope](tasks/audit-2026-11-25/validation.md#post-beta-review).
+
+## [13.5.6b] - 2026-11-25
 
 Fix signed-beta publication while preserving provenance verification. See the
 [publication follow-up](tasks/audit-2026-11-25/validation.md#publication-follow-up)

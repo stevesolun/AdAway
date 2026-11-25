@@ -13,8 +13,8 @@
     <string name="update_last_changelog_title">Ostatnie zmiany</string>
 
     <string name="update_support_title">Wspieraj rozwój</string>
-    <string name="update_donate_button">Dotacja</string>
-    <string name="update_sponsor_button">Sponsor</string>
+    <string name="update_donate_button">Wpłać datek</string>
+    <string name="update_sponsor_button">Sponsoruj</string>
 
     <!-- Notification -->
     <string name="update_notification_description">Pobieram najnowszą wersję AdAway…</string>

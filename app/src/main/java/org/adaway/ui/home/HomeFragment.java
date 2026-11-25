@@ -12,6 +12,7 @@ import static org.adaway.ui.lists.ListsActivity.TAB;
 
 import android.content.Context;
 import android.content.ActivityNotFoundException;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Typeface;
@@ -24,6 +25,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -64,6 +66,8 @@ public class HomeFragment extends Fragment {
 
     private FragmentHomeBinding binding;
     private HomeViewModel homeViewModel;
+    @Nullable
+    private AlertDialog downloadErrorDialog;
     @Nullable
     private WorkInfo filterListsProgress;
     @Nullable
@@ -125,6 +129,7 @@ public class HomeFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        dismissDownloadErrorDialog();
         detachHostCounterObservers();
         this.initialBlockedCount = -1;
         this.hostCountersPrimedDuringImport = false;
@@ -635,7 +640,8 @@ public class HomeFragment extends Fragment {
             renderProtectionControl();
             if (pending) {
                 showView(this.binding.content.sourcesProgressBar);
-                showView(this.binding.content.stateTextView);
+                // Clear the previous operation's text until the new state is published.
+                removeView(this.binding.content.stateTextView);
             } else {
                 removeView(this.binding.content.sourcesProgressBar);
             }
@@ -758,21 +764,23 @@ public class HomeFragment extends Fragment {
 
     private void notifyError(HostError error) {
         if (this.binding == null) return;
-        removeView(this.binding.content.stateTextView);
+        dismissDownloadErrorDialog();
         if (error == null) return;
+        removeView(this.binding.content.stateTextView);
 
         if (error == HostError.DOWNLOAD_FAILED) {
-            new MaterialAlertDialogBuilder(requireContext())
+            this.downloadErrorDialog = new MaterialAlertDialogBuilder(requireContext())
                     .setIcon(android.R.drawable.ic_dialog_alert)
                     .setTitle(error.getMessageKey())
                     .setMessage(error.getDetailsKey())
                     .setPositiveButton(R.string.nav_sources, (dialog, id) -> {
-                        this.homeViewModel.acknowledgeError(error);
-                        ((HomeActivity) requireActivity()).navigateTo(R.id.nav_sources);
+                        if (acknowledgeDownloadError(dialog)) {
+                            ((HomeActivity) requireActivity()).navigateTo(R.id.nav_sources);
+                        }
                     })
                     .setNegativeButton(R.string.button_close, (dialog, id) ->
-                            this.homeViewModel.acknowledgeError(error))
-                    .setOnCancelListener(dialog -> this.homeViewModel.acknowledgeError(error))
+                            acknowledgeDownloadError(dialog))
+                    .setOnCancelListener(this::acknowledgeDownloadError)
                     .show();
             return;
         }
@@ -789,6 +797,19 @@ public class HomeFragment extends Fragment {
                             android.net.Uri.parse("https://github.com/AdAway/AdAway/wiki")));
                 })
                 .show();
+    }
+
+    private void dismissDownloadErrorDialog() {
+        if (this.downloadErrorDialog == null) return;
+        this.downloadErrorDialog.dismiss();
+        this.downloadErrorDialog = null;
+    }
+
+    private boolean acknowledgeDownloadError(DialogInterface dialog) {
+        // A queued button/cancel callback may belong to a replaced dialog or Home view.
+        if (dialog != this.downloadErrorDialog) return false;
+        this.homeViewModel.acknowledgeError(HostError.DOWNLOAD_FAILED);
+        return true;
     }
 
     private void renderLeakStatus() {

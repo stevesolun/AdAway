@@ -16,8 +16,8 @@
     <string name="lists_state_loading_message">Preparing your blocked, allowed, and redirected rules.</string>
     <string name="lists_state_load_failed_title">Rules could not load</string>
     <string name="lists_state_load_failed_message">Check storage and database state, then retry.</string>
-    <string name="lists_state_no_rules_title">No rules yet</string>
-    <string name="lists_state_no_rules_message">Add a host or subscribe to a filter list to populate this view.</string>
+    <string name="lists_state_no_rules_title">No rules in this view</string>
+    <string name="lists_state_no_rules_message">Add a host to this tab or check whether rules from filter lists are hidden.</string>
     <string name="lists_state_no_matches_title">No matching rules</string>
     <string name="lists_state_no_matches_message">Try a broader domain search.</string>
     <!-- Edition dialog -->
@@ -31,10 +31,10 @@
     <string name="checkbox_list_override_downloaded_message">This rule comes from a downloaded source. Create a user rule to override it?</string>
     <string name="checkbox_list_override_redirect_message">Create an exact allow rule and disable this downloaded redirect? Other redirects for this host can still apply.</string>
     <string name="list_delete_confirm_title">Delete rule?</string>
-    <string name="list_delete_confirm_message">Delete "%1$s" from your rules?</string>
+    <string name="list_delete_confirm_message">Delete “%1$s” from your rules?</string>
     <string name="list_delete_confirm_action">Delete</string>
     <string name="list_dialog_hostname">Hostname:</string>
-    <string name="list_dialog_hostname_hint">The hosts source URL</string>
+    <string name="list_dialog_hostname_hint" translatable="false">example.org</string>
     <string name="list_dialog_wildcard">(Wildcard characters * and ? are allowed)</string>
     <!-- The argument is the fixed maximum length (253), not a variable quantity. -->
     <string name="list_dialog_hostname_too_long" tools:ignore="PluralsCandidate">Each hostname or wildcard rule must be at most %1$d characters.</string>

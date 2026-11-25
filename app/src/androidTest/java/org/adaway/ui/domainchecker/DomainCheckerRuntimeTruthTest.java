@@ -47,6 +47,7 @@ import org.adaway.db.entity.RuleKind;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -55,6 +56,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -147,8 +149,52 @@ public class DomainCheckerRuntimeTruthTest {
     }
 
     @Test(timeout = 120_000)
+    public void allowProvenanceIsReadOnlyAndDoesNotOverrideRedirects() throws Exception {
+        String base = UUID.randomUUID() + ".invalid";
+        String pattern = "child-*." + base;
+        String host = "child-one." + base;
+        String sibling = "child-two." + base;
+        try {
+            insertItem(pattern, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            insertItem(base, ALLOWED, SUFFIX, TEST_SOURCE_ID, null);
+            insertItem(host, ALLOWED, EXACT, TEST_SOURCE_ID, null);
+            insertItem(base, BLOCKED, SUFFIX, TEST_SOURCE_ID, null);
+            for (AdBlockMethod mode : new AdBlockMethod[]{ROOT, VPN}) {
+                PreferenceHelper.setAbBlockMethod(application, mode);
+                DomainCheckResult result = check(host);
+                assertEquals(DomainCheckResult.Status.ALLOWED, result.status);
+                assertTrue(result.userAllowed);
+                assertFalse(result.hasRemovableAllow());
+                assertEquals(3, result.allowSources.size());
+                assertTrue(result.allowSources.stream().anyMatch(s -> s.sourceId == USER_SOURCE_ID
+                        && s.host.equals(pattern) && s.kind == EXACT));
+                assertTrue(result.allowSources.stream().anyMatch(s -> s.sourceId == TEST_SOURCE_ID
+                        && s.host.equals(base) && s.kind == SUFFIX && SOURCE_LABEL.equals(s.name)));
+                assertTrue(result.allowSources.stream().anyMatch(s -> s.sourceId == TEST_SOURCE_ID
+                        && s.host.equals(host) && s.kind == EXACT));
+                assertTrue(result.blockingSources.isEmpty());
+            }
+            insertItem(host, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            assertTrue(check(host).hasRemovableAllow());
+            hostListItemDao.removeExactUserAllow(host);
+            assertFalse(check(host).hasRemovableAllow());
+            assertTrue(check(sibling).userAllowed);
+            insertItem(host, REDIRECTED, EXACT, TEST_SOURCE_ID, "9.9.9.9");
+            DomainCheckResult redirect = check(host);
+            assertEquals(DomainCheckResult.Status.REDIRECTED, redirect.status);
+            assertFalse(redirect.blockingSources.isEmpty());
+            assertTrue(redirect.userAllowed);
+        } finally {
+            hostListItemDao.deleteUserFromHost(host);
+            hostListItemDao.deleteUserFromHost(pattern);
+        }
+    }
+
+    @Test(timeout = 120_000)
     public void domainCheckerFragmentRendersRuntimeTruthStates() {
         PreferenceHelper.setAbBlockMethod(application, ROOT);
+        String downloaded = "downloaded-*." + SUFFIX_HOST;
+        insertItem(downloaded, ALLOWED, EXACT, TEST_SOURCE_ID, null);
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             HomeActivity activity = showDomainChecker(scenario);
 
@@ -161,9 +207,70 @@ public class DomainCheckerRuntimeTruthTest {
             assertDomainStatus(activity, ALLOWED_HOST,
                     context.getString(R.string.allowed_hosts_label),
                     context.getString(R.string.domain_checker_already_allowed));
+            assertDomainStatus(activity, "downloaded-child." + SUFFIX_HOST,
+                    context.getString(R.string.allowed_hosts_label),
+                    context.getString(R.string.domain_checker_filter_source_format, SOURCE_LABEL)
+                            + "\n" + downloaded);
+            scenario.onActivity(a -> {
+                assertFalse(a.findViewById(R.id.blockButton).isShown());
+                assertFalse(a.findViewById(R.id.removeAllowButton).isShown());
+            });
+            UiEvidence.capture(context, "domain-checker-downloaded-allow-provenance");
             assertDomainStatus(activity, UNKNOWN_HOST,
                     context.getString(R.string.domain_checker_status_unknown),
                     context.getString(R.string.domain_checker_not_blocked));
+            scenario.onActivity(a -> assertTrue(a.findViewById(R.id.blockButton).isShown()));
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void removingExactAllowInVpnUiPreservesWildcardAndSibling() {
+        PreferenceHelper.setAbBlockMethod(application, VPN);
+        String base = "allow-action-" + UUID.randomUUID().toString().substring(0, 8) + ".invalid";
+        String pattern = "child-*." + base;
+        String child = "child-one." + base;
+        String sibling = "child-two." + base;
+        String userSource = context.getString(R.string.domain_checker_user_source_format,
+                context.getString(R.string.hosts_user_source));
+        try {
+            insertItem(base, BLOCKED, SUFFIX, TEST_SOURCE_ID, null);
+            insertItem(pattern, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            insertItem(child, ALLOWED, EXACT, USER_SOURCE_ID, null);
+            hostEntryDao.sync();
+            application.invalidateVpnRulesCache();
+            try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+                HomeActivity activity = showDomainChecker(scenario);
+                assertDomainStatus(activity, child,
+                        context.getString(R.string.allowed_hosts_label), userSource + "\n" + pattern);
+                waitForVisibleText(activity, userSource + "\n" + child);
+                scenario.onActivity(a -> {
+                    assertTrue(a.findViewById(R.id.removeAllowButton).isShown());
+                    assertTrue(a.findViewById(R.id.removeAllowButton).isEnabled());
+                });
+                UiEvidence.capture(context, "domain-checker-exact-and-wildcard-before-removal");
+
+                clickVisibleView(activity, R.id.removeAllowButton, "Remove exact Allow List rule");
+                waitForVisibleText(activity, context.getString(R.string.domain_checker_allow_removed));
+                waitForUserRule(child, ALLOWED, false);
+                assertTrue("The broader user allow must survive", hasUserRule(pattern, ALLOWED));
+                assertEquals(ALLOWED, hostEntryDao.getTypeForHost(child));
+                assertEquals(ALLOWED, hostEntryDao.getTypeForHost(sibling));
+                waitForVisibleText(activity, context.getString(R.string.allowed_hosts_label));
+                waitForVisibleText(activity, userSource + "\n" + pattern);
+                scenario.onActivity(a -> {
+                    assertFalse(a.findViewById(R.id.removeAllowButton).isShown());
+                    assertFalse(hasVisibleText(a.getWindow().getDecorView(), userSource + "\n" + child));
+                });
+                UiEvidence.capture(context, "domain-checker-wildcard-retained-after-removal");
+
+                assertDomainStatus(activity, sibling,
+                        context.getString(R.string.allowed_hosts_label), userSource + "\n" + pattern);
+                scenario.onActivity(a -> assertFalse(a.findViewById(R.id.removeAllowButton).isShown()));
+                UiEvidence.capture(context, "domain-checker-sibling-still-allowed");
+            }
+        } finally {
+            hostListItemDao.deleteUserFromHost(child);
+            hostListItemDao.deleteUserFromHost(pattern);
         }
     }
 

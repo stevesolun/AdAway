@@ -137,7 +137,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             // Add source items if expanded
             if (isExpanded) {
                 for (HostsSource source : categorySources) {
-                    boolean hasUpdate = hasUpdateAvailable(source);
+                    boolean hasUpdate = source.hasNewerOnlineCopy();
                     nextItems.add(new FilterListItem.SourceItem(source, hasUpdate));
                 }
             }
@@ -237,13 +237,6 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                         newSourceItem.getFilterListTagIds())
                 && Objects.equals(oldSourceItem.getFilterListLanguageIds(),
                         newSourceItem.getFilterListLanguageIds());
-    }
-
-    private boolean hasUpdateAvailable(HostsSource source) {
-        if (source.getOnlineModificationDate() == null || source.getLocalModificationDate() == null) {
-            return false;
-        }
-        return source.getOnlineModificationDate().isAfter(source.getLocalModificationDate());
     }
 
     @Override

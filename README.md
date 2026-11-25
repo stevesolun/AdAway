@@ -107,8 +107,9 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 For this fork's prior beta signing compatibility, follow the
 [changelog's upgrade notes](CHANGELOG.md). The in-app updater reports download,
 verification, and installer progress separately; opening the installer does not
-confirm installation. Use **Retry update** after a failed or canceled attempt,
-or **Check again** when update authorization has expired.
+confirm installation. Use **Retry update** after a failed or canceled download or
+installation attempt, or **Check again** when a check fails or update authorization
+has expired.
 
 ---
 
@@ -481,8 +482,11 @@ update-manifest trust material above.
 
 1. Tap the **Discover** tab.
 2. Tap **Safe**, **Balanced**, or **Aggressive**.
-3. A snackbar confirms how many lists were added.
-4. Added or re-enabled lists update automatically. See [Source Update Feedback](#source-update-feedback).
+3. A snackbar reports added lists, existing lists needing an update, or that the
+   preset is already subscribed.
+4. Added or re-enabled lists update automatically, as do selected lists with a
+   known newer revision, no downloaded rules, or a previous download error.
+   See [Source Update Feedback](#source-update-feedback).
 
 ### Add a Custom Filter List
 
@@ -535,10 +539,19 @@ user rules are excluded from both freshness totals.
 
 ### Check If a Domain Is Blocked
 
-**Option A — Domain Checker (no API key needed):**
+**Domain Checker (no API key needed):**
+
 1. **More → Domain Checker**.
 2. Type any domain (or URL — port is stripped automatically).
-3. Tap **Check** → see Blocked / Not blocked and which source blocked it.
+3. Tap **Check** to see **Blocked**, **Redirected**, **Allowed**, or **Unknown** for
+   the active blocking mode. Blocked and redirected results list matching sources;
+   allowed results show the matching allow rules and their sources. **Unknown**
+   means no active rule determines the result.
+
+**Remove Allow Rule** is offered only for your exact allow rule on the checked
+domain. It preserves downloaded rules and broader wildcard or suffix allows, so
+the domain can remain allowed after removal. **Block it** is offered for Unknown
+results, not for domains already allowed by a filter.
 
 ### Backup & Restore
 
@@ -602,7 +615,7 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 | App crashes on subscribe | Reopen the app and retry; report repeated failures through [this fork's issues](https://github.com/stevesolun/AdAway/issues) |
 | Can't install over official AdAway | Uninstall the official AdAway first (different signing key) |
 | "Install unknown apps" blocked | Android Settings → Apps → Special app access → Install unknown apps |
-| Domain Checker shows wrong result | Port numbers (e.g., `:8080`) are stripped automatically since v13.3.5 |
+| Domain Checker result is unexpected | See [Check If a Domain Is Blocked](#check-if-a-domain-is-blocked) for result meanings and allow-rule controls |
 | Force English not working | Force-stop the app after toggling the setting |
 
 ---

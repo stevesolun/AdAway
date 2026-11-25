@@ -5,16 +5,16 @@
     <string name="error_no_connection_details">Unable to establish a connection to the Internet. Please check your device connectivity.</string>
     <string name="error_download_failed_message">Failed to download hosts source</string>
     <string name="error_download_failed_details">The selected filters could not be updated. Open Sources to see which list failed. Check its URL or turn off an unavailable list, then try again.</string>
-    <string name="error_update_in_progress_message">Filter update already running</string>
-    <string name="error_update_in_progress_details">Another filter update is still running. Wait for it to finish before starting a new one.</string>
+    <string name="error_update_in_progress_message">Another operation is in progress</string>
+    <string name="error_update_in_progress_details">Wait for the current operation to finish, then try again.</string>
 
     <!-- Hosts install model error -->
     <string name="error_private_file_failed_message">Failed to create private file</string>
     <string name="error_private_file_failed_details">Unable to create a private file to build a new hosts source. Please check the free space available on your device.</string>
     <string name="error_not_enough_space_message">Not enough space</string>
-    <string name="error_not_enough_space_details">Unable to copy hosts file to your system partition. Please check Magisk "systemless hosts" module is enabled then reboot.</string>
+    <string name="error_not_enough_space_details">The new hosts file is too large for the available space. Try using fewer filter lists.</string>
     <string name="error_copy_failed_message">Failed to install new hosts file</string>
-    <string name="error_copy_failed_details">Unable to copy hosts file to /system partition. Please check Magisk "systemless hosts" module is enabled then reboot.</string>
+    <string name="error_copy_failed_details">Could not write the system hosts file. Check root access. If you use Magisk, check that Systemless hosts is enabled.</string>
     <string name="error_revert_failed_message">Failed to revert hosts file</string>
     <string name="error_revert_failed_details">Unable to restore default hosts file configuration.</string>
     <!-- VPN model error -->

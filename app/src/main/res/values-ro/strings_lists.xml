@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="lists_title">Liste personale</string>
     <!-- Tab -->
@@ -17,7 +17,6 @@
     <string name="list_edit_dialog_white">Editare domeniu permis</string>
     <string name="list_edit_dialog_redirect">Editare redirecționare</string>
     <string name="list_dialog_hostname">Nume domeniu:</string>
-    <string name="list_dialog_hostname_hint">URL domeniu</string>
     <string name="list_dialog_wildcard">(Sunt permise caracterele generice * și ?)</string>
     <string name="list_dialog_ip">Adresă IP (IPv4 sau IPv6):</string>
 </resources>

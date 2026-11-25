@@ -212,6 +212,47 @@ class RootExportSqlTest(unittest.TestCase):
             self.assertRegex(plan, r"SEARCH source USING INTEGER PRIMARY KEY \(rowid=\?\)")
             self.assertNotIn("USE TEMP B-TREE", plan)
 
+    def test_uncached_redirect_cursor_first_row_matches_runtime(self):
+        for source, method in ((1, "getRootRedirectedUserCursorActive"),
+                               (2, "getRootRedirectedSourceCursorActive")):
+            for addresses in (("9.9.9.9", "1.1.1.1"), ("1.1.1.1", "9.9.9.9")):
+                with self.subTest(source=source, addresses=addresses):
+                    self.db.execute("DELETE FROM hosts_lists")
+                    self.db.execute("DELETE FROM root_host_entries_stage")
+                    for i, address in enumerate(addresses):
+                        self.stage(i + 1, "tie.example", source=source, address=address)
+                    self.stage(3, "tie.example", source=3, address="1.0.0.1")
+                    params = {"activeGeneration": 2, "host": "tie.example"}
+                    runtime = self.db.execute(self.sql.query("getActiveExactRedirectEntry"),
+                                              params).fetchone()[-1]
+                    self.assertEqual("1.1.1.1", runtime)
+                    # ActiveRootHostsCursor keeps the first redirect for a host.
+                    first = self.db.execute(self.sql.query(method), params).fetchone()
+                    self.assertEqual(runtime, first[-1])
+
+    def test_allow_underscore_is_literal_in_runtime_and_root_export(self):
+        self.db.executescript("""
+            CREATE TABLE hosts_meta(id INTEGER PRIMARY KEY, active_generation INTEGER);
+            INSERT INTO hosts_meta VALUES (0, 2);
+            INSERT INTO hosts_lists(host, type, kind, enabled, source_id, generation) VALUES
+                ('ad_slot.example', 1, 0, 1, 1, 0),
+                ('wild_?.example', 1, 0, 1, 2, 2),
+                ('suffix_key.example', 1, 1, 1, 2, 2),
+                ('legacy%.example', 1, 0, 1, 2, 2);
+        """)
+        cases = {"ad_slot.example": True, "adxslot.example": False,
+                 "wild_x.example": True, "wildxx.example": False,
+                 "child.suffix_key.example": True, "child.suffixxkey.example": False,
+                 "legacy123.example": True}
+        for i, (host, allowed) in enumerate(cases.items()):
+            self.stage(i + 10, host)
+            with self.subTest(host=host):
+                actual, = self.db.execute(self.sql.query("isAllowedByActiveRule"),
+                                          {"host": host}).fetchone()
+                self.assertEqual(allowed, actual)
+        exported = {r[0] for r in self.db.execute(self.sql.query("getAllForRootHostsFileActive"))}
+        self.assertEqual({h for h, allowed in cases.items() if not allowed}, exported)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -202,11 +202,12 @@ public class DomainCheckerViewModel extends AndroidViewModel {
             item.setEnabled(true);
             item.setSourceId(USER_SOURCE_ID);
             mHostListItemDao.insert(item);
+        } else if (action == Action.REMOVE_ALLOW) {
+            mHostListItemDao.removeExactUserAllow(domain);
         } else {
             for (HostListItem item : mHostListItemDao.getEntriesForHost(domain)) {
                 if (item.getSourceId() != USER_SOURCE_ID) continue;
-                if ((action == Action.DELETE && item.getId() == itemId)
-                        || (action == Action.REMOVE_ALLOW && item.getType() == ListType.ALLOWED)) {
+                if (item.getId() == itemId) {
                     mHostListItemDao.deleteById(item.getId());
                     break;
                 }
@@ -216,13 +217,15 @@ public class DomainCheckerViewModel extends AndroidViewModel {
 
     private DomainCheckResult readDomain(String domain) {
         boolean rootMode = PreferenceHelper.getAdBlockMethod(getApplication()) == AdBlockMethod.ROOT;
+        return mDatabase.runInTransaction(() -> readDomainSnapshot(domain, rootMode));
+    }
+
+    private DomainCheckResult readDomainSnapshot(String domain, boolean rootMode) {
         List<HostListItem> entries = rootMode
                 ? mHostListItemDao.getRootEntriesForHost(domain)
                 : mHostListItemDao.getEntriesForHost(domain);
         List<HostsSource> allSources = mHostsSourceDao.getAll();
         List<DomainCheckResult.BlockingSource> blockingSources = new ArrayList<>();
-        boolean userAllowed = false;
-        boolean explicitlyAllowed = false;
         ListType runtimeType = rootMode
                 ? mHostEntryDao.getRootTypeForHost(domain) : mHostEntryDao.getTypeForHost(domain);
         boolean blocked = runtimeType == ListType.BLOCKED || runtimeType == ListType.REDIRECTED;
@@ -233,13 +236,20 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                 blockingSources.add(new DomainCheckResult.BlockingSource(item.getId(),
                         resolveSourceName(allSources, item.getSourceId()),
                         item.getSourceId() == USER_SOURCE_ID));
-            } else if (item.getType() == ListType.ALLOWED) {
-                explicitlyAllowed = true;
-                if (item.getSourceId() == USER_SOURCE_ID) userAllowed = true;
             }
         }
-        return new DomainCheckResult(domain, resolveStatus(runtimeType, explicitlyAllowed),
-                userAllowed, blockingSources, buildAdvice(blocked, userAllowed));
+        List<DomainCheckResult.AllowSource> allows = new ArrayList<>();
+        boolean userAllowed = false;
+        for (HostListItemDao.AllowMatch match : mHostListItemDao.getMatchingAllowRules(domain)) {
+            boolean user = match.sourceId == USER_SOURCE_ID;
+            userAllowed |= user;
+            String name = user ? getApplication().getString(R.string.hosts_user_source)
+                    : resolveSourceName(allSources, match.sourceId);
+            allows.add(new DomainCheckResult.AllowSource(match.sourceId, name, match.host, match.kind));
+        }
+        return new DomainCheckResult(domain, resolveStatus(runtimeType, !allows.isEmpty()),
+                userAllowed, blockingSources, allows,
+                buildAdvice(blocked, userAllowed));
     }
 
     static String buildAdvice(boolean blocked, boolean userAllowed) {

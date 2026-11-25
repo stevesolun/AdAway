@@ -5,7 +5,7 @@
     <string name="update_available">Atualização disponível!</string>
 
     <!-- Update activity -->
-    <string name="update_up_to_date_header">Você esta atualizado</string>
+    <string name="update_up_to_date_header">O AdAway está atualizado</string>
     <string name="update_update_available_header">Atualização disponível</string>
 
     <string name="update_update_button">Atualizar agora</string>
@@ -14,7 +14,7 @@
 
     <string name="update_support_title">Apoiar o desenvolvimento</string>
     <string name="update_donate_button">Doar</string>
-    <string name="update_sponsor_button">Patrocinador</string>
+    <string name="update_sponsor_button">Patrocinar</string>
 
     <!-- Notification -->
     <string name="update_notification_description">Baixando a última versão do AdAway</string>

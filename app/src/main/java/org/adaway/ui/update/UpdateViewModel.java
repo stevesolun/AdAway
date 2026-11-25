@@ -41,12 +41,14 @@ import timber.log.Timber;
 public class UpdateViewModel extends AdwareViewModel {
     private static final long TRACKING_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(15);
     private final UpdateModel updateModel;
+    private final boolean canCheckForUpdates;
     private final MediatorLiveData<DownloadStatus> downloadProgress;
     private final AtomicLong trackedDownload = new AtomicLong(-1);
 
     public UpdateViewModel(@NonNull Application application) {
         super(application);
         this.updateModel = ((AdAwayApplication) application).getUpdateModel();
+        this.canCheckForUpdates = this.updateModel.canCheckForUpdates();
         this.downloadProgress = new MediatorLiveData<>();
         this.downloadProgress.addSource(this.updateModel.getInstallState(), state ->
                 this.downloadProgress.setValue(state == InstallState.IDLE ? null
@@ -58,9 +60,19 @@ public class UpdateViewModel extends AdwareViewModel {
         return this.updateModel.getManifest();
     }
 
+    boolean canCheckForUpdates() {
+        return this.canCheckForUpdates;
+    }
+
     public void update() {
+        InstallState state = this.updateModel.getCurrentInstallState();
+        if (state == InstallState.CHECKING || state == InstallState.DOWNLOADING
+                || state == InstallState.VERIFYING) {
+            return;
+        }
         Manifest manifest = this.updateModel.getManifest().getValue();
-        if (manifest == null || manifest.isExpired()) {
+        if (manifest == null || manifest.isExpired() || state == InstallState.CHECK_FAILED
+                || state == InstallState.METADATA_EXPIRED) {
             this.trackedDownload.set(-1);
             this.updateModel.prepareManifestRefresh();
             AppExecutors.getInstance().networkIO().execute(this.updateModel::refreshManifest);

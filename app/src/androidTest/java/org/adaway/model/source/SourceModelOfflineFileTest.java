@@ -70,10 +70,7 @@ public class SourceModelOfflineFileTest {
 
     @After
     public void tearDown() throws Exception {
-        // Finalization queues a cache refresh; let it finish before closing this test database.
-        CountDownLatch drained = new CountDownLatch(1);
-        AppExecutors.getInstance().diskIO().execute(drained::countDown);
-        assertTrue("Runtime cache refresh must finish", drained.await(10, TimeUnit.SECONDS));
+        awaitRuntimeCacheRefresh();
         database.close();
     }
 
@@ -409,7 +406,8 @@ public class SourceModelOfflineFileTest {
                 .getType());
     }
 
-    private void assertTargetedCleanup() {
+    private void assertTargetedCleanup() throws InterruptedException {
+        awaitRuntimeCacheRefresh();
         assertEquals(0, queryInt("SELECT COUNT(*) FROM hosts_lists WHERE generation = ?",
                 ACTIVE_GENERATION + 1));
         assertEquals(0, queryInt("SELECT COUNT(*) FROM root_host_entries_stage WHERE generation = ?",
@@ -417,6 +415,14 @@ public class SourceModelOfflineFileTest {
         assertEquals(0, queryInt("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                 + "AND name IN ('update_seen_hosts', 'update_pending_hosts')"));
         assertEquals(2, queryInt("PRAGMA synchronous"));
+    }
+
+    private void awaitRuntimeCacheRefresh() throws InterruptedException {
+        // Finalization queues a refresh that temporarily sets synchronous=NORMAL. Wait for
+        // the single-threaded disk queue before checking cleanup or closing the database.
+        CountDownLatch drained = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(drained::countDown);
+        assertTrue("Runtime cache refresh must finish", drained.await(10, TimeUnit.SECONDS));
     }
 
     private void assertImportedFile() {

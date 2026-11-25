@@ -34,7 +34,9 @@ import org.junit.runner.RunWith;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -267,6 +269,73 @@ public class SourceModelHttpConditionalTest {
         assertTrue(request.cacheControl().noCache());
         assertNull(request.header(IF_NONE_MATCH));
         assertNull(request.header(IF_MODIFIED_SINCE));
+    }
+
+    @Test
+    public void checkThenRefreshDownloadsNewRevisionBeforeAcceptingNotModified() throws Exception {
+        hostsSourceDao.applySourceSelection(SECOND_SOURCE_ID, false);
+        hostsSourceDao.updateEntityTag(FIRST_SOURCE_ID, null);
+        String modified = ZonedDateTime.now(ZoneOffset.UTC).minusHours(1)
+                .format(DateTimeFormatter.RFC_1123_DATE_TIME);
+        server.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                MockResponse response = new MockResponse().setHeader("Last-Modified", modified);
+                if (modified.equals(request.getHeader(IF_MODIFIED_SINCE))) {
+                    System.out.println("Source refresh local TLS fixture: "
+                            + request.getMethod() + " response=304");
+                    return response.setResponseCode(304);
+                }
+                System.out.println("Source refresh local TLS fixture: "
+                        + request.getMethod() + " response=200");
+                return "HEAD".equals(request.getMethod()) ? response
+                        : response.setBody("0.0.0.0 " + UPDATED_FIRST_HOST + "\n");
+            }
+        });
+
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        System.out.println("Source refresh before: generation=" + getActiveGeneration()
+                + ", " + FIRST_HOST + "=" + hostEntryDao.resolveEntry(FIRST_HOST).getType()
+                + ", " + UPDATED_FIRST_HOST + "="
+                + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertTrue(sourceModel.checkForUpdate());
+        RecordedRequest checked = server.takeRequest(5, TimeUnit.SECONDS);
+        assertNotNull(checked);
+        assertEquals("HEAD", checked.getMethod());
+        logRefreshRequest(checked);
+        assertTrue(sourceModel.checkAndRetrieveHostsSources());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertEquals(ALLOWED, hostEntryDao.resolveEntry(FIRST_HOST).getType());
+        RecordedRequest changed = server.takeRequest(5, TimeUnit.SECONDS);
+        assertNotNull(changed);
+        assertEquals("GET", changed.getMethod());
+        assertNull(changed.getHeader(IF_MODIFIED_SINCE));
+        logRefreshRequest(changed);
+
+        int publishedGeneration = getActiveGeneration();
+        System.out.println("Source refresh after new body: generation=" + publishedGeneration
+                + ", " + FIRST_HOST + "=" + hostEntryDao.resolveEntry(FIRST_HOST).getType()
+                + ", " + UPDATED_FIRST_HOST + "="
+                + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        assertTrue(sourceModel.checkAndRetrieveHostsSources());
+        RecordedRequest unchanged = server.takeRequest(5, TimeUnit.SECONDS);
+        assertNotNull(unchanged);
+        assertEquals("GET", unchanged.getMethod());
+        assertEquals(modified, unchanged.getHeader(IF_MODIFIED_SINCE));
+        assertEquals(publishedGeneration, getActiveGeneration());
+        assertEquals(BLOCKED, hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+        logRefreshRequest(unchanged);
+        System.out.println("Source refresh after 304: publishedGeneration=" + publishedGeneration
+                + ", retainedGeneration=" + getActiveGeneration() + ", "
+                + UPDATED_FIRST_HOST + "=" + hostEntryDao.resolveEntry(UPDATED_FIRST_HOST).getType());
+    }
+
+    private static void logRefreshRequest(RecordedRequest request) {
+        System.out.println("Source refresh local TLS request: " + request.getMethod()
+                + " " + request.getPath() + ", If-Modified-Since="
+                + request.getHeader(IF_MODIFIED_SINCE) + ", If-None-Match="
+                + request.getHeader(IF_NONE_MATCH));
     }
 
     @Test

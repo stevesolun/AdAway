@@ -13,9 +13,13 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
+import android.app.Instrumentation;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
 import android.os.SystemClock;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -51,6 +55,9 @@ import java.security.Signature;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
 public class UpdateActivityDownloadStatusInstrumentedTest {
@@ -77,6 +84,46 @@ public class UpdateActivityDownloadStatusInstrumentedTest {
                 InstrumentedTestState.resetForPassiveRootUi(
                         this.context,
                         "tear down update status UI");
+            }
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void supportButtonsHandOffCorrectLinksAndRecoverFromRefusedLaunches() {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        List<String> visits = new ArrayList<>();
+        Instrumentation.ActivityMonitor monitor = new Instrumentation.ActivityMonitor() {
+            @Override
+            public Instrumentation.ActivityResult onStartActivity(Intent intent) {
+                if (!Intent.ACTION_VIEW.equals(intent.getAction())) return null;
+                visits.add(intent.getDataString());
+                if (visits.size() == 1) throw new ActivityNotFoundException();
+                if (visits.size() == 2) throw new SecurityException("Browser blocked by policy");
+                return new Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null);
+            }
+        };
+        try (ActivityScenario<UpdateActivity> scenario = ActivityScenario.launch(UpdateActivity.class)) {
+            instrumentation.addMonitor(monitor);
+            try {
+                for (int id : new int[]{R.id.update_donate_button, R.id.update_sponsor_button,
+                        R.id.update_donate_button, R.id.update_sponsor_button}) {
+                    scenario.onActivity(activity -> assertTrue(activity.findViewById(id).performClick()));
+                    instrumentation.waitForIdleSync();
+                    if (visits.size() == 1) {
+                        scenario.onActivity(activity -> {
+                            TextView feedback = activity.findViewById(
+                                    com.google.android.material.R.id.snackbar_text);
+                            assertTrue(feedback != null && feedback.isShown());
+                            assertEquals(activity.getString(R.string.update_support_link_unavailable),
+                                    feedback.getText().toString());
+                        });
+                    }
+                }
+                assertEquals(Arrays.asList("https://paypal.me/BruceBUJON",
+                        "https://github.com/sponsors/PerfectSlayer", "https://paypal.me/BruceBUJON",
+                        "https://github.com/sponsors/PerfectSlayer"), visits);
+            } finally {
+                instrumentation.removeMonitor(monitor);
             }
         }
     }
@@ -132,7 +179,18 @@ public class UpdateActivityDownloadStatusInstrumentedTest {
             publishManifest(null);
             publishProgress(scenario, null);
 
-            waitForDownloadState(scenario, GONE, GONE, 0, "");
+            boolean canCheck = this.application.getUpdateModel().canCheckForUpdates();
+            waitForDownloadState(scenario, canCheck ? VISIBLE : GONE, GONE, 0, "");
+            scenario.onActivity(activity -> {
+                TextView header = activity.findViewById(R.id.headerTextView);
+                assertEquals(activity.getString(R.string.update_unavailable_header),
+                        header.getText().toString());
+                if (canCheck) {
+                    TextView button = activity.findViewById(R.id.update_button);
+                    assertEquals(activity.getString(R.string.update_check_again_button),
+                            button.getText().toString());
+                }
+            });
         }
     }
 

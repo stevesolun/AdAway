@@ -14,10 +14,32 @@
 
 Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
-Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
+Historical 13.5.5b candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
 Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
+Public beta: [13.5.6b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.6b).
+Post-release file and interaction checks: [post-beta review](audit-2026-11-25/validation.md#post-beta-review).
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
+
+### Next public Android beta: 13.5.7b
+
+- CI follow-up for PR #15 (Connected Android tests):
+  - [x] Identify the failing test and inspect the retained device log.
+  - [x] Confirm delayed authorized delivery in the Android 14 CI device log;
+    local baseline attempts stopped at unrelated startup prerequisites.
+  - [x] Correct test delivery priority; all 17 broadcast-package cases passed
+    locally on API 34, then all four security cases passed after a cold reboot.
+    See [bounded CI evidence](audit-2026-11-25/validation.md#pr-15-connected-test-correction).
+
+- [ ] Verify the signed candidate upgrades 13.5.6b without losing selected
+  filters. Exercise the non-root VPN and distinguish ordinary site content from
+  third-party verification screens.
+- [ ] Merge the batched fixes only when all six required PR checks pass.
+- [ ] Publish the signed beta from the merged commit. Verify the public APK and
+  manifest, install the downloaded APK over 13.5.6b, and link the evidence.
+- Keep the remaining file reviews, untranslated guidance, workflow variants,
+  and intermittent Android 11 first-DNS-query investigation in the audit.
+  A physical phone is not emulated evidence; root is not a VPN beta requirement.
 
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
@@ -11894,3 +11916,25 @@ signing identity; keep the beta channel until physical-device validation exists.
 Local fixes and validation are complete; the [release checkpoint](release-13.5.4b.md)
 owns the validation ledger and precise limits. The remaining two checklist items
 are deliberately open until protected CI and downloaded release verification.
+
+## CI fix - 2026-11-25 Offline source cleanup
+
+- [x] Trace the failing SQLite durability assertion and asynchronous cache refresh.
+- [x] Run the unmodified class on the isolated worktree API 34 emulator.
+- [x] Wait for the queued cache refresh before asserting final cleanup state.
+- [x] Complete focused connected verification and return evidence to the outer executor.
+
+The cleanup assertion raced the queued runtime cache refresh, which temporarily sets
+`synchronous=NORMAL` before restoring `FULL`. The test now drains the existing
+single-threaded disk queue before asserting cleanup, reusing its teardown barrier.
+The strict pragma, staging cleanup, and user-rule preservation assertions remain.
+
+The unmodified class passed 18 tests locally; a standalone baseline retry instead
+hit the existing ten-second teardown queue timeout, not the CI pragma assertion.
+The patched class passed all 18 tests with zero failures or skips using
+`./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.adaway.model.source.SourceModelOfflineFileTest --dependency-verification=strict --console=plain`.
+The previously failing method also passed 20 consecutive isolated instrumentation
+runs (`python3 .gradle/ci-android/repeat_offline_cleanup.py after 20`); each run's
+`OK (1 test)` result is retained in `.gradle/ci-android/offline-after-*.log`.
+Full PR CI rerun and delivery remain owned by the outer executor. Root, physical-device,
+and intermittent DNS evidence are unchanged.

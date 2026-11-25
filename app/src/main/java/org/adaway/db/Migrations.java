@@ -218,8 +218,9 @@ final class Migrations {
             database.execSQL("ALTER TABLE `hosts_sources` ADD `size` INTEGER NOT NULL DEFAULT 0");
             // Set default values to new source attributes
             database.execSQL("UPDATE `hosts_sources` SET `label` = `url`");
-            // Update user hosts list
-            database.execSQL("UPDATE `hosts_sources` SET `url` = \"content://org.adaway/user/hosts\", `allowEnabled` = 1, `redirectEnabled` = 1 WHERE `url` = \"file://app/user/hosts\"");
+            // The reserved user row can already have the content URL after 1->2.
+            database.execSQL("UPDATE `hosts_sources` SET `url` = 'content://org.adaway/user/hosts', " +
+                    "`allowEnabled` = 1, `redirectEnabled` = 1 WHERE `id` = " + USER_SOURCE_ID);
             // Update default hosts source label
             database.execSQL("UPDATE `hosts_sources` SET `label` = \"AdAway official hosts\" WHERE `url` = \"https://adaway.org/hosts.txt\"");
             database.execSQL("UPDATE `hosts_sources` SET `label` = \"StevenBlack Unified hosts\" WHERE `url` = \"https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts\"");
@@ -375,9 +376,11 @@ final class Migrations {
                     "(SELECT active_generation FROM hosts_meta WHERE id = 0) " +
                     "AND allowed.`source_id` != 1)) " +
                     "AND ((allowed.`kind` = 0 AND entry.`host` LIKE " +
-                    "REPLACE(REPLACE(LOWER(allowed.`host`), '*', '%'), '?', '_')) " +
+                    "REPLACE(REPLACE(REPLACE(REPLACE(LOWER(allowed.`host`), '^', '^^'), " +
+                    "'_', '^_'), '*', '%'), '?', '_') ESCAPE '^') " +
                     "OR (allowed.`kind` = 1 AND (entry.`host` = LOWER(allowed.`host`) " +
-                    "OR entry.`host` LIKE '%.' || LOWER(allowed.`host`)))) LIMIT 1)");
+                    "OR entry.`host` LIKE '%.' || REPLACE(REPLACE(REPLACE(LOWER(allowed.`host`), " +
+                    "'^', '^^'), '_', '^_'), '%', '^%') ESCAPE '^'))) LIMIT 1)");
         }
     };
 

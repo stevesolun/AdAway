@@ -14,7 +14,7 @@
 
     <string name="update_support_title">Apoyar el desarrollo</string>
     <string name="update_donate_button">Donar</string>
-    <string name="update_sponsor_button">Patrocinador</string>
+    <string name="update_sponsor_button">Patrocinar</string>
 
     <!-- Notification -->
     <string name="update_notification_description">Descargando la última versión de AdAway…</string>

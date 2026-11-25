@@ -8,6 +8,7 @@
     <string name="update_up_to_date_header">You are up-to-date</string>
     <string name="update_update_available_header">Update available</string>
     <string name="update_unavailable_header">Unable to check for updates</string>
+    <string name="update_support_link_unavailable">No app could open this link.</string>
 
     <string name="update_update_button">Update now</string>
     <string name="update_progress_label">%1$s / %2$s</string>
@@ -20,7 +21,7 @@
     <string name="update_installer_opened_label">Installer opened; installation is not confirmed. You can retry if it was canceled or failed.</string>
     <string name="update_download_failed_label">The update could not be downloaded. Please retry.</string>
     <string name="update_verification_failed_label">The downloaded update failed verification and was not opened. Please retry.</string>
-    <string name="update_install_failed_label">The installer or permission settings could not be opened. Please retry.</string>
+    <string name="update_install_failed_label">Could not start installation. Retry the update.</string>
     <string name="update_metadata_expired_label">Update authorization expired. Check again for fresh update information.</string>
     <string name="update_checking_label">Checking for updates</string>
     <string name="update_last_changelog_title">Last changes</string>
