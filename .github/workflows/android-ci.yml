@@ -311,6 +311,37 @@ jobs:
             "system-images;android-34;google_apis;x86_64" \
             "ndk;27.2.12479018"
 
+      - name: Test connected APK preparation retries
+        run: python3 scripts/tests/test_connected_test_preparation.py
+
+      - name: Prepare connected test APKs
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          mkdir -p app/build/ci-artifacts
+          # Retry Maven Central throttling before starting any device tests.
+          for attempt in 1 2 3; do
+            log="app/build/ci-artifacts/connected-apk-build-$attempt.log"
+            set +e
+            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
+              --dependency-verification=strict --stacktrace --console=plain 2>&1 | tee "$log"
+            build_status=("${PIPESTATUS[@]}")
+            set -e
+            if [ "${build_status[1]}" -ne 0 ]; then
+              exit "${build_status[1]}"
+            fi
+            if [ "${build_status[0]}" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ] || ! grep -Eq \
+              "Could not (GET|HEAD) 'https://repo\\.maven\\.apache\\.org/[^']+'\\. Received status code 429 from server:" "$log"; then
+              exit "${build_status[0]}"
+            fi
+            echo "::warning::Maven Central rate limited APK preparation (attempt $attempt/3); retrying in $((attempt * 30)) seconds."
+            sleep "$((attempt * 30))"
+          done
+
       - name: Enable KVM
         shell: bash
         run: |
