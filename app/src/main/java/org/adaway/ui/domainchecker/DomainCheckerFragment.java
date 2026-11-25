@@ -166,11 +166,14 @@ public class DomainCheckerFragment extends Fragment {
                     int sourceText = src.isUserRule
                             ? R.string.domain_checker_user_source_format
                             : R.string.domain_checker_filter_source_format;
-                    tv.setText(getString(sourceText, src.name));
+                    String label = getString(sourceText, src.name);
+                    tv.setText(src.kind == RuleKind.SUFFIX
+                            ? getString(R.string.domain_checker_allow_source_rule_format,
+                                    label, "||" + src.host + "^") : label);
                     tv.setTextSize(13f);
                     row.addView(tv);
 
-                    if (src.isUserRule) {
+                    if (src.canDelete()) {
                         MaterialButton del = new MaterialButton(requireContext(),
                                 null, com.google.android.material.R.attr.borderlessButtonStyle);
                         del.setText(R.string.domain_checker_delete_rule);

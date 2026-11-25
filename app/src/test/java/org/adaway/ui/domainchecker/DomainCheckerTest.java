@@ -30,7 +30,8 @@ public class DomainCheckerTest {
      */
     @Test
     public void domainCheckResult_storesAllFields() {
-        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(42, "AdAway Default", false);
+        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(42, "AdAway Default",
+                false, "example.com", org.adaway.db.entity.RuleKind.EXACT);
         DomainCheckResult result = new DomainCheckResult(
                 "example.com",
                 true,
@@ -67,7 +68,8 @@ public class DomainCheckerTest {
 
     @Test
     public void domainCheckResult_userAllowed_flagSet() {
-        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(1, "Some list", false);
+        DomainCheckResult.BlockingSource src = new DomainCheckResult.BlockingSource(1, "Some list",
+                false, "example.com", org.adaway.db.entity.RuleKind.EXACT);
         DomainCheckResult result = new DomainCheckResult(
                 "allowed.com",
                 true,

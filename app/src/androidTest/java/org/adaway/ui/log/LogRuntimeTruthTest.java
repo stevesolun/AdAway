@@ -6,6 +6,7 @@ import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -128,6 +129,14 @@ public class LogRuntimeTruthTest {
                 && row.getKind() == org.adaway.db.entity.RuleKind.SUFFIX).count());
         hostEntryDao.sync();
         assertEquals(BLOCKED, hostEntryDao.getTypeForHost(LOG_HOST));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                model.get().removeListItem(LOG_HOST, BLOCKED));
+        waitForDiskIoIdle();
+        assertFalse(hostListItemDao.getExactEntriesForHost(LOG_HOST).stream()
+                .anyMatch(row -> row.getSourceId() == USER_SOURCE_ID));
+        assertTrue(hostListItemDao.getSuffixEntriesForHost(LOG_HOST).stream()
+                .anyMatch(row -> row.getSourceId() == USER_SOURCE_ID));
+        assertEquals(BLOCKED, hostEntryDao.getTypeForHost("sibling." + LOG_HOST));
     }
 
     @Test(timeout = 120_000)

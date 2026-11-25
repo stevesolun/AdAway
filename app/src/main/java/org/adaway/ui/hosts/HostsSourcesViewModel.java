@@ -30,7 +30,7 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class HostsSourcesViewModel extends AndroidViewModel {
-    public enum ApplyStatus { IDLE, RUNNING, FAILED, SUCCEEDED }
+    public enum ApplyStatus { IDLE, BUSY, RUNNING, FAILED, SUCCEEDED }
 
     private final HostsSourceDao hostsSourceDao;
     private final SourceApplyState mApplyState = new SourceApplyState();
@@ -92,13 +92,13 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         }
         mUpdateSourceId = sourceId;
         long revision = mConfigurationRevision;
-        mApplyStatus.setValue(ApplyStatus.RUNNING);
         AdAwayApplication application = getApplication();
         SourceOperationCoordinator.Lease lease = application.getSourceOperations().tryAcquire();
         if (lease == null) {
-            mApplyStatus.setValue(ApplyStatus.FAILED);
+            mApplyStatus.setValue(ApplyStatus.BUSY);
             return;
         }
+        mApplyStatus.setValue(ApplyStatus.RUNNING);
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 boolean successful = false;

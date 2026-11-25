@@ -116,7 +116,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/filterlistsSubscribeVisibleButton"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            style="@style/Widget.AdAway.Discover.TextButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -126,7 +126,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/filterlistsRemoveVisibleButton"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            style="@style/Widget.AdAway.Discover.TextButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -145,7 +145,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/filterlistsSubscribeAllButton"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            style="@style/Widget.AdAway.Discover.TextButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -155,7 +155,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/filterlistsRemoveAllButton"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            style="@style/Widget.AdAway.Discover.TextButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -167,7 +167,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/filterlistsCancelBulkButton"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        style="@style/Widget.AdAway.Discover.TextButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:contentDescription="@string/filterlists_stop_subscribing"
@@ -196,21 +196,21 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/filterlistsReviewLastRunButton"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.AdAway.Discover.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/filterlists_review_last_run" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/filterlistsRetryLastRunButton"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.AdAway.Discover.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/filterlists_retry_last_run" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/filterlistsReviewUnsupportedButton"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.AdAway.Discover.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/filterlists_review_unsupported" />
@@ -264,6 +264,7 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/filterlistsStateRetryButton"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:textColor="@color/discover_action_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"

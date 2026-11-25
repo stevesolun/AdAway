@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Parcel;
 import android.os.SystemClock;
@@ -19,6 +20,7 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.core.graphics.ColorUtils;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -51,8 +53,10 @@ import org.junit.runner.RunWith;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -347,19 +351,161 @@ public class DiscoverStateRegressionInstrumentedTest {
                 assertTrue("First row selection must be on screen",
                         selection.getGlobalVisibleRect(target));
             });
-            long downTime = SystemClock.uptimeMillis();
-            for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
-                MotionEvent event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
-                        action, target.centerX(), target.centerY(), 0);
-                try {
-                    assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                            .injectInputEvent(event, true));
-                } finally {
-                    event.recycle();
-                }
-            }
+            tapCenter(target);
             waitForUi(scenario, "tapped filter checkbox selected", activity -> ((MaterialCheckBox)
                     row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox)).isChecked());
+        }
+    }
+
+    @Test
+    public void enabledBulkActionsAndRowSelectionContrastWithTheirActualSurfaces() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForCount(scenario, 4);
+            Rect checkbox = new Rect(), selected = new Rect(), all = new Rect(), chip = new Rect();
+            waitForUi(scenario, "visible Discover selection controls", activity -> {
+                View check = activity.findViewById(R.id.filterlistsItemSelectionCheckBox);
+                ChipGroup group = activity.findViewById(R.id.tagChipGroup);
+                return check != null && check.getGlobalVisibleRect(checkbox)
+                        && activity.findViewById(R.id.filterlistsSubscribeVisibleButton)
+                                .getGlobalVisibleRect(selected)
+                        && activity.findViewById(R.id.filterlistsSubscribeAllButton).getGlobalVisibleRect(all)
+                        && group.getCheckedChipId() != View.NO_ID
+                        && group.findViewById(group.getCheckedChipId()).getGlobalVisibleRect(chip);
+            });
+            scenario.onActivity(activity -> {
+                assertTrue(activity.findViewById(R.id.filterlistsSubscribeAllButton).isEnabled());
+                assertFalse(activity.findViewById(R.id.filterlistsSubscribeVisibleButton).isEnabled());
+            });
+            Bitmap before = screenshot();
+            double disabled = pixelContrast(before, selected);
+            try {
+                assertTrue("Enabled bulk text", pixelContrast(before, all) >= 4.5);
+                assertTrue("Unchecked box outline", pixelContrast(before, checkbox) >= 3);
+                // Skip the chip's transparent touch padding and rounded corners.
+                chip.inset(chip.width() / 5, chip.height() / 4);
+                assertTrue("Selected tag label", pixelContrast(before, chip) >= 4.5);
+            } finally {
+                before.recycle();
+            }
+            tapCenter(checkbox);
+            waitForUi(scenario, "rebound checked row and enabled actions", activity -> {
+                RecyclerView list = activity.findViewById(R.id.filterlistsRecyclerView);
+                MaterialCheckBox box = row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox);
+                return !list.hasPendingAdapterUpdates() && !list.isAnimating() && box.isChecked()
+                        && box.getGlobalVisibleRect(checkbox)
+                        && activity.findViewById(R.id.filterlistsSubscribeVisibleButton).isEnabled()
+                        && activity.findViewById(R.id.filterlistsRemoveVisibleButton).isEnabled();
+            });
+            Bitmap after = screenshot();
+            try {
+                double enabled = pixelContrast(after, selected);
+                assertTrue("Selected action must look enabled", enabled >= 4.5 && enabled > disabled);
+                assertTrue("Checked box fill", pixelContrast(after, checkbox) >= 3);
+            } finally {
+                after.recycle();
+            }
+            tapCenter(selected);
+            clickDialogAction(context.getString(R.string.button_cancel));
+            assertFalse("Selection and Cancel must not subscribe", sourceDao.getByUrl(URL_A).isPresent());
+        }
+    }
+
+    private static Bitmap screenshot() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        android.app.UiAutomation automation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automation.waitForIdle(500, TIMEOUT_MS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new AssertionError("Discover did not settle before the screenshot", e);
+        }
+        Bitmap shot = automation.takeScreenshot();
+        assertNotNull(shot);
+        return shot;
+    }
+
+    @Test
+    public void shortLtrRowMetadataClearsBothControlsBeforeAndAfterSubscription() {
+        assertTrue(cache.edit().putString("listsJson", LISTS.replace("Regional English Safe", "Ads")).commit());
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            Rect target = new Rect();
+            scenario.onActivity(activity -> {
+                View item = row(activity, 0);
+                Configuration config = item.getResources().getConfiguration();
+                String locale = InstrumentationRegistry.getArguments().getString("uxLocale");
+                if (locale != null) {
+                    java.util.Locale expected = java.util.Locale.forLanguageTag(locale);
+                    assertEquals(expected.getLanguage(), config.getLocales().get(0).getLanguage());
+                    assertEquals(android.text.TextUtils.getLayoutDirectionFromLocale(expected),
+                            item.getLayoutDirection());
+                    assertEquals(Float.parseFloat(InstrumentationRegistry.getArguments()
+                            .getString("uxFontScale")), config.fontScale, 0.02f);
+                }
+                assertRowTextClearsControls(item, false);
+                assertTrue(item.findViewById(R.id.filterlistsItemSwitch).getGlobalVisibleRect(target));
+            });
+            tapCenter(target);
+            waitFor("cached row subscribed to correct URL", () -> sourceDao.getByUrl(URL_A).isPresent());
+            waitForUi(scenario, "subscribed row laid out", activity -> {
+                RecyclerView list = activity.findViewById(R.id.filterlistsRecyclerView);
+                return !list.hasPendingAdapterUpdates() && !list.isAnimating()
+                        && row(activity, 0).findViewById(R.id.filterlistsItemStatus).getVisibility() == View.VISIBLE;
+            });
+            scenario.onActivity(activity -> assertRowTextClearsControls(row(activity, 0), true));
+        }
+    }
+
+    private static void assertRowTextClearsControls(View row, boolean subscribed) {
+        Rect box = new Rect(), toggle = new Rect(), text = new Rect();
+        row.findViewById(R.id.filterlistsItemSelectionCheckBox).getHitRect(box);
+        row.findViewById(R.id.filterlistsItemSwitch).getHitRect(toggle);
+        assertEquals("Ads", ((TextView) row.findViewById(R.id.filterlistsItemName)).getText().toString());
+        assertEquals("Hosts", ((TextView) row.findViewById(R.id.filterlistsItemSyntax)).getText().toString());
+        assertEquals(subscribed ? View.VISIBLE : View.GONE,
+                row.findViewById(R.id.filterlistsItemStatus).getVisibility());
+        for (int id : new int[]{R.id.filterlistsItemName, R.id.filterlistsItemSyntax, R.id.filterlistsItemStatus}) {
+            View label = row.findViewById(id);
+            if (label.getVisibility() == View.GONE) continue;
+            label.getHitRect(text);
+            assertTrue(label.getResources().getResourceEntryName(id) + " must fit between controls: "
+                            + text + " vs " + box + " and " + toggle,
+                    !text.isEmpty() && text.left >= Math.min(box.right, toggle.right)
+                            && text.right <= Math.max(box.left, toggle.left));
+        }
+        row.findViewById(R.id.filterlistsItemDesc).getHitRect(text);
+        assertTrue("Description must start below both touch targets",
+                !text.isEmpty() && text.top >= Math.max(box.bottom, toggle.bottom));
+    }
+
+    private static double pixelContrast(Bitmap shot, Rect bounds) {
+        // These controls have a flat fill. Count solid ink and surface, not antialiased edges.
+        Map<Integer, Integer> counts = new HashMap<>();
+        int[] pixels = new int[bounds.width() * bounds.height()];
+        shot.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top,
+                bounds.width(), bounds.height());
+        for (int pixel : pixels) {
+            counts.merge(pixel, 1, Integer::sum);
+        }
+        List<Integer> colors = counts.keySet().stream()
+                .sorted((a, b) -> Integer.compare(counts.get(b), counts.get(a)))
+                .limit(2).collect(java.util.stream.Collectors.toList());
+        return colors.size() < 2 ? 1 : ColorUtils.calculateContrast(colors.get(0), colors.get(1));
+    }
+
+    private static void tapCenter(Rect target) {
+        long down = SystemClock.uptimeMillis();
+        for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+            MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(),
+                    action, target.centerX(), target.centerY(), 0);
+            try {
+                assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                        .injectInputEvent(event, true));
+            } finally {
+                event.recycle();
+            }
         }
     }
 

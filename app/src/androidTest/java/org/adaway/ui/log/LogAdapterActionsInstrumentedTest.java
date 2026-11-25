@@ -39,6 +39,28 @@ public class LogAdapterActionsInstrumentedTest {
         });
     }
 
+    @Test
+    public void inheritedDecisionsAreTintedButCannotRemoveRules() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            Fixture f = new Fixture();
+            for (ListType type : ListType.values()) {
+                f.bindAndCheck(type, "personal.example");
+                f.adapter.submitList(null);
+                f.adapter.submitList(Collections.singletonList(new LogEntry("inherited.example", type, false)));
+                f.adapter.onBindViewHolder(f.holder, 0);
+                ImageView icon = switch (type) {
+                    case BLOCKED -> f.holder.binding.blockImageView;
+                    case ALLOWED -> f.holder.binding.allowImageView;
+                    case REDIRECTED -> f.holder.binding.redirectionImageView;
+                };
+                assertNotNull(icon.getColorFilter());
+                assertFalse(icon.isClickable());
+                assertFalse(icon.performClick());
+                f.bindAndCheck(null, "unlisted.example");
+            }
+        });
+    }
+
     private static final class Fixture {
         final Context context = new ContextThemeWrapper(
                 ApplicationProvider.getApplicationContext(), R.style.Theme_AdAway);
@@ -50,7 +72,7 @@ public class LogAdapterActionsInstrumentedTest {
         void bindAndCheck(ListType selected, String host) {
             // Clear the differ first so binding is synchronous while reusing the actual holder.
             this.adapter.submitList(null);
-            this.adapter.submitList(Collections.singletonList(new LogEntry(host, selected)));
+            this.adapter.submitList(Collections.singletonList(new LogEntry(host, selected, selected != null)));
             this.adapter.onBindViewHolder(this.holder, 0);
             check(this.holder.binding.blockImageView, ListType.BLOCKED, selected, host,
                     R.string.tcpdump_entry_add_blacklist, R.string.log_remove_blocked_entry);
@@ -73,7 +95,7 @@ public class LogAdapterActionsInstrumentedTest {
             assertTrue(icon.performClick());
             assertEquals(removing ? "remove" : "add", this.callback.action);
             assertEquals(host, this.callback.host);
-            assertEquals(removing ? null : type, this.callback.type);
+            assertEquals(type, this.callback.type);
         }
     }
 
@@ -86,9 +108,10 @@ public class LogAdapterActionsInstrumentedTest {
             this.host = hostName;
             this.type = type;
         }
-        @Override public void removeListItem(String hostName) {
+        @Override public void removeListItem(String hostName, ListType type) {
             this.action = "remove";
             this.host = hostName;
+            this.type = type;
         }
         @Override public void openHostInBrowser(String hostName) { fail("Unexpected browser action"); }
         @Override public void copyHostToClipboard(String hostName) { fail("Unexpected copy action"); }

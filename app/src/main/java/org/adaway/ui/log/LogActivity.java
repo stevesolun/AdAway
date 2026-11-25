@@ -221,9 +221,9 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
     }
 
     @Override
-    public void removeListItem(@NonNull String hostName) {
+    public void removeListItem(@NonNull String hostName, @NonNull ListType type) {
         if (this.mViewModel != null && this.mApplySnackbar != null) {
-            this.mViewModel.removeListItem(hostName);
+            this.mViewModel.removeListItem(hostName, type);
             this.mApplySnackbar.notifyUpdateAvailable();
         }
     }

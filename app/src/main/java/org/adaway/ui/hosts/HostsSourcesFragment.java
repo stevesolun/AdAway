@@ -88,6 +88,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private CategorizedSourcesAdapter mAdapter;
     private CoordinatorLayout coordinatorLayout;
     private ApplyConfigurationSnackbar mApplySnackbar;
+    @Nullable
+    private BottomSheetDialog mAddSourceSheet;
     private List<HostsSource> lastSources = new ArrayList<>();
 
     @Override
@@ -156,6 +158,14 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         
         // Return fragment view
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        BottomSheetDialog sheet = mAddSourceSheet;
+        mAddSourceSheet = null;
+        if (sheet != null) sheet.dismiss();
+        super.onDestroyView();
     }
 
     @Override
@@ -655,7 +665,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
      * Scheduling stays in the Sources toolbar and Manage schedules screen.
      */
     private void showAddSourceOptions() {
+        if (!isResumed() || mAddSourceSheet != null) return;
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
+        mAddSourceSheet = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (mAddSourceSheet == dialog) mAddSourceSheet = null;
+        });
         View sheetView = getLayoutInflater().inflate(
                 R.layout.hosts_add_options_sheet,
                 (ViewGroup) requireView(),
@@ -665,7 +680,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Browse catalog option — opens Discover tab in HomeActivity (catalog is embedded there)
         View catalogOption = sheetView.findViewById(R.id.browseCatalogOption);
         catalogOption.setOnClickListener(v -> {
-            dialog.dismiss();
+            if (!consumeAddSourceSheet(dialog)) return;
             Intent intent = new Intent(requireContext(), HomeActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             intent.putExtra(HomeActivity.EXTRA_NAV_DISCOVER, true);
@@ -675,12 +690,19 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Add custom source option
         View customOption = sheetView.findViewById(R.id.addCustomOption);
         customOption.setOnClickListener(v -> {
-            dialog.dismiss();
-            startSourceEdition(null);
+            if (consumeAddSourceSheet(dialog)) startSourceEdition(null);
         });
 
         dialog.setContentView(sheetView);
         dialog.show();
+    }
+
+    private boolean consumeAddSourceSheet(BottomSheetDialog dialog) {
+        // A queued tap may outlive its view, or arrive after a new sheet opens.
+        if (mAddSourceSheet != dialog || !isResumed() || !dialog.isShowing()) return false;
+        mAddSourceSheet = null;
+        dialog.dismiss();
+        return true;
     }
 
     @Override

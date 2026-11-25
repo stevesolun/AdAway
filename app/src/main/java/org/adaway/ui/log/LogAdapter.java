@@ -78,16 +78,24 @@ class LogAdapter extends ListAdapter<LogEntry, LogAdapter.ViewHolder> {
 
     private void bindImageView(ImageView imageView, ListType type, LogEntry entry) {
         boolean selected = type == entry.getType();
-        imageView.setContentDescription(imageView.getContext().getString(
-                getActionDescription(type, selected)));
+        boolean readOnly = selected && !entry.isRemovable();
+        int label = readOnly ? switch (type) {
+            case BLOCKED -> R.string.blocked_hosts_label;
+            case ALLOWED -> R.string.allowed_hosts_label;
+            case REDIRECTED -> R.string.redirect_hosts_label;
+        } : getActionDescription(type, selected);
+        imageView.setContentDescription(imageView.getContext().getString(label));
+        imageView.setEnabled(!readOnly);
         if (selected) {
             int primaryColor = this.callback.getColor(R.color.primary);
             imageView.setColorFilter(primaryColor, MULTIPLY);
-            imageView.setOnClickListener(v -> this.callback.removeListItem(entry.getHost()));
+            imageView.setOnClickListener(readOnly ? null : v ->
+                    this.callback.removeListItem(entry.getHost(), type));
         } else {
             imageView.clearColorFilter();
             imageView.setOnClickListener(v -> this.callback.addListItem(entry.getHost(), type));
         }
+        imageView.setClickable(!readOnly);
     }
 
     @StringRes

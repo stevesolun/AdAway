@@ -205,13 +205,14 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         } else if (action == Action.REMOVE_ALLOW) {
             mHostListItemDao.removeExactUserAllow(domain);
         } else {
-            for (HostListItem item : mHostListItemDao.getEntriesForHost(domain)) {
+            for (HostListItem item : mHostListItemDao.getExactEntriesForHost(domain)) {
                 if (item.getSourceId() != USER_SOURCE_ID) continue;
-                if (item.getId() == itemId) {
+                if (item.getId() == itemId && item.getType() != ListType.ALLOWED) {
                     mHostListItemDao.deleteById(item.getId());
-                    break;
+                    return;
                 }
             }
+            throw new IllegalStateException("No matching exact user block or redirect to delete");
         }
     }
 
@@ -235,7 +236,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
                     || item.getType() == ListType.REDIRECTED)) {
                 blockingSources.add(new DomainCheckResult.BlockingSource(item.getId(),
                         resolveSourceName(allSources, item.getSourceId()),
-                        item.getSourceId() == USER_SOURCE_ID));
+                        item.getSourceId() == USER_SOURCE_ID, item.getHost(), item.getKind()));
             }
         }
         List<DomainCheckResult.AllowSource> allows = new ArrayList<>();
@@ -243,8 +244,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         for (HostListItemDao.AllowMatch match : mHostListItemDao.getMatchingAllowRules(domain)) {
             boolean user = match.sourceId == USER_SOURCE_ID;
             userAllowed |= user;
-            String name = user ? getApplication().getString(R.string.hosts_user_source)
-                    : resolveSourceName(allSources, match.sourceId);
+            String name = resolveSourceName(allSources, match.sourceId);
             allows.add(new DomainCheckResult.AllowSource(match.sourceId, name, match.host, match.kind));
         }
         return new DomainCheckResult(domain, resolveStatus(runtimeType, !allows.isEmpty()),
@@ -258,7 +258,8 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         return "Tap \"Add to Allow List\" to create a user exception for this domain.";
     }
 
-    private static String resolveSourceName(List<HostsSource> sources, int sourceId) {
+    private String resolveSourceName(List<HostsSource> sources, int sourceId) {
+        if (sourceId == USER_SOURCE_ID) return getApplication().getString(R.string.hosts_user_source);
         for (HostsSource source : sources) {
             if (source.getId() == sourceId) {
                 String label = source.getLabel();

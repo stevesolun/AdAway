@@ -23,7 +23,7 @@ public interface LogViewCallback {
      *
      * @param hostName The item host name.
      */
-    void removeListItem(@NonNull String hostName);
+    void removeListItem(@NonNull String hostName, @NonNull ListType type);
 
     /**
      * Open an host into the user browser.

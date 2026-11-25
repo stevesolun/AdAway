@@ -45,6 +45,7 @@ import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
@@ -70,6 +71,7 @@ public class SourcesApplyStateRegressionTest {
     private static final long TIMEOUT_MS = 15_000;
     private static final int SOURCE_A = 1911;
     private static final int SOURCE_B = 1912;
+    private static final int NEW_SOURCE = 1913;
 
     private Context context;
     private AdAwayApplication application;
@@ -163,6 +165,61 @@ public class SourcesApplyStateRegressionTest {
         assertEquals(0, sourceRuleCount(SOURCE_B));
         assertTrue(sourceRuleCount(SOURCE_A) > 0);
         assertTrue(database.hostsSourceDao().getById(SOURCE_B).orElseThrow().isEnabled());
+    }
+
+    @Test(timeout = 90_000)
+    public void firstApplyDuringNewSourceWorkerDoesNotReportFailure() throws Exception {
+        sourceModel.realUpdates = true;
+        HomeActivity activity = launchSources();
+        HostsSource added = new HostsSource();
+        added.setId(NEW_SOURCE);
+        added.setLabel("Named Hebrew fixture");
+        added.setUrl("content://org.adaway.test.hosts/success.txt?source=" + NEW_SOURCE);
+        added.setEnabled(true);
+        database.hostsSourceDao().insert(added);
+        waitForText(activity, R.string.notification_configuration_changed);
+        adBlockModel.blockApply();
+        SourceUpdateService.enqueueUpdateNow(context);
+        assertTrue(adBlockModel.entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+
+        clickApplyAction(activity);
+        assertFalse("A held worker lease is not an Apply failure", onMainBoolean(() ->
+                viewModelOnMain(activity).getApplyStatus().getValue()
+                        == HostsSourcesViewModel.ApplyStatus.FAILED));
+        waitForText(activity, R.string.error_update_in_progress_details);
+        assertTrue(onMainBoolean(() -> viewModelOnMain(activity).getApplyState().isPending()));
+        adBlockModel.releaseApply();
+
+        waitForText(activity, R.string.notification_configuration_applied);
+        assertFalse(onMainBoolean(() -> viewModelOnMain(activity).getApplyState().isPending()));
+        assertEquals(2, sourceRuleCount(NEW_SOURCE));
+        assertEquals(1, sourceModel.fullUpdates.get());
+        assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test(timeout = 90_000)
+    public void busyTargetedRefreshCanRetryWithoutApplyingUnrelatedSelections() throws Exception {
+        HomeActivity activity = launchSources();
+        selectSource(SOURCE_B, false);
+        waitForText(activity, R.string.notification_configuration_changed);
+        HostsSource sourceA = database.hostsSourceDao().getById(SOURCE_A).orElseThrow();
+        try (SourceOperationCoordinator.Lease ignored = application.getSourceOperations().acquire()) {
+            onMain(() -> sourcesFragment(activity).updateSource(sourceA));
+            waitForText(activity, R.string.error_update_in_progress_details);
+            AtomicReference<View> firstAction = new AtomicReference<>();
+            onMain(() -> firstAction.set(activity.findViewById(
+                    com.google.android.material.R.id.snackbar_action)));
+            clickApplyAction(activity);
+            await("First busy banner dismissed", () -> onMainBoolean(() ->
+                    !firstAction.get().isAttachedToWindow()));
+            waitForText(activity, R.string.error_update_in_progress_details);
+            assertEquals(0, sourceModel.targetedUpdates.get());
+        }
+        clickApplyAction(activity);
+        waitForStatus(activity, HostsSourcesViewModel.ApplyStatus.SUCCEEDED);
+        waitForText(activity, R.string.notification_configuration_changed);
+        assertEquals(1, sourceModel.targetedUpdates.get());
+        assertEquals(0, sourceModel.fullUpdates.get());
     }
 
     @Test(timeout = 90_000)

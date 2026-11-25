@@ -70,6 +70,9 @@ class SourceLoader {
     private static final String HOSTS_PARSER = "^\\s*([^#\\s]+)\\s+([^#\\s]+).*$";
     static final Pattern HOSTS_PARSER_PATTERN = Pattern.compile(HOSTS_PARSER);
     private static final Pattern HOSTS_ALIAS_PATTERN = Pattern.compile("[^#\\s]+");
+    private static final Pattern CONDITIONAL_DIRECTIVE =
+            Pattern.compile("!#(if|else|endif)(?:\\s.*)?");
+    private static final Pattern GLOBAL_COSMETIC_RULE = Pattern.compile("^#[@$%?^]*#\\S");
     static final Pattern ADBLOCK_DOUBLE_PIPE = Pattern.compile("^\\|\\|([^\\^/$|\\s]+)\\^?$");
     static final Pattern URL_HOST = Pattern.compile("^\\|?https?://([^/\\^$]+).*$");
     private static final Pattern DNSMASQ_ADDRESS =
@@ -155,13 +158,12 @@ class SourceLoader {
         LinkedBlockingQueue<String> hostsLineQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         LinkedBlockingQueue<HostListItem> hostsListItemQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
         AtomicReference<Throwable> sourceReadFailure = new AtomicReference<>();
-        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT, sourceReadFailure);
+        AtomicInteger skippedLines = new AtomicInteger(0);
+        SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT,
+                sourceReadFailure, this.source.isAllowEnabled() ? skippedLines : null);
         ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db,
                 this.source.getId(), this.generation, PARSER_COUNT, onBatchInserted,
                 sourceReadFailure, sqlDeduper);
-
-        // Shared counter for malformed lines across all parser threads
-        AtomicInteger skippedLines = new AtomicInteger(0);
 
         ExecutorService executorService = Executors.newFixedThreadPool(
                 PARSER_COUNT + 2,
@@ -458,13 +460,47 @@ class SourceLoader {
         private final BlockingQueue<String> queue;
         private final int parserCount;
         private final AtomicReference<Throwable> failure;
+        @Nullable private final AtomicInteger skippedAllowLines;
+        private int conditionalDepth;
 
         private SourceReader(BufferedReader reader, BlockingQueue<String> queue, int parserCount,
-                AtomicReference<Throwable> failure) {
+                AtomicReference<Throwable> failure, @Nullable AtomicInteger skippedAllowLines) {
             this.reader = reader;
             this.queue = queue;
             this.parserCount = parserCount;
             this.failure = failure;
+            this.skippedAllowLines = skippedAllowLines;
+        }
+
+        private void emitLine(String line) throws InterruptedException, IOException {
+            if (skippedAllowLines != null) {
+                // Section boundaries must be seen in file order, before parallel line parsing.
+                String text = line.trim();
+                if (text.startsWith("!#")) {
+                    Matcher directive = CONDITIONAL_DIRECTIVE.matcher(text);
+                    if (directive.matches()) {
+                        String keyword = directive.group(1);
+                        if ("if".equals(keyword)) {
+                            conditionalDepth++;
+                        } else if (conditionalDepth == 0) {
+                            throw new IOException("Unmatched allow-list conditional directive");
+                        } else if ("endif".equals(keyword)) {
+                            conditionalDepth--;
+                        }
+                        return;
+                    }
+                }
+                if (text.isEmpty() || text.startsWith("!")) return;
+                if (text.startsWith("#")) {
+                    if (GLOBAL_COSMETIC_RULE.matcher(text).find()) skippedAllowLines.incrementAndGet();
+                    return;
+                }
+                if (conditionalDepth != 0) {
+                    skippedAllowLines.incrementAndGet();
+                    return;
+                }
+            }
+            queue.put(line);
         }
 
         @Override
@@ -487,7 +523,7 @@ class SourceLoader {
                         firstCharacter = false;
                         if (character == '\n' || character == '\r') {
                             if (line.length() > 0) {
-                                this.queue.put(line.toString());
+                                emitLine(line.toString());
                                 line.setLength(0);
                             }
                         } else {
@@ -500,8 +536,9 @@ class SourceLoader {
                     }
                 }
                 if (line.length() > 0) {
-                    this.queue.put(line.toString());
+                    emitLine(line.toString());
                 }
+                if (conditionalDepth != 0) throw new IOException("Unclosed allow-list conditional");
             } catch (Throwable t) {
                 this.failure.compareAndSet(null, t);
                 Timber.w(t, "Failed to read hosts source.");
@@ -635,29 +672,31 @@ class SourceLoader {
             return item;
         }
 
+        @Nullable
         private HostListItem parseAllowListItem(String line) {
-            // Try multi-format extraction first (ABP, dnsmasq, URL, plain domain).
-            ExtractedRule extracted = extractRuleFromNonHostsSyntax(line);
-            String host = extracted == null ? null : extracted.host;
-            RuleKind kind = extracted == null ? EXACT : extracted.kind;
-            if (host == null) {
-                // Fall back: allow wildcard entries (*.example.com) which are valid for
-                // allow-lists but rejected by sanitizeHostname inside the extractor above.
-                String trimmed = line.trim();
-                int hash = trimmed.indexOf('#');
-                if (hash > 0) trimmed = trimmed.substring(0, hash).trim();
-                if (!trimmed.isEmpty() && RegexUtils.isValidWildcardHostname(trimmed)) {
-                    host = trimmed;
+            String rule = line.trim();
+            int hash = rule.indexOf('#');
+            if (hash >= 0 && !DNSMASQ_ADDRESS.matcher(rule).matches()) {
+                // Leave dnsmasq's /# target intact. Never truncate an ambiguous browser
+                // separator to an unconditional allow; only strip a standalone comment.
+                if (hash == 0 || (!Character.isWhitespace(rule.charAt(hash - 1))
+                        && hash + 1 < rule.length() && !Character.isWhitespace(rule.charAt(hash + 1)))) {
+                    return null;
                 }
+                rule = rule.substring(0, hash).trim();
             }
-            if (host == null) {
-                return null;
+            ExtractedRule extracted = extractRuleFromNonHostsSyntax(rule);
+            if (extracted == null) {
+                if ((rule.indexOf('*') < 0 && rule.indexOf('?') < 0)
+                        || !RegexUtils.isValidWildcardHostname(rule)) {
+                    return null;
+                }
+                extracted = new ExtractedRule(rule, EXACT);
             }
-            // Create item
             HostListItem item = new HostListItem();
             item.setType(ALLOWED);
-            item.setHost(host);
-            item.setKind(kind);
+            item.setHost(extracted.host);
+            item.setKind(extracted.kind);
             item.setEnabled(true);
             item.setSourceId(this.source.getId());
             return item;

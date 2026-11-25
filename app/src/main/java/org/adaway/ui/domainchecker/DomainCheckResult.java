@@ -22,11 +22,19 @@ public class DomainCheckResult {
         public final int itemId;         // DB row ID — used to delete user-defined rules
         public final String name;        // Display name of the filter source
         public final boolean isUserRule; // true when source_id == USER_SOURCE_ID
+        public final String host;
+        public final RuleKind kind;
 
-        public BlockingSource(int itemId, String name, boolean isUserRule) {
+        public BlockingSource(int itemId, String name, boolean isUserRule, String host, RuleKind kind) {
             this.itemId = itemId;
             this.name = name;
             this.isUserRule = isUserRule;
+            this.host = host;
+            this.kind = kind;
+        }
+
+        public boolean canDelete() {
+            return isUserRule && kind == RuleKind.EXACT;
         }
     }
 
