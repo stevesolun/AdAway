@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="domain_checker_invalid_input">Enter a valid domain or HTTP/HTTPS URL without login details.</string>
     <string name="domain_checker_check_failed">Could not check this domain. Please try again.</string>
