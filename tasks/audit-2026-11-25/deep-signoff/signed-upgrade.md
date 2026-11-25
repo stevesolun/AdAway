@@ -46,3 +46,40 @@ Evidence in the same directory: `p00-*` through `p02-*`, `b00-*`
 through `b03-*`, `bounded-package.txt`, `bounded-upgrade-tunnel.txt`,
 `bounded-multifilter-dns.json`, and `bounded-multifilter-sites.json`.
 The 5M repeat uses a separate instrumentable build and emulator.
+
+## VPN ownership review build
+
+Upgraded a separately prepared public 13.5.6b install to the signed local
+build from `b6c6a5a78` (SHA-256 `24512a34af3aaf8a4c66bbc0822201b507556130154af42eba98c904df18f775`).
+Android verified the update in place: UID 10199 and first install time
+remained unchanged. Sources still showed the checked Dan Pollock custom
+list (13k; 25 skipped); a Home switch tap brought protection online. Direct
+VPN queries gave zero A answers for media.fastclick.net and two for Wikipedia.
+The certificate matched the public signer. Local evidence: `q00-*` to
+`q03-*` in the same directory. Not a published artifact.
+
+## Deep-QA phone candidate
+
+Local `AdAway_13.5.7b.apk` SHA-256:
+`ec78acf3baab00f7392ee317acdecfbe311155a2362ec2b41d57a3109034cfff`.
+The signed update retained the same UID, first install time and selected
+13k custom list through the public-to-candidate upgrade chain. Home showed
+protection active after starting the VPN. The Android 14 browser, with its
+cache disabled for the check, rendered Debian (37 links), NASA (284), and
+Example Domain (1); all returned HTTP 200. The listed media.fastclick.net
+failed with ERR_NAME_NOT_RESOLVED. Direct VPN DNS returned zero A answers
+for that host, three for Debian and two for Wikipedia. See `q14-sites.json`,
+`q14-dns.json`, `q14-retained`, `q14-package.txt` and `q14-signer.txt`.
+This tests domain filtering, not cosmetic rules or every list format.
+
+Signing all three variants with release configuration available confirmed
+the debug app and instrumentation used the same **development** certificate
+and only directRelease used the pinned public certificate. The build refused
+an intentionally misconfigured debug variant before packaging. The release
+APK was non-debuggable and byte-identical before and after the signing policy
+fix. See `q15-actual-signers.txt` and `q15-refusal.txt`.
+An additional scan checked the manifest of each APK under the local
+`app/build/reports/` tree. All 21 marked debuggable verified with the
+development certificate; none of those archived files used the release
+certificate. This is limited to that tree, not a scan of other machines
+or release history. See `q17-archived-debug-signers.txt`.

@@ -2,6 +2,11 @@
 
 This is the frozen discovery inventory, **not** a release or journey pass list. In particular, PU-03 describes the defect as found. See [startup journeys](../deep-startup-journeys.csv) and [startup bug](../deep-start-bugs.csv) for the later fix and its separate execution evidence.
 
+For what actually ran and what is still open, see the
+[arbitrary-filter checkpoint](general-filter-checkpoint.md),
+[signed upgrade](signed-upgrade.md#deep-qa-phone-candidate) and
+[verification decision](decision.md).
+
 | File | Meaning |
 |---|---|
 | `control-oracles.csv` | 260 control/journey variants: route, action, intended effect, relevant test methods and their limits, hands-on check and open gap. Blank methods are intentional. |

@@ -28,6 +28,9 @@ The bounded beta release does not complete this ongoing audit.
 - [x] Exercise a non-regional URL through the editor with the active VPN:
   HaGeZi Multi LIGHT imported 85,887 rules alongside three default sources.
   Verify ordinary sites and list-specific domains in Android Chrome.
+  The [arbitrary-filter checkpoint](audit-2026-11-25/deep-signoff/general-filter-checkpoint.md)
+  also covers an independent Dan Pollock URL, an in-place signed upgrade,
+  and a repeatable distinction between a blocked domain and a usable site.
 - [x] Recheck the combined candidate after fixes for reproduced cross-screen
   and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
   Handset testing remains user-deferred.
@@ -42,9 +45,15 @@ The bounded beta release does not complete this ongoing audit.
 
 - [x] Verify the signed candidate upgrades 13.5.6b without losing selected
   filters: [signed upgrade and browser evidence](audit-2026-11-25/deep-signoff/signed-upgrade.md).
-- [ ] Close the repeated 5M refresh low-memory failure on the retained
+- [x] Verify the repeated 5M refresh low-memory fix on the retained
   3 GiB emulator with [matched evidence](audit-2026-11-25/deep-stress-bugs.csv).
 - [ ] Merge the batched fixes only when all six required PR checks pass.
+- [x] Verify non-regional, on-device browsing and direct DNS on the signed
+  phone candidate; check in-place filter retention and debug/release signer
+  separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#deep-qa-phone-candidate).
+- The local independent test worker stopped on its usage limit before push.
+  No deep-QA PR or public 13.5.7b release exists at this checkpoint. Keep the
+  original protected review and CI gates; local evidence does not replace them.
 - [ ] Publish the signed beta from the merged commit. Verify the public APK and
   manifest, install the downloaded APK over 13.5.6b, and link the evidence.
 - Keep the remaining file reviews, untranslated guidance, workflow variants,
