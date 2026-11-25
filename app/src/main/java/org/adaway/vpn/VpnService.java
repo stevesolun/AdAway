@@ -84,7 +84,8 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     private static final int VPN_RECONNECT_MESSAGE_TYPE = 1;
 
     private final MyHandler handler;
-    private final VpnNetworkMonitor networkMonitor;
+    private VpnNetworkMonitor networkMonitor;
+    private boolean networkCallbacksRegistered;
     private final Runnable networkChange = this::applyNetworkChange;
     private VpnWorker vpnWorker;
     private boolean vpnRequested;
@@ -105,7 +106,6 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     public void onCreate() {
         super.onCreate();
         Timber.d("Creating VPN service…");
-        registerNetworkCallback();
     }
 
     @Override
@@ -117,7 +117,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
             case START:
                 Timber.d("Processing START command");
                 startVpn();
-                return START_STICKY;
+                return this.vpnRequested ? START_STICKY : START_NOT_STICKY;
             case STOP:
                 Timber.d("Processing STOP command");
                 stopVpn();
@@ -142,12 +142,12 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     public void onDestroy() {
         Timber.d("Destroying VPN service…");
         this.vpnRequested = false;
+        unregisterNetworkCallback();
         stopWorker();
         this.handler.removeMessages(VPN_STATUS_UPDATE_MESSAGE_TYPE);
         this.handler.removeMessages(VPN_RECONNECT_MESSAGE_TYPE);
         this.handler.removeCallbacks(this.networkChange);
         PreferenceHelper.setVpnServiceStatus(this, STOPPED);
-        unregisterNetworkCallback();
         super.onDestroy();
         Timber.d("Destroyed VPN service.");
     }
@@ -197,9 +197,18 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     private void startVpn() {
         Timber.d("startVpn() called");
         this.vpnRequested = true;
-        PreferenceHelper.setVpnServiceStatus(this, STARTING);
-        updateVpnStatus(STARTING);
-        startWorker();
+        try {
+            PreferenceHelper.setVpnServiceStatus(this, STARTING);
+            if (!updateVpnStatus(STARTING)) {
+                throw new IllegalStateException("Failed to enter VPN foreground mode.");
+            }
+            registerNetworkCallback();
+            startWorker();
+        } catch (RuntimeException exception) {
+            Timber.e(exception, "Failed to start VPN network monitoring.");
+            stopVpn();
+            return;
+        }
         Timber.i("VPN service started.");
     }
 
@@ -207,6 +216,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
         Timber.d("Stopping VPN service…");
         this.vpnRequested = false;
         this.handler.removeCallbacks(this.networkChange);
+        unregisterNetworkCallback();
         VpnServiceHeartbeat.stop(this);
         PreferenceHelper.setVpnServiceStatus(this, STOPPED);
         stopWorker();
@@ -248,7 +258,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
         }
     }
 
-    private void updateVpnStatus(VpnStatus status) {
+    private boolean updateVpnStatus(VpnStatus status) {
         Timber.d("updateVpnStatus called with status: %s", status);
         PreferenceHelper.setVpnServiceStatus(this, status);
         Notification notification = getNotification(status);
@@ -265,6 +275,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
                         Timber.d("startForeground success");
                     } catch (Exception e) {
                         Timber.d(e, "startForeground FAILED");
+                        return false;
                     }
                 } else {
                     startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
@@ -278,6 +289,7 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
 
         // Persisted status is the UI source of truth. RUNNING is emitted by VpnWorker
         // only after VpnBuilder.establish() succeeds.
+        return true;
     }
 
     private Notification getNotification(VpnStatus status) {
@@ -322,13 +334,24 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
     }
 
     private void registerNetworkCallback() {
+        if (this.networkCallbacksRegistered) return;
+        this.networkMonitor.close();
+        this.networkMonitor = new VpnNetworkMonitor(this::scheduleNetworkChange);
         this.networkMonitor.register(
                 (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE), this.handler);
+        this.networkCallbacksRegistered = true;
     }
 
     private void unregisterNetworkCallback() {
-        this.networkMonitor.unregister(
-                (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE));
+        this.networkCallbacksRegistered = false;
+        this.networkMonitor.close();
+        try {
+            this.networkMonitor.unregister(
+                    (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE));
+        } catch (RuntimeException exception) {
+            // The monitor retires all callbacks and attempts every release before throwing.
+            Timber.e(exception, "Failed to release VPN network callbacks.");
+        }
     }
 
     private void scheduleNetworkChange() {

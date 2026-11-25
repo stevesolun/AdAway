@@ -8,6 +8,7 @@ import static android.os.Build.VERSION_CODES.Q;
 import static android.system.OsConstants.AF_INET;
 import static android.system.OsConstants.AF_INET6;
 import static java.util.Collections.emptySet;
+import static java.util.Objects.requireNonNull;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
@@ -16,6 +17,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.net.Network;
 import android.net.Uri;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
@@ -48,11 +50,14 @@ public final class VpnBuilder {
      *
      * @param service         The VPN service to create interface.
      * @param dnsServerMapper The DNS server mapper used to configure VPN address and routes.
+     * @param upstreamNetwork The same immutable Network used by the worker's bound sockets.
      * @return The VPN interface.
      */
-    public static ParcelFileDescriptor establish(VpnService service, DnsServerMapper dnsServerMapper) {
+    public static ParcelFileDescriptor establish(VpnService service, DnsServerMapper dnsServerMapper,
+                                                Network upstreamNetwork) {
         Timber.d("Establishing VPN…");
         VpnService.Builder builder = service.new Builder();
+        builder.setUnderlyingNetworks(new Network[]{requireNonNull(upstreamNetwork)});
         // Configure VPN address and DNS servers
         dnsServerMapper.configureVpn(service, builder);
         // Exclude applications from VPN according user preferences (all applications goes through VPN by default)

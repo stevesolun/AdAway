@@ -84,6 +84,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
     private final DnsQueryQueue dnsQueryQueue;
     // The mapping between fake and real dns addresses
     private final DnsServerMapper dnsServerMapper;
+    private final Network upstreamNetwork;
     // The object where we actually handle packets.
     private final DnsPacketProxy dnsPacketProxy;
     private final VpnPacketProcessor packetProcessor;
@@ -123,6 +124,7 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         this.deviceWrites = new ConcurrentLinkedQueue<>();
         this.dnsQueryQueue = new DnsQueryQueue();
         this.dnsServerMapper = new DnsServerMapper(network, dnsServers);
+        this.upstreamNetwork = network;
         this.dnsPacketProxy = new DnsPacketProxy(this, this.dnsServerMapper);
         this.connectionThrottler = new VpnConnectionThrottler();
         this.connectionMonitor = new VpnConnectionMonitor(
@@ -260,7 +262,8 @@ public class VpnWorker implements DnsPacketProxy.EventLoop {
         byte[] packet = new byte[MAX_PACKET_SIZE];
 
         // Authenticate and configure the virtual network interface.
-        try (ParcelFileDescriptor pfd = establish(this.vpnService, this.dnsServerMapper);
+        try (ParcelFileDescriptor pfd = establish(
+                this.vpnService, this.dnsServerMapper, this.upstreamNetwork);
              // Read and write views of the tunnel device
              FileInputStream inputStream = new FileInputStream(pfd.getFileDescriptor());
              FileOutputStream outputStream = new FileOutputStream(pfd.getFileDescriptor())) {

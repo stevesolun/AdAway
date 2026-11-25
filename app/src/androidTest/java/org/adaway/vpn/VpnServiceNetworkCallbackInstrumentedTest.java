@@ -108,9 +108,79 @@ public class VpnServiceNetworkCallbackInstrumentedTest {
         }
     }
 
+    @Test
+    public void legacyRequestBurstRebuildsOnceWithTheReplacementWinner() throws Exception {
+        RecordingService service = createService(30);
+        try {
+            onMain(() -> {
+                requested(service, true);
+                VpnNetworkMonitor monitor = monitor(service);
+                LegacyVpnNetworkMonitorInstrumentedTest.requested(
+                        monitor, network(100), "192.0.2.53");
+                LegacyVpnNetworkMonitorInstrumentedTest.requested(
+                        monitor, network(101), "198.51.100.53");
+                monitor.requestCallback.onLost(network(100));
+            });
+            assertEquals("reconnect", service.mTransitions.poll(2, TimeUnit.SECONDS));
+            onMain(() -> {
+                assertEquals(1, service.mReconnects);
+                assertEquals(0, service.mWaits);
+                assertEquals(network(101), monitor(service).getSelection().network);
+            });
+        } finally {
+            cleanup(service);
+        }
+    }
+
+    @Test
+    public void legacyRequestLatePayloadsCannotRestartAfterRetirement() throws Exception {
+        RecordingService service = createService(30);
+        CountDownLatch drained = new CountDownLatch(1);
+        try {
+            onMain(() -> {
+                requested(service, true);
+                VpnNetworkMonitor monitor = monitor(service);
+                LegacyVpnNetworkMonitorInstrumentedTest.requested(
+                        monitor, network(100), "192.0.2.53");
+                requested(service, false);
+                monitor.close();
+                LegacyVpnNetworkMonitorInstrumentedTest.requested(
+                        monitor, network(101), "198.51.100.53");
+                handler(service).postDelayed(drained::countDown, 200);
+            });
+            assertTrue(drained.await(2, TimeUnit.SECONDS));
+            onMain(() -> {
+                assertEquals(0, service.mReconnects);
+                assertEquals(0, service.mWaits);
+                assertNull(monitor(service).getSelection());
+                assertNull(field("vpnWorker").get(service));
+            });
+        } finally {
+            cleanup(service);
+        }
+    }
+
     private static RecordingService createService() {
+        return createService(31);
+    }
+
+    private static RecordingService createService(int api) {
         AtomicReference<RecordingService> result = new AtomicReference<>();
-        onMain(() -> result.set(new RecordingService()));
+        onMain(() -> {
+            RecordingService service = new RecordingService();
+            java.lang.reflect.Method schedule = VpnService.class
+                    .getDeclaredMethod("scheduleNetworkChange");
+            schedule.setAccessible(true);
+            field("networkMonitor").set(service,
+                    new VpnNetworkMonitor(() -> {
+                        try {
+                            schedule.invoke(service);
+                        } catch (ReflectiveOperationException exception) {
+                            throw new AssertionError(exception);
+                        }
+                    }, api));
+            result.set(service);
+        });
         return result.get();
     }
 

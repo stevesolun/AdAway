@@ -28,6 +28,8 @@ import java.util.Objects;
 /** Tracks callback-owned network state on the service handler, never on a worker thread. */
 final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
     private final Runnable mChanged;
+    private final int mSdkVersion;
+    private final boolean mRequestMode;
     private final Map<Network, State> mNetworks = new LinkedHashMap<>();
     private final List<ConnectivityManager.NetworkCallback> mRegistered = new ArrayList<>();
     private Network mDefaultNetwork;
@@ -35,6 +37,8 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
     private Network mBestNetwork;
     private Selection mSelection;
     private boolean mClosed;
+
+    final RequestCallback requestCallback = new RequestCallback();
 
     final ConnectivityManager.NetworkCallback defaultCallback =
             new ConnectivityManager.NetworkCallback() {
@@ -83,35 +87,74 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
             };
 
     VpnNetworkMonitor(Runnable changed) {
+        this(changed, Build.VERSION.SDK_INT);
+    }
+
+    VpnNetworkMonitor(Runnable changed, int sdkVersion) {
         mChanged = changed;
+        mSdkVersion = sdkVersion;
+        mRequestMode = sdkVersion >= Build.VERSION_CODES.P
+                && sdkVersion < Build.VERSION_CODES.S;
     }
 
     void register(ConnectivityManager manager, Handler handler) {
+        register(new PlatformRegistration(manager), handler);
+    }
+
+    void register(Registration registration, Handler handler) {
+        if (mClosed) {
+            throw new IllegalStateException("A retired network monitor cannot be registered.");
+        }
+        if (!mRegistered.isEmpty()) {
+            return;
+        }
         NetworkRequest request = new NetworkRequest.Builder()
                 .addCapability(NET_CAPABILITY_INTERNET)
                 .addCapability(NET_CAPABILITY_NOT_VPN)
                 .build();
         try {
-            manager.registerNetworkCallback(request, this, handler);
-            mRegistered.add(this);
-            manager.registerDefaultNetworkCallback(defaultCallback, handler);
-            mRegistered.add(defaultCallback);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                manager.registerBestMatchingNetworkCallback(request, bestCallback, handler);
-                mRegistered.add(bestCallback);
+            // Track attempted registrations too, so a partial platform failure gets cleanup.
+            if (mRequestMode) {
+                mRegistered.add(requestCallback);
+                registration.request(request, requestCallback, handler);
+            } else {
+                mRegistered.add(this);
+                registration.observe(request, this, handler);
+                mRegistered.add(defaultCallback);
+                registration.observeDefault(defaultCallback, handler);
+                if (mSdkVersion >= Build.VERSION_CODES.S) {
+                    mRegistered.add(bestCallback);
+                    registration.observeBest(request, bestCallback, handler);
+                }
             }
         } catch (RuntimeException exception) {
-            unregister(manager);
+            try {
+                unregister(registration);
+            } catch (RuntimeException cleanupFailure) {
+                if (cleanupFailure != exception) exception.addSuppressed(cleanupFailure);
+            }
             throw exception;
         }
     }
 
     void unregister(ConnectivityManager manager) {
+        unregister(new PlatformRegistration(manager));
+    }
+
+    void unregister(Registration registration) {
         close();
-        for (ConnectivityManager.NetworkCallback callback : mRegistered) {
-            manager.unregisterNetworkCallback(callback);
-        }
+        List<ConnectivityManager.NetworkCallback> callbacks = new ArrayList<>(mRegistered);
         mRegistered.clear();
+        RuntimeException failure = null;
+        for (ConnectivityManager.NetworkCallback callback : callbacks) {
+            try {
+                registration.unregister(callback);
+            } catch (RuntimeException exception) {
+                if (failure == null) failure = exception;
+                else if (failure != exception) failure.addSuppressed(exception);
+            }
+        }
+        if (failure != null) throw failure;
     }
 
     void close() {
@@ -121,6 +164,7 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
         mDefaultNetwork = null;
         mDefaultCapabilities = null;
         mBestNetwork = null;
+        requestCallback.clear();
     }
 
     @Override
@@ -180,6 +224,11 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
     }
 
     private void publishSelection() {
+        if (mClosed) return;
+        if (mRequestMode) {
+            publish(requestCallback.selection());
+            return;
+        }
         Network selected = null;
         int bestScore = Integer.MIN_VALUE;
         for (Map.Entry<Network, State> entry : mNetworks.entrySet()) {
@@ -197,6 +246,10 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
         }
         Selection next = selected == null ? null
                 : new Selection(selected, mNetworks.get(selected).mDns);
+        publish(next);
+    }
+
+    private void publish(Selection next) {
         if (!Objects.equals(mSelection, next)) {
             mSelection = next;
             mChanged.run();
@@ -211,7 +264,7 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
             return 9000;
         }
         int score = caps.validated ? 100 : 0;
-        // Before API31 the app's default may be its VPN; only transport hints are exposed.
+        // Passive paths only. API28-30 use the request winner, never these hints.
         if (mDefaultCapabilities != null) {
             for (int transport : new int[]{TRANSPORT_ETHERNET, TRANSPORT_WIFI,
                     TRANSPORT_CELLULAR, TRANSPORT_BLUETOOTH}) {
@@ -225,6 +278,129 @@ final class VpnNetworkMonitor extends ConnectivityManager.NetworkCallback {
         return score + (caps.hasTransport(TRANSPORT_ETHERNET) ? 3
                 : caps.hasTransport(TRANSPORT_WIFI) ? 2
                 : caps.hasTransport(TRANSPORT_CELLULAR) ? 1 : 0);
+    }
+
+    /** One request's winner and payloads; no dependency on other callback ordering. */
+    final class RequestCallback extends ConnectivityManager.NetworkCallback {
+        private Network mNetwork;
+        private State mState;
+        private boolean mBlockedKnown;
+
+        @Override
+        public void onAvailable(Network network) {
+            if (mClosed || network.equals(mNetwork)) return;
+            mNetwork = network;
+            mState = new State();
+            mBlockedKnown = mSdkVersion < Build.VERSION_CODES.Q;
+            publishSelection();
+        }
+
+        @Override
+        public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
+            updateCapabilities(network, Capabilities.from(capabilities));
+        }
+
+        void updateCapabilities(Network network, Capabilities capabilities) {
+            if (!mClosed && network.equals(mNetwork)) {
+                mState.mCapabilities = capabilities;
+                publishSelection();
+            }
+        }
+
+        @Override
+        public void onLinkPropertiesChanged(Network network, LinkProperties properties) {
+            if (!mClosed && network.equals(mNetwork)) {
+                mState.mDns = new ArrayList<>(properties.getDnsServers());
+                publishSelection();
+            }
+        }
+
+        @Override
+        public void onBlockedStatusChanged(Network network, boolean blocked) {
+            if (!mClosed && network.equals(mNetwork)) {
+                mState.mBlocked = blocked;
+                mBlockedKnown = true;
+                publishSelection();
+            }
+        }
+
+        @Override
+        public void onLost(Network network) {
+            if (!mClosed && network.equals(mNetwork)) {
+                clear();
+                publishSelection();
+            }
+        }
+
+        @Override
+        public void onUnavailable() {
+            if (!mClosed) {
+                clear();
+                publishSelection();
+            }
+        }
+
+        private void clear() {
+            mNetwork = null;
+            mState = null;
+            mBlockedKnown = false;
+        }
+
+        private Selection selection() {
+            return mState != null && mBlockedKnown && mState.isUsable()
+                    ? new Selection(mNetwork, mState.mDns) : null;
+        }
+    }
+
+    /** Narrow registration boundary for deterministic API/lifetime tests. */
+    interface Registration {
+        void observe(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                     Handler handler);
+        void observeDefault(ConnectivityManager.NetworkCallback callback, Handler handler);
+        void observeBest(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                         Handler handler);
+        void request(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                     Handler handler);
+        void unregister(ConnectivityManager.NetworkCallback callback);
+    }
+
+    private static final class PlatformRegistration implements Registration {
+        private final ConnectivityManager mManager;
+
+        PlatformRegistration(ConnectivityManager manager) {
+            mManager = manager;
+        }
+
+        @Override
+        public void observe(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                            Handler handler) {
+            mManager.registerNetworkCallback(request, callback, handler);
+        }
+
+        @Override
+        public void observeDefault(ConnectivityManager.NetworkCallback callback, Handler handler) {
+            mManager.registerDefaultNetworkCallback(callback, handler);
+        }
+
+        @Override
+        public void observeBest(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                                Handler handler) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                throw new IllegalStateException("Passive best matching requires API31.");
+            }
+            mManager.registerBestMatchingNetworkCallback(request, callback, handler);
+        }
+
+        @Override
+        public void request(NetworkRequest request, ConnectivityManager.NetworkCallback callback,
+                            Handler handler) {
+            mManager.requestNetwork(request, callback, handler);
+        }
+
+        @Override
+        public void unregister(ConnectivityManager.NetworkCallback callback) {
+            mManager.unregisterNetworkCallback(callback);
+        }
     }
 
     private static final class State {

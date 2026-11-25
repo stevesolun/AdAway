@@ -3,6 +3,7 @@ package org.adaway.broadcast;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.ComponentName;
@@ -12,6 +13,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PermissionInfo;
 import android.content.pm.ResolveInfo;
+import android.os.ParcelFileDescriptor;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -21,10 +23,14 @@ import org.adaway.AdAwayApplication;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.util.AppExecutors;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -89,34 +95,51 @@ public class CommandReceiverSecurityInstrumentedTest {
                 ));
     }
 
-    @Test
+    @Test(timeout = 30_000)
     public void packageWithoutCommandPermissionCannotDeliverCommandBroadcast()
             throws Exception {
         Context targetContext = ApplicationProvider.getApplicationContext();
         AdAwayApplication application =
                 (AdAwayApplication) targetContext.getApplicationContext();
         AdBlockModel originalAdBlockModel = application.getAdBlockModel();
-        RecordingAdBlockModel recordingAdBlockModel = new RecordingAdBlockModel(targetContext);
+        RecordingAdBlockModel recordingAdBlockModel =
+                new RecordingAdBlockModel(targetContext, originalAdBlockModel.getMethod());
         injectAdBlockModel(application, recordingAdBlockModel);
         try {
+            assertSame(recordingAdBlockModel, application.getAdBlockModel());
             Intent intent = new Intent(CommandReceiver.SEND_COMMAND_ACTION)
                     .setComponent(new ComponentName(targetContext, CommandReceiver.class));
             Command.START.appendToIntent(intent);
 
-            boolean blockedBySecurityException = false;
-            try {
-                InstrumentationRegistry.getInstrumentation().getContext().sendBroadcast(intent);
-            } catch (SecurityException securityException) {
-                blockedBySecurityException = true;
-            }
-
-            assertTrue("Broadcast should be blocked by the platform permission check or ignored.",
-                    blockedBySecurityException ||
-                            !recordingAdBlockModel.awaitCommand(1_500L));
+            // Instrumentation runs as the target UID, even when using the test package context.
+            int senderUid = Integer.parseInt(shell("id -u").trim());
+            assertTrue(senderUid != targetContext.getApplicationInfo().uid);
+            assertEquals(PERMISSION_DENIED,
+                    targetContext.checkPermission(SEND_COMMAND_PERMISSION, -1, senderUid));
+            String output = shell("am broadcast --user current -a " + intent.getAction()
+                    + " -n " + intent.getComponent().flattenToShortString()
+                    + " --es COMMAND START");
+            assertTrue("Ordered external broadcast did not finish: " + output,
+                    output.contains("Broadcast completed:"));
+            CountDownLatch drained = new CountDownLatch(1);
+            AppExecutors.getInstance().diskIO().execute(drained::countDown);
+            assertTrue(drained.await(5, TimeUnit.SECONDS));
             assertFalse("CommandReceiver must not apply ad blocking for an unpermitted sender.",
                     recordingAdBlockModel.wasApplied());
+            targetContext.sendBroadcast(intent);
+            assertTrue("Target UID must reach the same receiver and recording model.",
+                    recordingAdBlockModel.awaitCommand(5_000));
         } finally {
             injectAdBlockModel(application, originalAdBlockModel);
+        }
+    }
+
+    private static String shell(String command) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry
+                        .getInstrumentation().getUiAutomation().executeShellCommand(command)),
+                StandardCharsets.UTF_8))) {
+            return reader.lines().collect(java.util.stream.Collectors.joining("\n"));
         }
     }
 
@@ -130,15 +153,17 @@ public class CommandReceiverSecurityInstrumentedTest {
 
     private static final class RecordingAdBlockModel extends AdBlockModel {
         private final CountDownLatch commandLatch = new CountDownLatch(1);
-        private boolean applied;
+        private final AdBlockMethod method;
+        private volatile boolean applied;
 
-        private RecordingAdBlockModel(Context context) {
+        private RecordingAdBlockModel(Context context, AdBlockMethod method) {
             super(context);
+            this.method = method;
         }
 
         @Override
         public AdBlockMethod getMethod() {
-            return AdBlockMethod.ROOT;
+            return this.method;
         }
 
         @Override

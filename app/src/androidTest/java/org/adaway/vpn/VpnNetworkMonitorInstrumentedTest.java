@@ -27,7 +27,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void sameTransportOverlapLosesOnlyTheDepartingNetwork() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network first = network(100);
         Network second = network(101);
         available(monitor, first, TRANSPORT_WIFI, "192.0.2.53");
@@ -45,7 +45,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void duplicateAvailabilityAndUnknownLossDoNotRebuild() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network selected = network(100);
         available(monitor, selected, TRANSPORT_WIFI, "192.0.2.53");
         VpnNetworkMonitor.Selection original = monitor.getSelection();
@@ -61,7 +61,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void lossOfUnselectedNetworkDoesNotRebuild() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network first = network(100);
         Network second = network(101);
         available(monitor, first, TRANSPORT_WIFI, "192.0.2.53");
@@ -74,7 +74,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void sameNetworkDnsChangePublishesNewImmutableSnapshot() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network selected = network(100);
         available(monitor, selected, TRANSPORT_WIFI, "192.0.2.53");
         VpnNetworkMonitor.Selection original = monitor.getSelection();
@@ -91,7 +91,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void equivalentCapabilitiesAndUnrelatedLinkChangesDoNotRebuild() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network selected = network(100);
         available(monitor, selected, TRANSPORT_WIFI, "192.0.2.53");
         LinkProperties properties = link("192.0.2.53");
@@ -103,7 +103,7 @@ public class VpnNetworkMonitorInstrumentedTest {
 
     @Test
     public void defaultHandoffChangesNetworkEvenWithIdenticalResolverAddress() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 26);
         Network cell = network(100);
         Network wifi = network(101);
         monitor.defaultCallback.onAvailable(cell);
@@ -116,8 +116,8 @@ public class VpnNetworkMonitorInstrumentedTest {
     }
 
     @Test
-    public void vpnDefaultTransportChangeRefreshesLegacyUnderlyingSelection() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+    public void passiveVpnTransportHintChangesFallbackSelection() throws Exception {
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network vpn = network(200);
         Network cell = network(100);
         Network wifi = network(101);
@@ -134,7 +134,7 @@ public class VpnNetworkMonitorInstrumentedTest {
 
     @Test
     public void platformBestNetworkOverridesVpnTransportHints() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network vpn = network(200);
         Network cell = network(100);
         Network wifi = network(101);
@@ -149,9 +149,9 @@ public class VpnNetworkMonitorInstrumentedTest {
     }
 
     @Test
-    public void legacyVpnTransportHintCannotResolveSameTransportDefaultHandoff() throws Exception {
+    public void passiveTransportHintAloneCannotIdentifySameTransportWinner() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network vpn = network(200);
         Network first = network(100);
         Network second = network(101);
@@ -162,8 +162,8 @@ public class VpnNetworkMonitorInstrumentedTest {
         available(monitor, second, TRANSPORT_WIFI, "198.51.100.53");
         VpnNetworkMonitor.Selection original = monitor.getSelection();
 
-        // Pre31 cannot report that the VPN's underlying default changed from first to second.
-        // The unchanged WiFi hint is insufficient evidence to select second. This is a gap test.
+        // An information-limit fixture, not the API28-30 production request path.
+        // With no best event, the unchanged transport hint cannot identify a winner.
         monitor.updateDefaultCapabilities(vpn,
                 capabilities(TRANSPORT_WIFI, TRANSPORT_VPN));
 
@@ -174,7 +174,7 @@ public class VpnNetworkMonitorInstrumentedTest {
 
     @Test
     public void lostNetworkCannotBeResurrectedByLatePropertyCallbacks() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network lost = network(100);
         available(monitor, lost, TRANSPORT_WIFI, "192.0.2.53");
         monitor.onLost(lost);
@@ -187,7 +187,7 @@ public class VpnNetworkMonitorInstrumentedTest {
     @Test
     public void closedMonitorIgnoresEveryCallbackPath() throws Exception {
         AtomicInteger changes = new AtomicInteger();
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet);
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(changes::incrementAndGet, 31);
         Network network = network(100);
         available(monitor, network, TRANSPORT_WIFI, "192.0.2.53");
         monitor.close();
@@ -205,7 +205,7 @@ public class VpnNetworkMonitorInstrumentedTest {
 
     @Test
     public void capabilitiesAndDnsAreBothRequiredAndVpnIsNeverEligible() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network network = network(100);
         monitor.onAvailable(network);
         monitor.onLinkPropertiesChanged(network, link("192.0.2.53"));
@@ -221,7 +221,7 @@ public class VpnNetworkMonitorInstrumentedTest {
 
     @Test
     public void blockedNetworkFallsBackAndRecoversWithoutLosingIdentity() throws Exception {
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network wifi = network(100);
         Network cell = network(101);
         available(monitor, wifi, TRANSPORT_WIFI, "192.0.2.53");
@@ -246,7 +246,7 @@ public class VpnNetworkMonitorInstrumentedTest {
                 TRANSPORT_VPN, NetworkCapabilities.TRANSPORT_BLUETOOTH}) {
             assertEquals(payload.hasTransport(transport), snapshot.hasTransport(transport));
         }
-        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { });
+        VpnNetworkMonitor monitor = new VpnNetworkMonitor(() -> { }, 31);
         Network candidate = network(100);
         monitor.onAvailable(candidate);
         monitor.onLinkPropertiesChanged(candidate, link("192.0.2.53"));

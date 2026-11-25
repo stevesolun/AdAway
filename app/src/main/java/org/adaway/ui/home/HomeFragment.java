@@ -761,6 +761,21 @@ public class HomeFragment extends Fragment {
         removeView(this.binding.content.stateTextView);
         if (error == null) return;
 
+        if (error == HostError.DOWNLOAD_FAILED) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setTitle(error.getMessageKey())
+                    .setMessage(error.getDetailsKey())
+                    .setPositiveButton(R.string.nav_sources, (dialog, id) -> {
+                        this.homeViewModel.acknowledgeError(error);
+                        ((HomeActivity) requireActivity()).navigateTo(R.id.nav_sources);
+                    })
+                    .setNegativeButton(R.string.button_close, (dialog, id) ->
+                            this.homeViewModel.acknowledgeError(error))
+                    .setOnCancelListener(dialog -> this.homeViewModel.acknowledgeError(error))
+                    .show();
+            return;
+        }
         String message = getString(error.getDetailsKey()) + "\n\n"
                 + getString(R.string.error_dialog_help);
         new MaterialAlertDialogBuilder(requireContext())

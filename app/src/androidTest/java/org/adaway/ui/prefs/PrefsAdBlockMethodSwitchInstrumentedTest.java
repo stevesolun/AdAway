@@ -54,7 +54,8 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
         clickAccessibilityText(this.context.getString(R.string.pref_root_ad_blocker_configuration));
 
         assertAccessibilityText(this.context.getString(R.string.pref_root_open_hosts));
-        assertAccessibilityTextAbsent(this.context.getString(R.string.onboarding_title));
+        assertAccessibilityTextAbsent(this.context.getString(R.string.pref_root_open_hosts),
+                this.context.getString(R.string.onboarding_title));
         assertEquals(ROOT, PreferenceHelper.getAdBlockMethod(this.context));
     }
 
@@ -74,7 +75,8 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
         assertAccessibilityText(this.context.getString(R.string.onboarding_title));
         assertAccessibilityText(this.context.getString(R.string.onboarding_vpn_title));
         assertAccessibilityText(this.context.getString(R.string.onboarding_start_button));
-        assertAccessibilityTextAbsent(this.context.getString(R.string.pref_vpn_allow_app_bypass));
+        assertAccessibilityTextAbsent(this.context.getString(R.string.onboarding_title),
+                this.context.getString(R.string.pref_vpn_allow_app_bypass));
         assertEquals(ROOT, PreferenceHelper.getAdBlockMethod(this.context));
     }
 
@@ -87,7 +89,8 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
         clickAccessibilityText(this.context.getString(R.string.pref_vpn_ad_blocker_configuration));
 
         assertAccessibilityText(this.context.getString(R.string.pref_vpn_allow_app_bypass));
-        assertAccessibilityTextAbsent(this.context.getString(R.string.onboarding_title));
+        assertAccessibilityTextAbsent(this.context.getString(R.string.pref_vpn_allow_app_bypass),
+                this.context.getString(R.string.onboarding_title));
         assertEquals(VPN, PreferenceHelper.getAdBlockMethod(this.context));
     }
 
@@ -107,7 +110,8 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
         assertAccessibilityText(this.context.getString(R.string.onboarding_title));
         assertAccessibilityText(this.context.getString(R.string.onboarding_root_title));
         assertAccessibilityText(this.context.getString(R.string.onboarding_start_button));
-        assertAccessibilityTextAbsent(this.context.getString(R.string.pref_root_open_hosts));
+        assertAccessibilityTextAbsent(this.context.getString(R.string.onboarding_title),
+                this.context.getString(R.string.pref_root_open_hosts));
         assertEquals(VPN, PreferenceHelper.getAdBlockMethod(this.context));
     }
 
@@ -131,14 +135,16 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
         throw new AssertionError("Text was not visible: " + expectedText);
     }
 
-    private static void assertAccessibilityTextAbsent(String unexpectedText) throws Exception {
+    private static void assertAccessibilityTextAbsent(String expectedText, String unexpectedText)
+            throws Exception {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
             AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
                     .getUiAutomation()
                     .getRootInActiveWindow();
             try {
-                if (root == null || !containsText(root, unexpectedText)) {
+                if (root != null && containsText(root, expectedText)
+                        && !containsText(root, unexpectedText)) {
                     return;
                 }
             } finally {
@@ -148,7 +154,8 @@ public class PrefsAdBlockMethodSwitchInstrumentedTest {
             }
             SystemClock.sleep(100);
         }
-        throw new AssertionError("Text was still visible: " + unexpectedText);
+        throw new AssertionError("Expected window containing " + expectedText
+                + " without " + unexpectedText + " was not observed.");
     }
 
     private static void clickAccessibilityText(String expectedText) throws Exception {

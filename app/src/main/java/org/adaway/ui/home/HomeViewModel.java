@@ -159,6 +159,11 @@ public class HomeViewModel extends AndroidViewModel {
         return this.error;
     }
 
+    @MainThread
+    void acknowledgeError(HostError displayed) {
+        if (this.error.getValue() == displayed) this.error.setValue(null);
+    }
+
     public LiveData<FilterOperationState> getFilterOperationState() {
         return this.filterOperationState;
     }

@@ -96,7 +96,6 @@ public interface HostEntryDao {
             "(SELECT `active_generation` FROM `hosts_meta` WHERE `id` = 0)";
     String ACTIVE_STATS_ROWS_SQL = "(" +
             "SELECT `type`, `kind` FROM `hosts_lists` " +
-            "INDEXED BY `index_hosts_lists_kind_host` " +
             "WHERE `enabled` = 1 AND (`source_id` = 1 OR (`generation` = " +
             ACTIVE_GENERATION_SQL + " AND `source_id` != 1)))";
     String ACTIVE_ALLOW_NOT_EXISTS = "NOT EXISTS (" +

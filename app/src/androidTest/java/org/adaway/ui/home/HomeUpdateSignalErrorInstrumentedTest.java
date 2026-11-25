@@ -133,6 +133,24 @@ public class HomeUpdateSignalErrorInstrumentedTest {
         }
     }
 
+    @Test(timeout = 60_000)
+    public void failedSourceOpensSourcesWithoutReplayingOldError() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            publishHostError(scenario, HostError.DOWNLOAD_FAILED);
+            waitForTextContaining(this.context.getString(R.string.error_download_failed_details));
+            assertTrue(waitForClickableText(this.context.getString(R.string.nav_sources))
+                    .performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> {
+                activity.getSupportFragmentManager().executePendingTransactions();
+                assertTrue(activity.getSupportFragmentManager().findFragmentById(
+                        R.id.nav_fragment_container) instanceof org.adaway.ui.hosts.HostsSourcesTabFragment);
+                org.junit.Assert.assertNull(new ViewModelProvider(activity).get(HomeViewModel.class)
+                        .getError().getValue());
+            });
+        }
+    }
+
     private void publishManifest(Manifest manifest) throws Exception {
         MutableLiveData<Manifest> manifestLiveData = getManifestLiveData();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(

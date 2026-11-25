@@ -167,7 +167,8 @@ public class FilterSetSaveApplyInstrumentedTest {
         clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
         assertAccessibilityText(this.context.getString(R.string.filter_set_manage_title));
         assertAccessibilityText(SAVED_SET_NAME);
-        assertAccessibilityTextNotVisible(FilterSetStore.PROFILE_SAFE);
+        assertAccessibilityTextNotVisible(this.context.getString(R.string.filter_set_manage_title),
+                FilterSetStore.PROFILE_SAFE);
 
         clickAccessibilityText(SAVED_SET_NAME);
         assertAccessibilityText(
@@ -191,7 +192,8 @@ public class FilterSetSaveApplyInstrumentedTest {
         clickToolbarAction(homeActivity, R.id.action_hosts_manage_filter_sets);
         assertAccessibilityText(this.context.getString(R.string.filter_set_manage_title));
         assertAccessibilityText(RENAMED_SET_NAME);
-        assertAccessibilityTextNotVisible(SAVED_SET_NAME);
+        assertAccessibilityTextNotVisible(this.context.getString(R.string.filter_set_manage_title),
+                SAVED_SET_NAME);
 
         clickAccessibilityText(RENAMED_SET_NAME);
         clickAccessibilityText(this.context.getString(R.string.filter_set_delete));
@@ -374,22 +376,31 @@ public class FilterSetSaveApplyInstrumentedTest {
         throw new AssertionError("Text was not visible: " + expectedText);
     }
 
-    private static void assertAccessibilityTextNotVisible(String unexpectedText) {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-        AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
-                .getUiAutomation()
-                .getRootInActiveWindow();
-        try {
-            AccessibilityNodeInfo node = root == null ? null : findText(root, unexpectedText);
-            if (node != null) {
-                node.recycle();
-                throw new AssertionError("Text was unexpectedly visible: " + unexpectedText);
+    private static void assertAccessibilityTextNotVisible(String expectedText,
+                                                         String unexpectedText) {
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
+                    .getUiAutomation()
+                    .getRootInActiveWindow();
+            try {
+                if (root != null && containsText(root, expectedText)) {
+                    AccessibilityNodeInfo node = findText(root, unexpectedText);
+                    if (node != null) {
+                        node.recycle();
+                        throw new AssertionError("Text was unexpectedly visible: " + unexpectedText);
+                    }
+                    return;
+                }
+            } finally {
+                if (root != null) {
+                    root.recycle();
+                }
             }
-        } finally {
-            if (root != null) {
-                root.recycle();
-            }
+            SystemClock.sleep(100);
         }
+        throw new AssertionError("Expected window was not observed: " + expectedText);
     }
 
     private static void clickAccessibilityText(String expectedText) throws Exception {
