@@ -272,6 +272,37 @@ public class SourceLoaderDatabaseSemanticsTest {
     }
 
     @Test
+    public void blockListSkipsBothConditionalBranchesButKeepsUnconditionalRules() {
+        int skipped = parseText("0.0.0.0 before.example\n  !#if env_browser\n"
+                + "||first.example^\n!#if nested\n0.0.0.0 nested.example\n!#endif\n"
+                + "!#else\nelse.example\n!#endif\n||after.example^");
+        for (String host : new String[]{"first.example", "nested.example", "else.example"}) {
+            assertMissingHost(host);
+        }
+        assertEquals(3, skipped);
+        assertHostRow("before.example", EXACT.getValue());
+        assertHostRow("after.example", SUFFIX.getValue());
+        assertEquals(2, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+    }
+
+    @Test
+    public void unusableBlockRevisionKeepsThePreviouslyActiveRules() {
+        assertEquals(0, parseText("0.0.0.0 retained.example\n"));
+        SupportSQLiteDatabase db = database.getOpenHelper().getWritableDatabase();
+        db.execSQL("UPDATE hosts_meta SET active_generation = ? WHERE id = 0", new Object[]{GENERATION});
+        for (String revision : new String[]{"!#if browser\ninside.example\n!#endif\n",
+                "unpublished.example\n!#if browser\n", "!#else\nunpublished.example\n",
+                "##.global-ad-slot\n"}) {
+            assertThrows(IllegalStateException.class, () -> new SourceLoader(source, GENERATION + 1)
+                    .parse(new BufferedReader(new StringReader(revision)), hostListItemDao, db, null, null));
+            assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION + 1));
+            assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+            assertHostRow("retained.example", EXACT.getValue());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("retained.example").getType());
+        }
+    }
+
+    @Test
     public void allowModeDoesNotFlattenConditionalSections() {
         source.setAllowEnabled(true);
         database.hostsSourceDao().update(source);

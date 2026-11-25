@@ -17,6 +17,7 @@ compatibility unless a rule can be represented safely at DNS resolution time.
 | ABP/uBO `||domain^` | Stored as suffix rules when no path/options are present | VPN/runtime suffix matching; browser-only options still skipped; root output includes only the suffix base domain |
 | ABP/uBO/AdGuard exceptions `@@` | Skipped | Unsupported exception semantics |
 | ABP/uBO/AdGuard cosmetics/scriptlets | Skipped | Browser-only, unsupported |
+| Conditional sections (`!#if`, `!#else`, `!#endif`) | Skip the contents of all branches, including nested sections, in block and allow lists | AdAway does not evaluate browser conditions. An unbalanced section or an update containing only unsupported rules is rejected; the previous working revision is retained. |
 | ABP/uBO path or `$options` rules | Skipped | Browser-only/context-only, unsupported |
 | Generic BIND `zone` statements | Skipped | Unsupported unless explicit RPZ block rule |
 | Wildcards | Supported only for allow-list matching | Not a general block-list feature |

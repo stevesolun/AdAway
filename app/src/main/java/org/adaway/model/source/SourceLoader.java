@@ -161,7 +161,7 @@ class SourceLoader {
         AtomicReference<Throwable> sourceReadFailure = new AtomicReference<>();
         AtomicInteger skippedLines = new AtomicInteger(0);
         SourceReader sourceReader = new SourceReader(reader, hostsLineQueue, PARSER_COUNT,
-                sourceReadFailure, this.source.isAllowEnabled() ? skippedLines : null);
+                sourceReadFailure, skippedLines);
         ItemInserter inserter = new ItemInserter(hostsListItemQueue, hostListItemDao, db,
                 this.source.getId(), this.generation, PARSER_COUNT, onBatchInserted,
                 sourceReadFailure, sqlDeduper);
@@ -461,45 +461,48 @@ class SourceLoader {
         private final BlockingQueue<String> queue;
         private final int parserCount;
         private final AtomicReference<Throwable> failure;
-        @Nullable private final AtomicInteger skippedAllowLines;
+        private final AtomicInteger skippedLines;
         private int conditionalDepth;
 
         private SourceReader(BufferedReader reader, BlockingQueue<String> queue, int parserCount,
-                AtomicReference<Throwable> failure, @Nullable AtomicInteger skippedAllowLines) {
+                AtomicReference<Throwable> failure, AtomicInteger skippedLines) {
             this.reader = reader;
             this.queue = queue;
             this.parserCount = parserCount;
             this.failure = failure;
-            this.skippedAllowLines = skippedAllowLines;
+            this.skippedLines = skippedLines;
         }
 
         private void emitLine(String line) throws InterruptedException, IOException {
-            if (skippedAllowLines != null) {
-                // Section boundaries must be seen in file order, before parallel line parsing.
-                String text = line.trim();
-                if (text.startsWith("!#")) {
-                    Matcher directive = CONDITIONAL_DIRECTIVE.matcher(text);
-                    if (directive.matches()) {
-                        String keyword = directive.group(1);
-                        if ("if".equals(keyword)) {
-                            conditionalDepth++;
-                        } else if (conditionalDepth == 0) {
-                            throw new IOException("Unmatched allow-list conditional directive");
-                        } else if ("endif".equals(keyword)) {
-                            conditionalDepth--;
-                        }
-                        return;
+            // Section boundaries must be seen in file order, before parallel line parsing.
+            char first = line.charAt(0);
+            if (conditionalDepth == 0 && first > ' ' && first != '!' && first != '#') {
+                queue.put(line);
+                return;
+            }
+            String text = line.trim();
+            if (text.startsWith("!#")) {
+                Matcher directive = CONDITIONAL_DIRECTIVE.matcher(text);
+                if (directive.matches()) {
+                    String keyword = directive.group(1);
+                    if ("if".equals(keyword)) {
+                        conditionalDepth++;
+                    } else if (conditionalDepth == 0) {
+                        throw new IOException("Unmatched filter conditional directive");
+                    } else if ("endif".equals(keyword)) {
+                        conditionalDepth--;
                     }
-                }
-                if (text.isEmpty() || text.startsWith("!")) return;
-                if (text.startsWith("#")) {
-                    if (GLOBAL_COSMETIC_RULE.matcher(text).find()) skippedAllowLines.incrementAndGet();
                     return;
                 }
-                if (conditionalDepth != 0) {
-                    skippedAllowLines.incrementAndGet();
-                    return;
-                }
+            }
+            if (text.isEmpty() || text.startsWith("!")) return;
+            if (text.startsWith("#")) {
+                if (GLOBAL_COSMETIC_RULE.matcher(text).find()) skippedLines.incrementAndGet();
+                return;
+            }
+            if (conditionalDepth != 0) {
+                skippedLines.incrementAndGet();
+                return;
             }
             queue.put(line);
         }
@@ -539,7 +542,7 @@ class SourceLoader {
                 if (line.length() > 0) {
                     emitLine(line.toString());
                 }
-                if (conditionalDepth != 0) throw new IOException("Unclosed allow-list conditional");
+                if (conditionalDepth != 0) throw new IOException("Unclosed filter conditional");
             } catch (Throwable t) {
                 this.failure.compareAndSet(null, t);
                 Timber.w(t, "Failed to read hosts source.");
