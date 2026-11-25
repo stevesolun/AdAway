@@ -14,16 +14,10 @@
 
 Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
-Latest checkpoint: 118 logged findings, 93 scoped fixes verified. Phase-five
-Android 14 full suite: 602 cases, 584 passed, 18 skipped, none failed. Host:
-718 cases, three skips, no failures. The two subsequent fixes (Android 11
-fallback recount and actionable source-download feedback) passed all four
-focused Android 14 checks. The Android 11 SQLite regression was reproduced
-before and after the fix on that platform. Signed beta 13.5.5b upgrades over
-the public beta without clearing app data. The old beta can retain its retired
-URLhaus source; users can disable it without losing their other selections.
-One intermittent VPN DNS timeout, remaining files and UI variants, protected
-delivery and public release are not closed by these results.
+Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
+Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
+The bounded beta release does not complete this ongoing audit.
+
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log

@@ -37,8 +37,8 @@ public class DnsServerMapper {
      * Known DNS-over-HTTPS (DoH) provider IPv4 addresses.
      * Routing these through the VPN forces TCP/443 connections to them to enter the tunnel
      * where they are dropped (DnsPacketProxy only handles UDP/53).
-     * Chrome (and other DoH-capable apps) then falls back to system UDP/53 DNS, which IS
-     * captured by AdAway's fake-DNS mapping and properly filtered.
+     * Clients that permit fallback can then use system UDP/53 DNS through the fake-DNS
+     * mapping. Clients that require DoH may instead fail to resolve names.
      */
     private static final String[] DOH_PROVIDER_IPV4 = {
             "1.1.1.1", "1.0.0.1",              // Cloudflare
@@ -96,7 +96,8 @@ public class DnsServerMapper {
     /**
      * Configure the VPN.
      * <p>
-     * Add interface address per IP family and fake DNS server per system DNS server.
+     * Build fake DNS aliases from the selected upstream snapshot so tunnel routes and
+     * bound DNS sockets use the same network.
      *
      * @param context The application context.
      * @param builder The builder of the VPN to configure.
@@ -142,9 +143,7 @@ public class DnsServerMapper {
     }
 
     /**
-     * Add /32 and /128 routes for known DoH provider IPs through the VPN tunnel.
-     * Since DnsPacketProxy only handles UDP/53, TCP/443 DoH connections entering the tunnel
-     * will be silently dropped, forcing browsers to fall back to system UDP/53 DNS.
+     * Route the providers documented at {@link #DOH_PROVIDER_IPV4} through the VPN tunnel.
      */
     private void addDohBlockRoutes(VpnService.Builder builder, boolean includeIpv6) {
         for (DohRoute route : commonDohBlockRoutes(includeIpv6)) {

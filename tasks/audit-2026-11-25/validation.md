@@ -65,7 +65,7 @@ verification. No personal phone or privileged root apply was used.
   and first-install time; signed Home launched and visibly showed 13.5.5b. This
   is not physical-device or public CI-artifact attestation.
 
-## Phase Four Checkpoint
+## Phase Four Checkpoint (Historical)
 
 - Frozen app input hashes: local `app/build/reports/audit-2026-11-25/phase-four-build-inputs.csv`.
   Integrated host tests, lint and both APK builds are running; no pass claimed yet.
@@ -82,7 +82,7 @@ verification. No personal phone or privileged root apply was used.
 - REM-EVID-001/003 historical summaries now distinguish mixed commits and unpaired
   invocation/results without changing raw logs. REM-EVID-002 applied only guarded
   OCT-005 status/retest cells: historical beta publication is not current audit delivery.
-- Current ledger: 111 findings, 79 scoped verified fixes, eight implemented awaiting
+- Ledger at this checkpoint: 111 findings, 79 scoped verified fixes, eight implemented awaiting
   tests, three host/source-only verified, one partially verified and 20 dormant-native
   source findings. Native repair has not executed; retirement remains a user decision.
 
@@ -331,10 +331,9 @@ failed before producing coverage; its assigned files remain pending.
   pinned public repository file. No synthetic completion broadcast or polling
   fallback drove the receiver. The actual verifier rejected the untrusted bytes;
   this does not prove successful APK installation or installer-cancel UX.
-- Real VPN consent and Hebrew-site browsing now passed on the intermediate APK
-  identified above, but final network changes and a signed release need retesting.
-- Earlier KSP attempts displayed a human-verification challenge. The final
-  candidate loaded its mobile home; deeper shopping flows were not repeated.
+- Signed candidate upgrade, VPN and Hebrew-site results are recorded under
+  [Candidate 13.5.5b](#candidate-1355b). They are bounded emulator evidence,
+  not verification of a public CI artifact or all site workflows.
   DNS filtering is not browser cosmetic filtering.
 - Root runtime, live backup-transport restore, physical devices, every workflow
   variant, and still-pending file reviews are not implied by suite results.

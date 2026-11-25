@@ -109,7 +109,11 @@ Special thanks to <contributors> for theirs contributions and <bug reporters> fo
 
 ### Beta releases
 
-The beta releases are only announced in the XDA development thread.
+Beta builds follow the signed direct-APK process below and are published as
+GitHub pre-releases. Release notes must state the verified scope and remaining
+limits; a bounded beta does not complete the ongoing exhaustive audit. Keep
+observed suite results and per-file review evidence in the
+[audit record](tasks/audit-2026-11-25/README.md).
 
 ### Keeping the Signed Update Feed Available
 
@@ -146,6 +150,8 @@ Fork release tags publish the direct APK through
 [GitHub releases](https://github.com/stevesolun/AdAway/releases). Store
 releases such as F-Droid are separate store/build-pipeline work and should use
 the normal `release` variant, not the direct APK updater variant.
+Merge release changes through a protected pull request and its required checks
+before tagging the reviewed merge commit; do not bypass branch protections.
 Once ready, create and push a signed tag on this GitHub repository using
 `vX.Y.Z` format (or `vX.Y.Zb` for pre-releases). Tags ending in `b` are
 published as GitHub pre-releases and use the `beta` update-manifest channel;
@@ -165,6 +171,7 @@ Before pushing a release tag locally, run:
 
 ```powershell
 $Version = "<version>"
+$Channel = "<stable-or-beta>"
 $Apk = "app\build\outputs\apk\directRelease\AdAway_$Version.apk"
 $Sbom = "app\build\reports\sbom\adaway.cdx.json"
 $Manifest = "app\build\outputs\update\manifest.json"
@@ -187,7 +194,7 @@ Get-FileHash $Sbom -Algorithm SHA256 |
   --private-key-base64 "$env:UPDATE_MANIFEST_PRIVATE_KEY_BASE64" `
   --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
   --out $Manifest `
-  --channel stable `
+  --channel $Channel `
   --store adaway
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boundary.ps1 `
   -SourceMode GitTracked -StrictSourceArchive `
@@ -200,7 +207,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-license-boun
   --manifest $Manifest --manifest-sha256 "$Manifest.sha256" `
   --sbom $Sbom --sbom-sha256 "$Sbom.sha256" `
   --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
-  --expected-version $Version --expected-store adaway `
+  --expected-version $Version --expected-channel $Channel --expected-store adaway `
   --expected-cert-sha256 "<release-certificate-sha256>" `
   --report local-unattested-verification.md
 ```
@@ -305,6 +312,10 @@ a reviewer, review packet, `Source commit`, `Review packet source commit`,
 `Review packet SHA-256`, checked item count, `Unchecked items: 0`, and
 `Issues: 0`. The checked `ux-matrix-review.md` must carry the same source
 commit as the verifier run; stale packets from another source revision fail.
+Generate and review the packet using the
+[UX matrix instructions](README.md#ux-matrix-review-packet). Preserve the generated
+packet structure and complete every required checklist item; omitted or duplicate
+sections, misplaced items, fenced examples, and HTML comments are rejected.
 The same sign-off check can be run from the manual **Verify UX sign-off**
 workflow (`.github/workflows/verify-ux-signoff.yml`). Provide
 `review_packet_base64`, the base64-encoded checked `ux-matrix-review.md`, plus
@@ -344,6 +355,7 @@ bound to the release tag. Old ambiguous `Source commit`-only reports cannot pass
 
 ```powershell
 $Version = "<version>"
+$Channel = "<stable-or-beta>"
 $Apk = "AdAway_$Version.apk"
 .\scripts\verify-release-artifacts.ps1 `
   --apk $Apk `
@@ -354,7 +366,7 @@ $Apk = "AdAway_$Version.apk"
   --sbom-sha256 adaway.cdx.json.sha256 `
   --public-key-base64 "$env:UPDATE_MANIFEST_PUBLIC_KEY_BASE64" `
   --expected-version $Version `
-  --expected-channel stable `
+  --expected-channel $Channel `
   --expected-store adaway `
   --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$Version/$Apk" `
   --expected-cert-sha256 "<release-certificate-sha256>" `
@@ -367,6 +379,7 @@ On Unix-like shells:
 
 ```bash
 VERSION="<version>"
+CHANNEL="<stable-or-beta>"
 APK="AdAway_${VERSION}.apk"
 bash ./scripts/verify-release-artifacts.sh \
   --apk "$APK" \
@@ -377,7 +390,7 @@ bash ./scripts/verify-release-artifacts.sh \
   --sbom-sha256 adaway.cdx.json.sha256 \
   --public-key-base64 "$UPDATE_MANIFEST_PUBLIC_KEY_BASE64" \
   --expected-version "$VERSION" \
-  --expected-channel stable \
+  --expected-channel "$CHANNEL" \
   --expected-store adaway \
   --expected-apk-url "https://github.com/stevesolun/AdAway/releases/download/v$VERSION/$APK" \
   --expected-cert-sha256 "<release-certificate-sha256>" \
@@ -391,8 +404,12 @@ GitHub APK release path:
 `https://github.com/stevesolun/AdAway/releases/download/<tag>/<apk>.apk`.
 Check the embedded payload before publishing or announcing a release.
 
-Tagged releases are retained for durable provenance; the tagged release workflow
-does not automatically delete older release artifacts.
+Tagged releases are retained for durable provenance by the tag-triggered release
+workflow; it does not automatically delete older release artifacts.
+The separate manual `cleanup-releases.yml` workflow deletes release records and
+assets by recency while retaining Git tags; it does not protect stable or beta
+feeds. Retain releases needed by installed clients and signed update feeds, and
+do not run count-based cleanup against those compatibility requirements.
 
 APK self-update is only for the AdAway-signed direct APK distribution. Store
 builds such as F-Droid should rely on their store update mechanism rather than

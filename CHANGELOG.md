@@ -10,6 +10,9 @@
 - Keep saved subscriptions and custom rules when upgrading legacy databases on Android 11.
 - Release the older Android VPN's network request when protection stops, including
   when Android keeps the service bound.
+- This beta targets non-root VPN use. It does not complete the exhaustive audit or
+  claim physical-phone, root, or full UI-variant verification; see the
+  [audit scope and evidence](tasks/audit-2026-11-25/README.md).
 
 ## [13.5.4b] - 2026-10-14
 

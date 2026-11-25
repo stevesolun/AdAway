@@ -42,15 +42,8 @@ We have a dedicated forum with a welcoming community and a wiki to answer your q
 
 ### Discovering the project structure
 
-The AdAway source code is an Android project organized in modules.
-There are four main modules:
-* `app`: The Android application itself
-* `tcpdump`: A module dedicated to build the `pcap` library and the `tcpdump` binary
-* `webserver`: A module dedicated to build a simple HTTP server binary based on `mongoose`
-* `libraries/RootCommands`: A vendorize Android library to run root shell commands
-
-The three last modules are independent and used by the `app` module.
-Modularizing the application allows for faster build times and simplier maintainance.
+See the [project structure](README.md#module-structure) for the active modules
+and the boundary between shipped code and historical native sources.
 
 ### Building the project
 
@@ -87,7 +80,10 @@ The first full build of the apk can take a lot of time, about 20 minutes, wherea
 
 #### Running on an emulator
 
-In order to test the application on an emulator, disable [the root check in the Constants source file](https://github.com/AdAway/AdAway/blob/c90336cb9b062220540317bc6c7cfedb19927c63/app/src/main/java/org/adaway/util/Constants.java#L28).
+Install the debug build on a disposable emulator with `./gradlew installDebug`.
+Choose VPN mode in onboarding and accept Android's VPN consent prompt. No source
+change or root-check bypass is needed for non-root operation. For screenshot
+capture, follow the [UX matrix instructions](README.md#ux-matrix-review-packet).
 
 ## How can I contribute?
 
@@ -169,7 +165,9 @@ See https://source.android.com/source/code-style.html
 
 #### Origin
 
-Forked from the following sources and slightly modified to compile:
+These are historical source references, not a list of active build modules.
+See the [third-party notices](THIRD_PARTY_LICENSES.md) for packaging and licensing
+boundaries. The native sources were forked and modified to compile from:
 
 * dnsmasq: https://github.com/CyanogenMod/android_external_dnsmasq
 * libpcap: https://github.com/the-tcpdump-group/libpcap/tree/libpcap-1.7.4

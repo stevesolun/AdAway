@@ -11,21 +11,8 @@ import java.util.List;
 import static org.adaway.model.source.FilterListCategory.*;
 
 /**
- * A comprehensive, curated catalog of filter lists organized by category.
- * Inspired by uBlock Origin's filter list management.
- * <p>
- * This catalog provides:
- * - 60+ curated sources across 12 categories
- * - Conservative public-feed defaults (other sources opt-in)
- * - Built-in Facebook/Meta whitelist for safety
- * - YouTube-specific blockers for ad-free viewing
- * - Device-specific blockers (Samsung, Xiaomi telemetry)
- * - Service-specific blockers (Spotify ads)
- * - Regional lists for international users
- * - Preset modes (Safe, Balanced, Aggressive)
- * <p>
- * Sources compiled from community recommendations including Reddit, GitHub,
- * Pi-hole community, and Blokada/NetGuard ecosystems.
+ * Catalog entries and preset selection, with conservative public-feed defaults and opt-in extras.
+ * See README.md for user guidance and docs/filter-rule-capabilities.md for supported rule semantics.
  *
  * @author AdAway Contributors
  */

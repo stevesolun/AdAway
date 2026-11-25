@@ -5,7 +5,7 @@ compatibility unless a rule can be represented safely at DNS resolution time.
 
 | Rule family | Current treatment | Market-safe claim |
 |-------------|-------------------|-------------------|
-| Hosts file entries | Supported as exact hosts | Fully supported |
+| Hosts-format block/redirect entries | Each valid hostname on an accepted line is stored as an exact host, including aliases before an inline `#` comment | An invalid alias is skipped without dropping valid aliases on the same line |
 | Plain domain lists | Supported as exact hosts | Fully supported |
 | dnsmasq `address=/domain/0.0.0.0`, `address=/domain/::`, `address=/domain/#` | Stored as suffix rules | VPN/runtime suffix matching; root hosts output includes only the suffix base domain |
 | dnsmasq `local=/domain/` | Stored as suffix rules | VPN/runtime suffix matching; root hosts output includes only the suffix base domain |

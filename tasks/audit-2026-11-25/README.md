@@ -8,6 +8,10 @@ active until coverage and fixes are verified, not merely until a test suite pass
 Baseline: `d51eb7aea06871c2c6ad2bbedb9ddbaaaca48d77` (merged 13.5.4b).
 Initial inventory: 2,534 tracked files. Branch: `codex/full-codebase-audit`.
 
+The bounded 13.5.5b beta is distinct from completing this audit. Its observed
+results and limits belong in [validation.md](validation.md#candidate-1355b);
+release mechanics belong in [RELEASING.md](../../RELEASING.md).
+
 ## Evidence Rules
 
 - `files.csv` includes tracked and non-ignored new files. Each non-generated file

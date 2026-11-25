@@ -51,7 +51,7 @@ public class WebServerUtils {
     private static final String WEB_SERVER_EXECUTABLE = "webserver";
 
     /**
-     * Start the web server in new thread with RootTools
+     * Retained entry point for callers; the bundled web server is unavailable.
      *
      * @param context The application context.
      */
@@ -64,7 +64,7 @@ public class WebServerUtils {
     }
 
     /**
-     * Stop the web server.
+     * Stop the web server only when enabled; legacy cleanup uses {@link #cleanupLegacyWebServer()}.
      */
     public static void stopWebServer() {
         if (!WEB_SERVER_ENABLED) {
