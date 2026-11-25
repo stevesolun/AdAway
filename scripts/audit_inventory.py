@@ -36,13 +36,13 @@ def classify(path):
         return "native-source-or-vendor"
     if name.startswith("tasks/"):
         return "review-evidence"
-    if path.suffix in {".java", ".kt", ".c", ".h", ".cpp", ".py", ".sh", ".ps1"}:
-        return "test-source" if "/test/" in name or "/androidTest/" in name else "source"
+    if path.suffix in {".java", ".kt", ".c", ".h", ".cpp", ".py", ".sh", ".ps1", ".rb"}:
+        return "test-source" if {"test", "tests", "androidTest"}.intersection(path.parts[:-1]) else "source"
     if "/res/" in name or name.startswith("Resources/"):
         return "resource"
-    if path.suffix in {".gradle", ".yml", ".yaml", ".properties", ".pro"}:
+    if path.suffix in {".gradle", ".yml", ".yaml", ".properties", ".pro", ".toml", ".pom", ".module"}:
         return "build-or-configuration"
-    if path.suffix in {".png", ".jpg", ".jar", ".webp", ".gif", ".pdf", ".zip"}:
+    if path.suffix in {".png", ".jpg", ".jar", ".aar", ".webp", ".gif", ".pdf", ".zip"}:
         return "binary-asset"
     return "documentation-or-data"
 
