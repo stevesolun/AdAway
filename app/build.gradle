@@ -107,7 +107,6 @@ android {
             }
         }
 
-        buildTypes.debug.signingConfig = signingConfigs.release
         buildTypes.release.signingConfig = signingConfigs.release
         buildTypes.directRelease.signingConfig = signingConfigs.release
     } else {
@@ -156,6 +155,19 @@ android {
     // Do not abort build if lint finds errors
     lint {
         disable 'MissingTranslation'
+    }
+}
+
+androidComponents.finalizeDsl { dsl ->
+    if (keyStoreDefined) {
+        def productionKey = dsl.signingConfigs.getByName('release')
+        dsl.buildTypes.each { type ->
+            def key = type.signingConfig
+            if (type.debuggable && key?.storeFile?.canonicalFile == productionKey.storeFile.canonicalFile
+                    && key.keyAlias == productionKey.keyAlias) {
+                throw new GradleException("Refusing to sign debuggable build type ${type.name} with the release key.")
+            }
+        }
     }
 }
 
