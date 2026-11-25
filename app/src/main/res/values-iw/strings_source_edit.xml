@@ -2,6 +2,9 @@
 <resources>
     <string name="source_edit_title">עריכת מקור</string>
     <string name="source_edit_add_title">הוספת מקור</string>
+    <string name="source_edit_file_grant_denied">לא ניתן לשמור את הרשאת הגישה לקובץ. אפשר לבחור אותו שוב או לבחור קובץ אחר.</string>
+    <string name="source_edit_missing">המסנן הזה כבר לא נמצא ברשימת המקורות שלך.</string>
+    <string name="source_edit_schedule_save_first">יש לשמור את המיקום החדש לפני שינוי תזמון העדכונים.</string>
     <!-- Hosts source edition -->
     <string name="source_edit_label">תווית</string>
     <string name="source_edit_label_required">נדרש תווית</string>

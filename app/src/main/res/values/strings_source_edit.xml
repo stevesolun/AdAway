@@ -7,6 +7,9 @@
     <string name="source_edit_optional_label">Name (optional)</string>
     <string name="source_edit_duplicate_url">This filter URL is already subscribed.</string>
     <string name="source_edit_save_failed">Could not save this filter. Reopen it and try again.</string>
+    <string name="source_edit_file_grant_denied">Could not keep access to this file. Choose it again or select a different file.</string>
+    <string name="source_edit_missing">This filter is no longer in your sources.</string>
+    <string name="source_edit_schedule_save_first">Save the new location before changing its schedule.</string>
     <string name="source_edit_label_required">Label required</string>
     <string name="source_edit_type">Type</string>
     <string name="source_edit_url">URL</string>
