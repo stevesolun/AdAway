@@ -48,6 +48,10 @@ public class DomainCheckerRuleScopeInstrumentedTest {
             assertEquals(R.string.domain_checker_change_failed, model.getOperationResult().getValue().error);
             assertNotNull(dao.getById(id));
             assertEquals(ListType.BLOCKED, db.hostEntryDao().getTypeForHost("second." + base));
+            settle(() -> model.blockDomain(base));
+            assertEquals(0, model.getOperationResult().getValue().error);
+            assertNotNull("Blocking only the apex must preserve the suffix row", dao.getById(id));
+            assertEquals(ListType.BLOCKED, db.hostEntryDao().getTypeForHost("second." + base));
         } finally {
             dao.deleteUserFromHost(base);
         }

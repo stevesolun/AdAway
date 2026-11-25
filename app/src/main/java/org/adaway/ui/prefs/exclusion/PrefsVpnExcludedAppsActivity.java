@@ -20,7 +20,6 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.helper.ThemeHelper;
 
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -97,12 +96,10 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
     public UserApp[] getUserApplications() {
         if (this.userApplications == null) {
             PackageManager packageManager = getPackageManager();
-            ApplicationInfo self = getApplicationInfo();
             Set<String> excludedApps = PreferenceHelper.getVpnExcludedApps(this);
 
             this.userApplications = packageManager.getInstalledApplications(0).stream()
-                    .filter(applicationInfo -> (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0)
-                    .filter(applicationInfo -> !Objects.equals(applicationInfo.name, self.name))
+                    .filter(applicationInfo -> isSelectableUserApp(applicationInfo, getPackageName()))
                     .map(applicationInfo -> new UserApp(
                             packageManager.getApplicationLabel(applicationInfo),
                             applicationInfo.packageName,
@@ -113,6 +110,10 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
                     .toArray(UserApp[]::new);
         }
         return this.userApplications;
+    }
+
+    static boolean isSelectableUserApp(ApplicationInfo app, String ownPackage) {
+        return (app.flags & ApplicationInfo.FLAG_SYSTEM) == 0 && !ownPackage.equals(app.packageName);
     }
 
     @Override

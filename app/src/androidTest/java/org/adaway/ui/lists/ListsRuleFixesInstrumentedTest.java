@@ -335,7 +335,7 @@ public class ListsRuleFixesInstrumentedTest {
         onActivity(activity -> editor(activity, ALLOWED_HOSTS_TAB).setText("beta"));
         awaitRow(ALLOWED_HOSTS_TAB, "beta-1.invalid", true);
         selectTab(BLOCKED_HOSTS_TAB);
-        awaitRow(BLOCKED_HOSTS_TAB, "beta-0.invalid", true);
+        awaitOnlyRow(BLOCKED_HOSTS_TAB, "beta-0.invalid", "alpha-0.invalid");
         onActivity(activity -> {
             assertEquals("beta", editor(activity, BLOCKED_HOSTS_TAB).getText().toString());
             assertEquals("beta", editor(activity, ALLOWED_HOSTS_TAB).getText().toString());
@@ -375,7 +375,7 @@ public class ListsRuleFixesInstrumentedTest {
             model.search("beta");
             model.toggleSources();
         });
-        awaitRow(BLOCKED_HOSTS_TAB, "beta-new.invalid", true);
+        awaitOnlyRow(BLOCKED_HOSTS_TAB, "beta-new.invalid", "beta-source.invalid");
         onActivity(activity -> {
             assertEquals("beta", model(activity).getSearchQuery());
             assertEquals("beta", editor(activity, BLOCKED_HOSTS_TAB).getText().toString());
@@ -541,6 +541,18 @@ public class ListsRuleFixesInstrumentedTest {
         }));
     }
 
+    private void awaitOnlyRow(int tab, String expected, String removed) {
+        // The wanted row may already exist in the old page while the diff is animating.
+        await("only " + expected + ", without " + removed, () -> onMainResult(() -> {
+            ListsActivity activity = currentActivityOnMain();
+            if (activity == null) return false;
+            View present = row(activity, tab, expected);
+            if (present == null || !present.isShown() || !checkbox(present).isChecked()) return false;
+            RecyclerView list = fragment(activity, tab).requireView().findViewById(R.id.hosts_lists_list);
+            return list.getAdapter().getItemCount() == 1 && row(activity, tab, removed) == null;
+        }));
+    }
+
     private void awaitRule(int source, String host, boolean enabled) {
         await("persisted " + host, () -> {
             HostListItem item = rule(source, host);
@@ -630,6 +642,27 @@ public class ListsRuleFixesInstrumentedTest {
         source.setAllowEnabled(true);
         source.setRedirectEnabled(true);
         database.hostsSourceDao().insert(source);
+    }
+
+    @Test(timeout = 60_000)
+    public void exactApexEditsDoNotOverwriteUserSuffixRules() throws Exception {
+        HostListItem suffix = new HostListItem();
+        suffix.setHost(HOST);
+        suffix.setSourceId(USER_SOURCE_ID);
+        suffix.setKind(RuleKind.SUFFIX);
+        suffix.setType(BLOCKED);
+        suffix.setEnabled(true);
+        database.hostsListItemDao().insert(suffix);
+        ListsViewModel model = newModel();
+        onMain(() -> assertTrue(model.addListItem(ALLOWED, HOST, null)));
+        awaitDisk();
+        database.hostEntryDao().sync();
+        assertEquals(ALLOWED, database.hostEntryDao().getTypeForHost(HOST));
+        assertEquals(BLOCKED, database.hostEntryDao().getTypeForHost("child." + HOST));
+        database.hostsListItemDao().deleteExactUserRules(HOST);
+        database.hostEntryDao().sync();
+        assertEquals(BLOCKED, database.hostEntryDao().getTypeForHost(HOST));
+        assertEquals(BLOCKED, database.hostEntryDao().getTypeForHost("child." + HOST));
     }
 
     private void insertRule(ListType type, String host, int source) {

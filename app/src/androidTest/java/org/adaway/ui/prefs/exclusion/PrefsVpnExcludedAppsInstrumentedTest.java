@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.SystemClock;
@@ -69,6 +70,17 @@ public class PrefsVpnExcludedAppsInstrumentedTest {
             toggleFixtureRow(scenario);
             waitForExcludedPreference(false);
         }
+    }
+
+    @Test
+    public void pickerIdentifiesSelfByPackageNotSharedApplicationClass() {
+        ApplicationInfo app = new ApplicationInfo(context.getApplicationInfo());
+        String ownPackage = context.getPackageName();
+        assertFalse(PrefsVpnExcludedAppsActivity.isSelectableUserApp(app, ownPackage));
+        app.packageName = "org.example.otherapp";
+        assertTrue(PrefsVpnExcludedAppsActivity.isSelectableUserApp(app, ownPackage));
+        app.flags |= FLAG_SYSTEM;
+        assertFalse(PrefsVpnExcludedAppsActivity.isSelectableUserApp(app, ownPackage));
     }
 
     @SuppressWarnings("deprecation")

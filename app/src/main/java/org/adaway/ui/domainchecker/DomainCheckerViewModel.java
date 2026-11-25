@@ -184,7 +184,7 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         if (action == Action.ALLOW || action == Action.BLOCK) {
             if (action == Action.BLOCK) {
                 // Replacement and insert roll back together if storage fails.
-                mHostListItemDao.deleteUserFromHost(domain);
+                mHostListItemDao.deleteExactUserRules(domain);
             } else {
                 // An allow exception preserves the underlying block. Retry reuses the exception.
                 for (HostListItem existing : mHostListItemDao.getExactEntriesForHost(domain)) {

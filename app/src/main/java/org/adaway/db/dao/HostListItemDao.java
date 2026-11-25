@@ -39,6 +39,9 @@ public interface HostListItemDao {
     @Query("DELETE FROM hosts_lists WHERE source_id = 1 AND host = :host")
     void deleteUserFromHost(String host);
 
+    @Query("DELETE FROM hosts_lists WHERE source_id = 1 AND host = :host AND kind = 0")
+    void deleteExactUserRules(String host);
+
     @Query("SELECT * FROM hosts_lists " +
             "WHERE type = :type AND host LIKE :query AND (" +
             "(:includeSources == 0 AND source_id == 1) OR " +
@@ -54,6 +57,9 @@ public interface HostListItemDao {
 
     @Query("SELECT id FROM hosts_lists WHERE host = :host AND source_id = 1 LIMIT 1")
     Optional<Integer> getHostId(String host);
+
+    @Query("SELECT id FROM hosts_lists WHERE source_id = 1 AND host = :host AND kind = :kind ORDER BY id LIMIT 1")
+    Optional<Integer> getUserRuleId(String host, RuleKind kind);
 
     @Query("SELECT * FROM hosts_lists WHERE id = :id")
     HostListItem getById(int id);
