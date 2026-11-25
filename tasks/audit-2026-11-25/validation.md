@@ -11,15 +11,20 @@ verification. No personal phone or privileged root apply was used.
 PR #13 merged with all six required checks green; the Android 14 CI report
 contained 612 cases, 593 passed, 19 skipped, no failures or errors. The
 [signed upgrade check](https://github.com/stevesolun/AdAway/pull/13#issuecomment-7163553814)
-retained the named Hebrew filter, 182 rows and two disabled sources on Android 11.
+from public 13.5.4b to the PR #13 build retained the named Hebrew filter,
+182 rows and two disabled sources on Android 11.
 
 The [13.5.5b tag run](https://github.com/stevesolun/AdAway/actions/runs/45627113141)
 verified the signed APK and manifest but stopped before release: the GitHub CLI
 rejected simultaneous signer-workflow and certificate-identity selectors.
-The 13.5.6b follow-up keeps the exact workflow-and-ref certificate identity
-and both commit pins. The real CLI accepted the preceding public beta and
-rejected a different workflow. The new offline CI test uses the actual CLI
-parser, not a mocked acceptance of its flags. No application behavior changed.
+The 13.5.6b follow-up corrects signer selection under the
+[release verification policy](../../RELEASING.md#stable-releases).
+The real CLI accepted the preceding public beta and rejected a different
+workflow. The offline CLI compatibility check is documented in the release
+guide; it is separate from that live provenance evidence. Android changes are
+limited to the version bump. This follow-up's protected merge, build dispatches
+and publication remain the release operator's responsibility; no 13.5.6b
+publication is claimed here.
 
 ## Candidate 13.5.5b
 
@@ -352,5 +357,5 @@ failed before producing coverage; its assigned files remain pending.
   DNS filtering is not browser cosmetic filtering.
 - Root runtime, live backup-transport restore, physical devices, every workflow
   variant, and still-pending file reviews are not implied by suite results.
-- The beta version bump and application fixes were committed locally. Public
-  delivery requires separate protected CI, merge, signed tag and release verification.
+- Protected merge and beta delivery status are tracked under
+  [Publication Follow-up](#publication-follow-up).

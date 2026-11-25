@@ -359,6 +359,7 @@ jobs:
           echo "$!" > app/build/ci-artifacts/emulator.pid
 
           timeout 300 adb wait-for-device
+          # shellcheck disable=SC2016 # Expand the boot check inside the timed child shell.
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
           adb devices -l | tee app/build/ci-artifacts/adb-devices-after-boot.txt
           adb shell settings put global window_animation_scale 0
