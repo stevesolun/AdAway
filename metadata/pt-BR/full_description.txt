@@ -6,4 +6,4 @@ Usando um dispositivo sem acesso root, o aplicativo usa o recurso VPN para bloqu
 Portanto, quando um aplicativo solicita um anúncio ou rastreador de um host naquele arquivo, essa solicitação é redirecionada para o IP local 127.0.0.1, que não faz nada.
 
 Você pode baixar anúncios predefinidos e listas de bloqueadores como arquivos de hosts de dentro do aplicativo para incorporar. Também é possível usar seus próprios arquivos e adicionar certos hosts a listas de permitidos e bloqueados.
-Há opções para executar um servidor Web local para responder a nomes de host bloqueados ou para direcionar solicitações para o endereço IP de sua escolha.
+Há opções para direcionar solicitações para o endereço IP de sua escolha.

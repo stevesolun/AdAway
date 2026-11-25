@@ -6,4 +6,4 @@ Utilizzando un dispositivo senza root, l'applicazione utilizza una connessione V
 Così quando un'applicazione richiede un annuncio o un tracker da un host, la richiesta viene reindirizzata all'indirizzo IP locale 127.0.0.1, che non fornisce risposta.
 
 Puoi scaricare liste predefinite di annunci o tracker come file host da utilizzare, direttamente dall'applicazione. È anche possibile utilizzare i propri file e aggiungere specifici host ai quali si vuole bloccare o permettere l'accesso.
-Ci sono opzioni che consentono di avviare un web server locale per rispondere ai nomi di host bloccati e per inoltrare le relative richieste all'indirizzo IP di tua preferenza
+Ci sono opzioni che consentono di inoltrare le richieste all'indirizzo IP di tua preferenza

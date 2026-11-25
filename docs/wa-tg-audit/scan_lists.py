@@ -166,61 +166,56 @@ LISTS_TO_SCAN = [
 
 def extract_blocked_domains(content):
     """
-    Extract blocked domains from filter list content.
-    Handles:
-    - hosts format:  0.0.0.0 domain  /  127.0.0.1 domain
-    - plain domain lines
-    - ABP format:    ||domain^
+    Return exact hosts and suffix rules for this scanner's supported subset.
+    Follow SourceLoader's hosts/plain-domain and context-free ABP contract;
+    this is not a general browser filter engine.
     """
     blocked = set()
-    hosts_re = re.compile(
-        r'^(?:0\.0\.0\.0|127\.0\.0\.1)\s+([a-zA-Z0-9._\-]+)',
-        re.MULTILINE
-    )
-    abp_re = re.compile(
-        r'^\|\|([a-zA-Z0-9._\-]+)\^',
-        re.MULTILINE
-    )
+    suffixes = set()
+    abp_re = re.compile(r'^\|\|([^\^/$|\s]+)\^?$')
     plain_domain_re = re.compile(
         r'^([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?'
-        r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+)\s*$',
-        re.MULTILINE
+        r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+)$'
     )
 
-    for m in hosts_re.finditer(content):
-        d = m.group(1).lower().strip('.')
-        if d and d not in ('localhost', 'broadcasthost', 'local'):
-            blocked.add(d)
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        fields = line.split('#', 1)[0].split()
+        if not fields:
+            continue
+        if fields[0] in ('0.0.0.0', '127.0.0.1', '::1'):
+            for alias in fields[1:]:
+                d = alias.lower()
+                if plain_domain_re.fullmatch(d):
+                    blocked.add(d)
+            continue
 
-    for m in abp_re.finditer(content):
-        d = m.group(1).lower().strip('.')
-        if d:
-            blocked.add(d)
-
-    # Plain domain only if file doesn't look like hosts format already
-    if not hosts_re.search(content):
-        for m in plain_domain_re.finditer(content):
-            d = m.group(1).lower().strip('.')
-            if d:
+        # Cosmetic separators are not inline comments, as in SourceLoader.
+        if line.startswith(('!', '[', '@@')) or any(
+                marker in line for marker in ('##', '#@#', '#$#', '#?#')):
+            continue
+        line = line.split('#', 1)[0].strip()
+        match = abp_re.fullmatch(line)
+        d = (match.group(1) if match else line).lower()
+        if d.endswith('.'):
+            d = d[:-1]
+        if plain_domain_re.fullmatch(d):
+            if match:
+                suffixes.add(d)
+            else:
                 blocked.add(d)
 
-    return blocked
+    return blocked, suffixes
 
 
-def domain_is_blocked(domain, blocked_set):
-    """
-    Check if a critical domain is blocked.
-    Exact match OR the blocked set contains the domain itself
-    OR a suffix parent is blocked (e.g. blocking 'whatsapp.net'
-    catches 'mmg.whatsapp.net').
-    """
+def domain_is_blocked(domain, blocked_set, suffixes=()):
+    """Match exact hosts first, then explicit suffix rules on label boundaries."""
     if domain in blocked_set:
         return True, domain
-    # Check if any parent suffix is blocked
     parts = domain.split('.')
-    for i in range(1, len(parts)):
+    for i in range(len(parts)):
         parent = '.'.join(parts[i:])
-        if parent in blocked_set:
+        if parent in suffixes:
             return True, parent
     return False, None
 
@@ -256,10 +251,10 @@ def download_list(name, url, timeout=25):
 
 def scan_list_for_critical(name, content):
     """Scan a downloaded list for critical domain hits."""
-    blocked = extract_blocked_domains(content)
+    blocked, suffixes = extract_blocked_domains(content)
     hits = []
     for critical_domain in CRITICAL_DOMAINS:
-        found, via = domain_is_blocked(critical_domain, blocked)
+        found, via = domain_is_blocked(critical_domain, blocked, suffixes)
         if found:
             hits.append({
                 "domain": critical_domain,
@@ -327,6 +322,7 @@ def main():
             all_results[name] = {
                 "url": data["url"],
                 "blocks": data["blocks"],
+                "raw_hits": data["raw_hits"],
                 "source": "newly_scanned"
             }
         elif data.get("skipped"):
@@ -355,13 +351,16 @@ def main():
         for list_name, list_data in all_results.items():
             if list_data.get("source") in ("skipped", "error"):
                 continue
-            # Check if this list blocks the domain (exact or parent suffix)
-            blocks_set = set(list_data.get("blocks", []))
-            found, via = domain_is_blocked(critical_domain, blocks_set)
-            if found:
+            # Scanned hits are already resolved; historical hosts are exact only.
+            hits = list_data.get("raw_hits", [
+                {"domain": domain, "via": domain}
+                for domain in list_data.get("blocks", [])
+            ])
+            hit = next((hit for hit in hits if hit["domain"] == critical_domain), None)
+            if hit is not None:
                 blocking_lists.append({
                     "list": list_name,
-                    "via": via
+                    "via": hit["via"]
                 })
 
         is_protected = critical_domain in CURRENT_ALLOWLIST
@@ -426,26 +425,11 @@ def main():
     for name, data in high_risk_lists:
         print(f"    score={data['score']:3d}  {name}: {data['unprotected_hits']}")
 
-    # Step 6: Build recommended wildcard allowlist
-    # Find all unprotected domains and their parent "wildcards"
-    recommended_allowlist = set()
-    wa_suffixes = ["whatsapp.com", "whatsapp.net", "fbcdn.net"]
-    tg_suffixes = ["telegram.org", "telegram.me", "t.me"]
-
-    for domain in unprotected:
-        recommended_allowlist.add(domain)
-        # If a subdomain, suggest the parent wildcard too
-        parts = domain.split('.')
-        if len(parts) > 2:
-            parent = '.'.join(parts[1:])
-            recommended_allowlist.add(parent)
-
-    # Always recommend the core wildcard roots
-    for d in wa_suffixes + tg_suffixes:
-        if d not in CURRENT_ALLOWLIST:
-            recommended_allowlist.add(d)
-        # Add wildcard notation for subdomains
-        recommended_allowlist.add(f"*.{d}")
+    # Step 6: Recommend only exact compatibility hosts, never ads or telemetry.
+    recommended_allowlist = {
+        domain for domain in unprotected
+        if impact_weights.get(domain_risk[domain]["impact"].split(" - ")[0], 0) > 0
+    }
 
     # Step 7: Write results
     print("\n[PHASE 5] Writing report files...")
@@ -492,15 +476,14 @@ def main():
     md_lines.append(f"**Lists successfully scanned:** {report['scan_metadata']['lists_successfully_scanned']}  ")
     md_lines.append("")
 
-    md_lines.append("## Root Cause: Exact-Match Allowlist Cannot Protect Subdomains")
+    md_lines.append("## Matching Scope")
     md_lines.append("")
-    md_lines.append("AdAway's User List allowlist uses **exact host matching**. Adding `whatsapp.net`")
-    md_lines.append("to the allowlist does NOT protect `mmg.whatsapp.net`, `static.whatsapp.net`,")
-    md_lines.append("`crashlogs.whatsapp.net`, etc. Each subdomain must be individually listed,")
-    md_lines.append("or the app needs wildcard/suffix allowlist support.")
+    md_lines.append("Hosts and plain-domain entries match exact hosts. Supported ABP rules")
+    md_lines.append("match DNS suffixes; browser-only options and exceptions are not applied.")
+    md_lines.append("This report compares those hits with the historical exact-host allowlist snapshot.")
     md_lines.append("")
-    md_lines.append("Several active filter lists block specific WhatsApp and Telegram subdomains")
-    md_lines.append("that are NOT in the current allowlist, silently breaking functionality.")
+    md_lines.append("Compatibility suggestions require a positive impact classification.")
+    md_lines.append("Ad and telemetry hits remain visible in the risk table but are not allowlist advice.")
     md_lines.append("")
 
     md_lines.append("## Critical Domain Risk Table")
@@ -542,10 +525,10 @@ def main():
 
     md_lines.append("")
 
-    md_lines.append("## Unprotected Domains (require allowlist entries)")
+    md_lines.append("## Unprotected Domain Hits")
     md_lines.append("")
-    md_lines.append("These critical domains are blocked by at least one active list but NOT")
-    md_lines.append("protected by the current User List allowlist:")
+    md_lines.append("These domains are blocked by at least one evaluated list and are absent")
+    md_lines.append("from the allowlist snapshot. This includes ads and telemetry that should stay blocked:")
     md_lines.append("")
     for d in sorted(unprotected):
         info = domain_risk[d]
@@ -554,32 +537,13 @@ def main():
         md_lines.append(f"  - Blocked by: {', '.join(blocking_names)}")
     md_lines.append("")
 
-    md_lines.append("## Recommended Wildcard Allowlist Entries")
+    md_lines.append("## Recommended Exact Allowlist Entries")
     md_lines.append("")
-    md_lines.append("To reliably protect WhatsApp and Telegram from all current and future")
-    md_lines.append("filter lists, the following entries should be added to the User List allowlist.")
-    md_lines.append("Note: AdAway currently does not support wildcard entries natively —")
-    md_lines.append("these are the exact subdomains that need to be listed, plus a note")
-    md_lines.append("on the wildcard-support enhancement needed.")
+    md_lines.append("Review only these exact hosts for a demonstrated compatibility problem.")
+    md_lines.append("Do not broaden them to parent domains or wildcards; keep ads and telemetry blocked.")
     md_lines.append("")
-    md_lines.append("### Immediate (exact matches needed now):")
     md_lines.append("```")
-    immediate = sorted(d for d in unprotected if not d.startswith('*'))
-    for d in immediate:
-        md_lines.append(d)
-    md_lines.append("```")
-    md_lines.append("")
-    md_lines.append("### Long-term (wildcard support needed):")
-    md_lines.append("```")
-    wildcard_recs = [
-        "*.whatsapp.com",
-        "*.whatsapp.net",
-        "*.fbcdn.net",
-        "*.facebook.com",
-        "*.telegram.org",
-        "*.telegram.me",
-    ]
-    for d in wildcard_recs:
+    for d in sorted(recommended_allowlist):
         md_lines.append(d)
     md_lines.append("```")
     md_lines.append("")

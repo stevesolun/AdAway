@@ -54,19 +54,34 @@ Modularizing the application allows for faster build times and simplier maintain
 
 ### Building the project
 
-Building the project will require the latest versions of the Android SDK (Software Development Kit) and NDK (Native Development kit).
-They can easily be installed or updated using [Android Studio](https://developer.android.com/studio/).
+Building the project requires JDK 21, Android SDK platform 36, SDK Build-Tools 36.0.0,
+and NDK 27.2.12479018.
 
 #### Building with Gradle
-1. Ensure you have Android SDK and NDK installed.
-If not:
-    * Option 1: [Install Android Studio](https://developer.android.com/studio/index.html) or,
-    * Option 2: Install command line tools, build tools and ndk bundle with sdk manager:  
-    `tools/bin/sdkmanager "build-tools;x.y.z" ndk-bundle` where `x.y.z` is the latest version
-2. Export `ANDROID_HOME` environment variable pointing to your Android SDK:  
-`export ANDROID_HOME=/path/to/your/sdk`
-3. Launch a build:  
-`./gradlew assembleRelease`
+1. Install JDK 21 and the Android SDK. In [Android Studio](https://developer.android.com/studio/),
+use SDK Manager to select the versions above and Android SDK Command-Line Tools;
+select JDK 21 as the Gradle JDK. For a command-line-only setup, follow the
+[Command-Line Tools installation instructions](https://developer.android.com/tools/sdkmanager)
+to place SDK Manager at `cmdline-tools/latest/bin/sdkmanager` inside your SDK.
+2. Set the paths to your JDK and SDK, then install the required packages.
+Review and accept the SDK licenses when prompted:
+
+```sh
+export JAVA_HOME="/path/to/jdk-21"
+export ANDROID_HOME="/path/to/android-sdk"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --install \
+  "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses
+```
+
+3. Launch a debug build:
+`./gradlew assembleDebug`
+
+Without release signing properties, this uses the local debug key.
+For signed production builds and their required signing and update-trust inputs,
+follow the [release guide](RELEASING.md). Release trust checks remain required.
 
 The first full build of the apk can take a lot of time, about 20 minutes, whereas an incremental build of the `app` module takes less than a dozen seconds.
 
