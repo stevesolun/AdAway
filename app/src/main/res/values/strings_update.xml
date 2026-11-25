@@ -11,7 +11,6 @@
 
     <string name="update_update_button">Update now</string>
     <string name="update_progress_label">%1$s / %2$s</string>
-    <string name="update_complete_label">Complete</string>
     <string name="update_downloaded_label">Download finished; installation not confirmed</string>
     <string name="update_retry_button">Retry update</string>
     <string name="update_check_again_button">Check again</string>

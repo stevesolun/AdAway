@@ -10,7 +10,6 @@
 
     <string name="update_update_button">اکنون به روز رسانی کنید</string>
     <string name="update_progress_label">%1$s / %2$s</string>
-    <string name="update_complete_label">کامل</string>
     <string name="update_last_changelog_title">آخرین تغییرات</string>
 
     <string name="update_support_title">پشتیبانی از توسعه</string>

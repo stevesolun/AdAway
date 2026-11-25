@@ -10,7 +10,6 @@
 
     <string name="update_update_button">Aktualizuj teraz</string>
     <string name="update_progress_label">%1$s / %2$s</string>
-    <string name="update_complete_label">Zakończono</string>
     <string name="update_last_changelog_title">Ostatnie zmiany</string>
 
     <string name="update_support_title">Wspieraj rozwój</string>

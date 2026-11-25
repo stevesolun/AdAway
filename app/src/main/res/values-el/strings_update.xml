@@ -10,7 +10,6 @@
 
     <string name="update_update_button">Ενημέρωση τώρα</string>
     <string name="update_progress_label">%1$s / %2$s</string>
-    <string name="update_complete_label">Τελείωσε</string>
     <string name="update_last_changelog_title">Τελευταίες αλλαγές</string>
 
     <string name="update_support_title">Υποστήριξη ανάπτυξης</string>

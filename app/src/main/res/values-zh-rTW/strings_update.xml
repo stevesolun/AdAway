@@ -10,7 +10,6 @@
 
     <string name="update_update_button">現在更新</string>
     <string name="update_progress_label">%1$s / %2$s</string>
-    <string name="update_complete_label">完成</string>
     <string name="update_last_changelog_title">最近更改</string>
 
     <string name="update_support_title">支援開發</string>
