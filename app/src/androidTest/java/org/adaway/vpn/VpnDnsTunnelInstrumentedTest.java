@@ -15,11 +15,13 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
+import android.os.SystemClock;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -46,10 +48,13 @@ import org.xbill.DNS.SOARecord;
 import org.xbill.DNS.Section;
 import org.xbill.DNS.Type;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -57,10 +62,14 @@ import java.util.concurrent.TimeUnit;
 /**
  * Opt-in connected proof: adawayLiveVpnSmoke=true and pre-granted VPN consent are required.
  * Add adawayLiveNetworkSmoke=true to also exercise upstream example.com resolution.
+ * Add adawayLiveHebrewSmoke=true for the enabled Hebrew feed and site DNS probes.
+ * An optional evidenceDir captures actual UDP responses in app external files.
  */
 @RunWith(AndroidJUnit4.class)
 public class VpnDnsTunnelInstrumentedTest {
     private static final String CANARY_ADDRESS = "203.0.113.42";
+    private static final String HEBREW_SOURCE_URL =
+            "https://raw.githubusercontent.com/easylist/EasyListHebrew/master/hosts.txt";
     private static final long LIFECYCLE_TIMEOUT_MS = 20_000L;
     private static final int SOCKET_TIMEOUT_MS = 5_000;
     private static final long POLL_INTERVAL_MS = 100L;
@@ -73,6 +82,8 @@ public class VpnDnsTunnelInstrumentedTest {
     private HostListItem mRedirectedRule;
     private boolean mRulesInserted;
     private boolean mStartAttempted;
+    private ConnectivityManager.NetworkCallback mDefaultNetworkCallback;
+    private volatile Network mDefaultNetworkWithLinkProperties;
 
     @Test(timeout = 90_000L)
     public void udpDnsTraversesPreparedVpnTunnel() throws Exception {
@@ -91,6 +102,15 @@ public class VpnDnsTunnelInstrumentedTest {
         mDatabase = AppDatabase.getInstance(mApplication);
         assumeTrue("The app's USER source must already exist.",
                 mDatabase.hostsSourceDao().getById(USER_SOURCE_ID).isPresent());
+        if (argumentEnabled("adawayLiveHebrewSmoke")) {
+            assertTrue("Hebrew site probes require explicit adawayLiveNetworkSmoke=true.",
+                    argumentEnabled("adawayLiveNetworkSmoke"));
+            assertTrue("The real Hebrew hosts feed must already be enabled.",
+                    mDatabase.hostsSourceDao().getEnabled().stream()
+                            .anyMatch(source -> HEBREW_SOURCE_URL.equals(source.getUrl())));
+            assertSelectedSourceBlocks("totalmedia2.ynet.co.il");
+            assertSelectedSourceBlocks("pagead2.googlesyndication.com");
+        }
         mOriginalMethod = PreferenceHelper.getAdBlockMethod(mApplication);
         PreferenceHelper.setAbBlockMethod(mApplication, VPN);
 
@@ -104,6 +124,7 @@ public class VpnDnsTunnelInstrumentedTest {
         mRulesInserted = true;
         mApplication.getSourceModel().syncHostEntries();
 
+        observeDefaultNetwork();
         // Claim cleanup before starting: even a failed launch may have started the service.
         mStartAttempted = true;
         assertTrue("VPN service start command must be accepted.",
@@ -111,14 +132,7 @@ public class VpnDnsTunnelInstrumentedTest {
         InetAddress alias = waitForTunnelDnsAlias();
 
         Message blocked = query(alias, mBlockedRule.getHost());
-        assertEquals("Blocked DNS must be NODATA, not NXDOMAIN.",
-                Rcode.NOERROR, blocked.getRcode());
-        assertEquals(0, blocked.getSectionArray(Section.ANSWER).length);
-        Record[] authority = blocked.getSectionArray(Section.AUTHORITY);
-        assertEquals(1, authority.length);
-        assertTrue("Blocked DNS must carry the negative-cache SOA.",
-                authority[0] instanceof SOARecord);
-        assertEquals(Name.fromString("adaway.vpn.invalid."), authority[0].getName());
+        assertBlockedResponse(blocked);
 
         Message redirected = query(alias, mRedirectedRule.getHost());
         assertEquals(Rcode.NOERROR, redirected.getRcode());
@@ -135,6 +149,20 @@ public class VpnDnsTunnelInstrumentedTest {
             assertTrue("Upstream example.com resolution must return an IPv4 answer.",
                     Arrays.stream(resolved.getSectionArray(Section.ANSWER))
                             .anyMatch(answer -> answer instanceof ARecord));
+        }
+        if (argumentEnabled("adawayLiveHebrewSmoke")) {
+            for (String host : new String[]{"totalmedia2.ynet.co.il",
+                    "pagead2.googlesyndication.com"}) {
+                assertBlockedResponse(query(alias, host));
+            }
+            for (String host : new String[]{"www.ynet.co.il", "www.walla.co.il", "ksp.co.il"}) {
+                Message resolved = query(alias, host);
+                assertEquals("Upstream DNS response for " + host,
+                        Rcode.NOERROR, resolved.getRcode());
+                assertTrue("Upstream " + host + " resolution must return an IPv4 answer.",
+                        Arrays.stream(resolved.getSectionArray(Section.ANSWER))
+                                .anyMatch(answer -> answer instanceof ARecord));
+            }
         }
     }
 
@@ -160,8 +188,14 @@ public class VpnDnsTunnelInstrumentedTest {
                     mApplication.getSourceModel().syncHostEntries();
                 }
             } finally {
-                if (mOriginalMethod != null) {
-                    PreferenceHelper.setAbBlockMethod(mApplication, mOriginalMethod);
+                try {
+                    if (mOriginalMethod != null) {
+                        PreferenceHelper.setAbBlockMethod(mApplication, mOriginalMethod);
+                    }
+                } finally {
+                    if (mDefaultNetworkCallback != null) {
+                        mConnectivityManager.unregisterNetworkCallback(mDefaultNetworkCallback);
+                    }
                 }
             }
         }
@@ -209,9 +243,11 @@ public class VpnDnsTunnelInstrumentedTest {
                             && capabilities.getOwnerUid() != mApplication.getApplicationInfo().uid) {
                         continue;
                     }
-                    // Registration precedes Android's default-route switch. A socket opened
-                    // before that switch remains on the old network and never reaches TUN.
-                    if (!network.equals(mConnectivityManager.getActiveNetwork())) {
+                    // Synchronous network snapshots can precede Android's route installation.
+                    // Wait for the default network's link callback before opening a socket,
+                    // otherwise it can retain the physical source address and miss TUN.
+                    if (!network.equals(mDefaultNetworkWithLinkProperties)
+                            || !network.equals(mConnectivityManager.getActiveNetwork())) {
                         continue;
                     }
                     LinkProperties link = mConnectivityManager.getLinkProperties(network);
@@ -238,7 +274,61 @@ public class VpnDnsTunnelInstrumentedTest {
                 + "last status: " + PreferenceHelper.getVpnServiceStatus(mApplication));
     }
 
-    private static Message query(InetAddress alias, String host) throws Exception {
+    private void observeDefaultNetwork() {
+        ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                mDefaultNetworkWithLinkProperties = null;
+                recordNetworkEvent("default available=" + network);
+            }
+
+            @Override
+            public void onLinkPropertiesChanged(Network network, LinkProperties link) {
+                mDefaultNetworkWithLinkProperties = network;
+                recordNetworkEvent("default link=" + network + " " + link);
+            }
+
+            @Override
+            public void onLost(Network network) {
+                if (network.equals(mDefaultNetworkWithLinkProperties)) {
+                    mDefaultNetworkWithLinkProperties = null;
+                }
+                recordNetworkEvent("default lost=" + network);
+            }
+        };
+        mConnectivityManager.registerDefaultNetworkCallback(callback);
+        mDefaultNetworkCallback = callback;
+    }
+
+    private static void recordNetworkEvent(String event) {
+        System.out.println("VPN DNS elapsedMs=" + SystemClock.elapsedRealtime() + " " + event);
+    }
+
+    private void assertSelectedSourceBlocks(String host) {
+        try (Cursor rows = mDatabase.getOpenHelper().getReadableDatabase().query(
+                "SELECT 1 FROM hosts_lists AS rules JOIN hosts_sources AS source "
+                        + "ON source.id = rules.source_id WHERE rules.host = ? "
+                        + "AND rules.type = 0 AND rules.enabled = 1 AND source.enabled = 1 "
+                        + "AND source.id != 1 AND rules.generation = "
+                        + "(SELECT active_generation FROM hosts_meta WHERE id = 0) LIMIT 1",
+                new Object[]{host})) {
+            assertTrue("A real selected source must supply the blocked rule for " + host,
+                    rows.moveToFirst());
+        }
+    }
+
+    private static void assertBlockedResponse(Message blocked) throws Exception {
+        assertEquals("Blocked DNS must be NODATA, not NXDOMAIN: " + blocked.getQuestion(),
+                Rcode.NOERROR, blocked.getRcode());
+        assertEquals(0, blocked.getSectionArray(Section.ANSWER).length);
+        Record[] authority = blocked.getSectionArray(Section.AUTHORITY);
+        assertEquals(1, authority.length);
+        assertTrue("Blocked DNS must carry the negative-cache SOA.",
+                authority[0] instanceof SOARecord);
+        assertEquals(Name.fromString("adaway.vpn.invalid."), authority[0].getName());
+    }
+
+    private Message query(InetAddress alias, String host) throws Exception {
         Message request = Message.newQuery(
                 Record.newRecord(Name.fromString(host + "."), Type.A, DClass.IN));
         byte[] wire = request.toWire();
@@ -246,12 +336,18 @@ public class VpnDnsTunnelInstrumentedTest {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(SOCKET_TIMEOUT_MS);
             socket.connect(alias, 53);
+            recordNetworkEvent("probe host=" + host + " local=" + socket.getLocalSocketAddress()
+                    + " remote=" + socket.getRemoteSocketAddress()
+                    + " active=" + mConnectivityManager.getActiveNetwork()
+                    + " callbackReady=" + mDefaultNetworkWithLinkProperties);
             socket.send(new DatagramPacket(wire, wire.length));
+            recordNetworkEvent("sent host=" + host);
             byte[] buffer = new byte[4096];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
             Message response = new Message(Arrays.copyOfRange(packet.getData(),
                     packet.getOffset(), packet.getOffset() + packet.getLength()));
+            recordDnsResponse(alias, host, response);
             assertTrue(response.getHeader().getFlag(Flags.QR));
             assertFalse(response.getHeader().getFlag(Flags.TC));
             assertEquals(request.getHeader().getID(), response.getHeader().getID());
@@ -260,6 +356,29 @@ public class VpnDnsTunnelInstrumentedTest {
             assertEquals(request.getQuestion(), response.getQuestion());
             return response;
         }
+    }
+
+    private void recordDnsResponse(InetAddress alias, String host, Message response) throws Exception {
+        String directoryName = InstrumentationRegistry.getArguments().getString("evidenceDir");
+        if (directoryName == null || directoryName.isEmpty()) return;
+        assertTrue("evidenceDir must be a single directory name",
+                directoryName.matches("[A-Za-z0-9_-][A-Za-z0-9._-]*"));
+        File externalFiles = mApplication.getExternalFilesDir(null);
+        assertNotNull("External files directory is required for DNS evidence", externalFiles);
+        File directory = new File(externalFiles, directoryName);
+        assertTrue("Cannot create DNS evidence directory",
+                directory.isDirectory() || directory.mkdirs());
+        File target = new File(directory, "dns-" + host + ".txt");
+        String transcript = "Actual UDP A response through the AdAway VPN tunnel\n"
+                + "DNS alias: " + alias.getHostAddress() + ":53\n"
+                + "Host: " + host + "\n"
+                + "Probe: " + (host.endsWith(".vpn-smoke.invalid")
+                ? "temporary USER canary" : "public domain with current selected sources") + "\n\n"
+                + response + "\n";
+        try (FileOutputStream output = new FileOutputStream(target)) {
+            output.write(transcript.getBytes(StandardCharsets.UTF_8));
+        }
+        System.out.println("DNS evidence: " + target.getAbsolutePath());
     }
 
     private boolean hasAnyVpnNetwork() {

@@ -6,10 +6,12 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.RecyclerView;
@@ -26,6 +28,7 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -106,6 +109,8 @@ public class DiscoverFilterListsFiltersInstrumentedTest {
                 compatibleOnly.setChecked(true);
             });
             waitForAdapterIds(scenario, 101);
+            waitForVisibleFilterName(scenario, "Regional Ads Safe");
+            UiEvidence.capture(this.context, "discover-filtered-directory");
 
             scenario.onActivity(activity -> {
                 EditText search = activity.findViewById(R.id.filterlistsSearchEditText);
@@ -217,5 +222,27 @@ public class DiscoverFilterListsFiltersInstrumentedTest {
         CountDownLatch latch = new CountDownLatch(1);
         AppExecutors.getInstance().diskIO().execute(latch::countDown);
         assertTrue(latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    private static void waitForVisibleFilterName(ActivityScenario<HomeActivity> scenario,
+                                                 String expectedName) {
+        long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            AtomicReference<Boolean> visible = new AtomicReference<>(false);
+            scenario.onActivity(activity -> {
+                RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+                if (recycler == null) return;
+                RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(0);
+                if (holder == null) return;
+                TextView name = holder.itemView.findViewById(R.id.filterlistsItemName);
+                Rect bounds = new Rect();
+                visible.set(name != null && expectedName.contentEquals(name.getText())
+                        && name.isShown() && name.getGlobalVisibleRect(bounds)
+                        && bounds.width() > 0 && bounds.height() > 0);
+            });
+            if (visible.get()) return;
+            SystemClock.sleep(50);
+        }
+        throw new AssertionError("Filtered directory row must be visibly rendered: " + expectedName);
     }
 }
