@@ -61,7 +61,7 @@ removed, rewritten, or permission-cleared. See
 | `Resources/icon.svg`, `status_bar_icon.svg`, XCF/PNG icon sources | Historical AdAway/source artwork, incomplete visible metadata | Source artwork | No | License metadata must be recovered or assets replaced before MIT source distribution. |
 | Store/download/social marks (`download_google_play.png`, `download_fdroid.png`, `get-it-on-fdroid.png`, `XDADevelopers.png`, PayPal donate image) | Third-party brand/trademark assets | Historical website/store/support materials | No | Verify trademark/license basis or exclude/replace. |
 | Screenshots and Tasker screenshots | Historical app screenshots | Documentation/source materials | No | Verify generated-content ownership and whether they show third-party marks/data. |
-| `Resources/symlink_hosts_to_data.zip` and `Resources/certificate/` helpers | Historical support/test materials | Source-only utilities | No | Re-audit before shipping in any permissive source bundle; do not treat as MIT-cleared by default. |
+| `Resources/certificate/` helpers | Historical support/test materials | Source-only utilities | No | Re-audit before shipping in any permissive source bundle; do not treat as MIT-cleared by default. |
 
 ## Source Distribution Notes
 

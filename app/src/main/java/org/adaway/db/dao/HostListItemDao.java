@@ -10,6 +10,7 @@ import androidx.room.Transaction;
 import androidx.room.Update;
 
 import org.adaway.db.entity.HostListItem;
+import org.adaway.db.entity.RuleKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -127,6 +128,21 @@ public interface HostListItemDao {
            "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0))")
     List<HostListItem> getSuffixEntriesForHost(String host);
 
+    class AllowMatch {
+        public int sourceId;
+        public String host;
+        public RuleKind kind;
+    }
+
+    @Query("SELECT DISTINCT source_id AS sourceId, host, kind" + HostEntryDao.MATCHING_ALLOW_ROWS +
+            " ORDER BY source_id, host, kind")
+    List<AllowMatch> getMatchingAllowRules(String host);
+
+    @Query("DELETE FROM hosts_lists WHERE source_id = 1 AND type = 1 AND enabled = 1 " +
+            "AND kind = 0 AND LOWER(host) = :host")
+    void removeExactUserAllow(String host);
+
+    @Transaction
     default List<HostListItem> getEntriesForHost(String host) {
         List<HostListItem> entries = new ArrayList<>(getExactEntriesForHost(host));
         String candidate = host;
@@ -138,6 +154,7 @@ public interface HostListItemDao {
         return entries;
     }
 
+    @Transaction
     default List<HostListItem> getRootEntriesForHost(String host) {
         List<HostListItem> entries = new ArrayList<>(getExactEntriesForHost(host));
         entries.addAll(getSuffixEntriesForHost(host));

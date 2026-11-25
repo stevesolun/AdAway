@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">Uredi gostitelja na seznamu dovoljenih</string>
     <string name="list_edit_dialog_redirect">Uredi preusmeritev</string>
     <string name="list_dialog_hostname">Ime gostitelja:</string>
-    <string name="list_dialog_hostname_hint">URL vira gostiteljev</string>
     <string name="list_dialog_wildcard">(Dovoljena sta nadomestna znaka * in ?)</string>
     <string name="list_dialog_ip">IP (IPv4 ali IPv6):</string>
 </resources>

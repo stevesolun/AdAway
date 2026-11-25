@@ -230,11 +230,15 @@ public class UpdateModel {
         return new OkHttpClient.Builder().build();
     }
 
-    private Manifest downloadManifest() {
+    public final boolean canCheckForUpdates() {
         if (!canSelfUpdate()) {
-            return null;
+            return false;
         }
-        if (!this.versionInfo.isValid()) {
+        return this.versionInfo.isValid();
+    }
+
+    private Manifest downloadManifest() {
+        if (!canCheckForUpdates()) {
             return null;
         }
         String channel = getChannel();

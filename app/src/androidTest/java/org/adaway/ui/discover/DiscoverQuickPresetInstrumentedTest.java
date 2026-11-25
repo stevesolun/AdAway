@@ -8,8 +8,11 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.SystemClock;
+import android.view.MotionEvent;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -39,6 +42,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +70,7 @@ public class DiscoverQuickPresetInstrumentedTest {
     public void setUp() throws Exception {
         context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(context, "set up quick preset");
+        clearProfiles();
         database = AppDatabase.getInstance(context);
         drainDiskIo();
         hostsSourceDao = database.hostsSourceDao();
@@ -102,6 +107,7 @@ public class DiscoverQuickPresetInstrumentedTest {
             if (hostsSourceDao != null) {
                 hostsSourceDao.deleteAll();
             }
+            clearProfiles();
             InstrumentedTestState.resetForPassiveRootUi(context, "tear down quick preset");
         }
     }
@@ -142,6 +148,137 @@ public class DiscoverQuickPresetInstrumentedTest {
         assertSame(adBlockModel, application.getAdBlockModel());
         assertEquals(1, sourceModel.updateCount.get());
         assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test(timeout = 60_000)
+    public void balancedUpdatesKnownOutdatedSourceAndPreservesUnrelatedSource() throws Exception {
+        List<FilterListCatalog.CatalogEntry> entries = FilterListCatalog.getBalancedPreset();
+        seedDownloaded(entries, true);
+        String extra = addUnrelatedSource();
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            tapPreset(scenario, R.id.chipDiscoverBalanced);
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_home));
+        }
+        drainDiskIo();
+        assertPreset(FilterSetStore.PROFILE_BALANCED, entries);
+        assertTrue(hostsSourceDao.getByUrl(extra).get().isEnabled());
+        waitForSuccessfulImmediateWork();
+        assertEquals(1, sourceModel.updateCount.get());
+        assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test(timeout = 60_000)
+    public void balancedAddsMissingReenablesDisabledAndKeepsCustomSource() throws Exception {
+        List<FilterListCatalog.CatalogEntry> entries = FilterListCatalog.getBalancedPreset();
+        HostsSource disabled = entries.get(0).toHostsSource();
+        disabled.setEnabled(false);
+        hostsSourceDao.insert(disabled);
+        String extra = addUnrelatedSource();
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            tapPreset(scenario, R.id.chipDiscoverBalanced);
+            int added = entries.size() - 1;
+            waitForMessage(scenario, context.getResources().getQuantityString(
+                    R.plurals.filter_preset_added_updating, added, added));
+            assertPreset(FilterSetStore.PROFILE_BALANCED, entries);
+            assertTrue(hostsSourceDao.getByUrl(extra).get().isEnabled());
+            waitForSuccessfulImmediateWork();
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void currentAggressiveThenSafePreservesExtrasWithoutQueuingAnotherUpdate()
+            throws Exception {
+        List<FilterListCatalog.CatalogEntry> aggressive = FilterListCatalog.getAggressivePreset();
+        seedDownloaded(aggressive, false);
+        String extra = addUnrelatedSource();
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            tapPreset(scenario, R.id.chipDiscoverAggressive);
+            waitForMessage(scenario, context.getString(R.string.filter_preset_already_subscribed));
+            assertPreset(FilterSetStore.PROFILE_AGGRESSIVE, aggressive);
+            tapPreset(scenario, R.id.chipDiscoverAggressive);
+            tapPreset(scenario, R.id.chipDiscoverSafe);
+            drainDiskIo();
+            assertPreset(FilterSetStore.PROFILE_SAFE, FilterListCatalog.getDefaults());
+        }
+        assertEquals(aggressive.size() + 1, hostsSourceDao.getEnabled().size());
+        assertTrue(hostsSourceDao.getByUrl(extra).get().isEnabled());
+        assertTrue(getImmediateUpdateWork().isEmpty());
+        assertEquals(0, sourceModel.updateCount.get());
+    }
+
+    private void seedDownloaded(List<FilterListCatalog.CatalogEntry> entries, boolean outdated) {
+        ZonedDateTime local = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+        for (FilterListCatalog.CatalogEntry entry : entries) {
+            HostsSource source = entry.toHostsSource();
+            source.setEnabled(true);
+            source.setSize(20);
+            source.setLocalModificationDate(local);
+            source.setOnlineModificationDate(outdated ? local.plusDays(1) : local);
+            outdated = false;
+            hostsSourceDao.insert(source);
+        }
+    }
+
+    private void clearProfiles() {
+        assertTrue(context.getSharedPreferences("filter_sets", Context.MODE_PRIVATE)
+                .edit().clear().commit());
+    }
+
+    private void waitForMessage(ActivityScenario<HomeActivity> scenario, String expected) {
+        long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            boolean[] found = {false};
+            scenario.onActivity(activity -> {
+                TextView message = activity.findViewById(com.google.android.material.R.id.snackbar_text);
+                found[0] = message != null && message.isShown() && expected.contentEquals(message.getText());
+            });
+            if (found[0]) return;
+            SystemClock.sleep(30);
+        }
+        throw new AssertionError("Did not see preset feedback: " + expected);
+    }
+
+    private String addUnrelatedSource() {
+        HostsSource source = new HostsSource();
+        source.setLabel("Unrelated hosts");
+        source.setUrl("https://lists.example.org/extra");
+        source.setEnabled(true);
+        hostsSourceDao.insert(source);
+        return source.getUrl();
+    }
+
+    private void assertPreset(String profile, List<FilterListCatalog.CatalogEntry> entries) {
+        assertEquals(profile, FilterSetStore.getActiveProfile(context));
+        Set<String> urls = new HashSet<>();
+        for (FilterListCatalog.CatalogEntry entry : entries) {
+            urls.add(entry.url);
+            assertTrue(hostsSourceDao.getByUrl(entry.url).get().isEnabled());
+        }
+        assertEquals(urls, FilterSetStore.getSetUrls(context, profile));
+    }
+
+    private void tapPreset(ActivityScenario<HomeActivity> scenario, int id) {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        Rect target = new Rect();
+        scenario.onActivity(activity -> {
+            View chip = activity.findViewById(id);
+            assertNotNull(chip);
+            assertTrue("Preset chip must be on screen", chip.getGlobalVisibleRect(target));
+        });
+        long down = SystemClock.uptimeMillis();
+        for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+            MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                    target.centerX(), target.centerY(), 0);
+            try {
+                InstrumentationRegistry.getInstrumentation().sendPointerSync(event);
+            } finally {
+                event.recycle();
+            }
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
     private void waitForSuccessfulImmediateWork() throws Exception {

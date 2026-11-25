@@ -46,6 +46,27 @@ public class MigrationTest {
             AppDatabase.class);
 
     @Test
+    public void migration1To6_enablesUserRuleTypesOnlyForReservedSource() throws Exception {
+        try (SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 1)) {
+            db.execSQL("INSERT INTO hosts_sources(url, enabled) VALUES ('https://old.example', 0)");
+            db.execSQL("INSERT INTO hosts_lists(host, type, enabled, redirection) " +
+                    "VALUES ('saved.example', 2, 1, '9.9.9.9')");
+        }
+        try (SupportSQLiteDatabase db = this.helper.runMigrationsAndValidate(TEST_DB, 6, true,
+                Migrations.MIGRATION_1_2, Migrations.MIGRATION_2_3, Migrations.MIGRATION_3_4,
+                Migrations.MIGRATION_4_5, Migrations.MIGRATION_5_6)) {
+            assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM hosts_sources WHERE id = 1 " +
+                    "AND url = 'content://org.adaway/user/hosts' AND enabled = 1 " +
+                    "AND allowEnabled = 1 AND redirectEnabled = 1"));
+            assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM hosts_sources " +
+                    "WHERE url = 'https://old.example' AND enabled = 0 " +
+                    "AND allowEnabled = 0 AND redirectEnabled = 0"));
+            assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM hosts_lists WHERE source_id = 1 " +
+                    "AND host = 'saved.example' AND type = 2 AND redirection = '9.9.9.9'"));
+        }
+    }
+
+    @Test
     public void migration11To12_preservesExactRowsAndAddsRuleKind() throws Exception {
         SupportSQLiteDatabase db = this.helper.createDatabase(TEST_DB, 11);
         db.execSQL("INSERT INTO hosts_sources " +
@@ -146,13 +167,20 @@ public class MigrationTest {
         db.execSQL("INSERT INTO hosts_lists " +
                 "(host, type, kind, enabled, source_id, generation) " +
                 "VALUES ('allowed.example.com', 1, 0, 1, 2, 2)");
+        db.execSQL("INSERT INTO hosts_lists(host, type, kind, enabled, source_id, generation) " +
+                "VALUES ('ad_slot?.example', 1, 0, 1, 2, 2), ('suffix_key.example', 1, 1, 1, 2, 2)");
+        db.execSQL("INSERT INTO host_entries(host, kind, type) VALUES " +
+                "('adxslot1.example', 1, 0), ('child.suffixxkey.example', 1, 0), " +
+                "('ad_slot1.example', 1, 0), ('child.suffix_key.example', 1, 0)");
         db.close();
 
         db = this.helper.runMigrationsAndValidate(TEST_DB, 15, true, MIGRATION_14_15);
 
         assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM sqlite_master " +
                 "WHERE type = 'table' AND name = 'root_host_entries'"));
-        assertEquals(3, queryInt(db, "SELECT COUNT(*) FROM root_host_entries"));
+        assertEquals(5, queryInt(db, "SELECT COUNT(*) FROM root_host_entries"));
+        assertEquals(2, queryInt(db, "SELECT COUNT(*) FROM root_host_entries WHERE host IN " +
+                "('adxslot1.example', 'child.suffixxkey.example')"));
         assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM root_host_entries " +
                 "WHERE host = 'ads.example.com' AND kind = 0 AND type = 0"));
         assertEquals(1, queryInt(db, "SELECT COUNT(*) FROM root_host_entries " +

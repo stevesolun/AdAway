@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">ערוך מארח ברשימה לבנה</string>
     <string name="list_edit_dialog_redirect">ערוך הפנייה</string>
     <string name="list_dialog_hostname">שם שרת:</string>
-    <string name="list_dialog_hostname_hint">כתובת URL למקור מארחים</string>
     <string name="list_dialog_wildcard">(תווים כלליים * ו ? מותרים)</string>
     <string name="list_dialog_ip">IP (IPv4 או IPv6):</string>
 </resources>

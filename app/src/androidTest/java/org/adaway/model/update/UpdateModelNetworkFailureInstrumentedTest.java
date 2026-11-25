@@ -16,27 +16,36 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 import android.os.SystemClock;
+import android.view.View;
+import android.widget.TextView;
 
 import androidx.lifecycle.Observer;
+import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.adaway.AdAwayApplication;
+import org.adaway.R;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.ui.update.UpdateActivity;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Signature;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -118,6 +127,77 @@ public class UpdateModelNetworkFailureInstrumentedTest {
                         "tear down update network test");
             }
         }
+    }
+
+    @Test(timeout = 60_000)
+    public void coldNotificationEntryCanCheckAndRetryUntilCurrent() throws Exception {
+        this.server.enqueue(new MockResponse().setResponseCode(503));
+        this.server.enqueue(new MockResponse().setBody(envelope(payload(CURRENT_VERSION_CODE))));
+        AdAwayApplication app = (AdAwayApplication) this.context.getApplicationContext();
+        Field field = AdAwayApplication.class.getDeclaredField("updateModel");
+        field.setAccessible(true);
+        UpdateModel previous = app.getUpdateModel();
+        CountDownLatch failed = new CountDownLatch(1);
+        CountDownLatch recovered = new CountDownLatch(1);
+        Observer<UpdateModel.InstallState> onState = state -> {
+            if (state == UpdateModel.InstallState.CHECK_FAILED) {
+                failed.countDown();
+            } else if (state == UpdateModel.InstallState.IDLE && failed.getCount() == 0) {
+                recovered.countDown();
+            }
+        };
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                this.updateModel.getInstallState().observeForever(onState));
+        Intent notificationEntry = new Intent(app, UpdateActivity.class)
+                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        field.set(app, this.updateModel);
+        try (ActivityScenario<UpdateActivity> scenario = ActivityScenario.launch(notificationEntry)) {
+            scenario.onActivity(activity -> {
+                assertFalse(this.updateModel.getManifest().isInitialized());
+                assertText(activity, R.id.headerTextView, R.string.update_title);
+                assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.changelogTitleTextView).getVisibility());
+                assertEquals(0, this.server.getRequestCount());
+                tapCheck(activity, R.string.menu_check_updates);
+            });
+            assertTrue("First check did not finish", failed.await(10, TimeUnit.SECONDS));
+            scenario.recreate();
+            scenario.onActivity(activity -> {
+                assertTrue(this.updateModel.getManifest().isInitialized());
+                assertNull(this.updateModel.getManifest().getValue());
+                assertText(activity, R.id.progressTextView, R.string.update_unavailable_header);
+                assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
+                assertEquals(1, this.server.getRequestCount());
+                tapCheck(activity, R.string.update_check_again_button);
+            });
+            assertTrue("Retry did not finish", recovered.await(10, TimeUnit.SECONDS));
+            scenario.onActivity(activity -> {
+                assertText(activity, R.id.headerTextView, R.string.update_up_to_date_header);
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.changelogTitleTextView).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.update_button).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
+                assertEquals(2, this.server.getRequestCount());
+            });
+        } finally {
+            field.set(app, previous);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                    this.updateModel.getInstallState().removeObserver(onState));
+        }
+    }
+
+    private static void tapCheck(UpdateActivity activity, int label) {
+        TextView button = activity.findViewById(R.id.update_button);
+        assertEquals(View.VISIBLE, button.getVisibility());
+        assertText(activity, R.id.update_button, label);
+        assertTrue(button.performClick());
+        assertText(activity, R.id.progressTextView, R.string.update_checking_label);
+        assertEquals(View.INVISIBLE, button.getVisibility());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.downloadProgressBar).getVisibility());
+    }
+
+    private static void assertText(UpdateActivity activity, int id, int expected) {
+        TextView view = activity.findViewById(id);
+        assertEquals(activity.getString(expected), view.getText().toString());
     }
 
     @Test(timeout = 60_000)

@@ -8,18 +8,27 @@
  */
 package org.adaway.ui.home;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.PatternMatcher;
 import android.os.SystemClock;
+import android.view.KeyEvent;
+import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
 
@@ -55,6 +64,8 @@ import java.security.Signature;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class HomeUpdateSignalErrorInstrumentedTest {
@@ -150,6 +161,97 @@ public class HomeUpdateSignalErrorInstrumentedTest {
                         R.id.nav_fragment_container) instanceof org.adaway.ui.hosts.HostsSourcesTabFragment);
                 org.junit.Assert.assertNull(new ViewModelProvider(activity).get(HomeViewModel.class)
                         .getError().getValue());
+            });
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void discoverDeepEntryDismissesDownloadDialogWithoutAcknowledgingIt() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            String details = this.context.getString(R.string.error_download_failed_details);
+            publishHostError(scenario, HostError.DOWNLOAD_FAILED);
+            waitForTextContaining(details);
+
+            // Keep the launch action/category so ActivityScenario can track the reused activity.
+            scenario.onActivity(activity -> activity.startActivity(
+                    new Intent(activity.getIntent())
+                            .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            .putExtra(HomeActivity.EXTRA_NAV_DISCOVER, true)));
+            // The tab must be reachable in the active window, not behind the old dialog.
+            AccessibilityNodeInfo homeTab =
+                    waitForClickableText(this.context.getString(R.string.nav_home));
+            scenario.onActivity(activity -> assertNotNull(
+                    activity.getSupportFragmentManager().findFragmentByTag("discover")));
+            assertTrue(homeTab.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            waitForTextContaining(details);
+            assertTrue(waitForClickableText(this.context.getString(R.string.button_close))
+                    .performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> assertNull(new ViewModelProvider(activity)
+                    .get(HomeViewModel.class).getError().getValue()));
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void rotatingThenPressingBackClearsOnlyTheDownloadPrompt() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            String details = this.context.getString(R.string.error_download_failed_details);
+            publishHostError(scenario, HostError.DOWNLOAD_FAILED);
+            waitForTextContaining(details);
+            int[] target = new int[1];
+            scenario.onActivity(activity -> {
+                boolean landscape = activity.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE;
+                target[0] = landscape ? Configuration.ORIENTATION_PORTRAIT
+                        : Configuration.ORIENTATION_LANDSCAPE;
+                activity.setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            });
+            long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+            boolean[] rotated = {false};
+            while (!rotated[0] && SystemClock.uptimeMillis() < deadline) {
+                scenario.onActivity(activity -> rotated[0] =
+                        activity.getResources().getConfiguration().orientation == target[0]);
+                if (!rotated[0]) SystemClock.sleep(50);
+            }
+            assertTrue("The orientation must actually change", rotated[0]);
+            waitForTextContaining(details);
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+            // The already selected Home tab is not an accessibility click target.
+            waitForClickableText(this.context.getString(R.string.nav_more));
+            scenario.recreate();
+            waitForClickableText(this.context.getString(R.string.nav_more));
+            scenario.onActivity(activity -> assertNull(new ViewModelProvider(activity)
+                    .get(HomeViewModel.class).getError().getValue()));
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void acknowledgingDownloadFailureLeavesNewerStatusVisible() throws InterruptedException {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            publishHostError(scenario, HostError.DOWNLOAD_FAILED);
+            waitForTextContaining(this.context.getString(R.string.error_download_failed_details));
+            String state = this.context.getString(R.string.status_sync_database);
+            CountDownLatch rendered = new CountDownLatch(1);
+            scenario.onActivity(activity -> {
+                HomeViewModel model = new ViewModelProvider(activity).get(HomeViewModel.class);
+                ((MutableLiveData<String>) model.getState()).setValue(state);
+                model.acknowledgeError(HostError.DOWNLOAD_FAILED);
+                // Finish after the preceding default-duration Home visibility animations.
+                ValueAnimator frameClock = ValueAnimator.ofFloat(0f, 1f);
+                frameClock.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        rendered.countDown();
+                    }
+                });
+                frameClock.start();
+            });
+            assertTrue(rendered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            scenario.onActivity(activity -> {
+                TextView status = activity.findViewById(R.id.stateTextView);
+                assertEquals(state, status.getText().toString());
+                assertEquals(View.VISIBLE, status.getVisibility());
             });
         }
     }

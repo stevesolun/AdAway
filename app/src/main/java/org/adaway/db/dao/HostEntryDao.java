@@ -98,12 +98,16 @@ public interface HostEntryDao {
             "SELECT `type`, `kind` FROM `hosts_lists` " +
             "WHERE `enabled` = 1 AND (`source_id` = 1 OR (`generation` = " +
             ACTIVE_GENERATION_SQL + " AND `source_id` != 1)))";
+    // Escape literal LIKE metacharacters before translating rule wildcards (*, ?, legacy %).
+    String EXACT_ALLOW_LIKE = " LIKE REPLACE(REPLACE(REPLACE(REPLACE(LOWER(allowed.`host`), " +
+            "'^', '^^'), '_', '^_'), '*', '%'), '?', '_') ESCAPE '^'";
+    String SUFFIX_ALLOW_LIKE = " LIKE '%.' || REPLACE(REPLACE(REPLACE(LOWER(allowed.`host`), " +
+            "'^', '^^'), '_', '^_'), '%', '^%') ESCAPE '^'";
     String ACTIVE_ALLOW_NOT_EXISTS = "NOT EXISTS (" +
             "SELECT 1 FROM `active_rules` AS `allowed` WHERE `allowed`.`type` = 1 " +
-            "AND ((`allowed`.`kind` = 0 AND `entry`.`host` LIKE " +
-            "REPLACE(REPLACE(`allowed`.`host`, '*', '%'), '?', '_')) " +
+            "AND ((`allowed`.`kind` = 0 AND `entry`.`host`" + EXACT_ALLOW_LIKE + ") " +
             "OR (`allowed`.`kind` = 1 AND (`entry`.`host` = `allowed`.`host` " +
-            "OR `entry`.`host` LIKE '%.' || `allowed`.`host`))))";
+            "OR `entry`.`host`" + SUFFIX_ALLOW_LIKE + "))))";
     String ROOT_EXPORT_CANDIDATES_CTE = ACTIVE_RULES_CTE + ", `root_candidates` AS (" +
             "SELECT `entry`.`host`, `entry`.`reverse_host`, `entry`.`type`, " +
             "`entry`.`redirection`, " +
@@ -354,10 +358,12 @@ public interface HostEntryDao {
             "ORDER BY `host`")
     void importBlockedSuffixSources(int activeGeneration);
 
-    @Query("SELECT EXISTS(SELECT 1 FROM hosts_lists WHERE type = 1 AND enabled = 1 AND " +
+    String MATCHING_ALLOW_ROWS = " FROM hosts_lists AS allowed WHERE type = 1 AND enabled = 1 AND " +
             "(source_id == 1 OR generation = (SELECT active_generation FROM hosts_meta WHERE id = 0)) " +
-            "AND ((kind = 0 AND :host LIKE REPLACE(REPLACE(LOWER(host), '*', '%'), '?', '_')) " +
-            "OR (kind = 1 AND (:host = LOWER(host) OR :host LIKE '%.' || LOWER(host)))) LIMIT 1)")
+            "AND ((kind = 0 AND :host" + EXACT_ALLOW_LIKE + ") " +
+            "OR (kind = 1 AND (:host = LOWER(host) OR :host" + SUFFIX_ALLOW_LIKE + ")))";
+
+    @Query("SELECT EXISTS(SELECT 1" + MATCHING_ALLOW_ROWS + " LIMIT 1)")
     boolean isAllowedByActiveRule(String host);
 
     @Query("DELETE FROM `host_entries` WHERE `kind` = 0 AND `host` IN (" +
@@ -377,8 +383,7 @@ public interface HostEntryDao {
             "AND allowed.`source_id` != 1)) " +
             "AND (instr(allowed.`host`, '*') > 0 OR instr(allowed.`host`, '?') > 0 " +
             "OR instr(allowed.`host`, '%') > 0) " +
-            "AND `host_entries`.`host` LIKE " +
-            "REPLACE(REPLACE(LOWER(allowed.`host`), '*', '%'), '?', '_') LIMIT 1)")
+            "AND `host_entries`.`host`" + EXACT_ALLOW_LIKE + " LIMIT 1)")
     void deleteExactRowsAllowedByActiveWildcardRules(int activeGeneration);
 
     @Query("WITH RECURSIVE `exact_suffixes`(`host`, `suffix`) AS (" +
@@ -473,10 +478,9 @@ public interface HostEntryDao {
             "AND allowed.`enabled` = 1 " +
             "AND (allowed.`source_id` == 1 OR (allowed.`generation` = :activeGeneration " +
             "AND allowed.`source_id` != 1)) " +
-            "AND ((allowed.`kind` = 0 AND entry.`host` LIKE " +
-            "REPLACE(REPLACE(LOWER(allowed.`host`), '*', '%'), '?', '_')) " +
+            "AND ((allowed.`kind` = 0 AND entry.`host`" + EXACT_ALLOW_LIKE + ") " +
             "OR (allowed.`kind` = 1 AND (entry.`host` = LOWER(allowed.`host`) " +
-            "OR entry.`host` LIKE '%.' || LOWER(allowed.`host`)))) LIMIT 1)")
+            "OR entry.`host`" + SUFFIX_ALLOW_LIKE + "))) LIMIT 1)")
     void materializeRootSuffixRowsWithAllowRules(int activeGeneration);
 
     @Query("INSERT INTO `root_host_entries` " +
@@ -1310,8 +1314,7 @@ public interface HostEntryDao {
                 activeGeneration + " AND allowed.`source_id` != 1)) " +
                 "AND (instr(allowed.`host`, '*') > 0 OR instr(allowed.`host`, '?') > 0 " +
                 "OR instr(allowed.`host`, '%') > 0) " +
-                "AND `root_host_entries`.`host` LIKE " +
-                "REPLACE(REPLACE(LOWER(allowed.`host`), '*', '%'), '?', '_') LIMIT 1)");
+                "AND `root_host_entries`.`host`" + EXACT_ALLOW_LIKE + " LIMIT 1)");
     }
 
     private void deleteRootExportRowsAllowedBySuffixRules(
@@ -1543,13 +1546,14 @@ public interface HostEntryDao {
     Cursor getRootHostsFileCandidateCursorActive(int activeGeneration);
 
     @Query("SELECT LOWER(`host`) AS `host`, `type`, `redirection` FROM `hosts_lists` " +
-            "WHERE `type` = 2 AND `enabled` = 1 AND `source_id` = 1")
+            "WHERE `type` = 2 AND `enabled` = 1 AND `source_id` = 1 " +
+            "ORDER BY COALESCE(`redirection`, '') ASC")
     Cursor getRootRedirectedUserCursorActive();
 
     @Query("SELECT LOWER(`host`) AS `host`, `type`, `redirection` FROM `hosts_lists` " +
             "WHERE `type` = 2 AND `enabled` = 1 " +
             "AND `generation` = :activeGeneration AND `source_id` != 1 " +
-            "ORDER BY `source_id` ASC")
+            "ORDER BY `source_id` ASC, COALESCE(`redirection`, '') ASC")
     Cursor getRootRedirectedSourceCursorActive(int activeGeneration);
 
     @Query("SELECT LOWER(`host`) AS `host`, `type`, `redirection` FROM `hosts_lists` " +

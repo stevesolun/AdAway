@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">تحرير المضيف المُدرج في القائمة البيضاء</string>
     <string name="list_edit_dialog_redirect">تحرير عملية إعادة التوجيه</string>
     <string name="list_dialog_hostname">اسم المضيف:</string>
-    <string name="list_dialog_hostname_hint">مصدر رابط المضيف</string>
     <string name="list_dialog_wildcard">(يسمح اسخدام رموز البدل * و ?)</string>
     <string name="list_dialog_ip">بروتكول الانترنت (IPv4 أو IPv6):</string>
 </resources>

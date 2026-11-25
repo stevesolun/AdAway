@@ -16,8 +16,22 @@ Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
 Latest candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
 Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
+Public beta: [13.5.6b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.6b).
+Post-release file and interaction checks: [post-beta review](audit-2026-11-25/validation.md#post-beta-review).
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
+
+### Next public Android beta: 13.5.7b
+
+- [ ] Verify the signed candidate upgrades 13.5.6b without losing selected
+  filters. Exercise the non-root VPN and distinguish ordinary site content from
+  third-party verification screens.
+- [ ] Merge the batched fixes only when all six required PR checks pass.
+- [ ] Publish the signed beta from the merged commit. Verify the public APK and
+  manifest, install the downloaded APK over 13.5.6b, and link the evidence.
+- Keep the remaining file reviews, untranslated guidance, workflow variants,
+  and intermittent Android 11 first-DNS-query investigation in the audit.
+  A physical phone is not emulated evidence; root is not a VPN beta requirement.
 
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 

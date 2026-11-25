@@ -242,6 +242,11 @@ public class HostsSource {
         this.onlineModificationDate = lastOnlineModification;
     }
 
+    public boolean hasNewerOnlineCopy() {
+        return onlineModificationDate != null && localModificationDate != null
+                && onlineModificationDate.isAfter(localModificationDate);
+    }
+
     public String getEntityTag() {
         return this.entityTag;
     }

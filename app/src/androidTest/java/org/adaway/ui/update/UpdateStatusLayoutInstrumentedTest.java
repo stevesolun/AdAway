@@ -33,6 +33,7 @@ import org.adaway.R;
 import org.adaway.databinding.UpdateActityBinding;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.model.update.UpdateModel.InstallState;
+import org.adaway.model.update.UpdateStore;
 import org.adaway.testing.InstrumentedTestState;
 import org.junit.After;
 import org.junit.Before;
@@ -309,6 +310,8 @@ public class UpdateStatusLayoutInstrumentedTest {
         ProgressBar progress = root.findViewById(R.id.downloadProgressBar);
         assertEquals(fontScale, message.getResources().getConfiguration().fontScale, 0.001f);
         if (state == InstallState.IDLE) {
+            assertEquals(activity.getString(R.string.update_unavailable_header),
+                    ((TextView) root.findViewById(R.id.headerTextView)).getText().toString());
             assertEquals("", message.getText().toString());
             assertEquals(GONE, root.findViewById(R.id.update_button).getVisibility());
             assertEquals(GONE, progress.getVisibility());
@@ -415,6 +418,7 @@ public class UpdateStatusLayoutInstrumentedTest {
 
     private static final class RecordingModel extends UpdateModel {
         RecordingModel(Context context) { super(context); }
+        @Override public UpdateStore getStore() { return UpdateStore.UNKNOWN; }
         @Override public void prepareManifestRefresh() {
             throw new AssertionError("Layout replay must not prepare network work");
         }

@@ -143,6 +143,7 @@ public class DiscoverFragment extends Fragment {
                 if (existingSource.isPresent()) {
                     HostsSource source = existingSource.get();
                     boolean needsUpdate = source.getLocalModificationDate() == null
+                            || source.hasNewerOnlineCopy()
                             || source.getSize() <= 0
                             || source.getLastDownloadError() != null;
                     if (!source.isEnabled()) {

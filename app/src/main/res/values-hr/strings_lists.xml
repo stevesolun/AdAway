@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">Uredi popis neblokiranih poslužitelja</string>
     <string name="list_edit_dialog_redirect">Uredi preusmjeravanje</string>
     <string name="list_dialog_hostname">Naziv poslužitelja:</string>
-    <string name="list_dialog_hostname_hint">URL izvora poslužitelja</string>
     <string name="list_dialog_wildcard">(Zamjenski znakovi * i ? su dopušteni!)</string>
     <string name="list_dialog_ip">IP (IPv4 ili IPv6):</string>
 </resources>

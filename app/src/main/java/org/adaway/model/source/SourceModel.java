@@ -1800,7 +1800,7 @@ public class SourceModel {
      * @param source The hosts source to get request builder.
      * @return The hosts source request builder.
      */
-    private Request.Builder getRequestFor(HostsSource source) {
+    static Request.Builder getRequestFor(HostsSource source) {
         Request.Builder request = new Request.Builder().url(source.getUrl());
         // ATK-10: Redirect-enabled sources must always be fetched fresh from the network.
         // An on-disk OkHttp cache file could be replaced by an attacker on a rooted device,
@@ -1815,8 +1815,10 @@ public class SourceModel {
         // stale data persisting indefinitely when a server sends bad ETags or a source URL
         // is changed and the old cache metadata no longer matches the new content.
         ZonedDateTime localModificationDate = source.getLocalModificationDate();
+        // A newer date recorded by checkForUpdate describes a body we have not fetched yet.
         boolean cacheExpired = localModificationDate == null ||
                 localModificationDate.isBefore(ZonedDateTime.now().minusDays(7)) ||
+                source.hasNewerOnlineCopy() ||
                 source.getLastDownloadError() != null;
         if (cacheExpired) {
             request.cacheControl(okhttp3.CacheControl.FORCE_NETWORK);

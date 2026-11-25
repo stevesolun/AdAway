@@ -18,7 +18,6 @@
     <string name="list_edit_dialog_white">编辑白名单主机</string>
     <string name="list_edit_dialog_redirect">编辑重定向</string>
     <string name="list_dialog_hostname">主机名：</string>
-    <string name="list_dialog_hostname_hint">hosts 链接</string>
     <string name="list_dialog_wildcard">（允许使用通配符 * 和 ? ）</string>
     <string name="list_dialog_ip">IP 地址（IPv4 或 IPv6）：</string>
 </resources>
