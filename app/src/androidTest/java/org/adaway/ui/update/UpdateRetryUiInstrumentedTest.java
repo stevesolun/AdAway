@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -30,6 +31,7 @@ import org.junit.runner.RunWith;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -60,6 +62,19 @@ public class UpdateRetryUiInstrumentedTest {
             modelField.set(application, previousModel);
         }
         InstrumentedTestState.resetForPassiveRootUi(application, "tear down update retry UI");
+    }
+
+    @Test
+    public void failedCheckExplainsRetryInHebrew() {
+        Configuration config = new Configuration(application.getResources().getConfiguration());
+        config.setLocale(Locale.forLanguageTag("he-IL"));
+        Context hebrew = application.createConfigurationContext(config);
+        InstallDownloadStatus failed = new InstallDownloadStatus(InstallState.CHECK_FAILED);
+        assertTrue(failed.canRetry());
+        assertTrue(failed.format(hebrew).codePoints().anyMatch(c ->
+                Character.UnicodeScript.of(c) == Character.UnicodeScript.HEBREW));
+        assertTrue(hebrew.getString(failed.actionLabel()).codePoints().anyMatch(c ->
+                Character.UnicodeScript.of(c) == Character.UnicodeScript.HEBREW));
     }
 
     @Test

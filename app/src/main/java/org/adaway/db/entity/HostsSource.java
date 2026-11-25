@@ -1,7 +1,5 @@
 package org.adaway.db.entity;
 
-import android.webkit.URLUtil;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
@@ -9,10 +7,8 @@ import androidx.room.Entity;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-import org.adaway.util.RegexUtils;
+import org.adaway.util.SourceHttpPolicy;
 
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
@@ -146,24 +142,13 @@ public class HostsSource {
 
     /**
      * Check whether an URL is valid for as host source.<br>
-     * A valid URL is a HTTPS URL or file URL.
+     * A source is a remote HTTPS URL or a local content-provider URI.
      *
      * @param url The URL to check.
      * @return {@code true} if the URL is valid, {@code false} otherwise.
      */
     public static boolean isValidUrl(String url) {
-        if (URLUtil.isContentUrl(url)) return true;
-        if ("https://".equals(url) || !URLUtil.isHttpsUrl(url)) return false;
-        // Block SSRF: reject URLs whose host is a private/reserved IP (ATK-02).
-        try {
-            String host = new URL(url).getHost();
-            if (RegexUtils.isValidIP(host) && RegexUtils.isPrivateOrReservedIp(host)) {
-                return false;
-            }
-        } catch (MalformedURLException ignored) {
-            return false;
-        }
-        return true;
+        return (url != null && url.startsWith("content://")) || SourceHttpPolicy.isRemoteUrl(url);
     }
 
     public int getId() {
@@ -193,7 +178,7 @@ public class HostsSource {
     }
 
     public SourceType getType() {
-        if (this.url.startsWith("https://")) {
+        if (this.url.regionMatches(true, 0, "https://", 0, 8)) {
             return URL;
         } else if (this.url.startsWith("content://")) {
             return FILE;

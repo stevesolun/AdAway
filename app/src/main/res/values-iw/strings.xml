@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
+    <string name="nav_home">בית</string>
+    <string name="nav_discover">גילוי</string>
+    <string name="nav_sources">מקורות</string>
+    <string name="nav_more">עוד</string>
     <!--Buttons-->
 
     <string name="button_close">סגירה</string>

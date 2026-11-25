@@ -3,6 +3,8 @@ package org.adaway.model.source;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.adaway.util.MetadataBody;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -145,7 +147,7 @@ public final class FilterListsDirectoryApi {
      */
     @NonNull
     public String getListsJson() throws IOException {
-        return getJson(BASE_URL + "/lists");
+        return getJson(BASE_URL + "/lists", MetadataBody.DIRECTORY_CATALOG_BYTES);
     }
 
     /**
@@ -153,7 +155,7 @@ public final class FilterListsDirectoryApi {
      */
     @NonNull
     public String getSyntaxesJson() throws IOException {
-        return getJson(BASE_URL + "/syntaxes");
+        return getJson(BASE_URL + "/syntaxes", MetadataBody.DETAIL_BYTES);
     }
 
     /**
@@ -161,7 +163,7 @@ public final class FilterListsDirectoryApi {
      */
     @NonNull
     public String getTagsJson() throws IOException {
-        return getJson(BASE_URL + "/tags");
+        return getJson(BASE_URL + "/tags", MetadataBody.DETAIL_BYTES);
     }
 
     /**
@@ -169,7 +171,7 @@ public final class FilterListsDirectoryApi {
      */
     @NonNull
     public String getLanguagesJson() throws IOException {
-        return getJson(BASE_URL + "/languages");
+        return getJson(BASE_URL + "/languages", MetadataBody.DETAIL_BYTES);
     }
 
     @NonNull
@@ -251,7 +253,7 @@ public final class FilterListsDirectoryApi {
      */
     @NonNull
     public ListDetails getListDetails(int id) throws IOException {
-        String body = getJson(BASE_URL + "/lists/" + id);
+        String body = getJson(BASE_URL + "/lists/" + id, MetadataBody.DETAIL_BYTES);
         try {
             JSONObject o = new JSONObject(body);
             String name = o.optString("name", "");
@@ -275,13 +277,13 @@ public final class FilterListsDirectoryApi {
         }
     }
 
-    private String getJson(String url) throws IOException {
+    private String getJson(String url, int limit) throws IOException {
         Request request = new Request.Builder().url(url).get().build();
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null) {
                 throw new IOException("HTTP " + response.code() + " fetching " + url);
             }
-            return response.body().string();
+            return MetadataBody.read(response.body(), limit);
         }
     }
 

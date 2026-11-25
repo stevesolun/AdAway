@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="pref_main_title">Preferences</string>
     <!-- General category -->
@@ -18,7 +18,7 @@
     <string name="pref_ad_block_method_switch">Tap to switch to this mode</string>
     <string name="pref_ad_block_method_already_active">Already using this mode</string>
     <string name="pref_enable_ipv6">Enable IPv6 support</string>
-    <string name="pref_backup_restore">Backup / restore block rules</string>
+    <string name="pref_backup_restore">Back up or restore rules and filter sources</string>
     <!-- Debug category -->
     <string name="pref_debug_category">Debug</string>
     <string name="pref_enable_telemetry">Send crash reports</string>

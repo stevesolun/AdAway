@@ -23,4 +23,5 @@
     <string name="pref_vpn_exclude_user_apps_select_all">Select all</string>
     <string name="pref_vpn_exclude_user_apps_deselect_all">Deselect all</string>
     <string name="pref_vpn_exclude_user_apps_icon">Application icon</string>
+    <string name="pref_vpn_excluded_user_apps_empty">No user-installed apps to exclude.</string>
 </resources>

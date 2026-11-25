@@ -11,6 +11,7 @@
     <!-- Application hosts -->
     <string name="pref_update_hosts_category">עדכוני מארחים</string>
     <string name="pref_update_check">בדיקת עדכונים בהפעלה</string>
+    <string name="pref_update_check_summary">בכל הפעלה נבדקים עד 8 מקורות פעילים, החל מהמקום שבו נעצרה הבדיקה הקודמת. כדי לבדוק את כל המקורות כעת, אפשר לבחור בבדיקת עדכונים במסך המקורות.</string>
     <string name="pref_update_check_hosts_daily">בדיקת קיום עדכונים מידי פעם</string>
     <string name="pref_update_sync_on_update">סנכרון בעת עדכון</string>
     <string name="pref_update_sync_unmetered_only">סנכרון בעת שימוש ברשת לא נמדדת בלבד</string>

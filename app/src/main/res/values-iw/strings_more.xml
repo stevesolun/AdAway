@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="more_section_tools">כלים</string>
+    <string name="more_domain_checker">בדיקת דומיין</string>
+    <string name="more_domain_checker_desc">אפשר לבדוק אם אתר חסום ולבטל את החסימה מיד</string>
+    <string name="more_dns_log">יומן בקשות DNS</string>
+    <string name="more_custom_rules">כללים מותאמים אישית</string>
+    <string name="more_filter_sources">מקורות סינון</string>
+    <string name="more_adware_scanner">סריקת תוכנות פרסום</string>
+    <string name="more_section_settings">הגדרות</string>
+    <string name="more_preferences">העדפות</string>
+    <string name="more_backup">גיבוי ושחזור</string>
+    <string name="more_about">אודות</string>
+    <string name="more_github">עזרה ב־GitHub</string>
+</resources>

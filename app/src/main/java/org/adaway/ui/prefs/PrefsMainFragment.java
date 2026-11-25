@@ -1,9 +1,11 @@
 package org.adaway.ui.prefs;
 
 import android.app.Application;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -15,8 +17,6 @@ import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceFragmentCompat.OnPreferenceStartFragmentCallback;
 import androidx.preference.TwoStatePreference;
 
-import android.net.Uri;
-
 import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
@@ -24,6 +24,8 @@ import org.adaway.ui.log.LogActivity;
 import org.adaway.ui.about.AboutActivity;
 import org.adaway.ui.onboarding.OnboardingActivity;
 import org.adaway.util.log.SentryLog;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
@@ -185,8 +187,7 @@ public class PrefsMainFragment extends PreferenceFragmentCompat
         Preference helpPref = findPreference("pref_help");
         if (helpPref != null) {
             helpPref.setOnPreferenceClickListener(preference -> {
-                startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://github.com/AdAway/AdAway/wiki")));
+                openSupportLink("https://github.com/AdAway/AdAway/wiki");
                 return true;
             });
         }
@@ -194,8 +195,7 @@ public class PrefsMainFragment extends PreferenceFragmentCompat
         Preference donatePref = findPreference("pref_donate");
         if (donatePref != null) {
             donatePref.setOnPreferenceClickListener(preference -> {
-                startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://paypal.me/BruceBUJON")));
+                openSupportLink("https://paypal.me/BruceBUJON");
                 return true;
             });
         }
@@ -206,6 +206,13 @@ public class PrefsMainFragment extends PreferenceFragmentCompat
                 startActivity(new Intent(requireContext(), AboutActivity.class));
                 return true;
             });
+        }
+    }
+    private void openSupportLink(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (ActivityNotFoundException | SecurityException exception) {
+            Snackbar.make(requireView(), R.string.update_support_link_unavailable, Snackbar.LENGTH_LONG).show();
         }
     }
 }

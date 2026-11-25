@@ -5,20 +5,28 @@
     <string name="blocked_hosts_label">חסום</string>
     <string name="allowed_hosts_label">מאופשר</string>
     <string name="redirect_hosts_label">מופנה</string>
+    <string name="home_protection_status_active">ההגנה פעילה</string>
+    <string name="home_protection_status_inactive">ההגנה כבויה</string>
+    <string name="home_protection_control">חסימת פרסומות</string>
+    <string name="home_vpn_permission_required">לא ניתן אישור להפעלת ה־VPN. ההגנה נשארה כבויה.</string>
+    <string name="home_protection_status_vpn_no_rules">ה־VPN מופעל, אך לא נטענו כללי חסימה</string>
+    <string name="home_protection_status_no_rules">החסימה מופעלת, אך לא נטענו כללי חסימה</string>
+    <string name="home_protection_status_vpn_checking_rules">ה־VPN מופעל, כללי החסימה נבדקים</string>
+    <string name="home_protection_status_checking_rules">החסימה מופעלת, כללי החסימה נבדקים</string>
 
     <!-- Source card -->
     <plurals name="up_to_date_source_label">
-        <item quantity="one">%d up-to-date source</item>
-        <item quantity="two">%d up-to-date sources</item>
+        <item quantity="one">מקורות מעודכנים: %d</item>
+        <item quantity="two">מקורות מעודכנים: %d</item>
         <item quantity="other">%d מקורות מעודכנים</item>
     </plurals>
     <plurals name="outdated_source_label">
-        <item quantity="one">%d outdated source</item>
-        <item quantity="two">%d outdated sources</item>
+        <item quantity="one">מקורות הדורשים עדכון: %d</item>
+        <item quantity="two">מקורות הדורשים עדכון: %d</item>
         <item quantity="other">%d מקורות לא מעודכנים</item>
     </plurals>
-    <string name="check_hosts_update_description">בדוק אחר עדכוני מארחים</string>
-    <string name="update_hosts_description">עדכן מארחים</string>
+    <string name="check_hosts_update_description">בדיקת עדכונים למקורות</string>
+    <string name="update_hosts_description">עדכון המקורות והחלת ההגנה</string>
 
     <!-- Log card -->
     <string name="log_label">הצג יומן בקשות DNS</string>
@@ -37,6 +45,43 @@
 
     <!-- App bar buttons -->
     <string name="adblock_pause_button_description">השהה/המשך חוסם פרסומות</string>
+    <string name="scheduled_update_task_label">תזמון: %1$s</string>
+    <string name="update_progress_percent">הושלמו %1$.1f%%</string>
+    <string name="update_progress_with_rules">הושלמו %1$.1f%%, נקלטו %2$,d כללים</string>
+    <string name="update_progress_finalizing">העדכון לקראת סיום</string>
+    <string name="update_progress_finalizing_with_rules">העדכון לקראת סיום, נקלטו %1$,d כללים</string>
+    <string name="update_progress_complete">ההגנה עודכנה</string>
+    <string name="update_progress_stopped">העדכון נעצר</string>
+
+    <string name="leak_status_title">בדיקת עקיפה של סינון DNS</string>
+    <plurals name="leak_status_summary_risky">
+        <item quantity="one">סיכונים הדורשים בדיקה: %d</item>
+        <item quantity="two">סיכונים הדורשים בדיקה: %d</item>
+        <item quantity="other">%d סיכונים דורשים בדיקה</item>
+    </plurals>
+    <string name="leak_status_summary_clean">לא זוהו סיכוני דליפת DNS</string>
+    <string name="leak_status_mode_unconfigured">שיטת ההגנה לא הוגדרה</string>
+    <string name="leak_status_mode_root">שיטת ההגנה: קובץ hosts עם הרשאת שורש</string>
+    <string name="leak_status_mode_vpn_running">שיטת ההגנה: VPN פועל</string>
+    <string name="leak_status_mode_vpn_stopped">שיטת ההגנה: נבחר VPN, אך הוא אינו פועל</string>
+    <string name="leak_status_private_dns_off">DNS פרטי: כבוי</string>
+    <string name="leak_status_private_dns_unknown">DNS פרטי: המצב אינו זמין</string>
+    <string name="leak_status_private_dns_auto">DNS פרטי: אוטומטי</string>
+    <string name="leak_status_private_dns_provider">DNS פרטי: %s</string>
+    <string name="leak_status_doh_limited">בקשות לספקי DoH נפוצים מנותבות דרך ה־VPN. שירותי DNS מוצפן אחרים עשויים לעקוף את הסינון.</string>
+    <string name="leak_status_doh_risk">DoH בדפדפן עשוי לעקוף את סינון ה־DNS</string>
+    <plurals name="leak_status_excluded_user_apps">
+        <item quantity="one">יישומים המוחרגים מה־VPN: %d</item>
+        <item quantity="two">יישומים המוחרגים מה־VPN: %d</item>
+        <item quantity="other">%d יישומים מוחרגים מה־VPN</item>
+    </plurals>
+    <string name="leak_status_excluded_none">אין יישומים המוחרגים מה־VPN</string>
+    <string name="leak_status_app_bypass_allowed">יישומים רשאים לעקוף את ה־VPN</string>
+    <string name="leak_status_excluded_system_all">כל יישומי המערכת מוחרגים</string>
+    <string name="leak_status_excluded_system_browsers">כל יישומי המערכת מלבד דפדפנים מוחרגים</string>
+    <string name="leak_status_strict_hint">להגנה מחמירה, יש להפעיל בהגדרות Android חיבור VPN קבוע וחסימת חיבורים ללא VPN.</string>
+    <string name="leak_status_private_dns_button">DNS פרטי</string>
+    <string name="leak_status_vpn_button">הגדרות VPN</string>
 
     <!-- Error dialog -->
     <string name="error_dialog_help">קרא את העזרה למידע נוסף.</string>

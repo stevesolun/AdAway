@@ -1,12 +1,18 @@
 package org.adaway.ui;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
+import android.app.LocaleManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.os.Build;
+import android.os.LocaleList;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
@@ -16,12 +22,18 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.adaway.R;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.testing.DiscoverDirectoryFixture;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.lists.ListsActivity;
@@ -54,11 +66,26 @@ public class UxDeviceMatrixTest {
 
     private Context context;
     private File screenshotDir;
+    private Locale requestedLocale;
+    private String previousLocales;
+    private float expectedFontScale;
 
     @Before
     public void setUp() {
         this.context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(this.context, "set up UX matrix");
+        String tag = InstrumentationRegistry.getArguments().getString("uxLocale");
+        if (tag != null) {
+            this.requestedLocale = Locale.forLanguageTag(tag);
+            this.expectedFontScale = Float.parseFloat(
+                    InstrumentationRegistry.getArguments().getString("uxFontScale", "1.0"));
+            PreferenceHelper.setAbBlockMethod(this.context, AdBlockMethod.VPN);
+            this.previousLocales = Build.VERSION.SDK_INT >= 33
+                    ? this.context.getSystemService(LocaleManager.class).getApplicationLocales().toLanguageTags()
+                    : AppCompatDelegate.getApplicationLocales().toLanguageTags();
+            setCaptureLocales(tag);
+            DiscoverDirectoryFixture.seed(this.context);
+        }
         this.screenshotDir = new File(this.context.getExternalFilesDir(null), "ux-matrix");
         deleteContents(this.screenshotDir);
         assertTrue(this.screenshotDir.mkdirs() || this.screenshotDir.isDirectory());
@@ -67,8 +94,22 @@ public class UxDeviceMatrixTest {
     @After
     public void tearDown() {
         if (this.context != null) {
+            if (this.previousLocales != null) {
+                setCaptureLocales(this.previousLocales);
+            }
             InstrumentedTestState.resetForPassiveRootUi(this.context, "tear down UX matrix");
         }
+    }
+
+    private void setCaptureLocales(String tags) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            if (Build.VERSION.SDK_INT >= 33) {
+                this.context.getSystemService(LocaleManager.class)
+                        .setApplicationLocales(LocaleList.forLanguageTags(tags));
+            } else {
+                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tags));
+            }
+        });
     }
 
     @Test
@@ -97,12 +138,39 @@ public class UxDeviceMatrixTest {
         assertTrue("Home bird logo must render at a visible size: "
                         + (logo == null ? "missing" : logo.getWidth() + "x" + logo.getHeight()),
                 logo != null && logo.getWidth() >= minPx && logo.getHeight() >= minPx);
+        Rect status = new Rect();
+        assertTrue(activity.findViewById(R.id.protectionStatusTextView).getGlobalVisibleRect(status));
+        for (int badge : new int[]{R.id.blockedHostImageView, R.id.allowedHostImageView,
+                R.id.redirectHostImageView}) {
+            Rect icon = new Rect();
+            assertTrue(activity.findViewById(badge).getGlobalVisibleRect(icon));
+            assertTrue("Protection status must not overlap counter badges: " + status + " / " + icon,
+                    !Rect.intersects(status, icon));
+        }
     }
 
     private void navigateAndCapture(ActivityScenario<HomeActivity> scenario, int navId, String name)
             throws IOException {
         scenario.onActivity(activity -> activity.navigateTo(navId));
+        if (this.requestedLocale != null && (navId == R.id.nav_discover || navId == R.id.nav_sources)) {
+            int listId = navId == R.id.nav_discover ? R.id.filterlistsRecyclerView : R.id.hosts_sources_list;
+            assertPopulatedList(scenario, listId, name);
+        }
         captureAfterIdle(scenario, name);
+    }
+
+    private void assertPopulatedList(ActivityScenario<HomeActivity> scenario, int id, String name) {
+        long deadline = SystemClock.elapsedRealtime() + 15_000;
+        boolean[] ready = {false};
+        do {
+            scenario.onActivity(activity -> {
+                RecyclerView list = activity.findViewById(id);
+                ready[0] = list != null && list.isShown() && list.getChildCount() > 0;
+            });
+            if (ready[0]) return;
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        throw new AssertionError(name + " never rendered a list row; refusing to sign off a blank screen");
     }
 
     private void captureDomainChecker(ActivityScenario<HomeActivity> scenario) throws IOException {
@@ -151,6 +219,15 @@ public class UxDeviceMatrixTest {
         scenario.onActivity(activity -> {
             afterIdleAssertion.accept(activity);
             View root = activity.getWindow().getDecorView().getRootView();
+            if (this.requestedLocale != null) {
+                Configuration config = activity.getResources().getConfiguration();
+                assertEquals(name + " rendered language", this.requestedLocale.getLanguage(),
+                        config.getLocales().get(0).getLanguage());
+                assertEquals(name + " rendered direction",
+                        TextUtils.getLayoutDirectionFromLocale(this.requestedLocale), root.getLayoutDirection());
+                assertEquals(name + " rendered font scale", this.expectedFontScale, config.fontScale, 0.02f);
+                assertEquals(name + " capture mode", AdBlockMethod.VPN, PreferenceHelper.getAdBlockMethod(activity));
+            }
             assertTrue(name + " root has no width", root.getWidth() > 0);
             assertTrue(name + " root has no height", root.getHeight() > 0);
             auditView(name, root, failures);

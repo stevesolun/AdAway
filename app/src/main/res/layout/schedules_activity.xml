@@ -57,7 +57,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:text="@string/schedule_edit" />
+                        android:text="@string/schedule_edit_global" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -80,7 +80,7 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/schedule_edit" />
+                android:text="@string/schedule_edit_filter_set" />
 
             <View
                 android:layout_width="match_parent"
@@ -104,7 +104,7 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/schedule_edit" />
+                android:text="@string/schedule_edit_source" />
 
         </LinearLayout>
     </ScrollView>

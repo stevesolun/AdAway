@@ -10,8 +10,9 @@
     <FrameLayout
         android:id="@+id/headerFrameLayout"
         android:layout_width="match_parent"
-        android:layout_height="240dp"
+        android:layout_height="0dp"
         android:background="@drawable/bg_home_hero"
+        app:layout_constraintBottom_toBottomOf="@id/headerContentBottom"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -20,7 +21,7 @@
         android:id="@+id/versionTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="56dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
         android:minHeight="48dp"
         android:gravity="end|center_vertical"
@@ -35,18 +36,13 @@
 
     <ImageView
         android:id="@+id/logoImageView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="56dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginTop="8dp"
         android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
         android:contentDescription="@string/app_logo"
-        app:layout_constraintBottom_toTopOf="@+id/allowedHostCardView"
-        app:layout_constraintDimensionRatio="1"
-        app:layout_constraintHeight_percent="0.15"
         app:layout_constraintStart_toStartOf="@+id/headerFrameLayout"
-        app:layout_constraintTop_toTopOf="@+id/headerFrameLayout"
+        app:layout_constraintTop_toBottomOf="@id/versionTextView"
         app:srcCompat="@drawable/icon_foreground_red" />
 
     <TextView
@@ -59,11 +55,9 @@
         android:textAppearance="@style/TextAppearance.AppCompat.Large"
         android:textColor="@color/ui_text_primary"
         android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@+id/appDescriptionTextView"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintStart_toEndOf="@+id/logoImageView"
-        app:layout_constraintTop_toTopOf="@+id/logoImageView"
-        app:layout_constraintVertical_chainStyle="packed" />
+        app:layout_constraintTop_toTopOf="@+id/logoImageView" />
 
     <TextView
         android:id="@+id/appDescriptionTextView"
@@ -75,9 +69,6 @@
         android:text="@string/app_description"
         android:textAppearance="@style/TextAppearance.AppCompat.Medium"
         android:textColor="@color/ui_text_secondary"
-        android:maxLines="2"
-        android:ellipsize="end"
-        app:layout_constraintBottom_toTopOf="@+id/protectionStatusTextView"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintStart_toEndOf="@+id/logoImageView"
         app:layout_constraintTop_toBottomOf="@+id/appNameTextView" />
@@ -90,21 +81,26 @@
         android:layout_marginTop="4dp"
         android:layout_marginEnd="8dp"
         android:accessibilityLiveRegion="polite"
-        android:maxLines="1"
-        android:ellipsize="end"
         android:text="@string/home_protection_status_inactive"
         android:textAppearance="@style/TextAppearance.AppCompat.Small"
-        android:textColor="@color/status_red"
+        android:textColor="@color/home_protection_off_text"
         android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="@+id/logoImageView"
         app:layout_constraintEnd_toEndOf="@+id/headerFrameLayout"
         app:layout_constraintStart_toEndOf="@+id/logoImageView"
         app:layout_constraintTop_toBottomOf="@+id/appDescriptionTextView" />
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/headerContentBottom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="logoImageView,protectionStatusTextView" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/blockedHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
         android:layout_marginStart="16dp"
         android:clickable="true"
         android:focusable="true"
@@ -114,7 +110,8 @@
         app:strokeColor="@color/ui_glass_stroke"
         app:strokeWidth="1dp"
         app:contentPadding="16dp"
-        app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
+        app:contentPaddingLeft="4dp"
+        app:contentPaddingRight="4dp"
         app:layout_constraintEnd_toStartOf="@+id/badge1Space"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintHorizontal_weight="1"
@@ -202,6 +199,7 @@
         android:id="@+id/allowedHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
         android:clickable="true"
         android:focusable="true"
         app:cardElevation="0dp"
@@ -210,7 +208,8 @@
         app:strokeColor="@color/ui_glass_stroke"
         app:strokeWidth="1dp"
         app:contentPadding="16dp"
-        app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
+        app:contentPaddingLeft="4dp"
+        app:contentPaddingRight="4dp"
         app:layout_constraintEnd_toStartOf="@+id/badge2Space"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintHorizontal_weight="1"
@@ -299,6 +298,7 @@
         android:id="@+id/redirectHostCardView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
         android:layout_marginEnd="16dp"
         android:clickable="true"
         android:focusable="true"
@@ -308,7 +308,8 @@
         app:strokeColor="@color/ui_glass_stroke"
         app:strokeWidth="1dp"
         app:contentPadding="16dp"
-        app:layout_constraintBottom_toBottomOf="@+id/headerFrameLayout"
+        app:contentPaddingLeft="4dp"
+        app:contentPaddingRight="4dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintHorizontal_weight="1"
@@ -438,10 +439,11 @@
             <TextView
                 android:id="@+id/upToDateSourcesTextView"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_marginEnd="8dp"
                 android:gravity="center"
+                android:minHeight="48dp"
                 app:layout_constraintEnd_toStartOf="@id/checkForUpdateImageView"
                 app:layout_constraintHorizontal_bias="0.66"
                 app:layout_constraintHorizontal_weight="2"
@@ -462,19 +464,27 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_sync_24dp" />
 
+            <androidx.constraintlayout.widget.Barrier
+                android:id="@+id/upToDateSourceRowBottom"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="bottom"
+                app:constraint_referenced_ids="upToDateSourcesTextView,checkForUpdateImageView" />
+
             <TextView
                 android:id="@+id/outdatedSourcesTextView"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginEnd="8dp"
                 android:gravity="center"
+                android:minHeight="48dp"
                 app:layout_constraintEnd_toStartOf="@id/updateImageView"
                 app:layout_constraintHorizontal_bias="0.66"
                 app:layout_constraintHorizontal_weight="2"
                 app:layout_constraintStart_toEndOf="@id/sourceImageView"
-                app:layout_constraintTop_toBottomOf="@id/upToDateSourcesTextView"
+                app:layout_constraintTop_toBottomOf="@id/upToDateSourceRowBottom"
                 tools:text="2 outdated sources" />
 
             <ImageButton
@@ -488,8 +498,15 @@
                 android:padding="8dp"
                 android:tooltipText="@string/update_hosts_description"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/checkForUpdateImageView"
+                app:layout_constraintTop_toBottomOf="@id/upToDateSourceRowBottom"
                 app:srcCompat="@drawable/ic_get_app_24dp" />
+
+            <androidx.constraintlayout.widget.Barrier
+                android:id="@+id/outdatedSourceRowBottom"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="bottom"
+                app:constraint_referenced_ids="outdatedSourcesTextView,updateImageView" />
 
             <ProgressBar
                 android:id="@+id/sourcesProgressBar"
@@ -502,7 +519,7 @@
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/outdatedSourcesTextView"
+                app:layout_constraintTop_toBottomOf="@id/outdatedSourceRowBottom"
                 tools:visibility="visible" />
 
             <TextView

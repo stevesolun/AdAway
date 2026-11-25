@@ -27,6 +27,7 @@
         <SwitchPreferenceCompat
             app:defaultValue="@bool/pref_update_check_def"
             app:key="@string/pref_update_check_key"
+            app:summary="@string/pref_update_check_summary"
             app:title="@string/pref_update_check" />
         <SwitchPreferenceCompat
             app:defaultValue="@bool/pref_update_check_hosts_daily_def"

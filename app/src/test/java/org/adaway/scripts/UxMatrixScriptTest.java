@@ -204,7 +204,9 @@ public class UxMatrixScriptTest {
         assertTrue("UX matrix must include RTL at both large font scales.",
                 script.contains("Name = \"font-1.3-rtl\"") &&
                         script.contains("Name = \"font-1.6-rtl\"") &&
-                        script.contains("Locales = \"ar-XB\""));
+                        script.contains("Locales = \"he-IL\"") &&
+                        script.contains("\"uxLocale\", $Locales") &&
+                        script.contains("\"uxFontScale\", $FontScale"));
     }
 
     @Test

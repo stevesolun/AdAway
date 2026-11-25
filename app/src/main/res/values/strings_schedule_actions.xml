@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="schedule_edit_global">Edit global schedule</string>
+    <string name="schedule_edit_filter_set">Edit filter set schedule</string>
+    <string name="schedule_edit_source">Edit source schedule</string>
+</resources>

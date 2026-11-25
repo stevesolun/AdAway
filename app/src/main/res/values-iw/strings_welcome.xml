@@ -6,6 +6,17 @@
 
 
     <!-- Method UI -->
+    <string name="onboarding_title">בחירת שיטת הגנה</string>
+    <string name="onboarding_vpn_title">מצב VPN</string>
+    <string name="onboarding_vpn_desc">פועל בכל המכשירים ללא צורך בגישת שורש</string>
+    <string name="onboarding_root_title">מצב שורש</string>
+    <string name="onboarding_root_desc">חסימה מהירה יותר במכשירים עם גישת שורש</string>
+    <string name="onboarding_start_button">הפעלת ההגנה</string>
+    <string name="onboarding_method_selected">נבחר</string>
+    <string name="onboarding_method_not_selected">לא נבחר</string>
+    <string name="onboarding_vpn_denied_title">לא ניתנה הרשאה לחיבור VPN</string>
+    <string name="onboarding_vpn_denied_description">ההגנה כבויה. כדי לנסות שוב יש לבחור במצב VPN ולאשר את בקשת החיבור של Android.</string>
+    <string name="welcome_vpn_alwayson_settings_action">פתיחת הגדרות VPN</string>
 
 
 

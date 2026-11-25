@@ -5,7 +5,6 @@ import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static org.adaway.broadcast.Command.START;
 import static org.adaway.broadcast.Command.STOP;
 import static org.adaway.vpn.VpnStatus.RUNNING;
-import static org.adaway.vpn.VpnStatus.STOPPED;
 
 import android.content.Context;
 import android.content.Intent;
@@ -55,10 +54,8 @@ public final class VpnServiceControls {
     public static boolean isTunnelEstablished(Context context) {
         boolean networkVpnCapability = checkAdAwayNetworkVpnCapability(context);
         VpnStatus status = PreferenceHelper.getVpnServiceStatus(context);
-        if (status == RUNNING && !networkVpnCapability) {
-            status = STOPPED;
-            PreferenceHelper.setVpnServiceStatus(context, status);
-        }
+        // Connectivity and the service publish independently. A missing network in
+        // this snapshot must not erase the worker's post-establishment state.
         return status == RUNNING && networkVpnCapability;
     }
 

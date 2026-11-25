@@ -26,6 +26,7 @@ import org.adaway.helper.ThemeHelper;
 import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.SourceHttpPolicy;
 
 import java.time.DayOfWeek;
 import java.time.format.TextStyle;
@@ -514,7 +515,7 @@ public class SourceEditActivity extends AppCompatActivity {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_url_location_required));
                 return null;
             }
-            if (url.contains(" ") || !HostsSource.isValidUrl(url)) {
+            if (url.contains(" ") || !SourceHttpPolicy.isRemoteUrl(url)) {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_location_invalid));
                 return null;
             }

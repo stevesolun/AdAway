@@ -5,6 +5,8 @@ import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 
 import android.content.Intent;
 import android.content.ActivityNotFoundException;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.net.VpnService;
 import android.os.Bundle;
 
@@ -23,6 +25,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.databinding.ActivityHomeNavBinding;
 import org.adaway.helper.NotificationHelper;
@@ -34,6 +37,10 @@ import org.adaway.ui.hosts.HostsSourcesTabFragment;
 import org.adaway.ui.more.MoreFragment;
 import org.adaway.ui.onboarding.InitialSourcesViewModel;
 import org.adaway.ui.onboarding.OnboardingActivity;
+import org.adaway.util.AppExecutors;
+import org.adaway.util.Constants;
+
+import java.util.concurrent.CompletableFuture;
 
 import timber.log.Timber;
 
@@ -55,6 +62,8 @@ public class HomeActivity extends AppCompatActivity {
     public static final String EXTRA_NAV_DISCOVER = "nav_discover";
     private static final String KEY_SELECTED_TAB = "selected_tab";
     private static final String KEY_VPN_ENABLE_REQUESTED = "vpn_enable_requested";
+    private static CompletableFuture<Void> hostsStartupCheck; // Assigned only from onCreate.
+    private static final String STARTUP_SOURCE_CURSOR = "hostsStartupLastCheckedId";
 
     private ActivityHomeNavBinding binding;
     private int currentSelectedId = R.id.nav_home;
@@ -117,6 +126,7 @@ public class HomeActivity extends AppCompatActivity {
             this.binding.bottomNavigation.setSelectedItemId(this.currentSelectedId);
         }
         checkAppUpdateAtStartup(savedInstanceState);
+        checkHostsAtStartup(savedInstanceState);
     }
 
     @Override
@@ -132,7 +142,9 @@ public class HomeActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         checkFirstStep();
-        new ViewModelProvider(this).get(HomeViewModel.class).resumeDeferredOperations();
+        HomeViewModel model = new ViewModelProvider(this).get(HomeViewModel.class);
+        model.reconcileProtectionOnResume();
+        model.resumeDeferredOperations();
     }
 
     @Override
@@ -250,6 +262,39 @@ public class HomeActivity extends AppCompatActivity {
             return;
         }
         new ViewModelProvider(this).get(HomeViewModel.class).checkForAppUpdate();
+    }
+
+    private void checkHostsAtStartup(@Nullable Bundle savedInstanceState) {
+        Intent intent = getIntent();
+        if (savedInstanceState != null || !Intent.ACTION_MAIN.equals(intent.getAction())
+                || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)
+                || intent.getBooleanExtra(EXTRA_ONBOARDING_COMPLETE, false)
+                || intent.getBooleanExtra(EXTRA_NAV_DISCOVER, false)
+                || PreferenceHelper.getAdBlockMethod(this) == UNDEFINED
+                || !PreferenceHelper.getUpdateCheck(this)
+                || hostsStartupCheck != null) {
+            return;
+        }
+        AdAwayApplication app = (AdAwayApplication) getApplication();
+        hostsStartupCheck = CompletableFuture.completedFuture(null);
+        if (app.getSourceOperations().isBusy()) return;
+        hostsStartupCheck = CompletableFuture.runAsync(() -> {
+            var prefs = app.getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE);
+            int previous = prefs.getInt(STARTUP_SOURCE_CURSOR, 0);
+            int next = app.getSourceModel().checkStartupBatch(previous, () -> mayProbeHosts(app));
+            if (next != previous) prefs.edit().putInt(STARTUP_SOURCE_CURSOR, next).apply();
+        }, AppExecutors.getInstance().checkIO()).exceptionally(error -> {
+            Timber.i(error, "Skipped startup source check.");
+            return null;
+        });
+    }
+
+    private static boolean mayProbeHosts(AdAwayApplication app) {
+        if (app.getSourceOperations().isBusy() || !PreferenceHelper.getUpdateCheck(app)) return false;
+        ConnectivityManager cm = app.getSystemService(ConnectivityManager.class);
+        NetworkCapabilities network = cm == null ? null : cm.getNetworkCapabilities(cm.getActiveNetwork());
+        return network != null && network.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && (!PreferenceHelper.getUpdateOnlyOnWifi(app) || !cm.isActiveNetworkMetered());
     }
 
     /**

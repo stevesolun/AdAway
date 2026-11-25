@@ -235,9 +235,12 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
             assertEquals(applied, Boolean.TRUE.equals(this.model.isApplied().getValue()));
             TextView status = activity.findViewById(R.id.protectionStatusTextView);
             assertTrue("Empty-rule wording must be allowed to wrap", status.getMaxLines() > 1);
-            int color = !applied ? R.color.status_red
-                    : effective ? R.color.status_green : R.color.ui_text_primary;
+            int color = !applied ? R.color.home_protection_off_text
+                    : effective ? R.color.home_protection_on_text : R.color.ui_text_primary;
             assertEquals(activity.getColor(color), status.getCurrentTextColor());
+            assertTrue("Protection status must be readable over the Home background",
+                    androidx.core.graphics.ColorUtils.calculateContrast(
+                            status.getCurrentTextColor(), activity.getColor(R.color.ui_bg)) >= 4.5);
         });
     }
 

@@ -42,6 +42,7 @@ import org.adaway.db.entity.HostsSource;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.git.GitHostsSource;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.SourceHttpPolicy;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -73,6 +74,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import okhttp3.Cache;
@@ -377,6 +380,34 @@ public class SourceModel {
         return this.updateAvailable;
     }
 
+    /** Probe one bounded page without taking a user operation lock or publishing full-check state. */
+    public int checkStartupBatch(int afterId, BooleanSupplier mayCheck) {
+        final int limit = 8;
+        if (updateInProgress.get() || !mayCheck.getAsBoolean()) return afterId;
+        List<HostsSource> batch = hostsSourceDao.getEnabledAfter(afterId, limit);
+        if (batch.isEmpty() && afterId != 0) batch = hostsSourceDao.getEnabledAfter(0, limit);
+        long deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(8);
+        int cursor = afterId;
+        for (HostsSource source : batch) {
+            if (SystemClock.elapsedRealtime() >= deadline || updateInProgress.get()
+                    || !mayCheck.getAsBoolean()) break;
+            cursor = source.getId();
+            ZonedDateTime observed;
+            try {
+                observed = getHostsSourceLastUpdate(source);
+            } catch (RuntimeException e) {
+                Timber.i(e, "Skipping unavailable startup source %d.", cursor);
+                continue;
+            }
+            if (updateInProgress.get() || !mayCheck.getAsBoolean()) break;
+            // A user's check, import or edit may have finished while the probe was in flight.
+            if (observed != null && hostsSourceDao.publishStartupMetadata(cursor, source.getUrl(),
+                    source.getEntityTag(), source.getLocalModificationDate(),
+                    source.getOnlineModificationDate(), observed) == 0) break;
+        }
+        return cursor;
+    }
+
     /**
      * Check if there is update available for hosts sources.
      *
@@ -409,7 +440,10 @@ public class SourceModel {
             Timber.d("lastModifiedLocal: %s", dateToString(lastModifiedLocal));
             Timber.d("lastModifiedOnline: %s", dateToString(lastModifiedOnline));
             // Save last modified online
-            if (source.getType() == FILE && lastModifiedLocal != null
+            if (source.getType() == URL) {
+                lastModifiedOnline = recordRemoteObservation(source, lastModifiedOnline,
+                        date -> this.hostsSourceDao.updateOnlineModificationDate(source.getId(), date));
+            } else if (source.getType() == FILE && lastModifiedLocal != null
                     && lastModifiedLocal.isAfter(ZonedDateTime.now())
                     && (lastModifiedOnline == null
                     || lastModifiedLocal.isAfter(lastModifiedOnline))) {
@@ -444,6 +478,17 @@ public class SourceModel {
         }
         this.updateAvailable.postValue(updateAvailable);
         return updateAvailable;
+    }
+
+    @Nullable
+    static ZonedDateTime recordRemoteObservation(HostsSource source, @Nullable ZonedDateTime observed,
+                                                 Consumer<ZonedDateTime> save) {
+        if (observed != null) {
+            save.accept(observed);
+            return observed;
+        }
+        // Preserve a known pending update; otherwise leave the normal weekly fallback in charge.
+        return source.hasNewerOnlineCopy() ? source.getOnlineModificationDate() : null;
     }
 
     /**
@@ -1732,25 +1777,13 @@ public class SourceModel {
                     5, TimeUnit.MINUTES        // Keep-alive duration
             );
 
-            this.cachedHttpClient = new OkHttpClient.Builder()
+            this.cachedHttpClient = SourceHttpPolicy.newClientBuilder()
                     .dispatcher(dispatcher)
                     .connectionPool(connectionPool)
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(60, TimeUnit.SECONDS)
                     .writeTimeout(60, TimeUnit.SECONDS)
                     .cache(new Cache(cacheDir, CACHE_SIZE))
-                    // Security hardening: Block HTTPS -> HTTP redirect downgrades.
-                    .addNetworkInterceptor(chain -> {
-                        Response response = chain.proceed(chain.request());
-                        if (response.isRedirect()) {
-                            String location = response.header("Location");
-                            if (location != null && chain.request().url().scheme().equals("https")
-                                    && location.startsWith("http:")) {
-                                throw new IOException("Security: Blocked HTTPS to HTTP redirect to " + location);
-                            }
-                        }
-                        return response;
-                    })
                     .build();
         }
         return this.cachedHttpClient;
@@ -1773,7 +1806,7 @@ public class SourceModel {
                     1, TimeUnit.MINUTES  // Short keep-alive
             );
 
-            this.cachedHeadClient = new OkHttpClient.Builder()
+            this.cachedHeadClient = SourceHttpPolicy.newClientBuilder()
                     .dispatcher(dispatcher)
                     .connectionPool(connectionPool)
                     .connectTimeout(5, TimeUnit.SECONDS)  // Fast connect timeout

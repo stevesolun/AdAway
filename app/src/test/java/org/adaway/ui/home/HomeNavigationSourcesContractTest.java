@@ -636,16 +636,23 @@ public class HomeNavigationSourcesContractTest {
     public void homeRefreshesLeakStatusAfterVpnProtectionStarts() throws Exception {
         String homeFragment = readRepoFile(
                 "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
-        int notifyStart = homeFragment.indexOf("private void notifyAdBlocked(boolean adBlocked)");
-        int notifyEnd = homeFragment.indexOf("private void notifyError", notifyStart);
-        String notifyAdBlocked = homeFragment.substring(notifyStart, notifyEnd);
-
-        assertTrue("Home must resample leak status after VPN transitions from starting to running.",
-                homeFragment.contains("VPN_LEAK_STATUS_REFRESH_DELAY_MS") &&
-                        notifyAdBlocked.contains("renderLeakStatus();") &&
-                        notifyAdBlocked.contains("postDelayed(this::renderLeakStatus") &&
-                        notifyAdBlocked.contains("PreferenceHelper.getAdBlockMethod") &&
-                        notifyAdBlocked.contains("== VPN"));
+        String observer = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/VpnLeakStatusObserver.java");
+        assertTrue("Home must bind the leak card refresh to the view lifecycle.",
+                homeFragment.contains("getViewLifecycleOwner().getLifecycle().addObserver(") &&
+                        homeFragment.contains("new VpnLeakStatusObserver(requireContext(), this::renderLeakStatus)"));
+        assertTrue("Register for VPN networks; the default NOT_VPN request excludes them.",
+                observer.contains("removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)") &&
+                        observer.contains("addTransportType(NetworkCapabilities.TRANSPORT_VPN)") &&
+                        observer.contains("registerNetworkCallback(vpn, this, this.main)"));
+        assertTrue("Home must also refresh when the service publishes its post-establish state.",
+                observer.contains("pref_vpn_service_status_key") &&
+                        observer.contains("registerOnSharedPreferenceChangeListener(this)") &&
+                        observer.contains("this.statusKey.equals(key)) scheduleRefresh()"));
+        assertTrue("A stopped view must release both event sources and queued UI work.",
+                observer.contains("unregisterNetworkCallback(this)") &&
+                        observer.contains("unregisterOnSharedPreferenceChangeListener(this)") &&
+                        observer.contains("removeCallbacks(this.refresh)"));
     }
 
     private static boolean statLabelUsesAutosize(String layout, String id) {

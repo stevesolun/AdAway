@@ -17,15 +17,20 @@ import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.os.SystemClock;
+import android.widget.TextView;
 
+import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
+import org.adaway.R;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.ui.home.HomeActivity;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -89,6 +94,51 @@ public class VpnLifecycleInstrumentedTest {
                 Timber.uproot(this.recordingTree);
             }
         }
+    }
+
+    @Test
+    public void readingTunnelStateCannotOverwriteServiceStatus() {
+        assumeFalse("Do not modify a live VPN fixture.", hasAnyVpnNetwork());
+        assumeTrue(this.originalStatus == STOPPED);
+        PreferenceHelper.setVpnServiceStatus(this.context, RUNNING);
+        assertFalse("A RUNNING value alone is not an established tunnel.",
+                VpnServiceControls.isTunnelEstablished(this.context));
+        assertTrue("Only the service should change its published status.",
+                PreferenceHelper.getVpnServiceStatus(this.context) == RUNNING);
+    }
+
+    @Test(timeout = 90_000)
+    public void visibleLeakCardTracksEstablishedAndLostTunnelWithoutReopeningHome() throws Exception {
+        assumeTrue("Live VPN smoke is opt-in.", "true".equals(
+                InstrumentationRegistry.getArguments().getString("adawayLiveVpnSmoke")));
+        assumeFalse("Do not interrupt another VPN.", hasAnyVpnNetwork());
+        assumeTrue(this.originalStatus == STOPPED);
+        assumeTrue("Requires prior user approval.", android.net.VpnService.prepare(this.context) == null);
+        this.originalMethod = PreferenceHelper.getAdBlockMethod(this.context);
+        PreferenceHelper.setAbBlockMethod(this.context, VPN);
+        try (ActivityScenario<HomeActivity> home = ActivityScenario.launch(HomeActivity.class)) {
+            waitForLeakText(home, R.string.leak_status_mode_vpn_stopped);
+            this.lifecycleStarted = true;
+            assertTrue(VpnServiceControls.start(this.context));
+            waitForForegroundTunnel(this.context.getSystemService(ActivityManager.class));
+            waitForLeakText(home, R.string.leak_status_mode_vpn_running);
+            VpnServiceControls.stop(this.context);
+            waitUntilStopped();
+            waitForLeakText(home, R.string.leak_status_mode_vpn_stopped);
+        }
+    }
+
+    private void waitForLeakText(ActivityScenario<HomeActivity> home, int expected) {
+        String want = this.context.getString(expected);
+        String[] actual = {""};
+        long end = SystemClock.elapsedRealtime() + 8_000;
+        do {
+            home.onActivity(a -> actual[0] = ((TextView) a.findViewById(
+                    R.id.leakStatusDetailTextView)).getText().toString());
+            if (actual[0].contains(want)) return;
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < end);
+        throw new AssertionError("Expected " + want + "; visible card: " + actual[0]);
     }
 
     @Test

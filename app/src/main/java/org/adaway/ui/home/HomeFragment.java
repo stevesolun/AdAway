@@ -76,7 +76,6 @@ public class HomeFragment extends Fragment {
     private long initialBlockedCount = -1;
 
     private static final NumberFormat COUNT_FORMAT = NumberFormat.getIntegerInstance(Locale.US);
-    private static final long VPN_LEAK_STATUS_REFRESH_DELAY_MS = 1_000L;
     @Nullable
     private LiveData<Integer> blockedHostCountLiveData;
     @Nullable
@@ -707,6 +706,10 @@ public class HomeFragment extends Fragment {
                 .setOnClickListener(v -> openPrivateDnsSettings());
         this.binding.content.leakVpnSettingsButton
                 .setOnClickListener(v -> openVpnSettings());
+        if (PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
+            getViewLifecycleOwner().getLifecycle().addObserver(
+                    new VpnLeakStatusObserver(requireContext(), this::renderLeakStatus));
+        }
         renderLeakStatus();
     }
 
@@ -727,10 +730,6 @@ public class HomeFragment extends Fragment {
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
         renderLeakStatus();
-        if (adBlocked && PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
-            this.binding.getRoot().postDelayed(this::renderLeakStatus,
-                    VPN_LEAK_STATUS_REFRESH_DELAY_MS);
-        }
     }
 
     private void renderProtectionStatus() {
@@ -756,8 +755,8 @@ public class HomeFragment extends Fragment {
         this.binding.content.protectionStatusTextView.setMaxLines(Integer.MAX_VALUE);
         this.binding.content.protectionStatusTextView.setEllipsize(null);
         this.binding.content.protectionStatusTextView.setText(status);
-        int color = !applied ? R.color.status_red
-                : hasBlockingRules ? R.color.status_green : R.color.ui_text_primary;
+        int color = !applied ? R.color.home_protection_off_text
+                : hasBlockingRules ? R.color.home_protection_on_text : R.color.ui_text_primary;
         this.binding.content.protectionStatusTextView.setTextColor(
                 getResources().getColor(color, null));
     }

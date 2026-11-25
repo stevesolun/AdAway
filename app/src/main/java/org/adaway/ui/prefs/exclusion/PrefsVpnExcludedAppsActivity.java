@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
@@ -56,12 +57,19 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
         binding.vpnExcludedAppList.setLayoutManager(linearLayoutManager);
         // Create recycler adapter
         this.userApplications = getUserApplications();
+        if (this.userApplications.length == 0) {
+            binding.vpnExcludedAppList.setVisibility(View.GONE);
+            binding.vpnExcludedAppEmpty.setVisibility(View.VISIBLE);
+        }
         this.adapter = new UserAppRecycleViewAdapter(this);
         binding.vpnExcludedAppList.setAdapter(this.adapter);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        if (this.userApplications.length == 0) {
+            return false;
+        }
         MenuInflater menuInflater = getMenuInflater();
         menuInflater.inflate(R.menu.vpn_excluded_app_menu, menu);
         return true;

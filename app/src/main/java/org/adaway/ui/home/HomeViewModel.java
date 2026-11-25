@@ -29,7 +29,9 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.update.Manifest;
 import org.adaway.model.update.UpdateModel;
+import org.adaway.model.vpn.VpnModel;
 import org.adaway.util.AppExecutors;
+import org.adaway.vpn.VpnServiceControls;
 
 import timber.log.Timber;
 
@@ -55,6 +57,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final HostEntryDao hostEntryDao;
 
     private final MutableLiveData<Boolean> pending;
+    private final MediatorLiveData<Boolean> homeApplied = new MediatorLiveData<>();
     private final MediatorLiveData<String> state;
     private final MutableLiveData<HostError> error;
     private final LiveData<FilterOperationState> filterOperationState;
@@ -89,6 +92,7 @@ public class HomeViewModel extends AndroidViewModel {
         this.hostEntryDao = database.hostEntryDao();
 
         this.pending = new MutableLiveData<>(false);
+        this.homeApplied.addSource(this.adBlockModel.isApplied(), this.homeApplied::setValue);
         this.state = new MediatorLiveData<>();
         this.state.addSource(this.sourceModel.getState(), this.state::setValue);
         this.state.addSource(this.adBlockModel.getState(), this.state::setValue);
@@ -104,7 +108,16 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<Boolean> isAdBlocked() {
-        return this.adBlockModel.isApplied();
+        return this.homeApplied;
+    }
+
+    @MainThread
+    void reconcileProtectionOnResume() {
+        if (!(this.adBlockModel instanceof VpnModel)) return;
+        // Forget VPN in Android settings revokes consent without a model command.
+        if (android.net.VpnService.prepare(getApplication()) != null) {
+            this.homeApplied.setValue(false);
+        }
     }
 
     public LiveData<Boolean> isUpdateAvailable() {
@@ -361,7 +374,9 @@ public class HomeViewModel extends AndroidViewModel {
             if (this.initialUpdateRequested) {
                 startUpdate();
             } else if (hasAuthorizedVpnEnableRequest()) {
-                if (isTrue(this.adBlockModel.isApplied())) {
+                if (this.adBlockModel instanceof VpnModel
+                        ? VpnServiceControls.isRunning(getApplication())
+                        : isTrue(this.adBlockModel.isApplied())) {
                     this.savedState.set(AUTHORIZED_VPN_ENABLE, false);
                 } else {
                     startProtectionOperation(true);
