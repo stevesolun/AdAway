@@ -2,6 +2,12 @@
 
 ## [13.5.7b] - Unreleased
 
+- Sources remembers which categories you collapsed when you rotate or change
+  tabs. A category switch now changes its filters together: a failed write
+  leaves the previous selection intact and lets you retry.
+- Leaving Sources no longer hides Apply for a newly enabled list with no
+  downloaded rules. Saving a filter set includes changes you just tapped.
+
 - In Discover, only the last filter you tap opens an editor or a review.
   Leaving the screen cancels pending navigation, not your subscriptions.
   Editors keep the directory name if a provider returns a URL without a name.

@@ -73,6 +73,18 @@ public interface HostsSourceDao {
         setSourceItemsEnabled(id, enabled);
     }
 
+    @Query("UPDATE hosts_sources SET enabled = :enabled WHERE id = :id AND enabled != :enabled")
+    int changeSelectionIfNeeded(int id, boolean enabled);
+
+    @Transaction
+    default void applyGroupSelection(List<Integer> ids, boolean enabled) {
+        for (int id : ids) {
+            if (changeSelectionIfNeeded(id, enabled) != 0) {
+                setSourceItemsEnabled(id, enabled);
+            }
+        }
+    }
+
     @Transaction
     default void applySourceSelections(Set<String> enabledUrls) {
         for (HostsSource source : getAll()) {

@@ -15,9 +15,28 @@ public final class SourceApplyState {
     private String mAppliedConfiguration;
     private Map<Integer, String> mCurrentSources;
     private Map<Integer, String> mAppliedSources;
+    // Partial completions while we have a fingerprint but not its matching Room rows.
+    private final Map<Integer, String> mTargetedChanges = new TreeMap<>();
     private String mLastCompletedWork;
     private boolean mWorkObserved;
     private boolean mAcknowledgementUncertain;
+
+    public SourceApplyState() {
+        this(null, false);
+    }
+
+    public SourceApplyState(String appliedConfiguration, boolean uncertain) {
+        mAppliedConfiguration = appliedConfiguration;
+        mAcknowledgementUncertain = uncertain;
+    }
+
+    public String getAppliedConfiguration() {
+        return mAppliedConfiguration;
+    }
+
+    public boolean isUncertainOnRestore() {
+        return mAcknowledgementUncertain || !mTargetedChanges.isEmpty();
+    }
 
     public void updateSources(List<HostsSource> sources) {
         if (sources == null) {
@@ -29,7 +48,7 @@ public final class SourceApplyState {
             mAppliedConfiguration = mCurrentConfiguration;
         }
         if (!mAcknowledgementUncertain && mCurrentConfiguration.equals(mAppliedConfiguration)) {
-            mAppliedSources = new TreeMap<>(mCurrentSources);
+            recoverAppliedSources(mCurrentSources);
         }
     }
 
@@ -42,10 +61,12 @@ public final class SourceApplyState {
     public void invalidate() {
         mAcknowledgementUncertain = true;
         mAppliedSources = null;
+        mTargetedChanges.clear();
     }
 
     public void applied(String configuration) {
         if (configuration != null) {
+            mTargetedChanges.clear();
             mAcknowledgementUncertain = false;
             mAppliedConfiguration = configuration;
             mAppliedSources = configuration.equals(mCurrentConfiguration)
@@ -57,20 +78,40 @@ public final class SourceApplyState {
         Map<Integer, String> completedSources = snapshot(sources);
         if (sourceId == null) {
             mAcknowledgementUncertain = false;
+            mTargetedChanges.clear();
             mAppliedSources = completedSources;
         } else {
-            if (mAcknowledgementUncertain || mAppliedSources == null) {
+            if (mAcknowledgementUncertain) {
                 return;
             }
-            mAppliedSources = new TreeMap<>(mAppliedSources);
-            String completedSource = completedSources.get(sourceId);
-            if (completedSource == null) {
-                mAppliedSources.remove(sourceId);
-            } else {
-                mAppliedSources.put(sourceId, completedSource);
+            if (mAppliedSources == null) {
+                if (mAppliedConfiguration == null) {
+                    invalidate();
+                    return;
+                }
+                mTargetedChanges.put(sourceId, completedSources.get(sourceId));
+                if (mAppliedConfiguration.equals(fingerprint(completedSources))) {
+                    recoverAppliedSources(completedSources);
+                }
+                return;
             }
+            setAppliedRow(sourceId, completedSources.get(sourceId));
         }
         mAppliedConfiguration = fingerprint(mAppliedSources);
+    }
+
+    private void recoverAppliedSources(Map<Integer, String> baseline) {
+        mAppliedSources = new TreeMap<>(baseline);
+        if (!mTargetedChanges.isEmpty()) {
+            mTargetedChanges.forEach(this::setAppliedRow);
+            mTargetedChanges.clear();
+            mAppliedConfiguration = fingerprint(mAppliedSources);
+        }
+    }
+
+    private void setAppliedRow(int id, String row) {
+        if (row == null) mAppliedSources.remove(id);
+        else mAppliedSources.put(id, row);
     }
 
     public boolean observeAutomaticWork(String workId, boolean successful, String configuration) {

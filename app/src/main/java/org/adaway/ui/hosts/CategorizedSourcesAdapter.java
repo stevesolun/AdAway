@@ -28,6 +28,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,19 +56,15 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
     private final HostsSourcesViewCallback callback;
     private final List<FilterListItem> items = new ArrayList<>();
-    private final Set<FilterListCategory> expandedCategories = new HashSet<>();
+    private final SourceCategoryViewState categoryState;
+    private final Set<FilterListCategory> tappedHeaders = EnumSet.noneOf(FilterListCategory.class);
+    private final Set<Integer> tappedSources = new HashSet<>();
 
-    // Default expanded categories for better UX
-    {
-        expandedCategories.add(FilterListCategory.ADS);
-        expandedCategories.add(FilterListCategory.MALWARE);
-        expandedCategories.add(FilterListCategory.FILTERLISTS);
-        // Keep Custom expanded so user can always see their custom lists.
-        expandedCategories.add(FilterListCategory.CUSTOM);
-    }
-
-    public CategorizedSourcesAdapter(@NonNull HostsSourcesViewCallback callback) {
+    CategorizedSourcesAdapter(@NonNull HostsSourcesViewCallback callback,
+                              @NonNull SourceCategoryViewState categoryState) {
         this.callback = callback;
+        this.categoryState = categoryState;
+        setStateRestorationPolicy(StateRestorationPolicy.PREVENT_WHEN_EMPTY);
     }
 
     /**
@@ -127,7 +124,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                 }
             }
 
-            boolean isExpanded = expandedCategories.contains(category);
+            boolean isExpanded = categoryState.isExpanded(category);
 
             // Add category header
             FilterListItem.CategoryHeader header = new FilterListItem.CategoryHeader(
@@ -166,7 +163,17 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
 
             @Override
             public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-                return hasSameContent(previousItems.get(oldItemPosition), nextItems.get(newItemPosition));
+                FilterListItem old = previousItems.get(oldItemPosition);
+                // A physical switch changes immediately, even if two DB snapshots compare equal.
+                if (old instanceof FilterListItem.CategoryHeader
+                        && tappedHeaders.contains(((FilterListItem.CategoryHeader) old).getCategory())) {
+                    return false;
+                }
+                if (old instanceof FilterListItem.SourceItem
+                        && tappedSources.contains(((FilterListItem.SourceItem) old).getId())) {
+                    return false;
+                }
+                return hasSameContent(old, nextItems.get(newItemPosition));
             }
         });
 
@@ -331,6 +338,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
                 getCategoryStateDescription(context, enabledCount, totalCount));
         holder.toggle.setOnClickListener(v -> {
             boolean isChecked = holder.toggle.isChecked();
+            tappedHeaders.add(header.getCategory());
             // If user turned it ON, enable all. If OFF, disable all.
             setAllInCategory(header.getCategory(), isChecked);
         });
@@ -342,11 +350,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         // Click to expand/collapse
         holder.card.setOnClickListener(v -> {
             boolean wasExpanded = header.isExpanded();
-            if (wasExpanded) {
-                expandedCategories.remove(header.getCategory());
-            } else {
-                expandedCategories.add(header.getCategory());
-            }
+            categoryState.setExpanded(header.getCategory(), !wasExpanded);
 
             // Animate the indicator
             float fromRotation = wasExpanded ? 180f : 0f;
@@ -411,8 +415,10 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
         holder.toggle.setChecked(item.isEnabled());
         holder.toggle.setContentDescription(context.getString(
                 R.string.filter_source_toggle_description, item.getLabel()));
-        holder.toggle.setOnCheckedChangeListener(
-                (buttonView, isChecked) -> callback.setEnabled(source, isChecked));
+        holder.toggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            tappedSources.add(source.getId());
+            callback.setEnabled(source, isChecked);
+        });
 
         // Card click to edit
         holder.card.setOnClickListener(v -> callback.edit(source));
@@ -537,16 +543,13 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     }
 
     private void setAllInCategory(FilterListCategory category, boolean enabled) {
+        List<Integer> ids = new ArrayList<>();
         for (HostsSource source : currentSources) {
-            if (FilterListCatalog.getCategoryForSource(source) == category
-                    && source.isEnabled() != enabled) {
-                // Optimistic UI update; DB update happens via callback.
-                source.setEnabled(enabled);
-                callback.setEnabled(source, enabled);
+            if (FilterListCatalog.getCategoryForSource(source) == category) {
+                ids.add(source.getId());
             }
         }
-        // Force immediate UI refresh of switches + header tri-state.
-        rebuildFromCurrentSources();
+        callback.setGroupEnabled(ids, enabled);
     }
 
     // Keep track of current sources for rebuild
@@ -555,6 +558,8 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
     public void updateSources(List<HostsSource> sources) {
         this.currentSources = sources != null ? new ArrayList<>(sources) : new ArrayList<>();
         submitList(currentSources);
+        tappedHeaders.clear();
+        tappedSources.clear();
     }
 
     private void rebuildFromCurrentSources() {

@@ -303,6 +303,13 @@ public final class FilterSetStore {
         return resolveSetId(prefs, name) != null;
     }
 
+    @Nullable
+    static String getSetIdForDisplayName(@NonNull Context context, @NonNull String name) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
+        String id = resolveSetId(prefs, name);
+        return id != null && name.equals(getProfileDisplayName(prefs, id)) ? id : null;
+    }
+
     public static boolean hasSetUrls(@NonNull Context context, @NonNull String name) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         String id = resolveSetId(prefs, name);

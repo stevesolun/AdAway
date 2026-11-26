@@ -133,6 +133,7 @@
     <string name="filter_set_name_reserved">This name is reserved. Choose a different filter set name.</string>
     <string name="filter_set_name_duplicate">A filter set with this name already exists.</string>
     <string name="filter_set_missing">This filter set is no longer available.</string>
+    <string name="filter_set_changed_since_preview">This filter set has changed. Choose it again to review the new selection.</string>
     <string name="filter_set_apply_preview_title">Apply %1$s?</string>
     <string name="filter_set_apply_preview_message">Enable %1$d lists, disable %2$d lists, keep %3$d enabled.</string>
     <string name="filter_set_apply_preview_no_changes">No list changes. My Lists already matches this profile.</string>

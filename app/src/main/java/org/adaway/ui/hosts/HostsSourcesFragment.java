@@ -21,6 +21,7 @@
 package org.adaway.ui.hosts;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.format.DateFormat;
@@ -30,6 +31,8 @@ import android.view.MenuItem;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -46,7 +49,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
@@ -69,6 +71,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static org.adaway.ui.source.SourceEditActivity.SOURCE_ID;
 
@@ -87,7 +91,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private HostsSourcesViewModel mViewModel;
     private CategorizedSourcesAdapter mAdapter;
     private CoordinatorLayout coordinatorLayout;
-    private ApplyConfigurationSnackbar mApplySnackbar;
     @Nullable
     private BottomSheetDialog mAddSourceSheet;
     private List<HostsSource> lastSources = new ArrayList<>();
@@ -97,7 +100,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Get activity
         Activity activity = requireActivity();
         // Initialize view model
-        this.mViewModel = new ViewModelProvider(this).get(HostsSourcesViewModel.class);
+        this.mViewModel = new ViewModelProvider(requireActivity()).get(HostsSourcesViewModel.class);
         LifecycleOwner lifecycleOwner = getViewLifecycleOwner();
         // Create fragment view
         View view = inflater.inflate(R.layout.hosts_sources_fragment, container, false);
@@ -111,7 +114,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Create apply snackbar
         ApplyConfigurationSnackbar applySnackbar =
                 new ApplyConfigurationSnackbar(coordinatorLayout, this.mViewModel);
-        this.mApplySnackbar = applySnackbar;
         // Bind snackbar to view models
         this.mViewModel.getApplyStatus().observe(lifecycleOwner,
                 status -> applySnackbar.refreshSourceState());
@@ -140,8 +142,16 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         recyclerView.setLayoutManager(linearLayoutManager);
         
         // Create the new categorized adapter (uBlock-style)
-        mAdapter = new CategorizedSourcesAdapter(this);
+        SourceCategoryViewState categoryState =
+                new ViewModelProvider(requireActivity()).get(SourceCategoryViewState.class);
+        mAdapter = new CategorizedSourcesAdapter(this, categoryState);
         recyclerView.setAdapter(mAdapter);
+        View selectionError = view.findViewById(R.id.source_selection_error);
+        mViewModel.getFailedSelections().observe(lifecycleOwner, failed -> {
+            selectionError.setVisibility(failed.isEmpty() ? View.GONE : View.VISIBLE);
+            // A rolled-back transaction does not cause Room to emit.
+            if (!failed.isEmpty()) mAdapter.updateSources(lastSources);
+        });
         
         // Bind adapter to view model
         this.mViewModel.getHostsSources().observe(lifecycleOwner, sources -> {
@@ -239,8 +249,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                             layout.setError(null);
                             String name = FilterSetStore.normalizeActiveProfile(rawName);
                             saveFilterSet(name);
-                            Snackbar.make(coordinatorLayout, R.string.filter_set_saved,
-                                    Snackbar.LENGTH_SHORT).show();
                             dialog.dismiss();
                         }));
         dialog.show();
@@ -249,8 +257,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void promptManageFilterSets() {
         List<String> names = getManageableFilterSetNames();
         if (names.isEmpty()) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_manage_none,
-                    Snackbar.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.filter_set_manage_none, Toast.LENGTH_SHORT).show();
             return;
         }
         String[] arr = names.toArray(new String[0]);
@@ -321,8 +328,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                             layout.setError(null);
                             String newName = FilterSetStore.normalizeActiveProfile(rawName);
                             if (FilterSetStore.renameSet(requireContext(), name, newName)) {
-                                Snackbar.make(coordinatorLayout, R.string.filter_set_renamed,
-                                        Snackbar.LENGTH_SHORT).show();
+                                Toast.makeText(requireContext(), R.string.filter_set_renamed, Toast.LENGTH_SHORT).show();
                             }
                             dialog.dismiss();
                         }));
@@ -335,8 +341,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 .setMessage(getString(R.string.filter_set_delete_message, name))
                 .setPositiveButton(R.string.filter_set_delete, (dialog, which) -> {
                     if (FilterSetStore.deleteSet(requireContext(), name)) {
-                        Snackbar.make(coordinatorLayout, R.string.filter_set_deleted,
-                                Snackbar.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), R.string.filter_set_deleted, Toast.LENGTH_SHORT).show();
                     }
                 })
                 .setNegativeButton(R.string.button_cancel, null)
@@ -358,24 +363,35 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void saveFilterSet(String name) {
-        Set<String> enabledUrls = new HashSet<>();
-        for (HostsSource s : lastSources) {
-            if (s.getId() != HostsSource.USER_SOURCE_ID && s.isEnabled()) {
-                enabledUrls.add(s.getUrl());
+        Context appCtx = requireContext().getApplicationContext();
+        View anchor = coordinatorLayout;
+        AppExecutors executors = AppExecutors.getInstance();
+        // Snapshot and assign the active profile in one queue entry, after earlier switch writes.
+        CompletableFuture.supplyAsync(() -> {
+            Set<String> enabledUrls = AppDatabase.getInstance(appCtx).hostsSourceDao().getEnabled()
+                    .stream().map(HostsSource::getUrl).collect(Collectors.toSet());
+            if (FilterSetStore.PROFILE_CUSTOM.equals(name)) {
+                FilterSetStore.saveCustomProfile(appCtx, enabledUrls);
+            } else {
+                int error = getFilterSetNameError(FilterSetStore.validateSetName(name,
+                        FilterSetStore.getSetNames(appCtx)));
+                if (error != 0) return error;
+                FilterSetStore.saveSet(appCtx, name, enabledUrls);
+                FilterSetStore.setActiveProfile(appCtx, name);
             }
-        }
-        if (FilterSetStore.PROFILE_CUSTOM.equals(name)) {
-            FilterSetStore.saveCustomProfile(requireContext(), enabledUrls);
-            return;
-        }
-        FilterSetStore.saveSet(requireContext(), name, enabledUrls);
-        FilterSetStore.setActiveProfile(requireContext(), name);
+            return R.string.filter_set_saved;
+        }, executors.diskIO()).whenCompleteAsync((message, failure) -> {
+            if (anchor.isAttachedToWindow()) {
+                Toast.makeText(appCtx, failure == null ? message : R.string.source_edit_save_failed,
+                        Toast.LENGTH_SHORT).show();
+            }
+        }, executors.mainThread());
     }
 
     private void promptApplyFilterSet() {
         Set<String> names = FilterSetStore.getSetNames(requireContext());
         if (names == null || names.isEmpty()) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_none, Snackbar.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.filter_set_none, Toast.LENGTH_SHORT).show();
             return;
         }
         String[] arr = names.toArray(new String[0]);
@@ -389,8 +405,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void previewApplyFilterSet(@NonNull String name) {
         android.content.Context appCtx = requireContext().getApplicationContext();
         if (!FilterSetStore.hasSet(appCtx, name) || !FilterSetStore.hasSetUrls(appCtx, name)) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_missing, Snackbar.LENGTH_SHORT)
-                    .show();
+            Toast.makeText(requireContext(), R.string.filter_set_missing, Toast.LENGTH_SHORT).show();
             return;
         }
         Set<String> targetUrls = FilterSetStore.getSetUrls(appCtx, name);
@@ -510,25 +525,55 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void applyFilterSet(@NonNull String name, @NonNull Set<String> enabledUrls) {
-        // QA-27: capture Context and DAO on the main thread to avoid calling requireContext()
-        // from a background thread if the fragment detaches while the lambda is queued.
-        android.content.Context appCtx = requireContext().getApplicationContext();
-        HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
+        String confirmedId = FilterSetStore.getSetIdForDisplayName(requireContext(), name);
+        applyConfirmedFilterSet(name, enabledUrls, confirmedId);
+    }
 
-        Snackbar waitSnackbar = Snackbar.make(coordinatorLayout, R.string.notification_configuration_installing, Snackbar.LENGTH_INDEFINITE);
-        waitSnackbar.show();
+    private void applyConfirmedFilterSet(@NonNull String name, @NonNull Set<String> enabledUrls,
+            @Nullable String confirmedId) {
+        Context appCtx = requireContext().getApplicationContext();
+        View status = coordinatorLayout.findViewById(R.id.filter_set_apply_status);
+        TextView message = status.findViewById(R.id.filter_set_apply_message);
+        View retry = status.findViewById(R.id.filter_set_apply_retry);
+        // Only the latest confirmed request owns this view's progress or retry action.
+        Object request = new Object();
+        status.setTag(request);
+        retry.setOnClickListener(null);
+        retry.setVisibility(View.GONE);
+        message.setText(R.string.notification_configuration_installing);
+        status.setVisibility(View.VISIBLE);
 
-        AppExecutors.getInstance().diskIO().execute(() -> {
+        AppExecutors executors = AppExecutors.getInstance();
+        CompletableFuture.supplyAsync(() -> {
+            // Manage can rename, delete or replace a set while a retry is waiting on disk IO.
+            if (confirmedId == null
+                    || !confirmedId.equals(FilterSetStore.getSetIdForDisplayName(appCtx, name))
+                    || !FilterSetStore.hasSetUrls(appCtx, name)) {
+                return R.string.filter_set_missing;
+            }
+            if (!enabledUrls.equals(FilterSetStore.getSetUrls(appCtx, name))) {
+                return R.string.filter_set_changed_since_preview;
+            }
+            HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
             dao.applySourceSelections(enabledUrls);
             FilterSetStore.setActiveProfile(appCtx, name);
             FilterSetUpdateService.enable(appCtx);
-            AppExecutors.getInstance().mainThread().execute(() -> {
-                waitSnackbar.dismiss();
-                if (isAdded()) {
-                    Snackbar.make(coordinatorLayout, R.string.filter_set_applied, Snackbar.LENGTH_SHORT).show();
-                }
-            });
-        });
+            return 0;
+        }, executors.diskIO()).whenCompleteAsync((refusalMessage, failure) -> {
+            if (failure != null) timber.log.Timber.w(failure, "Could not apply saved filter set.");
+            if (!status.isAttachedToWindow() || status.getTag() != request) return;
+            status.setTag(null);
+            if (failure != null) {
+                message.setText(R.string.notification_configuration_failed);
+                retry.setOnClickListener(v -> applyConfirmedFilterSet(name, enabledUrls, confirmedId));
+                retry.setVisibility(View.VISIBLE);
+            } else if (refusalMessage != 0) {
+                message.setText(refusalMessage);
+            } else {
+                status.setVisibility(View.GONE);
+                Toast.makeText(appCtx, R.string.filter_set_applied, Toast.LENGTH_SHORT).show();
+            }
+        }, executors.mainThread());
     }
 
     private void promptScheduleFilterSet() {
@@ -539,18 +584,35 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         options.addAll(names);
         String[] arr = options.toArray(new String[0]);
 
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        androidx.appcompat.app.AlertDialog picker = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_schedule_filter_set)
-                .setItems(arr, (d, which) -> {
-                    if (which == 0) {
-                        // Keep the selected URLs in memory until the final time is confirmed.
-                        promptScheduleForOne(arr[which], getEnabledSourceUrls());
-                    } else {
-                        promptScheduleForOne(arr[which], null);
-                    }
-                })
+                .setItems(arr, null)
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+        picker.getListView().setOnItemClickListener((parent, item, which, id) -> {
+            if (which != 0) {
+                picker.dismiss();
+                promptScheduleForOne(arr[which], null);
+                return;
+            }
+            // Leave Cancel available while waiting for prior writes. Nothing is saved yet.
+            picker.getListView().setEnabled(false);
+            Context appCtx = requireContext().getApplicationContext();
+            View anchor = coordinatorLayout;
+            AppExecutors executors = AppExecutors.getInstance();
+            CompletableFuture.supplyAsync(() -> AppDatabase.getInstance(appCtx).hostsSourceDao()
+                    .getEnabled().stream().map(HostsSource::getUrl).collect(Collectors.toSet()),
+                    executors.diskIO()).whenCompleteAsync((urls, failure) -> {
+                if (!picker.isShowing()) return;
+                picker.dismiss();
+                if (!anchor.isAttachedToWindow() || !isResumed()) return;
+                if (failure == null) {
+                    promptScheduleForOne(arr[which], urls);
+                } else {
+                    Toast.makeText(appCtx, R.string.source_edit_save_failed, Toast.LENGTH_SHORT).show();
+                }
+            }, executors.mainThread());
+        });
     }
 
     @NonNull
@@ -617,9 +679,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void showScheduleApplied(@NonNull CharSequence scheduleLabel) {
-        Snackbar.make(coordinatorLayout,
-                getString(R.string.filter_set_schedule_applied, scheduleLabel),
-                Snackbar.LENGTH_SHORT).show();
+        Toast.makeText(requireContext(), getString(R.string.filter_set_schedule_applied, scheduleLabel),
+                Toast.LENGTH_SHORT).show();
     }
 
     private interface TimePicked {
@@ -707,8 +768,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
 
     @Override
     public void setEnabled(HostsSource source, boolean enabled) {
-        FilterSetStore.markCustomProfile(requireContext());
         this.mViewModel.setSourceEnabled(source, enabled);
+    }
+
+    @Override
+    public void setGroupEnabled(List<Integer> sourceIds, boolean enabled) {
+        mViewModel.setGroupEnabled(sourceIds, enabled);
     }
 
     @Override
@@ -735,8 +800,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void runCheckUpdates() {
-        Snackbar info = Snackbar.make(coordinatorLayout, R.string.status_check, Snackbar.LENGTH_LONG);
-        info.show();
+        Toast.makeText(requireContext(), R.string.status_check, Toast.LENGTH_SHORT).show();
         // QA-05: capture Context before background thread to avoid IllegalStateException on navigation.
         AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {

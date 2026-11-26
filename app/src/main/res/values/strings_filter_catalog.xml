@@ -175,6 +175,7 @@
     </plurals>
     <string name="filter_category_state_disabled">No sources enabled</string>
     <string name="filter_category_state_empty">No sources available</string>
+    <string name="filter_category_update_failed">Could not save this selection. Tap the switch to try again.</string>
     <string name="filter_category_toggle_description">Toggle %1$s category</string>
     <string name="filter_source_toggle_description">Toggle %1$s source</string>
     <string name="filter_source_update_action">Update %1$s</string>

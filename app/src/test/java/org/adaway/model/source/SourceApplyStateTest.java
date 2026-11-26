@@ -377,6 +377,93 @@ public class SourceApplyStateTest {
         assertTrue(state.isPending());
     }
 
+    @Test
+    public void restoredDirtyBaselineIgnoresHistoricalSuccessButRecognizesUndo() {
+        SourceApplyState state = new SourceApplyState();
+        HostsSource a = source(2);
+        List<HostsSource> rows = Collections.singletonList(a);
+        state.updateSources(rows);
+        a.setEnabled(false);
+        state.updateSources(rows);
+
+        SourceApplyState restored = restore(state);
+        assertFalse(restored.observeAutomaticWork("historical", true,
+                SourceApplyState.fingerprint(rows)));
+        restored.updateSources(rows);
+        assertTrue(restored.isPending());
+        a.setEnabled(true);
+        restored.updateSources(rows);
+        assertFalse(restored.isPending());
+    }
+
+    @Test
+    public void restoredCleanBaselineRebuildsRowsForTargetedAcknowledgement() {
+        SourceApplyState state = new SourceApplyState();
+        HostsSource a = source(2);
+        HostsSource b = source(3);
+        List<HostsSource> rows = Arrays.asList(a, b);
+        state.updateSources(rows);
+        SourceApplyState restored = restore(state);
+        restored.updateSources(rows);
+        assertFalse(restored.isPending());
+        a.setAllowEnabled(true);
+        b.setRedirectEnabled(true);
+        restored.updateSources(rows);
+        restored.appliedSources(rows, a.getId());
+        assertTrue(restored.isPending());
+        restored.appliedSources(rows, b.getId());
+        assertFalse(restored.isPending());
+    }
+
+    @Test
+    public void restoredDirtyTargetedCompletionCannotMakeOldSelectionLookApplied() {
+        SourceApplyState state = new SourceApplyState();
+        HostsSource a = source(2);
+        HostsSource b = source(3);
+        List<HostsSource> rows = Arrays.asList(a, b);
+        state.updateSources(rows);
+        a.setAllowEnabled(true);
+        b.setRedirectEnabled(true);
+        state.updateSources(rows);
+        SourceApplyState restored = restore(state);
+        restored.updateSources(rows);
+        restored.appliedSources(rows, a.getId());
+        assertTrue(restored.isPending());
+        SourceApplyState restoredAgain = restore(restored);
+
+        a.setAllowEnabled(false);
+        b.setRedirectEnabled(false);
+        restored.updateSources(rows);
+        assertTrue("A was partially applied after this baseline", restored.isPending());
+        restoredAgain.updateSources(rows);
+        assertTrue("Partial details were not saved", restoredAgain.isPending());
+        a.setAllowEnabled(true);
+        restored.updateSources(rows);
+        assertFalse("Old baseline plus A is now proven", restored.isPending());
+        restoredAgain.updateSources(rows);
+        restoredAgain.appliedSources(rows, a.getId());
+        assertTrue(restoredAgain.isPending());
+        restoredAgain.appliedSources(rows, null);
+        assertFalse(restoredAgain.isPending());
+    }
+
+    @Test
+    public void restoredUncertaintySurvivesMatchingRowsAndHistoricalSuccess() {
+        SourceApplyState state = observingEmptySources();
+        state.invalidate();
+        SourceApplyState restored = restore(state);
+        restored.updateSources(Collections.emptyList());
+        String same = restored.getAppliedConfiguration();
+        assertFalse(restored.observeAutomaticWork("old", true, same));
+        assertTrue(restored.isPending());
+        assertTrue(restored.observeAutomaticWork("new", true, same));
+        assertFalse(restored.isPending());
+    }
+
+    private static SourceApplyState restore(SourceApplyState state) {
+        return new SourceApplyState(state.getAppliedConfiguration(), state.isUncertainOnRestore());
+    }
+
     private static SourceApplyState observingEmptySources() {
         SourceApplyState state = new SourceApplyState();
         state.updateSources(Collections.emptyList());
