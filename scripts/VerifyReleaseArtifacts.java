@@ -383,7 +383,7 @@ public final class VerifyReleaseArtifacts {
             if (process.waitFor() == 0 && ids.length == 2 && isSourceCommit(ids[0])
                     && isSourceCommit(ids[1])) {
                 // Hash the file itself; an index "clean" result need not inspect its contents.
-                Process hash = gitAt(source, "hash-object", "--", name).start();
+                Process hash = gitAt(source, "hash-object", "--no-filters", "--", name).start();
                 String actual = new String(hash.getInputStream().readAllBytes(),
                         StandardCharsets.UTF_8).trim();
                 if (hash.waitFor() == 0 && actual.equalsIgnoreCase(ids[1])) {

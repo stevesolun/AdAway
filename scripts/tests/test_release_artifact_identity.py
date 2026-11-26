@@ -229,6 +229,11 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         self.exec(['git', 'update-index', '--assume-unchanged', copied.name], cwd=self.case)
         self.verify(source=copied, cwd=self.case)
         self.assertIn('- Tooling source commit: not-provided', self.report.read_text())
+        # Git considers normalized line endings equivalent; the launcher read the actual bytes.
+        (self.case / '.gitattributes').write_text(copied.name + ' text eol=lf\n')
+        copied.write_bytes(self.verifier.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+        self.verify(source=copied, cwd=self.case)
+        self.assertIn('- Tooling source commit: not-provided', self.report.read_text())
 
     def test_non_apk_unsigned_and_extra_signer_fail_with_authenticated_metadata(self):
         plain = self.case / 'plain.apk'
