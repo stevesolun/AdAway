@@ -18,6 +18,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.ThemeHelper;
+import org.adaway.ui.source.SourceScheduleStore;
 import org.adaway.util.AppExecutors;
 
 import java.time.DayOfWeek;
@@ -33,7 +34,6 @@ import java.util.Locale;
 public class SchedulesActivity extends AppCompatActivity {
 
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
-    private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
     private static final String KEY_HOUR_PREFIX = "hour_url_";
     private static final String KEY_MINUTE_PREFIX = "minute_url_";
     private static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
@@ -224,21 +224,10 @@ public class SchedulesActivity extends AppCompatActivity {
                 prefs.getInt(KEY_MINUTE_PREFIX + url, 0));
         picker.show(this, url, R.string.filter_set_schedule_off, true,
                 (cadence, day, hour, minute, label) -> {
-                    saveSourceSchedule(url, cadence, day, hour, minute);
+                    SourceScheduleStore.save(this, url, cadence, day, hour, minute);
                     FilterSetUpdateService.syncPreferences(this);
                     refreshSummary();
                 });
-    }
-
-    private void saveSourceSchedule(String url, int schedule, int weekdayIso, int hour24, int minute) {
-        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-        android.content.SharedPreferences.Editor e = prefs.edit();
-        e.putInt(KEY_SCHEDULE_PREFIX + url, schedule);
-        e.putInt(KEY_WEEKDAY_PREFIX + url, Math.max(1, Math.min(7, weekdayIso)));
-        e.putInt(KEY_HOUR_PREFIX + url, Math.max(0, Math.min(23, hour24)));
-        e.putInt(KEY_MINUTE_PREFIX + url, Math.max(0, Math.min(59, minute)));
-        e.remove(KEY_LAST_RUN_PREFIX + url);
-        e.apply();
     }
 
     private String dayName(int iso) {

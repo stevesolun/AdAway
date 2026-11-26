@@ -2,6 +2,7 @@ package org.adaway.ui.hosts;
 
 import static org.adaway.util.Constants.PREFS_FILTER_SETS;
 
+import android.app.backup.BackupManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -101,7 +102,9 @@ public final class FilterSetStore {
 
     public static void setGlobalEnabled(@NonNull Context context, boolean enabled) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
+        if (enabled == isGlobalScheduleEnabled(context)) return;
         prefs.edit().putBoolean(KEY_GLOBAL_ENABLED, enabled).apply();
+        new BackupManager(context).dataChanged();
     }
 
     public static int getGlobalSchedule(@NonNull Context context) {
@@ -136,6 +139,13 @@ public final class FilterSetStore {
 
     public static void setGlobalSchedule(@NonNull Context context, int schedule, int weekdayIso, int hour24, int minute) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
+        if (isGlobalScheduleEnabled(context) == (schedule != SCHEDULE_OFF)
+                && getGlobalSchedule(context) == schedule
+                && (schedule != SCHEDULE_WEEKLY || getGlobalWeekdayIso(context) == clamp(weekdayIso, 1, 7))
+                && (schedule == SCHEDULE_OFF || (getGlobalHour(context) == clamp(hour24, 0, 23)
+                        && getGlobalMinute(context) == clamp(minute, 0, 59)))) {
+            return;
+        }
         SharedPreferences.Editor editor = prefs.edit()
                 .putBoolean(KEY_GLOBAL_ENABLED, schedule != SCHEDULE_OFF)
                 .putInt(KEY_GLOBAL_SCHEDULE, schedule)
@@ -148,6 +158,7 @@ public final class FilterSetStore {
             editor.putLong(KEY_GLOBAL_LAST_RUN, System.currentTimeMillis());
         }
         editor.apply();
+        new BackupManager(context).dataChanged();
     }
 
     @NonNull
@@ -168,9 +179,11 @@ public final class FilterSetStore {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         String displayName = normalizeActiveProfile(name);
         String id = resolveOrCreateSetId(prefs, displayName);
+        if (urls.equals(prefs.getStringSet(profileValueKey(KEY_SET_ID_PREFIX, id), null))) return;
         prefs.edit()
                 .putStringSet(profileValueKey(KEY_SET_ID_PREFIX, id), new HashSet<>(urls))
                 .apply();
+        new BackupManager(context).dataChanged();
     }
 
     /** Save a confirmed selection and its schedule together without changing active identity. */
@@ -179,6 +192,9 @@ public final class FilterSetStore {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         String displayName = normalizeActiveProfile(name);
         String id = resolveSetId(prefs, displayName);
+        if (id != null && displayName.equals(getProfileDisplayName(prefs, id))
+                && urls.equals(prefs.getStringSet(profileValueKey(KEY_SET_ID_PREFIX, id), null))
+                && sameSetSchedule(context, name, schedule, weekdayIso, hour24, minute)) return;
         Set<String> ids = getSetIds(prefs);
         if (id == null) {
             id = newUniqueOpaqueProfileId(ids, displayName);
@@ -192,6 +208,7 @@ public final class FilterSetStore {
                 .putInt(profileValueKey(KEY_SCHEDULE_HOUR_ID_PREFIX, id), clamp(hour24, 0, 23))
                 .putInt(profileValueKey(KEY_SCHEDULE_MINUTE_ID_PREFIX, id), clamp(minute, 0, 59))
                 .apply();
+        new BackupManager(context).dataChanged();
     }
 
     public static boolean renameSet(
@@ -214,6 +231,7 @@ public final class FilterSetStore {
         if (oldDisplayName == null) {
             oldDisplayName = normalizeActiveProfile(oldName);
         }
+        if (oldDisplayName.equals(displayName)) return true;
         SharedPreferences.Editor editor = prefs.edit()
                 .putString(KEY_SET_DISPLAY_PREFIX + id, displayName)
                 .remove(KEY_SET_CANONICAL_PREFIX + canonicalSetName(oldDisplayName))
@@ -222,6 +240,7 @@ public final class FilterSetStore {
             editor.putString(KEY_ACTIVE_PROFILE, displayName);
         }
         editor.apply();
+        new BackupManager(context).dataChanged();
         return true;
     }
 
@@ -252,6 +271,7 @@ public final class FilterSetStore {
                     .putString(KEY_ACTIVE_PROFILE_ID, "profile_custom");
         }
         editor.apply();
+        new BackupManager(context).dataChanged();
         return true;
     }
 
@@ -438,9 +458,19 @@ public final class FilterSetStore {
     }
 
     public static void setSchedule(@NonNull Context context, @NonNull String name, int schedule) {
+        if (getSchedule(context, name) == schedule) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         String id = resolveOrCreateSetId(prefs, name);
         prefs.edit().putInt(profileValueKey(KEY_SCHEDULE_ID_PREFIX, id), schedule).apply();
+        new BackupManager(context).dataChanged();
+    }
+
+    private static boolean sameSetSchedule(Context context, String name, int schedule,
+            int weekdayIso, int hour24, int minute) {
+        return getSchedule(context, name) == schedule
+                && (schedule != SCHEDULE_WEEKLY || getScheduleWeekdayIso(context, name) == clamp(weekdayIso, 1, 7))
+                && (schedule == SCHEDULE_OFF || (getScheduleHour(context, name) == clamp(hour24, 0, 23)
+                        && getScheduleMinute(context, name) == clamp(minute, 0, 59)));
     }
 
     /**
@@ -452,6 +482,7 @@ public final class FilterSetStore {
      * @param minute       0..59
      */
     public static void setSchedule(@NonNull Context context, @NonNull String name, int schedule, int weekdayIso, int hour24, int minute) {
+        if (sameSetSchedule(context, name, schedule, weekdayIso, hour24, minute)) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         String id = resolveOrCreateSetId(prefs, name);
         SharedPreferences.Editor e = prefs.edit();
@@ -460,6 +491,7 @@ public final class FilterSetStore {
         e.putInt(profileValueKey(KEY_SCHEDULE_HOUR_ID_PREFIX, id), clamp(hour24, 0, 23));
         e.putInt(profileValueKey(KEY_SCHEDULE_MINUTE_ID_PREFIX, id), clamp(minute, 0, 59));
         e.apply();
+        new BackupManager(context).dataChanged();
     }
 
     public static int getSchedule(@NonNull Context context, @NonNull String name) {

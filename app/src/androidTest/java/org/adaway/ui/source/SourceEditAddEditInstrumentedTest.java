@@ -1,5 +1,7 @@
 package org.adaway.ui.source;
 
+import static org.adaway.ui.hosts.FilterSetStore.SCHEDULE_WEEKLY;
+import static org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -181,12 +183,29 @@ public class SourceEditAddEditInstrumentedTest {
     }
 
     @Test(timeout = 120_000)
+    public void unchangedSourceScheduleKeepsLastRunButChangingTheTimeResetsIt() {
+        String url = "https://example.org/last-run-guard";
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
+        String lastRun = SourceScheduleStore.KEY_LAST_RUN_PREFIX + url;
+        try {
+            SourceScheduleStore.save(context, url, SCHEDULE_WEEKLY, 6, 20, 45);
+            prefs.edit().putLong(lastRun, 123456L).apply();
+            SourceScheduleStore.save(context, url, SCHEDULE_WEEKLY, 6, 20, 45);
+            assertEquals(123456L, prefs.getLong(lastRun, -1L));
+            SourceScheduleStore.save(context, url, SCHEDULE_WEEKLY, 6, 20, 46);
+            assertFalse(prefs.contains(lastRun));
+        } finally {
+            SourceScheduleStore.clear(context, url);
+        }
+    }
+
+    @Test
     public void scheduleOnDraftAddressLeavesBothAddressesUntouchedWhenGoingBack() throws Exception {
         seedDownloadedSource(this.context);
         SharedPreferences prefs = this.context.getSharedPreferences(
-                SourceEditViewModel.PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
-        String savedKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + DELETE_URL;
-        String draftKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + EDIT_URL;
+                PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
+        String savedKey = SourceScheduleStore.KEY_SCHEDULE_PREFIX + DELETE_URL;
+        String draftKey = SourceScheduleStore.KEY_SCHEDULE_PREFIX + EDIT_URL;
         prefs.edit().putInt(savedKey, 2).remove(draftKey).commit();
         Intent edit = new Intent(this.context, SourceEditActivity.class)
                 .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
@@ -222,9 +241,9 @@ public class SourceEditAddEditInstrumentedTest {
     public void savingNewAddressThenChangingScheduleOnlyWritesForSavedSource() throws Exception {
         seedDownloadedSource(this.context);
         SharedPreferences prefs = this.context.getSharedPreferences(
-                SourceEditViewModel.PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
-        String oldKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + DELETE_URL;
-        String newKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + EDIT_URL;
+                PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
+        String oldKey = SourceScheduleStore.KEY_SCHEDULE_PREFIX + DELETE_URL;
+        String newKey = SourceScheduleStore.KEY_SCHEDULE_PREFIX + EDIT_URL;
         prefs.edit().putInt(oldKey, 2).remove(newKey).commit();
         Intent edit = new Intent(this.context, SourceEditActivity.class)
                 .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
@@ -248,9 +267,9 @@ public class SourceEditAddEditInstrumentedTest {
             }
         } finally {
             SharedPreferences.Editor cleanup = prefs.edit().remove(oldKey);
-            for (String prefix : new String[]{SourceEditViewModel.KEY_SCHEDULE_PREFIX,
-                    SourceEditViewModel.KEY_WEEKDAY_PREFIX, SourceEditViewModel.KEY_HOUR_PREFIX,
-                    SourceEditViewModel.KEY_MINUTE_PREFIX, SourceEditViewModel.KEY_LAST_RUN_PREFIX}) {
+            for (String prefix : new String[]{SourceScheduleStore.KEY_SCHEDULE_PREFIX,
+                    SourceScheduleStore.KEY_WEEKDAY_PREFIX, SourceScheduleStore.KEY_HOUR_PREFIX,
+                    SourceScheduleStore.KEY_MINUTE_PREFIX, SourceScheduleStore.KEY_LAST_RUN_PREFIX}) {
                 cleanup.remove(prefix + EDIT_URL);
             }
             cleanup.commit();
