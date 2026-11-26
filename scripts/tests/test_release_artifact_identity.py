@@ -41,7 +41,8 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
             raise RuntimeError('java and pwsh are required')
         cls.classes = cls.work / 'classes'
         cls.classes.mkdir()
-        cls.env = dict(os.environ)
+        # Fixture commits must not inherit a hook caller's repository or index.
+        cls.env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
         cls.env['GITHUB_SHA'] = 'f' * 40  # Must never become artifact or tooling identity.
         cls.env['GH_TOKEN'] = 'local-mock-only'
         cls.env['GITHUB_TOKEN'] = 'local-mock-only'
@@ -225,6 +226,7 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
                   cwd=self.case)
         with copied.open('a') as changed:
             changed.write('\n// Local change not present in the commit.\n')
+        self.exec(['git', 'update-index', '--assume-unchanged', copied.name], cwd=self.case)
         self.verify(source=copied, cwd=self.case)
         self.assertIn('- Tooling source commit: not-provided', self.report.read_text())
 

@@ -381,9 +381,14 @@ public final class VerifyReleaseArtifacts {
                     StandardCharsets.UTF_8).trim();
             String[] ids = output.split("\\R");
             if (process.waitFor() == 0 && ids.length == 2 && isSourceCommit(ids[0])
-                    && isSourceCommit(ids[1]) && gitAt(source, "diff", "--quiet", "--no-ext-diff",
-                    ids[0], "--", name).start().waitFor() == 0) {
-                return ids[0].toLowerCase(Locale.ROOT);
+                    && isSourceCommit(ids[1])) {
+                // Hash the file itself; an index "clean" result need not inspect its contents.
+                Process hash = gitAt(source, "hash-object", "--", name).start();
+                String actual = new String(hash.getInputStream().readAllBytes(),
+                        StandardCharsets.UTF_8).trim();
+                if (hash.waitFor() == 0 && actual.equalsIgnoreCase(ids[1])) {
+                    return ids[0].toLowerCase(Locale.ROOT);
+                }
             }
         } catch (IOException exception) {
             return "not-provided";
