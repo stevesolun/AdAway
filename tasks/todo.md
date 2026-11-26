@@ -27,6 +27,16 @@ The bounded beta release does not complete this ongoing audit.
 - [x] On the signed phone candidate, isolate a public EasyList URL, measure
   on/off/on results, browse ordinary sites and trace an actual block back to
   the source in Domain Checker; verify allow and undo. [Measured outcomes](audit-2026-11-25/deep-signoff/source-category.md#phone-candidate).
+- [x] Reproduce and correct Android restore losing a named filter schedule
+  and hiding the first source. Verify the restored block and an independent
+  allowed host through the VPN. [Signed results](audit-2026-11-25/deep-signoff/platform-restore.md).
+- [x] Confirm an interrupted update does not consume the scheduled occurrence
+  before protection applies. [Stopped worker and retry](audit-2026-11-25/deep-signoff/scheduled-due.md).
+- [x] Distinguish enabled from actively filtering during Wi-Fi or mobile
+  network loss. [Signed Android 11 recovery, DNS and Chrome](audit-2026-11-25/deep-signoff/vpn-network-recovery.md#consolidated-signed-ota).
+- [x] On the same signed APK, retain one nonregional public filter over an
+  upgrade, check two independent sites, and recover the chosen selection
+  after 3,000 offline inputs. [Signed results and limits](audit-2026-11-25/deep-signoff/restored-phone-release.md).
 
 ### Next public Android beta: 13.5.7b
 
@@ -44,7 +54,7 @@ The bounded beta release does not complete this ongoing audit.
   used a third non-regional HTTPS list plus an independently enabled local file.
 - [x] Recheck the combined candidate after fixes for reproduced cross-screen
   and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
-  Current Android 14: 652 passed, 20 skipped, zero failures (672 unique cases
+  Earlier Android 14 run: 652 passed, 20 skipped, zero failures (672 unique cases
   across an interrupted run and its same-binary resumption).
   JVM: 738 passed, three skipped, zero failures. Handset testing remains user-deferred.
 - [x] Retain Domain Checker feedback through recreation; two 18-case package

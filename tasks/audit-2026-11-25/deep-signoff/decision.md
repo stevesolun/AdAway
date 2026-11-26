@@ -4,7 +4,38 @@ The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
 for the subsequent deep-QA changes. It is not yet evidence of public delivery.
 
-**Phone candidate, app commit `6da4194eb`:** [APK identity and signed results](source-category.md#phone-candidate),
+**November 26 phone candidate:** The [signed arbitrary-filter upgrade](restored-phone-release.md)
+and [Android 11 offline recovery](vpn-network-recovery.md#consolidated-signed-ota)
+were run on the same private APK. The Android [platform restore](platform-restore.md)
+and [interrupted scheduled update](scheduled-due.md) have separate before/after
+evidence. The [public app-initiated installer journey](app-update-journey.md)
+remains partial; an Android package update over USB is not proof of that path.
+
+**Consolidated app commit `9968265d4`:** API 34 covered 698 distinct methods.
+The two initial shards recorded 673 passes, 21 assumption skips and four
+failed schedule-picker checks. On the identical installed debug app, the
+final test-only replay passed all 19 picker/scheduler checks in 26.865 s.
+After replay: **677 passed, 21 skipped, no outstanding failures**.
+[Every method, including initial failures and skips](recovery-android14-methods.csv).
+This was not one uninterrupted green run. Intermediate replays included
+a timestamp assertion that did not reproduce and a Back action that closed
+the underlying activity; the final harness targets the focused picker and
+checks both detachment and restoration of the Sources toolbar focus.
+The earlier 690-case run before the final UI edits passed 670 and skipped
+20 in 540.995 s. Counts are not additive.
+
+The final app's 95 JVM suites recorded 742 passes and three skips, with no
+failures or errors; lint reported 35 warnings and zero errors. All 103
+repository host checks passed. The APK's direct signer matched the public beta.
+The debug app SHA-256 was `4ae756c123314381d3975c4fcd87b129b73c6942bb2ec69c4989449d669a9665`;
+initial and final test harnesses were `3b913cc33e98356ce0246cfef42558e9fafa25108e65c68d7e7cfbdde66decaa`
+and `c09fdc68ad5b0476989078d28176ebe89cbd312010390b92473fc73cba747762`.
+Raw outputs: `app/build/reports/audit-2026-11-25/platform-restore/`.
+Five disposable AVDs were stopped and deleted after validation; no phone
+was connected. Neither these app tests nor the 3,000-event signed trace
+prove every possible UI sequence or universal ad removal.
+
+**Previous phone candidate, app commit `6da4194eb`:** [APK identity and signed results](source-category.md#phone-candidate),
 [nine source findings](../deep-source-category-bugs.csv) and
 [offline UI stresses](offline-ui-stress.md). The JVM result was 742 passed,
 three skipped, zero failures or errors (95 suites); Android lint reported 35
@@ -15,7 +46,7 @@ skips, zero failures or errors**. [Per-method results and skip reasons](source-c
 An initial run on an intentionally offline device did not complete; its
 three network-constrained timeouts are recorded in the [test evidence](source-category.md#regression-controls).
 
-**Remaining product risks:** The [coverage cross-check](../deep-journey-evidence-files.csv)
+**At the preceding checkpoint:** The [coverage cross-check](../deep-journey-evidence-files.csv)
 reconciles 104 stories, 260 control variants and 179 historical journey records,
 not 260 executed clicks or 179 passes. Prioritize Android 11/OEM network
 recovery on a physical phone; interrupted or metered scheduled multi-source

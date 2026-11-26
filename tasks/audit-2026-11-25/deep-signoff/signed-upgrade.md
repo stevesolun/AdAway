@@ -217,6 +217,17 @@ This is a local phone-test build; no GitHub publication is implied.
 
 ## Final signed phone candidate
 
+The current local 13.5.7b APK (130507), app commit `9968265d4`, is
+`34765cb44edf7f1ed8daaec844364620760f9209b3a05b36a450dd3c61d06ee7`.
+Its installed bytes matched on Android 11 and 14, and its v2/v3 signer
+matched the public beta. [Independent filter, two web pages, on/off DNS and
+saved schedule](restored-phone-release.md); [offline Home and notification,
+Wi-Fi/LTE recovery, DNS and Chrome](vpn-network-recovery.md#consolidated-signed-ota).
+Package replacement stopped protection; one Home tap resumed the VPN
+without new consent. This private candidate is not a GitHub release.
+
+### Previous source-selection candidate
+
 Local **AdAway_13.5.7b.apk**, app commit `6da4194eb`, version code **130507**, SHA-256
 `e08123d932628ec77d6f38ed74c3727eca3494c2d94ab68f315cb5cf8a1e3570`.
 The installed base APK matched. APK schemes v2 and v3 verified with the pinned

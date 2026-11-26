@@ -8,7 +8,7 @@ Date: 2026-11-25. Read-only review of the current `SourceEditActivity.java` draf
 
 **Source-confirmed, including dependency bytecode; runtime reproduction pending.**
 
-- Location: [SourceEditActivity.java:202](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/ui/source/SourceEditActivity.java:202), lines 202-204, together with the newly added disabling at lines 252-255.
+- Location: [SourceEditActivity.java:202](../../app/src/main/java/org/adaway/ui/source/SourceEditActivity.java), lines 202-204, together with the newly added disabling at lines 252-255.
 - On the first edit load, `renderFormState()` runs with `formInitialized == false` and disables both format buttons and both type buttons. The database callback then calls `applyInitialValues()` while they are still disabled; only the following `initializeForm()` enables them.
 - The app pins Material 1.12.0 (`app/build.gradle:218`). Inspection of its resolved runtime JAR with `javap -c -p` confirms that `MaterialButton.setChecked()` returns without changing state when `isEnabled()` is false (bytecode offsets 7-11 branch to return). `MaterialButtonToggleGroup` also delegates child checked-state changes to that method.
 - Consequently, loading an existing allow-list source cannot execute the checked-state changes at lines 276-277. The XML default block button stays checked and the allow button stays unchecked. `validate()` reads the latter at lines 651-653, so an otherwise label-only save can change the persisted source from allow-list to block-list, clearing/reinterpreting its downloaded data via the existing content-change path. Rotation can preserve this already-wrong format as the new draft.
