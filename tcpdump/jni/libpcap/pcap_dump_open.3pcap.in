@@ -63,7 +63,7 @@ or
 .BR pcap_open_dead() .
 The time stamp precision, link-layer type, and snapshot length from
 .I p
-are used as the link-layer type and snapshot length of the output file.
+determine the corresponding properties of the output file.
 .PP
 .B pcap_dump_open_append()
 is like

@@ -86,6 +86,8 @@ that the interface did not drop any packets.
 returns 0 on success and returns \-1 if there is an error or if
 .I p
 doesn't support packet statistics.
+If the handle has not been activated, it returns
+.BR PCAP_ERROR_NOT_ACTIVATED .
 If \-1 is returned,
 .B pcap_geterr()
 or

@@ -66,6 +66,10 @@ a capture handle is not in ``non-blocking mode''; a call to
 .B pcap_setnonblock()
 is required in order to put it into ``non-blocking'' mode.
 .SH RETURN VALUE
+Both operations return
+.B PCAP_ERROR_NOT_ACTIVATED
+if called before activation; in that case they do not fill in the error buffer.
+.PP
 .B pcap_getnonblock()
 returns the current ``non-blocking'' state of the capture descriptor; it
 always returns 0 on ``savefiles''.

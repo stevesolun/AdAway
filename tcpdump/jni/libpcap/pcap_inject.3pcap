@@ -72,7 +72,10 @@ comes from OpenBSD;
 comes from WinPcap.  Both are provided for compatibility.)
 .SH RETURN VALUE
 .B pcap_inject()
-returns the number of bytes written on success and \-1 on failure.
+returns the number of bytes written on success and a negative value on failure,
+including
+.B PCAP_ERROR_NOT_ACTIVATED
+if the handle has not been activated.
 .PP
 .B pcap_sendpacket()
 returns 0 on success and \-1 on failure.

@@ -1866,7 +1866,7 @@ pcap_open_dead(int linktype, int snaplen)
 int
 pcap_sendpacket(pcap_t *p, const u_char *buf, int size)
 {
-	if (p->inject_op(p, buf, size) == -1)
+	if (p->inject_op(p, buf, size) < 0)
 		return (-1);
 	return (0);
 }
