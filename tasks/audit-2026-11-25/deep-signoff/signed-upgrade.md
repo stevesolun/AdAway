@@ -138,7 +138,7 @@ from the earlier staging fix, not a newly repeated 5M run on this APK.
 Evidence: `q19-{before,after,restored}-dns.json`, `q19-conditional-sites.json`,
 `q19-condition-visible`, `q19-retained-filter`, `q19-*-package.txt`.
 
-## Final signed phone candidate
+## Domain Checker phone candidate
 
 App commit `07d396dd0`, `AdAway_13.5.7b.apk`, version code 130507.
 SHA-256: `0fe4ac97d2dfa993653b9cac2f6f956dcb1038993731da32389a7c0a2e6fb11c`.
@@ -183,3 +183,21 @@ singular summary and the difference between unconditional and browser-only
 rules, independently of the larger filter. Raw captures: `q23-*-package.txt`,
 `q23-signed-chrome.json`, `q23-*-dns.json`, `q23-block-confirmation-*.png`,
 `q23-new-check.xml`, `q23-deleted-rule.xml` and `q23-singular-host.xml`.
+
+## Final signed phone candidate
+
+Local **AdAway_13.5.7b.apk**, version code **130507**, app commit `17a7d1415`.
+SHA-256: `9120fd846a12a010ceae073cb0043420b827bf46e24241587d4b041920828b4f`.
+APK v2 and v3 verified with the same public certificate as above.
+Not a published GitHub artifact. The private signing key is not in this repository.
+
+On API 34 the public beta, the locale fix, then this candidate were installed
+in place. The selected Dan Pollock URL survived, including its name GeneralQA.
+Disabling, applying, re-enabling and applying restored its displayed 13k hosts.
+After starting non-root VPN protection, Android Chrome rendered Debian and
+IANA Reserved Domains (HTTP 200; 37 and 60 links), while media.fastclick.net
+failed with ERR_NAME_NOT_RESOLVED. We did not attribute every block to this
+single list: the three default sources were enabled, too.
+
+The same binary handled an exact redirect and a Log-created block in both
+directions. See the [signed interactions, DNS answers and idle measurements](pending-apply-and-locale.md).

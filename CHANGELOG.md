@@ -2,6 +2,11 @@
 
 ## [13.5.7b] - Unreleased
 
+- Sources, Custom Rules and Log stop redrawing while waiting for you to tap
+  Apply. Their add and recording buttons remain accessible above the prompt.
+- Home updates an existing filter status message when the app language changes.
+  Hebrew Custom Rules now translates search, empty states and delete confirmation.
+
 - Applying a Discover preset now refreshes selected filters known to be out of
   date. A previous update check no longer makes the next download skip new rules.
 - Domain Checker shows matching wildcard allow rules. Checking a single domain

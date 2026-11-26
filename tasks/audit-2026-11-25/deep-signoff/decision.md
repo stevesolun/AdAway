@@ -4,10 +4,31 @@ The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
 for the subsequent deep-QA changes. It is not yet evidence of public delivery.
 
-**Final local Android 14 result, app commit `07d396dd0`:** 668 started and
+**Current local Android 14 result, app commit `17a7d1415`:** 669 started
+and finished in 611.905 s: **650 passed, 19 assumption skips, zero failures
+or errors**. See [each method and skip reason](idle-fix-android14-methods.csv).
+All 95 JVM suites completed (738 passed, three skipped, zero failures or
+errors). Android lint: 35 warnings and no errors. The non-root release APK
+was tested separately: [signed APK and checksum](signed-upgrade.md#final-signed-phone-candidate),
+[5,000 rapid inputs, real browser, DNS and change/undo paths](pending-apply-and-locale.md).
+The 5M imports below were matched on the import fix, not repeated for these
+UI changes. Neither local test gate authorizes a public release.
+
+Installed debug and test APK SHA-256 respectively:
+`fae1c5e0b4588b829529b5e0ca34fd4ed1262e3b10b697911819148abfcf3ee1`,
+`f22ef2b7da5481333ef8cde72fb461e4530020d27a46668322e4d18619742fe5`.
+Raw `deep-geometry-final/fab-final-suite.txt`:
+`73307da1197f6989ca53b51007e5984533e066c6f678bf448a943fd82d433726`.
+Skipped: two notifications, two prepared platform backups, one root, three
+opt-in benchmarks, one system download, ten prepared VPN/network scenarios.
+The focused Home class initially encountered an Android Bluetooth crash dialog;
+all seven passed unchanged after removing the overlay. An earlier partial
+suite was superseded by the idle-redraw fix and is not counted here.
+
+**Previous local Android 14 result, app commit `07d396dd0`:** 668 started and
 finished: **648 passed, 20 assumption skips, zero failures or errors** in
 625.588 s. See the [per-method results and skip reasons](final-android14-methods.csv)
-and the separate [signed phone candidate and checksum](signed-upgrade.md#final-signed-phone-candidate).
+and the separate [signed candidate for that run](signed-upgrade.md#domain-checker-phone-candidate).
 The suite ran the debug app; the upgrade, Chrome, DNS, rotation and picker
 checks ran the signed release app. The 5M stress runs below used the earlier
 memory fix; they were not rerun on each later UI change.
@@ -164,7 +185,7 @@ message after Remove Allow. A deterministic regression then observed a
 successful Block and its stored rule, recreated the screen and found the
 confirmation gone. With the fix at `bea8c023d`, two independent full runs of
 the Domain Checker package passed all 18 cases (21.630 s and 19.981 s).
-The [final signed candidate](signed-upgrade.md#final-signed-phone-candidate)
+The [Domain Checker signed candidate](signed-upgrade.md#domain-checker-phone-candidate)
 also retained the confirmation in landscape, cleared it on a new Check and
 restored DNS after Delete. We did not inject a failed write into the signed
 APK. A separate source-summary fix at `07d396dd0` was verified with a real

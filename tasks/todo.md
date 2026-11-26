@@ -37,14 +37,18 @@ The bounded beta release does not complete this ongoing audit.
   used a third non-regional HTTPS list plus an independently enabled local file.
 - [x] Recheck the combined candidate after fixes for reproduced cross-screen
   and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
-  Final Android 14: 648 passed, 20 skipped, zero failures (668 cases).
-  JVM: 737 passed, three skipped, zero failures. Handset testing remains user-deferred.
+  Final Android 14: 650 passed, 19 skipped, zero failures (669 cases).
+  JVM: 738 passed, three skipped, zero failures. Handset testing remains user-deferred.
 - [x] Retain Domain Checker feedback through recreation; two 18-case package
   runs passed, including forced write failure and retry. On the signed APK,
   Block survived rotation, the next Check cleared it and Delete restored DNS.
 - [x] Keep a fourth arbitrary URL (Firebog AdGuard DNS, 190k displayed) through
   an in-place upgrade. Confirm the independent single-rule file shows 1 host.
-  See the [final signed phone candidate](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
+  See the [signed Domain Checker candidate](audit-2026-11-25/deep-signoff/signed-upgrade.md#domain-checker-phone-candidate).
+- [x] Reproduce the idle redraw on Sources and Custom Rules. Recheck all three
+  affected action buttons, real redirect and Log block/unblock, a general
+  13k list, Chrome loads, and the large-text no-rules state on the
+  [updated signed candidate](audit-2026-11-25/deep-signoff/pending-apply-and-locale.md).
 
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.

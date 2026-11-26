@@ -6,6 +6,7 @@ one region, a root installation, or browser-extension cosmetic filtering.
 
 | Journey | Observed on a non-root emulator |
 | --- | --- |
+| Block a logged request and undo it | On the latest signed APK, www.example.com returned two IPv4 answers, then zero after Block and Apply, then two after removal and Apply. The same APK assigned and removed a test redirect. See [measurements and UI checks](pending-apply-and-locale.md). |
 | Enter a custom public URL | HaGeZi Multi LIGHT imported 85,887 rules and remained selected with the defaults. A different Dan Pollock URL imported 13,118; 25 unsupported lines were reported. |
 | Keep a third filter through an upgrade | Firebog's EasyPrivacy domain list showed 43k in the Sources UI before and after a public-to-local update and remained enabled. |
 | Keep a fourth arbitrary URL and use Domain Checker independently | Firebog's AdGuard DNS list stayed selected with a 190k badge across an in-place update. Block and Delete changed real VPN answers in both directions; the Block confirmation survived rotation. |
