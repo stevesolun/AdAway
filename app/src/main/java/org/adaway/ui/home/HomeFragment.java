@@ -648,10 +648,10 @@ public class HomeFragment extends Fragment {
     }
 
     private void bindState() {
-        this.homeViewModel.getState().observe(getViewLifecycleOwner(), text -> {
+        this.homeViewModel.getState().observe(getViewLifecycleOwner(), status -> {
             if (this.binding == null) return;
-            this.binding.content.stateTextView.setText(text);
-            if (text.isEmpty()) {
+            this.binding.content.stateTextView.setText(status == null ? null : status.resolve(requireContext()));
+            if (status == null) {
                 removeView(this.binding.content.stateTextView);
             } else {
                 showView(this.binding.content.stateTextView);

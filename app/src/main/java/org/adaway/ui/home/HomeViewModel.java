@@ -18,6 +18,7 @@ import org.adaway.db.dao.HostListItemDao;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.OperationStatus;
 import org.adaway.model.adblocking.AdBlockModel;
 
 import java.util.List;
@@ -58,7 +59,7 @@ public class HomeViewModel extends AndroidViewModel {
 
     private final MutableLiveData<Boolean> pending;
     private final MediatorLiveData<Boolean> homeApplied = new MediatorLiveData<>();
-    private final MediatorLiveData<String> state;
+    private final MediatorLiveData<OperationStatus> state;
     private final MutableLiveData<HostError> error;
     private final LiveData<FilterOperationState> filterOperationState;
     private final AtomicBoolean operationPending = new AtomicBoolean();
@@ -164,7 +165,7 @@ public class HomeViewModel extends AndroidViewModel {
         return this.pending;
     }
 
-    public LiveData<String> getState() {
+    public LiveData<OperationStatus> getState() {
         return this.state;
     }
 

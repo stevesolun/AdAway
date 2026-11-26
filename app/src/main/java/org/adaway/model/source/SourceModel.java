@@ -39,6 +39,7 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostEntry;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.model.OperationStatus;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.git.GitHostsSource;
 import org.adaway.util.AppExecutors;
@@ -158,7 +159,7 @@ public class SourceModel {
     /**
      * The model state.
      */
-    private final MutableLiveData<String> state;
+    private final MutableLiveData<OperationStatus> state;
     /**
      * The model progress (for in-app percentage display).
      */
@@ -229,8 +230,7 @@ public class SourceModel {
         this.hostListItemDao = database.hostsListItemDao();
         this.hostEntryDao = database.hostEntryDao();
         // Avoid setValue() here: SourceModel may be instantiated off the main thread (e.g. from WorkManager).
-        this.state = new MutableLiveData<>();
-        this.state.postValue("");
+        this.state = new MutableLiveData<>(null);
         this.progress = new MutableLiveData<>();
         this.progress.postValue(Progress.idle());
         this.multiPhaseProgress = new MutableLiveData<>();
@@ -249,7 +249,7 @@ public class SourceModel {
      *
      * @return The model state.
      */
-    public LiveData<String> getState() {
+    public LiveData<OperationStatus> getState() {
         return this.state;
     }
 
@@ -2111,8 +2111,8 @@ public class SourceModel {
     }
 
     private void setState(@StringRes int stateResId, Object... details) {
-        String state = this.context.getString(stateResId, details);
-        Timber.d("Source model state: %s.", state);
+        OperationStatus state = new OperationStatus(stateResId, details);
+        Timber.d("Source model state: %s.", state.resolve(this.context));
         this.state.postValue(state);
     }
 

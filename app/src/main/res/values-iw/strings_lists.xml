@@ -9,7 +9,17 @@
     <!-- Menu -->
     <string name="lists_menu_filter">סינון מארחים</string>
     <string name="lists_menu_filter_hint">חיפוש שם מארח…</string>
+    <string name="lists_search_domains_hint">חיפוש שמות מתחם…</string>
     <string name="lists_menu_toggle_sources">החלפת מקורות</string>
+    <string name="lists_state_retry">ניסיון חוזר</string>
+    <string name="lists_state_loading_title">הכללים נטענים</string>
+    <string name="lists_state_loading_message">כללי החסימה, ההיתר וההפניה שלך נטענים.</string>
+    <string name="lists_state_load_failed_title">לא ניתן לטעון את הכללים</string>
+    <string name="lists_state_load_failed_message">יש לבדוק את האחסון ואת מסד הנתונים ולנסות שוב.</string>
+    <string name="lists_state_no_rules_title">אין כללים בתצוגה הזו</string>
+    <string name="lists_state_no_rules_message">אפשר להוסיף מארח ללשונית הזו או לבדוק אם הכללים מרשימות הסינון מוסתרים.</string>
+    <string name="lists_state_no_matches_title">אין כללים תואמים</string>
+    <string name="lists_state_no_matches_message">אפשר לנסות לחפש חלק קצר יותר משם המתחם.</string>
     <!-- Edition dialog -->
     <string name="list_add_dialog_black">הוסף מארח לרשימה שחורה</string>
     <string name="list_add_dialog_white">הוסף מארח לרשימה לבנה</string>
@@ -17,7 +27,14 @@
     <string name="list_edit_dialog_black">ערוך מארח ברשימה שחורה</string>
     <string name="list_edit_dialog_white">ערוך מארח ברשימה לבנה</string>
     <string name="list_edit_dialog_redirect">ערוך הפנייה</string>
+    <string name="checkbox_list_context_move">העברה</string>
+    <string name="checkbox_list_override_downloaded_message">הכלל הזה הגיע ממקור שהורד. ליצור כלל אישי שיחליף אותו?</string>
+    <string name="checkbox_list_override_redirect_message">ליצור כלל היתר לשם המארח המדויק ולהשבית את ההפניה שהורדה? הפניות אחרות עבור המארח עדיין עשויות לפעול.</string>
+    <string name="list_delete_confirm_title">למחוק את הכלל?</string>
+    <string name="list_delete_confirm_message">למחוק את %1$s מהכללים שלך?</string>
+    <string name="list_delete_confirm_action">מחיקה</string>
     <string name="list_dialog_hostname">שם שרת:</string>
     <string name="list_dialog_wildcard">(תווים כלליים * ו ? מותרים)</string>
+    <string name="list_dialog_hostname_too_long">שם מארח או כלל עם תווים כלליים מוגבל ל־%1$d תווים.</string>
     <string name="list_dialog_ip">IP (IPv4 או IPv6):</string>
 </resources>

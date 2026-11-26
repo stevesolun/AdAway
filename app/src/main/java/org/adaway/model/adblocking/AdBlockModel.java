@@ -6,6 +6,7 @@ import androidx.annotation.StringRes;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import org.adaway.model.OperationStatus;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.root.RootModel;
 import org.adaway.model.vpn.VpnModel;
@@ -36,7 +37,7 @@ public abstract class AdBlockModel {
     /**
      * The model state.
      */
-    private final MutableLiveData<String> state;
+    private final MutableLiveData<OperationStatus> state;
 
     /**
      * Constructor.
@@ -102,13 +103,13 @@ public abstract class AdBlockModel {
      *
      * @return The model state.
      */
-    public LiveData<String> getState() {
+    public LiveData<OperationStatus> getState() {
         return this.state;
     }
 
     protected void setState(@StringRes int stateResId, Object... details) {
-        String state = this.context.getString(stateResId, details);
-        Timber.d(state);
+        OperationStatus state = new OperationStatus(stateResId, details);
+        Timber.d("%s", state.resolve(this.context));
         this.state.postValue(state);
     }
 

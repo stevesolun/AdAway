@@ -33,6 +33,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.test.core.app.ActivityScenario;
@@ -44,6 +46,7 @@ import androidx.test.runner.lifecycle.Stage;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
+import org.adaway.model.OperationStatus;
 import org.adaway.model.error.HostError;
 import org.adaway.model.update.Manifest;
 import org.adaway.model.update.UpdateModel;
@@ -232,6 +235,32 @@ public class HomeUpdateSignalErrorInstrumentedTest {
     }
 
     @Test(timeout = 60_000)
+    public void selectedSourceStatusUsesCurrentLanguageWithoutAnotherUpdate() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            LocaleListCompat previous = AppCompatDelegate.getApplicationLocales();
+            MutableLiveData<OperationStatus> sourceStatus =
+                    (MutableLiveData<OperationStatus>) this.application.getSourceModel().getState();
+            OperationStatus oldStatus = sourceStatus.getValue();
+            String label = "QA list 100%";
+            try {
+                scenario.onActivity(activity -> AppCompatDelegate.setApplicationLocales(
+                        LocaleListCompat.forLanguageTags("fr")));
+                scenario.onActivity(activity -> sourceStatus.setValue(
+                        new OperationStatus(R.string.status_parse_source, label)));
+                waitForTextView(scenario, R.id.stateTextView, "Analyse de la source " + label);
+                scenario.onActivity(activity -> AppCompatDelegate.setApplicationLocales(
+                        LocaleListCompat.forLanguageTags("en")));
+                waitForTextView(scenario, R.id.stateTextView, "Parsing " + label + " source");
+            } finally {
+                scenario.onActivity(activity -> {
+                    sourceStatus.setValue(oldStatus);
+                    AppCompatDelegate.setApplicationLocales(previous);
+                });
+            }
+        }
+    }
+
+    @Test(timeout = 60_000)
     public void acknowledgingDownloadFailureLeavesNewerStatusVisible() throws InterruptedException {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             publishHostError(scenario, HostError.DOWNLOAD_FAILED);
@@ -240,7 +269,8 @@ public class HomeUpdateSignalErrorInstrumentedTest {
             CountDownLatch rendered = new CountDownLatch(1);
             scenario.onActivity(activity -> {
                 HomeViewModel model = new ViewModelProvider(activity).get(HomeViewModel.class);
-                ((MutableLiveData<String>) model.getState()).setValue(state);
+                ((MutableLiveData<OperationStatus>) model.getState()).setValue(
+                        new OperationStatus(R.string.status_sync_database));
                 model.acknowledgeError(HostError.DOWNLOAD_FAILED);
                 // Finish after the preceding default-duration Home visibility animations.
                 ValueAnimator frameClock = ValueAnimator.ofFloat(0f, 1f);
@@ -324,22 +354,24 @@ public class HomeUpdateSignalErrorInstrumentedTest {
     private static void waitForVersionText(
             @NonNull ActivityScenario<HomeActivity> scenario,
             @NonNull String expectedText) {
+        waitForTextView(scenario, R.id.versionTextView, expectedText);
+    }
+
+    private static void waitForTextView(ActivityScenario<HomeActivity> scenario, int id, String expectedText) {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
         while (SystemClock.uptimeMillis() < deadline) {
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             final boolean[] matched = new boolean[1];
             scenario.onActivity(activity -> {
-                TextView versionTextView = activity.findViewById(R.id.versionTextView);
-                matched[0] = versionTextView != null
-                        && expectedText.contentEquals(versionTextView.getText())
-                        && versionTextView.isShown();
+                TextView view = activity.findViewById(id);
+                matched[0] = view != null && expectedText.contentEquals(view.getText()) && view.isShown();
             });
             if (matched[0]) {
                 return;
             }
             SystemClock.sleep(100L);
         }
-        throw new AssertionError("Version label did not show \"" + expectedText + "\".");
+        throw new AssertionError("Text view did not show \"" + expectedText + "\".");
     }
 
     private static void waitForResumedActivity(

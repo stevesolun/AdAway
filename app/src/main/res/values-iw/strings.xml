@@ -61,7 +61,7 @@
     <string name="status_retrieve">אחזור מקורות</string>
     <string name="status_download_source">מוריד את מקור %s</string>
     <string name="status_read_source">קורא את מקור %s</string>
-    <string name="status_parse_source">מנתח את מקור%s</string>
+    <string name="status_parse_source">מנתח את מקור %s</string>
     <string name="status_sync_database">מסנכרן חוקי מסד נתונים</string>
     <string name="status_revert">מאחזר לברירת מחדל את קובץ המארחים</string>
     <string name="status_revert_done">קובץ מארחים שוחזר לברירת מחדל</string>
