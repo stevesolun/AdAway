@@ -79,11 +79,21 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         certs = cls.exec([cls.java, '-jar', cls.tools / 'lib/apksigner.jar',
                          'verify', '--print-certs', cls.good]).stdout
         cls.cert = re.search(r'Signer #1 certificate SHA-256 digest: ([a-f0-9]+)', certs)[1]
-        cls.head = cls.exec(['git', 'rev-parse', 'HEAD']).stdout.strip()
+        cls.checkout = cls.work / 'tool checkout'
+        cls.exec(['git', 'init', '-q', cls.checkout])
+        cls.verifier = cls.checkout / 'VerifyReleaseArtifacts.java'
+        cls.smoke_script = cls.checkout / 'run-release-smoke.ps1'
+        for target in (cls.verifier, cls.smoke_script):
+            shutil.copyfile(ROOT / 'scripts' / target.name, target)
+        cls.exec(['git', 'add', '--', cls.verifier.name, cls.smoke_script.name], cwd=cls.checkout)
+        cls.exec(['git', '-c', 'user.name=QA', '-c', 'user.email=qa@example.invalid',
+                  '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'verifier fixture'],
+                 cwd=cls.checkout)
+        cls.head = cls.exec(['git', 'rev-parse', 'HEAD'], cwd=cls.checkout).stdout.strip()
 
     @classmethod
-    def exec(cls, args, *, env=None, binary=False, check=True):
-        result = subprocess.run([str(arg) for arg in args], cwd=ROOT, env=env or cls.env,
+    def exec(cls, args, *, env=None, binary=False, check=True, cwd=ROOT):
+        result = subprocess.run([str(arg) for arg in args], cwd=cwd, env=env or cls.env,
                                 capture_output=True, text=not binary, timeout=180)
         if check and result.returncode:
             raise AssertionError(f'Command failed ({result.returncode}): {args}\n'
@@ -165,8 +175,9 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
             signature=base64.b64encode(signed.stdout).decode())))
         self.checksum(self.manifest)
 
-    def verify(self, *, attested=False, extra=(), passed=True):
-        args = [self.java, '-cp', self.classes, 'VerifyReleaseArtifacts',
+    def verify(self, *, attested=False, extra=(), passed=True, cwd=ROOT, source=None):
+        launcher = [source] if source else ['-cp', self.classes, 'VerifyReleaseArtifacts']
+        args = [self.java, *launcher,
                 '--apk', self.apk, '--apk-sha256', str(self.apk) + '.sha256',
                 '--manifest', self.manifest, '--manifest-sha256', str(self.manifest) + '.sha256',
                 '--sbom', self.sbom, '--sbom-sha256', str(self.sbom) + '.sha256',
@@ -177,7 +188,7 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
                 '--report', self.report]
         if attested:
             args.append('--verify-attestations')
-        result = self.exec(args + list(extra), env=self.case_env, check=False)
+        result = self.exec(args + list(extra), env=self.case_env, check=False, cwd=cwd)
         self.assertEqual(passed, result.returncode == 0, result.stdout + result.stderr)
         if not passed:
             self.assertFalse(self.report.exists(), 'A stale passing report must not survive failure')
@@ -192,9 +203,30 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         self.assertIn('- APK identity: verified', text)
         self.assertIn('- APK versionCode: 130500', text)
         self.assertIn('- Artifact source commit: not-verified', text)
-        self.assertIn('- Tooling source commit: ' + self.head, text)
+        self.assertIn('- Tooling source commit: not-provided', text)
         self.assertNotIn('- Source commit:', text)
         self.assertFalse(self.calls())
+
+    def test_tooling_commit_follows_tracked_source_not_callers_checkout(self):
+        self.exec(['git', 'init', '-q', self.case])
+        self.exec(['git', '-c', 'user.name=QA', '-c', 'user.email=qa@example.invalid',
+                   '-c', 'commit.gpgSign=false', 'commit', '-q', '--allow-empty', '-m', 'fixture'],
+                  cwd=self.case)
+        self.case_env.update(GIT_DIR=str(self.case / '.git'), GIT_WORK_TREE=str(self.case))
+        self.verify(source=self.verifier, cwd=self.case)
+        self.assertIn('- Tooling source commit: ' + self.head, self.report.read_text())
+        copied = self.case / self.verifier.name
+        shutil.copyfile(self.verifier, copied)
+        self.verify(source=copied, cwd=ROOT)
+        self.assertIn('- Tooling source commit: not-provided', self.report.read_text())
+        self.exec(['git', 'add', '--', copied.name], cwd=self.case)
+        self.exec(['git', '-c', 'user.name=QA', '-c', 'user.email=qa@example.invalid',
+                   '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'copied verifier'],
+                  cwd=self.case)
+        with copied.open('a') as changed:
+            changed.write('\n// Local change not present in the commit.\n')
+        self.verify(source=copied, cwd=self.case)
+        self.assertIn('- Tooling source commit: not-provided', self.report.read_text())
 
     def test_non_apk_unsigned_and_extra_signer_fail_with_authenticated_metadata(self):
         plain = self.case / 'plain.apk'
@@ -250,7 +282,7 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         self.assertFalse(self.calls())
 
     def test_source_tag_commit_workflow_policy_covers_all_six_artifacts(self):
-        self.verify(attested=True)
+        self.verify(attested=True, source=self.verifier)
         text = self.report.read_text()
         self.assertIn('- Artifact source commit: ' + COMMIT, text)
         self.assertIn('- Tooling source commit: ' + self.head, text)
@@ -322,7 +354,7 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
 
     def smoke(self, *, passed=True, verify_only=True, certificate=None):
         report = self.case / 'smoke.md'
-        args = [self.pwsh, '-NoProfile', '-File', ROOT / 'scripts/run-release-smoke.ps1',
+        args = [self.pwsh, '-NoProfile', '-File', self.smoke_script,
                 '-ApkPath', self.apk, '-ReleaseTag', 'v13.5.0', '-ExpectedCertSha256',
                 self.cert if certificate is None else certificate,
                 '-PublicKeyBase64', self.public, '-ReportPath', report, '-LaunchWaitSeconds', '0']
@@ -429,7 +461,7 @@ class ReleaseArtifactIdentityTests(unittest.TestCase):
         self.assertFalse([call for call in self.calls() if call[0] == 'adb'])
 
     def test_readiness_binds_artifact_not_tooling_revision(self):
-        self.verify(attested=True)
+        self.verify(attested=True, source=self.verifier)
         smoke = self.smoke(verify_only=False)  # All device operations are the local fake adb.
         ux = self.case / 'ux.md'
         ux.write_text('# UX Sign-Off Report\n' + '\n'.join([

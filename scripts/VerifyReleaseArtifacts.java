@@ -365,14 +365,25 @@ public final class VerifyReleaseArtifacts {
     }
 
     private static String sourceCommit() {
+        String launcherSource = System.getProperty("jdk.launcher.sourcefile");
+        if (launcherSource == null) {
+            return "not-provided";
+        }
         try {
-            Process process = new ProcessBuilder("git", "rev-parse", "HEAD")
-                    .redirectErrorStream(true)
-                    .start();
+            Path source = Path.of(launcherSource).toRealPath();
+            String name = source.getFileName().toString();
+            if (!"VerifyReleaseArtifacts.java".equals(name)) {
+                return "not-provided";
+            }
+            // Require a tracked, unchanged verifier in its own checkout, not the caller's.
+            Process process = gitAt(source, "rev-parse", "HEAD", "HEAD:./" + name).start();
             String output = new String(process.getInputStream().readAllBytes(),
                     StandardCharsets.UTF_8).trim();
-            if (process.waitFor() == 0 && isSourceCommit(output)) {
-                return output.toLowerCase(Locale.ROOT);
+            String[] ids = output.split("\\R");
+            if (process.waitFor() == 0 && ids.length == 2 && isSourceCommit(ids[0])
+                    && isSourceCommit(ids[1]) && gitAt(source, "diff", "--quiet", "--no-ext-diff",
+                    ids[0], "--", name).start().waitFor() == 0) {
+                return ids[0].toLowerCase(Locale.ROOT);
             }
         } catch (IOException exception) {
             return "not-provided";
@@ -381,6 +392,18 @@ public final class VerifyReleaseArtifacts {
             return "not-provided";
         }
         return "not-provided";
+    }
+
+    private static ProcessBuilder gitAt(Path source, String... args) {
+        String[] command = new String[args.length + 1];
+        command[0] = "git";
+        System.arraycopy(args, 0, command, 1, args.length);
+        ProcessBuilder builder = new ProcessBuilder(command)
+                .directory(source.getParent().toFile()).redirectError(ProcessBuilder.Redirect.DISCARD);
+        for (String variable : List.of("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")) {
+            builder.environment().remove(variable);
+        }
+        return builder;
     }
 
     private static boolean isSourceCommit(String value) {
