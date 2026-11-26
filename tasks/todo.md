@@ -21,6 +21,13 @@ Post-release file and interaction checks: [post-beta review](audit-2026-11-25/va
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
 
+- [x] Merge the protected non-root audit baseline (#19; six required checks)
+  and reconcile its full Android results: 678 passed, 20 skipped, none failed.
+- [x] Verify ordinary single/multiple/mixed filter picks and 5,000 offline
+  inputs on the signed baseline. Reproduce misleading removal feedback, then
+  verify the scoped fix without disabling checked actions.
+  [Release handoff and boundaries](audit-2026-11-25/deep-signoff/nov26-release-handoff.md).
+
 - [x] Reproduce category write failures and stale switch states, correct saved-set
   ordering and retry, and preserve pending protection through tab and process
   recreation. [Nine filter findings](audit-2026-11-25/deep-source-category-bugs.csv).
