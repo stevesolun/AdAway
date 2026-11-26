@@ -36,6 +36,7 @@ import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.vpn.VpnModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -161,8 +162,12 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
         DiscoverFilterListsFragment fragment = new DiscoverFilterListsFragment();
         try (ActivityScenario<HomeActivity> scenario = mount(fragment)) {
             primeVpnCache();
+            sourceModel.pauseSync = true;
             scenario.onActivity(activity -> {
+                ((android.widget.CompoundButton) activity.findViewById(
+                        R.id.filterlistsShowSubscribedSwitch)).setChecked(true);
                 RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+                assertEquals(2, recycler.getAdapter().getItemCount());
                 RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(0);
                 assertNotNull(holder);
                 MaterialCheckBox selected = holder.itemView
@@ -170,6 +175,17 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
                 selected.setChecked(true);
                 removeBulk(fragment, false);
             });
+            try {
+                assertTrue(sourceModel.syncEntered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                UiEvidence.capture(application, "discover-removal-during-rebuild");
+                scenario.onActivity(activity -> {
+                    RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+                    assertEquals("Committed removal must not wait for rule synchronization",
+                            1, recycler.getAdapter().getItemCount());
+                });
+            } finally {
+                sourceModel.releaseSync.countDown();
+            }
             assertRemoved(SOURCE_ID, HOST);
             assertKept(SECOND_SOURCE_ID, SECOND_HOST);
             assertKept(UNRELATED_SOURCE_ID, UNRELATED_HOST);

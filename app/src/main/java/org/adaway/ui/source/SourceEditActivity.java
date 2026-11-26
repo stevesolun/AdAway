@@ -42,12 +42,6 @@ import static org.adaway.ui.Animations.hideView;
 import static org.adaway.ui.Animations.setHidden;
 import static org.adaway.ui.Animations.setShown;
 import static org.adaway.ui.Animations.showView;
-import static org.adaway.ui.source.SourceEditViewModel.KEY_HOUR_PREFIX;
-import static org.adaway.ui.source.SourceEditViewModel.KEY_LAST_RUN_PREFIX;
-import static org.adaway.ui.source.SourceEditViewModel.KEY_MINUTE_PREFIX;
-import static org.adaway.ui.source.SourceEditViewModel.KEY_SCHEDULE_PREFIX;
-import static org.adaway.ui.source.SourceEditViewModel.KEY_WEEKDAY_PREFIX;
-import static org.adaway.ui.source.SourceEditViewModel.PREFS_SOURCE_SCHEDULES;
 
 /**
  * This activity create, edit and delete a hosts source.
@@ -453,36 +447,24 @@ public class SourceEditActivity extends AppCompatActivity {
                 .setTitle(R.string.source_edit_auto_update)
                 .setItems(scheduleOptions, (d, which) -> {
                     if (which == 0) {
-                        saveSchedule(url, SCHEDULE_OFF, 1, 3, 0);
+                        SourceScheduleStore.save(this, url, SCHEDULE_OFF, 1, 3, 0);
                         FilterSetUpdateService.enable(this);
                         return;
                     }
                     if (which == 1) {
                         pickTime((hour, minute) -> {
-                            saveSchedule(url, SCHEDULE_DAILY, 1, hour, minute);
+                            SourceScheduleStore.save(this, url, SCHEDULE_DAILY, 1, hour, minute);
                             FilterSetUpdateService.enable(this);
                         });
                         return;
                     }
                     pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
-                        saveSchedule(url, SCHEDULE_WEEKLY, dowIso, hour, minute);
+                        SourceScheduleStore.save(this, url, SCHEDULE_WEEKLY, dowIso, hour, minute);
                         FilterSetUpdateService.enable(this);
                     }));
                 })
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
-    }
-
-    private void saveSchedule(String url, int schedule, int weekdayIso, int hour24, int minute) {
-        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
-        android.content.SharedPreferences.Editor e = prefs.edit();
-        e.putInt(KEY_SCHEDULE_PREFIX + url, schedule);
-        e.putInt(KEY_WEEKDAY_PREFIX + url, Math.max(1, Math.min(7, weekdayIso)));
-        e.putInt(KEY_HOUR_PREFIX + url, Math.max(0, Math.min(23, hour24)));
-        e.putInt(KEY_MINUTE_PREFIX + url, Math.max(0, Math.min(59, minute)));
-        // Reset last-run when schedule changes so it runs next occurrence.
-        e.remove(KEY_LAST_RUN_PREFIX + url);
-        e.apply();
     }
 
     private interface TimePicked {

@@ -23,11 +23,14 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
 import androidx.sqlite.db.SimpleSQLiteQuery;
@@ -295,10 +298,39 @@ public class ListsRuleActionsInstrumentedTest {
     }
 
     private static void longClickRowText(String expectedText) throws Exception {
-        performAccessibilityActionOnText(
-                expectedText,
-                AccessibilityNodeInfo.ACTION_LONG_CLICK,
-                "row long click");
+        long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            final boolean[] clicked = new boolean[1];
+            runOnResumedListsActivity(activity -> {
+                Fragment fragment = activity.getSupportFragmentManager()
+                        .findFragmentByTag("f" + BLOCKED_HOSTS_TAB);
+                if (fragment == null || fragment.getView() == null) {
+                    return;
+                }
+                RecyclerView list = fragment.getView().findViewById(R.id.hosts_lists_list);
+                // A committed toggle can still be rebinding/animating the paged rows. Resolve
+                // and long-click the current row atomically, not a cached accessibility node.
+                if (!list.isShown() || list.isLayoutRequested()
+                        || list.hasPendingAdapterUpdates() || list.isAnimating()) {
+                    return;
+                }
+                for (int index = 0; index < list.getChildCount(); index++) {
+                    View row = list.getChildAt(index);
+                    TextView text = row.findViewById(R.id.checkbox_list_text);
+                    if (row.isShown() && text != null && expectedText.contentEquals(text.getText())) {
+                        clicked[0] = row.performLongClick();
+                        return;
+                    }
+                }
+            });
+            if (clicked[0]) {
+                waitForAccessibilityText(ApplicationProvider.<Context>getApplicationContext()
+                        .getString(R.string.checkbox_list_context_title));
+                return;
+            }
+            SystemClock.sleep(100L);
+        }
+        throw new AssertionError("Could not long click settled row: " + expectedText);
     }
 
     private static void performAccessibilityActionOnText(

@@ -121,7 +121,8 @@
     <string name="filterlists_add_manually">Add manually</string>
     <string name="filterlists_last_run_review_title">Last FilterLists subscription</string>
     <string name="filterlists_last_run_review_empty">No review details are available for the last run.</string>
-    <string name="filterlists_unsubscribe_all_done">%1$d FilterLists sources removed</string>
+    <string name="filterlists_last_subscription">Last subscription: %1$s</string>
+    <string name="filterlists_unsubscribe_all_done">Sources removed: %1$d</string>
     <string name="filterlists_confirm_unsubscribe_title">Remove FilterLists source?</string>
     <string name="filterlists_confirm_unsubscribe_message">Remove "%1$s" and its downloaded rules?</string>
     <string name="filterlists_confirm_unsubscribe_action">Remove</string>
@@ -141,7 +142,7 @@
     <string name="filterlists_no_dns_safe_lists_in_scope">No DNS-safe lists in this scope</string>
     <string name="filterlists_no_dns_safe_selected_lists">No DNS-safe selected lists</string>
     <string name="filterlists_no_selected_lists">Select one or more FilterLists first</string>
-    <string name="filterlists_no_subscribed_selected_lists">No subscribed selected lists</string>
+    <string name="filterlists_no_subscribed_selected_lists">No saved subscription found for the selected lists</string>
     <string name="filterlists_no_direct_hosts_url">No direct hosts URL found for this entry. Use its homepage.</string>
     <string name="filterlists_no_direct_download_url">No direct download URL for this list</string>
     <string name="filterlists_resolve_url_failed">Failed to resolve list URL</string>

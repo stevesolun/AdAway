@@ -24,13 +24,6 @@ import org.adaway.util.AppExecutors;
 
 /** Owns one editor's save/delete work and its result across configuration changes. */
 public class SourceEditViewModel extends AndroidViewModel {
-    static final String PREFS_SOURCE_SCHEDULES = org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
-    static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
-    static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
-    static final String KEY_HOUR_PREFIX = "hour_url_";
-    static final String KEY_MINUTE_PREFIX = "minute_url_";
-    static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
-
     enum Status {
         IDLE(0),
         PENDING(0),
@@ -135,7 +128,7 @@ public class SourceEditViewModel extends AndroidViewModel {
             }
             if (error == 0) {
                 if (previousUrl[0] != null) {
-                    clearSchedule(previousUrl[0]);
+                    SourceScheduleStore.clear(getApplication(), previousUrl[0]);
                 }
                 FilterSetStore.markCustomProfile(getApplication());
                 if (needsDownload[0]) {
@@ -179,7 +172,7 @@ public class SourceEditViewModel extends AndroidViewModel {
                 error = R.string.source_edit_save_failed;
             }
             if (error == 0) {
-                clearSchedule(deletedUrl[0]);
+                SourceScheduleStore.clear(getApplication(), deletedUrl[0]);
                 FilterSetStore.markCustomProfile(getApplication());
             }
             postMutationResult(error);
@@ -198,17 +191,5 @@ public class SourceEditViewModel extends AndroidViewModel {
             result = Status.FAILED;
         }
         AppExecutors.getInstance().mainThread().execute(() -> this.mStatus.setValue(result));
-    }
-
-    private void clearSchedule(String url) {
-        android.content.SharedPreferences prefs = getApplication().getSharedPreferences(
-                PREFS_SOURCE_SCHEDULES, android.content.Context.MODE_PRIVATE);
-        prefs.edit()
-                .remove(KEY_SCHEDULE_PREFIX + url)
-                .remove(KEY_WEEKDAY_PREFIX + url)
-                .remove(KEY_HOUR_PREFIX + url)
-                .remove(KEY_MINUTE_PREFIX + url)
-                .remove(KEY_LAST_RUN_PREFIX + url)
-                .apply();
     }
 }

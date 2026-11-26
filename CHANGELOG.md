@@ -2,6 +2,13 @@
 
 ## [13.5.7b] - Unreleased
 
+- Discover shows removed filters disappearing from Show subscribed without
+  waiting for the rule rebuild. The last subscription result is labeled as
+  history; removing checked filters reports how many were removed.
+- Schedule and saved-set edits request a new Android backup. Reopening and
+  confirming an unchanged URL schedule no longer resets its last-run time.
+  Backup availability and timing are controlled by Android.
+
 - Sources remembers which categories you collapsed when you rotate or change
   tabs. A category switch now changes its filters together: a failed write
   leaves the previous selection intact and lets you retry.

@@ -171,6 +171,11 @@ public class ApplyConfigurationSnackbar {
         };
     }
 
+    public void notifyUpdateAvailable(@NonNull CharSequence message) {
+        this.notifySnackbar.setText(message);
+        notifyUpdateAvailable();
+    }
+
     /**
      * Notify update available.
      */

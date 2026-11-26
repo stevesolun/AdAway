@@ -447,6 +447,9 @@ subscriptions. Bulk subscribe processes DNS-safe formats by default. Use
 an individual switch to opt into domain extraction from a mixed-format list.
 Selecting a row is not itself a subscription. A browser-only list may have
 no DNS-compatible rules; choosing it cannot make those rules work at the domain level.
+After removal, **Show subscribed** reflects the saved sources before the rule
+rebuild finishes. **Last subscription** describes the previous addition,
+not how many sources are currently subscribed.
 
 ### Apply a Quick-Start Preset
 
@@ -560,6 +563,8 @@ apply. File-source read permission must be granted again when it is no longer av
 Android's system backup, when enabled and available, also includes app preferences,
 saved filter sets, and global and per-source schedules. After Android restores that
 backup, AdAway reconciles the restored schedules with its background worker.
+Changing a saved set or schedule requests a future backup; Android decides
+when to run it. Confirming an unchanged schedule does not reset its last run.
 
 ### Force English Locale
 

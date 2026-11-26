@@ -73,9 +73,10 @@ variant, pass `-e backupSchedules off` to **both** instrumentation commands.
 
 ## Open boundaries
 
-- Both transports in these tests were forced with `bmgr backupnow`. The
-  app's schedule preference writers do not themselves request a key/value
-  backup. Do not assume a schedule-only edit is promptly backed up on a phone.
+- Both schedule variants used the same local transport and a forced
+  `bmgr backupnow`. A [subsequent queue test](nov26-release-handoff.md#android-backup-notification)
+  verifies that real schedule edits now request a key/value backup. That
+  request does not establish when a phone or cloud service will complete it.
   [Android's change-notification contract](https://developer.android.com/reference/android/app/backup/BackupManager#dataChanged()).
 - The fresh database now reserves its user row before import, but catalog
   defaults are still seeded asynchronously. This test preserved a disabled

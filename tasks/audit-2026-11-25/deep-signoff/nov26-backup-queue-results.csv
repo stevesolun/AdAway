@@ -1,0 +1,16 @@
+case,expected_pending,red_pending,red_action,red_result,green_pending,green_action,green_result
+create,1,0,OK,FAIL,1,OK,PASS
+setTime,1,0,OK,FAIL,1,OK,PASS
+global,1,0,OK,FAIL,1,OK,PASS
+unchanged,0,0,OK,PASS,0,OK,PASS
+housekeeping,0,0,OK,PASS,0,OK,PASS
+restoreInput,0,0,OK,PASS,0,OK,PASS
+cancel,0,0,OK,PASS,0,OK,PASS
+managerUrl,1,0,OK,FAIL,1,OK,PASS
+editorUrl,1,0,OK,FAIL,1,OK,PASS
+editorNoop,0,0,FAIL,FAIL,0,OK,PASS
+globalDisable,1,0,OK,FAIL,1,OK,PASS
+setOff,1,0,OK,FAIL,1,OK,PASS
+membership,1,0,OK,FAIL,1,OK,PASS
+rename,1,0,OK,FAIL,1,OK,PASS
+delete,1,0,OK,FAIL,1,OK,PASS

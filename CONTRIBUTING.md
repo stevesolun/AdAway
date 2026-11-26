@@ -72,9 +72,12 @@ export PATH="$JAVA_HOME/bin:$PATH"
 3. Launch a debug build:
 `./gradlew assembleDebug`
 
-For debug signing isolation, signed production builds, and required signing and
-update-trust inputs, follow the [release guide](RELEASING.md#4-building-release-apk).
-Release trust checks remain required.
+Without release signing properties, this uses the local debug key.
+For signed production builds and their required signing and update-trust inputs,
+follow the [release guide](RELEASING.md). Release trust checks remain required.
+
+Debug builds also use the debug signing configuration when release signing
+properties are supplied; see [debug signing isolation](RELEASING.md#4-building-release-apk).
 
 The first full build of the apk can take a lot of time, about 20 minutes, whereas an incremental build of the `app` module takes less than a dozen seconds.
 

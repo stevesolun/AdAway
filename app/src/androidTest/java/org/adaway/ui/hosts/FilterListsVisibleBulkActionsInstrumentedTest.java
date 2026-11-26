@@ -29,10 +29,13 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.NotificationHelper;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.junit.After;
 import org.junit.Before;
@@ -83,6 +86,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
     public void setUp() throws Exception {
         context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(context, "set up FilterLists visible bulk");
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
         NotificationHelper.createNotificationChannels(context);
         AppDatabase.getInstance(context).hostsSourceDao().deleteAll();
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -131,6 +135,8 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             setSearchQuery(scenario, SEARCH_QUERY);
             waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_SAFE_NAME);
             waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_UNSUPPORTED_NAME);
+            // Drop the stale URL on disk; the visible row has already cached it in memory.
+            assertTrue(prefs.edit().remove("listUrl_" + VISIBLE_SAFE_ID).commit());
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
             clickRowChildForText(scenario, VISIBLE_UNSUPPORTED_NAME,
@@ -143,7 +149,8 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForAccessibilityText(VISIBLE_UNSUPPORTED_URL);
             clickExactAccessibilityText("Close");
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
-            waitForAccessibilityText("No subscribed selected lists");
+            waitForAccessibilityText("No saved subscription found for the selected lists");
+            UiEvidence.capture(context, "discover-no-saved-subscription");
 
             clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
                     R.id.filterlistsItemSelectionCheckBox);
@@ -159,8 +166,9 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             assertEquals(VISIBLE_SAFE_NAME, subscribed.getFilterListName());
             assertEquals(VISIBLE_SAFE_URL, subscribed.getFilterListSelectedUrl());
             waitForText(scenario, R.id.filterlistsSubscribeAllStatus,
-                    "Added 1 | Already 0 | No URL 0 | Unsupported 1");
+                    "Last subscription: Added 1 | Already 0 | No URL 0 | Unsupported 1");
             waitForRecyclerRowText(scenario, R.id.filterlistsItemStatus, "Subscribed");
+            UiEvidence.capture(context, "discover-subscription-history");
 
             assertEquals(1, dependencies.updateEnqueued.get());
             assertEquals(Collections.singletonList(VISIBLE_SAFE_ID),
@@ -180,6 +188,9 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             clickExactAccessibilityText("Unsubscribe selected");
 
             waitForSource(VISIBLE_SAFE_URL, false);
+            waitForAccessibilityText("Sources removed: 1");
+            waitForAccessibilityText("No matching lists");
+            UiEvidence.capture(context, "discover-removed");
             assertTrue("Hidden FilterLists source must survive visible remove",
                     AppDatabase.getInstance(context).hostsSourceDao()
                             .getByUrl(HIDDEN_SAFE_URL)
@@ -189,6 +200,13 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
         }
+        try (ActivityScenario<HomeActivity> revisit = ActivityScenario.launch(HomeActivity.class)) {
+            revisit.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForText(revisit, R.id.filterlistsSubscribeAllStatus, "Last subscription: Added 1");
+            setSwitchChecked(revisit, R.id.filterlistsShowSubscribedSwitch, true);
+            waitForRecyclerOnlyRowText(revisit, HIDDEN_SAFE_NAME, VISIBLE_SAFE_NAME);
+            UiEvidence.capture(context, "discover-revisited");
+        }
     }
 
     private void seedCachedDirectory() {
@@ -196,6 +214,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
         SharedPreferences.Editor editor = prefs.edit()
                 .clear()
                 .putString("listsJson", listsJson())
+                .putString("listUrl_" + VISIBLE_SAFE_ID, "https://obsolete.invalid/hosts")
                 .putString("syntaxesJson", "["
                         + "{\"id\":1,\"name\":\"Hosts\"},"
                         + "{\"id\":3,\"name\":\"Browser rules\"}"

@@ -213,7 +213,8 @@ public class DiscoverFilterListsFragment extends Fragment {
 
         // Observe live DB changes to update subscribed state
         final FragmentDiscoverFilterlistsBinding observedBinding = binding;
-        hostsSourceDao.loadAll().observe(getViewLifecycleOwner(), sources -> {
+        var sourceRows = hostsSourceDao.loadAll();
+        sourceRows.observe(getViewLifecycleOwner(), sources -> {
             if (this.binding == null) return;
             final List<HostsSource> snapshot = sources != null ? new ArrayList<>(sources) : null;
             AppExecutors.getInstance().diskIO().execute(() -> {
@@ -226,7 +227,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                     }
                 }
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding != observedBinding) return;
+                    if (this.binding != observedBinding || sourceRows.getValue() != sources) return;
                     mSubscriptionsLoaded = true;
                     existingUrls.clear();
                     existingUrls.addAll(urls);
@@ -304,7 +305,8 @@ public class DiscoverFilterListsFragment extends Fragment {
                         String finalSummary = formatSubscribeAllResult(info);
                         if (finalSummary != null) {
                             binding.filterlistsSubscribeAllStatus.setVisibility(View.VISIBLE);
-                            binding.filterlistsSubscribeAllStatus.setText(finalSummary);
+                            binding.filterlistsSubscribeAllStatus.setText(getString(
+                                    R.string.filterlists_last_subscription, finalSummary));
                         } else {
                             binding.filterlistsSubscribeAllStatus.setVisibility(View.GONE);
                         }
@@ -757,13 +759,13 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     @Nullable
     private String getCachedUrlForId(@NonNull Context context, int id) {
-        synchronized (resolvedUrlCache) {
-            String url = resolvedUrlCache.get(id);
-            if (url != null) return normalizeCachedUrl(url);
-        }
         String sourceUrl = getSourceUrlForFilterListId(id);
         if (sourceUrl != null) {
             return sourceUrl;
+        }
+        synchronized (resolvedUrlCache) {
+            String url = resolvedUrlCache.get(id);
+            if (url != null) return normalizeCachedUrl(url);
         }
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String url;
@@ -1184,34 +1186,41 @@ public class DiscoverFilterListsFragment extends Fragment {
                 }
             }
 
-            int removed = 0;
+            Set<String> removedUrls = new HashSet<>();
             for (String url : filterListUrls) {
                 HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
                 if (existing != null) {
                     hostsSourceDao.delete(existing);
-                    removed++;
+                    removedUrls.add(url);
                 }
             }
-            if (removed > 0) {
-                ((AdAwayApplication) appContext).getSourceModel().syncHostEntries();
-            }
-
-            int removedCount = removed;
+            // Source membership is committed; the runtime rule rebuild can take longer.
             runOnMainThreadIfAdded(() -> {
-                existingUrls.removeAll(filterListUrls);
-                bulkOperationRunning = false;
-                refreshBulkActionsState();
+                existingUrls.removeAll(removedUrls);
+                synchronized (existingFilterListUrlsById) {
+                    existingFilterListUrlsById.values().removeAll(removedUrls);
+                }
                 if (mSubscribedOnly) {
                     filter();
                 } else {
                     notifyFilterListRowsChanged();
                 }
-                if (removedCount > 0) {
+            });
+            if (!removedUrls.isEmpty()) {
+                ((AdAwayApplication) appContext).getSourceModel().syncHostEntries();
+            }
+            runOnMainThreadIfAdded(() -> {
+                bulkOperationRunning = false;
+                refreshBulkActionsState();
+                notifyFilterListRowsChanged();
+                String result = getString(R.string.filterlists_unsubscribe_all_done,
+                        removedUrls.size());
+                if (!removedUrls.isEmpty()) {
                     if (activeSnackbar != null) activeSnackbar.dismiss();
                     new ApplyConfigurationSnackbar(binding.getRoot(), false, false)
-                            .notifyUpdateAvailable();
+                            .notifyUpdateAvailable(result);
                 } else {
-                    showSnackbar(getString(R.string.filterlists_unsubscribe_all_done, removedCount));
+                    showSnackbar(result);
                 }
             });
         });
