@@ -59,6 +59,10 @@ The bounded beta release does not complete this ongoing audit.
 - [x] Verify the repeated 5M refresh low-memory fix on the retained
   3 GiB emulator with [matched evidence](audit-2026-11-25/deep-stress-bugs.csv).
 - [ ] Merge the batched fixes only when all six required PR checks pass.
+- [x] Verify release cleanup cannot remove a published APK or update manifest;
+  24 mock scenarios passed and a read-only preview of this fork found no
+  eligible releases even with retention set to zero. The workflow is local
+  until merged. See the [delivery findings](audit-2026-11-25/deep-release-delivery-bugs.csv).
 - [x] Verify non-regional, on-device browsing and direct DNS on the signed
   phone candidate; check in-place filter retention and debug/release signer
   separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
