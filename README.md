@@ -1,6 +1,6 @@
 # ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway
 
-**AdAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
+**AdAway** is an open-source domain blocker for Android. Without root, it uses a local VPN to filter DNS requests that reach it. It can block listed advertising and tracking domains, but not ads served from the same domain as a page or traffic that bypasses its DNS.
 
 AdAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 categorized filter management, and one-tap onboarding.
@@ -58,11 +58,10 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 
 ### Performance
 
-- Parallel download + parse pipeline using all available CPU cores
+- Concurrent downloads with bounded parser workers and one database import writer
 - Conditional GET skips re-downloading unchanged lists (ETag / Last-Modified)
-- Batch DB inserts (5000 hosts per transaction)
-- WAL mode — reads never block writes
-- Global host deduplication — same host from multiple sources stored once
+- Batched database writes and staging for large lists
+- Source-specific rules are retained so Domain Checker can identify matching lists
 - OkHttp connection pool tuning — larger pool, more parallel connections
 
 ### Safety
@@ -89,9 +88,9 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases) and select
    the release or beta you intend to install.
 2. Download its `AdAway_<version>.apk` asset and read its upgrade notes.
-3. **If you have the official AdAway installed**, uninstall it first — different signing key.
-4. Open the APK on your device → allow "Install unknown apps" if prompted.
-5. Open AdAway and complete one-tap onboarding.
+3. **Already using this fork?** Install the APK over your existing app if the signing key matches. Do not uninstall a working copy just to update it.
+4. **Switching from upstream or a differently signed build?** Android cannot install this APK over it. Before uninstalling, export the rules and sources you want to keep to a file outside the app. Uninstalling removes app data. The JSON backup does not include preferences.
+5. Open the APK on your device and allow "Install unknown apps" for the installer if prompted. For a new installation, choose VPN and approve Android's consent prompt. Use **More → Backup & Restore** to restore a compatible backup, then update the sources.
 
 ### Requirements
 
@@ -102,7 +101,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 > **Note**: CI debug artifacts are signed with a debug key. Tagged GitHub
 > releases must be production-signed and pass APK hash, package, version, and
 > signing-certificate verification before upload. Android prevents updating over
-> the official AdAway when signing keys differ. Uninstall first.
+> the official AdAway when signing keys differ. Follow the backup steps above before switching.
 
 For this fork's prior beta signing compatibility, follow the
 [changelog's upgrade notes](CHANGELOG.md). The in-app updater reports download,
@@ -390,6 +389,7 @@ signingStorePassword=your_store_password
 signingKeyAlias=your_key_alias
 signingKeyPassword=your_key_password
 updateManifestPublicKeyBase64=base64_encoded_spki_public_key
+releaseSigningCertificateSha256=trusted_release_certificate_sha256
 ```
 
 ### CI/CD — Automatic Releases
@@ -479,6 +479,12 @@ update-manifest trust material above.
 4. The list is added and enabled; downloading and applying starts automatically.
    See [Source Update Feedback](#source-update-feedback).
 
+For a batch, check the rows you want, then use **Subscribe selected** or
+**Unsubscribe selected**. **Show subscribed** narrows the view to existing
+subscriptions. Selecting a row is not itself a subscription. A browser-only
+list may have no DNS-compatible rules; choosing it cannot make those rules
+work at the domain level.
+
 ### Apply a Quick-Start Preset
 
 1. Tap the **Discover** tab.
@@ -564,7 +570,7 @@ results, not for domains already allowed by a filter.
 
 ### Backup & Restore
 
-1. **More → Preferences → Backup & Restore**.
+1. **More → Backup & Restore**.
 2. **Backup** — exports filter sources and custom rules as JSON; app preferences
    are not included.
 3. **Restore** — imports from a backup file. If another operation is in progress,
@@ -578,7 +584,7 @@ apply. File-source read permission must be granted again when it is no longer av
 
 Some Android versions override language settings. To lock AdAway in English:
 1. **More → Preferences → General → Force English**.
-2. Force-stop and relaunch the app.
+2. The app switches its interface to English. Turn the setting off to follow the system language again.
 
 ---
 
@@ -622,10 +628,10 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 | Samsung Pay / OEM feature broken | Disable the **DEVICE** category |
 | Filter list not updating | Follow [Source Update Feedback](#source-update-feedback) to inspect and retry the failed source |
 | App crashes on subscribe | Reopen the app and retry; report repeated failures through [this fork's issues](https://github.com/stevesolun/AdAway/issues) |
-| Can't install over official AdAway | Uninstall the official AdAway first (different signing key) |
+| Can't install over official AdAway | Different signing key. Follow the [backup and installation steps](#download-apk-quickest) before removing anything. |
 | "Install unknown apps" blocked | Android Settings → Apps → Special app access → Install unknown apps |
 | Domain Checker result is unexpected | See [Check If a Domain Is Blocked](#check-if-a-domain-is-blocked) for result meanings and allow-rule controls |
-| Force English not working | Force-stop the app after toggling the setting |
+| Some text stays in English | Turning off **Force English** follows your system language; strings without a translation still use English. |
 
 ---
 

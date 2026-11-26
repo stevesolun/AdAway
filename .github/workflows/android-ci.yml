@@ -138,6 +138,9 @@ jobs:
           python3 scripts/tests/test_release_artifact_identity.py
           ReleaseArtifactIdentityTests.test_real_gh_accepts_generated_policy_before_reading_local_evidence
 
+      - name: Verify release cleanup cannot remove distributed assets
+        run: bash scripts/tests/cleanup-releases-safety.Tests.sh
+
       - name: Run unit tests
         run: ./gradlew test --dependency-verification=strict --stacktrace
 
