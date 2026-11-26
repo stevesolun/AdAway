@@ -1,5 +1,7 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -29,7 +31,6 @@ import timber.log.Timber;
  * Periodic worker that updates sources for scheduled filter sets.
  */
 public class FilterSetUpdateWorker extends Worker {
-    private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
     private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
     private static final String KEY_HOUR_PREFIX = "hour_url_";
@@ -149,6 +150,10 @@ public class FilterSetUpdateWorker extends Worker {
                     dueSourceIds.add(source.getId());
                 }
                 sourceModel.retrieveHostsSources(dueSourceIds);
+            }
+            // Constraints can be lost during retrieval. Leave the schedules due for the next run.
+            if (isStopped()) {
+                return Result.retry();
             }
             adBlockModel.apply();
         } catch (HostErrorException e) {

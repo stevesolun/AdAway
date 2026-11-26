@@ -322,7 +322,8 @@ public class HomeLaunchNavigationStateInstrumentedTest {
             assertEquals("A terminal parser state must not consume the authorized request.",
                     0, this.testAdBlockModel.applyCount.get());
             external.close();
-            assertProtectionStatus(scenario, R.string.home_protection_status_active);
+            // The fake accepts the enable but never establishes a platform tunnel.
+            assertProtectionStatus(scenario, R.string.home_protection_status_vpn_disconnected);
             waitForProtectionControl(scenario, true);
             scenario.onActivity(activity ->
                     assertFalse(homeModel(activity).hasAuthorizedVpnEnableRequest()));

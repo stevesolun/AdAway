@@ -51,6 +51,7 @@ import org.adaway.ui.hosts.FilterSetUpdateWorker;
 import org.adaway.ui.lists.ListsActivity;
 import org.adaway.ui.prefs.PrefsActivity;
 import org.adaway.util.AppExecutors;
+import org.adaway.vpn.VpnStatus;
 
 import java.text.NumberFormat;
 import java.util.List;
@@ -89,6 +90,7 @@ public class HomeFragment extends Fragment {
     @Nullable
     private Observer<Integer> redirectHostCountObserver;
     private boolean hostCountersAttached = false;
+    private boolean vpnTunnelEstablished;
     private boolean hostCountersPrimedDuringImport = false;
     @Nullable
     private String lastTerminalProgressAnnouncement;
@@ -131,6 +133,7 @@ public class HomeFragment extends Fragment {
         dismissDownloadErrorDialog();
         detachHostCounterObservers();
         this.initialBlockedCount = -1;
+        this.vpnTunnelEstablished = false;
         this.hostCountersPrimedDuringImport = false;
         this.filterListsProgress = null;
         this.scheduledProgress = null;
@@ -726,7 +729,6 @@ public class HomeFragment extends Fragment {
     private void notifyAdBlocked(boolean adBlocked) {
         if (this.binding == null) return;
         renderProtectionControl();
-        renderProtectionStatus();
         this.binding.content.headerFrameLayout.setBackgroundColor(
                 getResources().getColor(R.color.ui_bg, null));
         renderLeakStatus();
@@ -737,28 +739,30 @@ public class HomeFragment extends Fragment {
         boolean applied = Boolean.TRUE.equals(this.homeViewModel.isAdBlocked().getValue());
         Integer blocked = this.blockedHostCountLiveData == null
                 ? null : this.blockedHostCountLiveData.getValue();
-        boolean hasBlockingRules = blocked != null && blocked > 0;
-        int status;
-        if (!applied) {
-            status = R.string.home_protection_status_inactive;
-        } else if (blocked == null) {
-            status = PreferenceHelper.getAdBlockMethod(requireContext()) == VPN
-                    ? R.string.home_protection_status_vpn_checking_rules
-                    : R.string.home_protection_status_checking_rules;
-        } else if (!hasBlockingRules) {
-            status = PreferenceHelper.getAdBlockMethod(requireContext()) == VPN
-                    ? R.string.home_protection_status_vpn_no_rules
-                    : R.string.home_protection_status_no_rules;
-        } else {
-            status = R.string.home_protection_status_active;
-        }
+        boolean vpn = PreferenceHelper.getAdBlockMethod(requireContext()) == VPN;
+        int status = protectionStatus(applied, vpn, this.vpnTunnelEstablished,
+                vpn && PreferenceHelper.getVpnServiceStatus(requireContext()) == VpnStatus.WAITING_FOR_NETWORK,
+                blocked);
         this.binding.content.protectionStatusTextView.setMaxLines(Integer.MAX_VALUE);
         this.binding.content.protectionStatusTextView.setEllipsize(null);
         this.binding.content.protectionStatusTextView.setText(status);
         int color = !applied ? R.color.home_protection_off_text
-                : hasBlockingRules ? R.color.home_protection_on_text : R.color.ui_text_primary;
+                : status == R.string.home_protection_status_active
+                ? R.color.home_protection_on_text : R.color.ui_text_primary;
         this.binding.content.protectionStatusTextView.setTextColor(
                 getResources().getColor(color, null));
+    }
+
+    static int protectionStatus(boolean applied, boolean vpn, boolean established,
+                                boolean waiting, @Nullable Integer blocked) {
+        if (!applied) return R.string.home_protection_status_inactive;
+        if (vpn && waiting) return R.string.home_protection_status_vpn_waiting;
+        if (vpn && !established) return R.string.home_protection_status_vpn_disconnected;
+        if (blocked == null) return vpn ? R.string.home_protection_status_vpn_checking_rules
+                : R.string.home_protection_status_checking_rules;
+        if (blocked <= 0) return vpn ? R.string.home_protection_status_vpn_no_rules
+                : R.string.home_protection_status_no_rules;
+        return R.string.home_protection_status_active;
     }
 
     private void notifyError(HostError error) {
@@ -814,6 +818,7 @@ public class HomeFragment extends Fragment {
     private void renderLeakStatus() {
         if (this.binding == null) return;
         LeakStatus status = LeakStatus.from(requireContext());
+        onVpnTunnelObserved(status.vpnRunning);
         int riskCount = status.riskCount();
         this.binding.content.leakStatusSummaryTextView.setText(status.hasRisks()
                 ? getResources().getQuantityString(
@@ -828,6 +833,11 @@ public class HomeFragment extends Fragment {
                 showVpnSettingsButton ? View.VISIBLE : View.GONE);
         this.binding.content.leakStatusActions.setVisibility(
                 showPrivateDnsButton || showVpnSettingsButton ? View.VISIBLE : View.GONE);
+    }
+
+    void onVpnTunnelObserved(boolean established) {
+        this.vpnTunnelEstablished = established;
+        renderProtectionStatus();
     }
 
     private String buildLeakStatusDetails(LeakStatus status) {

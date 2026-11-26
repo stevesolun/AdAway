@@ -7,6 +7,8 @@
     <string name="redirect_hosts_label">מופנה</string>
     <string name="home_protection_status_active">ההגנה פעילה</string>
     <string name="home_protection_status_inactive">ההגנה כבויה</string>
+    <string name="home_protection_status_vpn_waiting">ה־VPN מופעל וממתין לרשת</string>
+    <string name="home_protection_status_vpn_disconnected">ה־VPN מופעל אך אינו מחובר</string>
     <string name="home_protection_control">חסימת פרסומות</string>
     <string name="home_vpn_permission_required">לא ניתן אישור להפעלת ה־VPN. ההגנה נשארה כבויה.</string>
     <string name="home_protection_status_vpn_no_rules">ה־VPN מופעל, אך לא נטענו כללי חסימה</string>

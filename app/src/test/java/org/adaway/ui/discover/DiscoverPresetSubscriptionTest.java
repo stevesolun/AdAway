@@ -276,6 +276,7 @@ public class DiscoverPresetSubscriptionTest {
                 "app/src/main/java/org/adaway/ui/source/SourceEditActivity.java");
         String schedules = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/SchedulesActivity.java");
+        String picker = readRepoFile("app/src/main/java/org/adaway/ui/hosts/SchedulePicker.java");
         String strings = readRepoFile("app/src/main/res/values/strings.xml");
 
         assertTrue("Filter-set schedule snackbars must use a string resource.",
@@ -283,9 +284,11 @@ public class DiscoverPresetSubscriptionTest {
         assertFalse("Filter-set schedule snackbars must not hard-code English copy.",
                 hosts.contains("\"Scheduled: \""));
         assertTrue("Schedule pickers must use localized weekday labels.",
-                hosts.contains("getWeekdayLabels()") &&
+                hosts.contains("SchedulePicker.forSet(") &&
                         sourceEdit.contains("getWeekdayLabels()") &&
-                        schedules.contains("getWeekdayLabels()"));
+                        schedules.contains("SchedulePicker.forSet(") &&
+                        picker.contains("getDisplayName(TextStyle.FULL,") &&
+                        picker.contains("Locale.getDefault()"));
         assertFalse("Hosts schedule picker must not hard-code Monday.",
                 hosts.contains("\"Monday\""));
         assertFalse("Source schedule picker must not hard-code Monday.",

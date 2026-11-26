@@ -1,5 +1,7 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.util.Constants.PREFS_FILTER_SETS;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -29,7 +31,6 @@ import java.util.UUID;
  * Stores by URL, because URL is unique in the DB.
  */
 public final class FilterSetStore {
-    private static final String PREFS_FILTER_SETS = "filter_sets";
     private static final String KEY_SET_NAMES = "names";
     private static final String KEY_SET_PREFIX = "set_";
     private static final String KEY_SET_IDS = "ids";

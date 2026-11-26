@@ -24,7 +24,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.format.DateFormat;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -63,13 +62,10 @@ import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
-import java.time.DayOfWeek;
-import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -630,41 +626,21 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void promptScheduleForOne(String name, @Nullable Set<String> pendingUrls) {
-        CharSequence[] scheduleOptions = new CharSequence[]{
-                getString(R.string.filter_set_schedule_off),
-                getString(R.string.filter_set_schedule_daily),
-                getString(R.string.filter_set_schedule_weekly)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle(name)
-                .setItems(scheduleOptions, (d, which) -> {
-                    if (which == 0) {
+        Context context = requireContext();
+        SchedulePicker picker = pendingUrls == null
+                ? SchedulePicker.forSet(context, name) : SchedulePicker.unsaved();
+        picker.show(context, name, R.string.filter_set_schedule_off, true,
+                (cadence, day, hour, minute, label) -> {
+                    if (cadence == FilterSetStore.SCHEDULE_OFF) {
                         if (pendingUrls == null) {
-                            FilterSetStore.setSchedule(requireContext(), name,
-                                    FilterSetStore.SCHEDULE_OFF);
-                            FilterSetUpdateService.enable(requireContext());
+                            FilterSetStore.setSchedule(context, name, cadence);
+                            FilterSetUpdateService.syncPreferences(context);
                         }
-                        showScheduleApplied(scheduleOptions[which]);
-                        return;
+                    } else {
+                        saveConfirmedSchedule(name, pendingUrls, cadence, day, hour, minute);
                     }
-                    if (which == 1) {
-                        // Daily -> pick time
-                        pickTime((hour, minute) -> {
-                            saveConfirmedSchedule(name, pendingUrls,
-                                    FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
-                            showScheduleApplied(scheduleOptions[which]);
-                        });
-                        return;
-                    }
-                    // Weekly -> pick day then time
-                    pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
-                        saveConfirmedSchedule(name, pendingUrls,
-                                FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
-                        showScheduleApplied(scheduleOptions[which]);
-                    }));
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+                    showScheduleApplied(label);
+                });
     }
 
     private void saveConfirmedSchedule(String name, @Nullable Set<String> pendingUrls,
@@ -675,50 +651,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         } else {
             FilterSetStore.setSchedule(requireContext(), name, schedule, weekdayIso, hour, minute);
         }
-        FilterSetUpdateService.enable(requireContext());
+        FilterSetUpdateService.syncPreferences(requireContext());
     }
 
     private void showScheduleApplied(@NonNull CharSequence scheduleLabel) {
         Toast.makeText(requireContext(), getString(R.string.filter_set_schedule_applied, scheduleLabel),
                 Toast.LENGTH_SHORT).show();
-    }
-
-    private interface TimePicked {
-        void onPicked(int hour24, int minute);
-    }
-
-    private void pickTime(@NonNull TimePicked picked) {
-        java.util.Calendar c = java.util.Calendar.getInstance();
-        int hour = c.get(java.util.Calendar.HOUR_OF_DAY);
-        int minute = c.get(java.util.Calendar.MINUTE);
-        new android.app.TimePickerDialog(
-                requireContext(),
-                (view, hourOfDay, minuteOfHour) -> picked.onPicked(hourOfDay, minuteOfHour),
-                hour,
-                minute,
-                DateFormat.is24HourFormat(requireContext())
-        ).show();
-    }
-
-    private interface DayPicked {
-        void onPicked(int isoDay);
-    }
-
-    private void pickDayOfWeek(@NonNull DayPicked picked) {
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
-    }
-
-    @NonNull
-    private String[] getWeekdayLabels() {
-        String[] labels = new String[DayOfWeek.values().length];
-        for (int i = 0; i < labels.length; i++) {
-            labels[i] = DayOfWeek.of(i + 1).getDisplayName(TextStyle.FULL, Locale.getDefault());
-        }
-        return labels;
     }
 
     /**

@@ -12,12 +12,15 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.ActivityManager;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.SystemClock;
+import android.service.notification.StatusBarNotification;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
@@ -28,6 +31,7 @@ import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
 import org.adaway.R;
+import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.ui.home.HomeActivity;
@@ -139,6 +143,45 @@ public class VpnLifecycleInstrumentedTest {
             SystemClock.sleep(100);
         } while (SystemClock.elapsedRealtime() < end);
         throw new AssertionError("Expected " + want + "; visible card: " + actual[0]);
+    }
+
+    @Test
+    public void offlineRequestedServiceUpdatesItsForegroundNotification() throws Exception {
+        assumeTrue("Requires an explicitly offline disposable device.", "true".equals(
+                InstrumentationRegistry.getArguments().getString("adawayOfflineVpnNotification")));
+        assumeTrue(this.originalStatus == STOPPED && !hasAnyVpnNetwork());
+        assumeTrue(this.context.getSystemService(ConnectivityManager.class).getActiveNetwork() == null);
+        NotificationManager manager = this.context.getSystemService(NotificationManager.class);
+        assumeTrue(manager.areNotificationsEnabled());
+        this.lifecycleStarted = true;
+        assertTrue(VpnServiceControls.start(this.context));
+        waitUntilStatus(VpnStatus.WAITING_FOR_NETWORK, LIFECYCLE_TIMEOUT_MS);
+        assertTrue("Keep the user's request while waiting", VpnServiceControls.isStarted(this.context));
+        String expected = this.context.getString(R.string.vpn_notification_title,
+                this.context.getString(R.string.vpn_notification_waiting_for_net));
+        String actual = null;
+        long deadline = SystemClock.elapsedRealtime() + 8_000;
+        do {
+            boolean duplicate = false;
+            boolean waitingForeground = false;
+            for (StatusBarNotification item : manager.getActiveNotifications()) {
+                if (item.getId() == NotificationHelper.VPN_RESUME_SERVICE_NOTIFICATION_ID) {
+                    duplicate = true;
+                }
+                if (item.getId() == NotificationHelper.VPN_RUNNING_SERVICE_NOTIFICATION_ID) {
+                    Notification n = item.getNotification();
+                    actual = n.extras.getString(Notification.EXTRA_TITLE);
+                    waitingForeground = expected.equals(actual)
+                            && (n.flags & Notification.FLAG_FOREGROUND_SERVICE) != 0
+                            && n.actions != null && n.actions.length == 1
+                            && this.context.getString(R.string.vpn_notification_action_pause)
+                                    .contentEquals(n.actions[0].title);
+                }
+            }
+            if (waitingForeground && !duplicate) return;
+            SystemClock.sleep(100);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        throw new AssertionError("Expected one foreground notification: " + expected + "; got " + actual);
     }
 
     @Test

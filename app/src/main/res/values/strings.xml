@@ -362,7 +362,7 @@
     <string name="vpn_notification_starting">starting</string>
     <string name="vpn_notification_running">active</string>
     <string name="vpn_notification_stopping">stopping</string>
-    <string name="vpn_notification_waiting_for_net">wait for network</string>
+    <string name="vpn_notification_waiting_for_net">waiting for network</string>
     <string name="vpn_notification_reconnecting">reconnecting</string>
     <string name="vpn_notification_reconnecting_error">reconnecting error</string>
 

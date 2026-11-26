@@ -8,6 +8,8 @@
     <string name="home_count_zero">0</string>
     <string name="home_protection_status_active">Protection active</string>
     <string name="home_protection_status_inactive">Protection off</string>
+    <string name="home_protection_status_vpn_waiting">VPN enabled; waiting for network</string>
+    <string name="home_protection_status_vpn_disconnected">VPN enabled; not connected</string>
     <string name="home_protection_control">Ad blocking</string>
     <string name="home_vpn_permission_required">VPN permission was not granted. Protection remains off.</string>
     <string name="home_protection_status_vpn_no_rules">VPN enabled; no blocking rules loaded</string>
