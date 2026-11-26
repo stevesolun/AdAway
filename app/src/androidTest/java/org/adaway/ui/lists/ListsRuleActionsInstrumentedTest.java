@@ -15,6 +15,8 @@ import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.adaway.ui.lists.ListsActivity.BLOCKED_HOSTS_TAB;
 import static org.adaway.ui.lists.ListsActivity.TAB;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -121,6 +123,7 @@ public class ListsRuleActionsInstrumentedTest {
     public void userRuleCanToggleEditCancelDeleteAndConfirmDelete() throws Exception {
         insertListItem(BLOCKED, USER_HOST, true, USER_SOURCE_ID);
         insertListItem(BLOCKED, DELETE_USER_HOST, true, USER_SOURCE_ID);
+        int editedRuleId = this.hostListItemDao.getHostId(USER_HOST).orElseThrow();
         int deletedRuleId = this.hostListItemDao.getHostId(DELETE_USER_HOST).orElseThrow();
 
         launchBlockedLists();
@@ -140,7 +143,14 @@ public class ListsRuleActionsInstrumentedTest {
         setEditTextValues(EDITED_USER_HOST);
         clickAccessibilityText(this.context.getString(R.string.button_save));
         waitForRuleCount(BLOCKED, EDITED_USER_HOST, USER_SOURCE_ID, true, 1);
-        waitForRuleCount(BLOCKED, USER_HOST, USER_SOURCE_ID, true, 0);
+        HostListItem edited = this.hostListItemDao.getById(editedRuleId);
+        assertNotNull("Edit must preserve the original rule ID", edited);
+        assertEquals(EDITED_USER_HOST, edited.getHost());
+        assertEquals(USER_SOURCE_ID, edited.getSourceId());
+        assertEquals(BLOCKED, edited.getType());
+        assertTrue(edited.isEnabled());
+        assertFalse("Old hostname must not remain as a user rule",
+                this.hostListItemDao.getHostId(USER_HOST).isPresent());
 
         longClickRowText(DELETE_USER_HOST);
         clickAccessibilityText(this.context.getString(R.string.checkbox_list_context_delete));
