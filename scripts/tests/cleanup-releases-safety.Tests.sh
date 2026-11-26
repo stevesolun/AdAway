@@ -21,6 +21,8 @@ unset GH_TOKEN GH_REPO GITHUB_TOKEN
 export BASH_ENV=/dev/null
 export MOCK_LOG="$fixture/gh.log"
 
+# run_case supplies these mock variables to the child shell that invokes gh.
+# shellcheck disable=SC2153
 gh() {
     printf '%s\n' "$*" >> "$MOCK_LOG"
     case "$*" in

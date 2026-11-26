@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">VPN always-on abilitata</string>
     <string name="welcome_vpn_alwayson_description">AdAway ha rilevato che un\'altra VPN ha l\'impostazione \"VPN always-on\" attiva.\n\nCiò impedisce ad AdAway di richiedere l\'accesso VPN. Disattiva \"VPN always-on\" sulla VPN e riprova.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway non è riuscito a richiedere l\'accesso alla VPN.\n\nPotrebbe dipendere dal fatto che un\'altra VPN ha l\'impostazione \"VPN always-on\" attiva. Controlla se una diversa VPN ha questa impostazione abilitata e disabilitala prima di riprovare.</string>
     <string name="welcome_vpn_alwayson_settings_action">Apri Impostazioni \"VPN\"</string>
 
 

@@ -28,7 +28,6 @@
     <string name="onboarding_vpn_denied_description">Protection is off. To try again, choose VPN Mode and approve the Android connection request.</string>
     <string name="welcome_vpn_alwayson_title">Always-on VPN enabled</string>
     <string name="welcome_vpn_alwayson_description">AdAway detected that another VPN has the "Always-on VPN" setting active.\n\nThis prevents AdAway from requesting VPN access. Please disable "Always-on VPN" on the correspondent VPN and try again.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway failed to request VPN access.\n\nThis might be caused because another VPN has the "Always-on VPN" setting active. Please, check if any VPN has this setting enabled and disable it before trying again.</string>
     <string name="welcome_vpn_alwayson_settings_action">Open "VPN" Settings</string>
 
 

@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">Aktívne \"VPN vždy zapnuté\"</string>
     <string name="welcome_vpn_alwayson_description">Aplikácia AdAway zistila, že iná sieť VPN má aktívne nastavenie \"VPN vždy zapnuté\".\n\nTo zabraňuje AdAway požadovať prístup k sieti VPN. Prosím, vypnite \"VPN vždy zapnuté\" na príslušnej VPN a skúste to znova.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">Aplikácii AdAway sa nepodarilo vyžiadať prístup k sieti VPN.\n\nMôže to byť spôsobené tým, že iná sieť VPN má aktívne nastavenie \"VPN vždy zapnuté\". Pred ďalším pokusom skontrolujte, či má niektorá VPN toto nastavenie povolené, a vypnite ho.</string>
     <string name="welcome_vpn_alwayson_settings_action">Otvoriť nastavenie \"VPN\"</string>
 
 

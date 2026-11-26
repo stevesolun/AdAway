@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">Ενεργοποιημένο VPN Πάντα-ενεργό</string>
     <string name="welcome_vpn_alwayson_description">Το AdAway εντόπισε ότι ένα άλλο VPN έχει ενεργή τη ρύθμιση \"VPN Πάντα-ενεργό\".\in\Αυτό εμποδίζει το AdAway να ζητήσει πρόσβαση VPN. Απενεργοποιήστε το \"VPN Πάντα-ενεργό\" στο αντίστοιχο VPN και δοκιμάστε ξανά.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">Το AdAway απέτυχε να ζητήσει πρόσβαση VPN.\n\nΑυτό μπορεί να οφείλεται στο ότι ένα άλλο VPN έχει ενεργή τη ρύθμιση \"Πάντα ενεργό VPN\". Ελέγξτε εάν κάποιο VPN έχει ενεργοποιημένη αυτήν τη ρύθμιση και απενεργοποιήστε το πριν προσπαθήσετε ξανά.</string>
     <string name="welcome_vpn_alwayson_settings_action">Ανοίξτε τις Ρυθμίσεις \"VPN\".</string>
 
 

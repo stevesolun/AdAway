@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">永遠開啟 VPN 已啟用</string>
     <string name="welcome_vpn_alwayson_description">AdAway 檢測到另一個 VPN 已啟用了「永遠開啟 VPN」的設定。\n\n這會阻止 AdAway 請求 VPN 存取權限。請停用該 VPN 的「永遠開啟 VPN」設定後再重試。</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway 無法請求 VPN 存取權限。\n\n這可能是因為另一個 VPN 已啟用了「永遠開啟 VPN」設定。請檢查是否有任何 VPN 啟用了此設定，並在嘗試前將其停用。</string>
     <string name="welcome_vpn_alwayson_settings_action">開啟「VPN」設定</string>
 
 

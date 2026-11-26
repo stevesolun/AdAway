@@ -158,7 +158,6 @@
     <string name="menu_manage_schedules">Manage schedules</string>
     <string name="schedule_global_title">Global updates</string>
     <string name="schedule_global_desc">Automatically update all enabled sources</string>
-    <string name="schedule_edit">Edit schedule</string>
     <string name="schedule_off">Off</string>
     <string name="schedule_daily_at">Daily at %1$s</string>
     <string name="schedule_weekly_at">Weekly on %1$s at %2$s</string>

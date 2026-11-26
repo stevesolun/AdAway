@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">VPN همیشه روشن فعال است</string>
     <string name="welcome_vpn_alwayson_description">AdAway تشخیص داد که VPN دیگری دارای تنظیم \"VPN همیشه روشن\" فعال است که مانع از درخواست AdAway برای دسترسی به VPN می شود لطفا «VPN همیشه روشن» را از تنظیمات VPN گوشی غیرفعال کرده و دوباره امتحان کنید</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway در درخواست دسترسی VPN ناموفق بود این ممکن است به این دلیل باشد که یک VPN دیگر دارای تنظیم \"VPN همیشه روشن\" فعال است لطفا بررسی کنید که آیا VPN این تنظیم را فعال کرده است یا خیر و قبل از تلاش دوباره آن را غیرفعال کنید</string>
     <string name="welcome_vpn_alwayson_settings_action">تنظیمات \"VPN\" باز شود</string>
 
 
