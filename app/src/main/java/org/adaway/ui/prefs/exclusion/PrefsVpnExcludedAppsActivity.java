@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
@@ -19,7 +20,6 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.helper.ThemeHelper;
 
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,12 +56,19 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
         binding.vpnExcludedAppList.setLayoutManager(linearLayoutManager);
         // Create recycler adapter
         this.userApplications = getUserApplications();
+        if (this.userApplications.length == 0) {
+            binding.vpnExcludedAppList.setVisibility(View.GONE);
+            binding.vpnExcludedAppEmpty.setVisibility(View.VISIBLE);
+        }
         this.adapter = new UserAppRecycleViewAdapter(this);
         binding.vpnExcludedAppList.setAdapter(this.adapter);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        if (this.userApplications.length == 0) {
+            return false;
+        }
         MenuInflater menuInflater = getMenuInflater();
         menuInflater.inflate(R.menu.vpn_excluded_app_menu, menu);
         return true;
@@ -89,12 +96,10 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
     public UserApp[] getUserApplications() {
         if (this.userApplications == null) {
             PackageManager packageManager = getPackageManager();
-            ApplicationInfo self = getApplicationInfo();
             Set<String> excludedApps = PreferenceHelper.getVpnExcludedApps(this);
 
             this.userApplications = packageManager.getInstalledApplications(0).stream()
-                    .filter(applicationInfo -> (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0)
-                    .filter(applicationInfo -> !Objects.equals(applicationInfo.name, self.name))
+                    .filter(applicationInfo -> isSelectableUserApp(applicationInfo, getPackageName()))
                     .map(applicationInfo -> new UserApp(
                             packageManager.getApplicationLabel(applicationInfo),
                             applicationInfo.packageName,
@@ -105,6 +110,10 @@ public class PrefsVpnExcludedAppsActivity extends AppCompatActivity implements E
                     .toArray(UserApp[]::new);
         }
         return this.userApplications;
+    }
+
+    static boolean isSelectableUserApp(ApplicationInfo app, String ownPackage) {
+        return (app.flags & ApplicationInfo.FLAG_SYSTEM) == 0 && !ownPackage.equals(app.packageName);
     }
 
     @Override

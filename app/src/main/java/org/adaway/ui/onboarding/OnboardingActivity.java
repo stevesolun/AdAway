@@ -199,18 +199,20 @@ public class OnboardingActivity extends AppCompatActivity {
     }
 
     private void checkAlwaysOnVpn() {
-        int message = R.string.welcome_vpn_alwayson_description;
+        boolean otherAlwaysOn = false;
         try {
             String alwaysOn = Settings.Secure.getString(
                     getContentResolver(), "always_on_vpn_app");
-            if (alwaysOn == null) return;
-        } catch (SecurityException e) {
-            message = R.string.welcome_vpn_alwayson_blocked_description;
+            otherAlwaysOn = alwaysOn != null && !alwaysOn.isEmpty()
+                    && !getPackageName().equals(alwaysOn);
+        } catch (SecurityException ignored) {
+            // A restricted setting is not evidence of an always-on VPN.
         }
-        final int finalMessage = message;
         new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.welcome_vpn_alwayson_title)
-                .setMessage(finalMessage)
+                .setTitle(otherAlwaysOn ? R.string.welcome_vpn_alwayson_title
+                        : R.string.onboarding_vpn_denied_title)
+                .setMessage(otherAlwaysOn ? R.string.welcome_vpn_alwayson_description
+                        : R.string.onboarding_vpn_denied_description)
                 .setNegativeButton(R.string.button_close, null)
                 .setPositiveButton(R.string.welcome_vpn_alwayson_settings_action,
                         (dialog, which) -> startActivity(

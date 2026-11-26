@@ -807,8 +807,8 @@ AC_DEFUN(AC_LBL_CHECK_64BIT_FORMAT,
       [
 	AC_DEFINE(PRId64, "$1d", [define if the platform doesn't define PRId64])
 	AC_DEFINE(PRIo64, "$1o", [define if the platform doesn't define PRIo64])
-	AC_DEFINE(PRIx64, "$1x", [define if the platform doesn't define PRIu64])
-	AC_DEFINE(PRIu64, "$1u", [define if the platform doesn't define PRIx64])
+	AC_DEFINE(PRIx64, "$1x", [define if the platform doesn't define PRIx64])
+	AC_DEFINE(PRIu64, "$1u", [define if the platform doesn't define PRIu64])
 	AC_MSG_RESULT(yes)
       ],
       [
@@ -1161,7 +1161,7 @@ AC_DEFUN(AC_STRUCT_ADDRINFO, [
 	AC_MSG_RESULT($$1)
 	if test $$1 = yes; then
 		AC_DEFINE(HAVE_ADDRINFO, 1,
-		    [define if you have the addrinfo function])
+		    [define if <netdb.h> declares struct addrinfo])
 	else
 		AC_DEFINE(NEED_ADDRINFO_H, 1,
 		    [define if you need to include missing/addrinfo.h])

@@ -12,6 +12,8 @@
     <!-- Status badge colors (deep) -->
     <color name="status_red">#8B0000</color>
     <color name="status_green">#006400</color>
+    <color name="home_protection_off_text">#FF9D95</color>
+    <color name="home_protection_on_text">#86D99C</color>
     <!-- Modern UI surfaces (glassmorphism) -->
     <!-- Marine / royal deep blues (avoid near-black) -->
     <color name="ui_bg">#061B3A</color>

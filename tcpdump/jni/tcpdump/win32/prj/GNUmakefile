@@ -12,7 +12,7 @@ CFLAGS = -I ${PCAP_DIR}/wpcap/libpcap/bpf \
 	-I ${PCAP_DIR}/wpcap/libpcap \
 	-I ${PCAP_DIR}/wpcap/libpcap/Win32/Include \
 	-I ${PCAP_DIR}/wpcap/libpcap/Win32/Include/net \
-	-I ../../Win32/Include -I ../../linux-Include \
+	-I ../Include \
 	-I ../../lbl -I../.. \
 	-DWIN32 -DINET6 -DHAVE_ADDRINFO=1 -DHAVE_SOCKADDR_STORAGE=1 \
 	-DHAVE_PCAP_LIST_DATALINKS=1 -DHAVE_PCAP_SET_DATALINK=1 \
@@ -35,8 +35,6 @@ OBJS = \
 	../../missing/inet_aton.o \
 	../../missing/inet_ntop.o \
 	../../missing/strlcpy.o \
-	../../missing/dlnames.o \
-	../../missing/datalinks.o \
 	../../missing/strsep.o \
 	../../missing/inet_pton.o \
 	../../missing/getopt_long.o \
@@ -160,10 +158,43 @@ OBJS = \
 	../../print-syslog.o \
 	../../print-dccp.o \
 	../../print-bt.o \
+	../../in_cksum.o \
+	../../print-802_15_4.o \
+	../../print-ahcp.o \
+	../../print-aoe.o \
+	../../print-babel.o \
+	../../print-calm-fast.o \
+	../../print-carp.o \
+	../../print-forces.o \
+	../../print-ftp.o \
+	../../print-geneve.o \
+	../../print-geonet.o \
+	../../print-http.o \
+	../../print-ipnet.o \
+	../../print-loopback.o \
+	../../print-m3ua.o \
+	../../print-mptcp.o \
+	../../print-msnlb.o \
+	../../print-nflog.o \
+	../../print-openflow-1.0.o \
+	../../print-openflow.o \
+	../../print-otv.o \
+	../../print-pktap.o \
+	../../print-ppi.o \
+	../../print-rtsp.o \
+	../../print-smtp.o \
+	../../print-tipc.o \
+	../../print-usb.o \
+	../../print-vxlan.o \
+	../../print-zeromq.o \
+	../../print-rpki-rtr.o \
 	../../signature.o
 
-main: ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o windump.exe ${OBJS} ${LIBS}
+.PHONY: main install clean
+main: windump.exe
+
+windump.exe: ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@ ${OBJS} ${LIBS}
 
 install: windump.exe
 	cp windump.exe c:/windows

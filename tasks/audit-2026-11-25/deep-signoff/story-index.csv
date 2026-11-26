@@ -1,0 +1,105 @@
+story_id,feature,disposition,oracle_ids
+AUDIT-001,Full repository and workflow audit,"Umbrella; this map is an input, not full-repository signoff.",
+OCT-001,URL filter subscription,Historical umbrella: see SRC-003/004 and RUNTIME-001.,
+OCT-002,Data pipeline reliability,Historical umbrella: see RUNTIME-001..006/010.,
+OCT-003,VPN and DNS reliability,Historical umbrella: see RUNTIME-008/009/011/012.,
+OCT-004,App state and discovery,"Historical umbrella: see HOME, DISC and NAV.",
+OCT-005,Signed Android release candidate,Historical release candidate; not execution on the target build.,
+HOME-001,Launch shell,Mapped; inspect individual oracles.,WF:HOME-QA-005; ON-01
+HOME-002,Bottom navigation,Mapped; inspect individual oracles.,WF:HOME-QA-005
+HOME-003,Protection applied state,Mapped; inspect individual oracles.,WF:HOME-QA-001; WF:HOME-QA-002; WF:HOME-QA-003; WF:HOME-QA-004; H-01; T-02
+HOME-004,Host counters,Mapped; inspect individual oracles.,WF:HOME-QA-007; H-01
+HOME-005,Source freshness counters,Mapped; inspect individual oracles.,WF:HOME-QA-006; H-01
+HOME-006,Update actions,Mapped; inspect individual oracles.,WF:HOME-QA-006; H-02; N-02
+HOME-007,Update progress,Mapped; inspect individual oracles.,H-03
+HOME-008,Pause resume update,Mapped; inspect individual oracles.,H-04
+HOME-009,Stop update,Mapped; inspect individual oracles.,H-05
+HOME-010,Leak status,Mapped; inspect individual oracles.,WF:HOME-QA-008; H-06; V-06; PV-03
+HOME-011,App update signal,Mapped; inspect individual oracles.,WF:HOME-QA-009
+HOME-012,Error dialog,Mapped; inspect individual oracles.,WF:PB-QA-H01; WF:PB-QA-H02; H-07
+ONB-001,First-run mode selection,Mapped; inspect individual oracles.,WF:HOME-QA-003; WF:HOME-QA-004; ON-01; ON-02; ON-03; ON-04; F-03; F-04
+ONB-002,Default list subscription,Mapped; inspect individual oracles.,ON-05
+DISC-001,Catalog categories,No active curated catalog route (CAT-001..013); active directory tag filters are a different UI.,
+DISC-002,Quick presets,Mapped; inspect individual oracles.,WF:DISC-002; WF:DISC-003; WF:DISC-004
+DISC-003,Profile status,Mapped; inspect individual oracles.,WF:DISC-005
+DISC-004,FilterLists directory load,Mapped; inspect individual oracles.,WF:DISC-001; WF:DISC-006; WF:DISC-007; WF:DISC-008; WF:DISC-009; WF:DISC-059; WF:DISC-060
+DISC-005,Directory search filters,Mapped; inspect individual oracles.,WF:DISC-010; WF:DISC-011; WF:DISC-012; WF:DISC-013; WF:DISC-015; WF:DISC-016; WF:DISC-017; WF:DISC-018; WF:DISC-019; WF:DISC-020; WF:DISC-021
+DISC-006,Compatibility gating,Mapped; inspect individual oracles.,WF:DISC-014; WF:DISC-022; WF:DISC-023; WF:DISC-024; WF:DISC-025; WF:DISC-034; WF:DISC-035; WF:DISC-036; WF:DISC-037; WF:DISC-038
+DISC-007,Subscribe selected or all lists,Mapped; inspect individual oracles.,WF:DISC-026; WF:DISC-027; WF:DISC-028; WF:DISC-034; WF:DISC-035; WF:DISC-036; WF:DISC-037; WF:DISC-038; WF:DISC-056; WF:DISC-057; WF:DISC-058; F-06
+DISC-008,Bulk remove,Mapped; inspect individual oracles.,WF:DISC-029; WF:DISC-030; WF:DISC-031; WF:DISC-039; WF:DISC-040; WF:DISC-041; WF:DISC-056; WF:DISC-057; WF:DISC-058
+DISC-009,Bulk progress cancel retry,Mapped; inspect individual oracles.,WF:DISC-042; WF:DISC-043; WF:DISC-044; WF:DISC-045; WF:DISC-046; WF:DISC-047; WF:DISC-048; WF:DISC-049; WF:DISC-050; WF:DISC-051; WF:DISC-052; WF:DISC-053; WF:DISC-054; WF:DISC-055; N-06
+DISC-010,Unsupported list review,Mapped; inspect individual oracles.,WF:DISC-032; WF:DISC-033; WF:DISC-050; WF:DISC-051
+NAV-001,Discover deep entry,Mapped; inspect individual oracles.,WF:DISC-001; WF:SRC-016; WF:SRC-017; WF:SRC-018; WF:SRC-019; WF:HOME-QA-009; WF:PB-QA-H01
+SRC-001,Categorized source list,Mapped; inspect individual oracles.,WF:SRC-001; WF:SRC-002; WF:SRC-004; WF:SRC-015; WF:SRC-046; WF:SRC-047; WF:LEG-001; WF:LEG-002; M-04
+SRC-002,Enable disable source,Mapped; inspect individual oracles.,WF:SRC-003; WF:SRC-005; WF:SRC-011; WF:SRC-012; WF:SRC-013; WF:SRC-014; WF:SRC-048; F-01; F-05
+SRC-003,Add custom source,Mapped; inspect individual oracles.,WF:DISC-022; WF:DISC-023; WF:DISC-024; WF:DISC-025; WF:SRC-016; WF:SRC-017; WF:SRC-018; WF:SRC-019; WF:SITE-004; E-01; E-02; E-03
+SRC-004,Edit source metadata,Mapped; inspect individual oracles.,WF:SRC-006; E-02; E-03; E-04; E-05
+SRC-005,Update all sources,Mapped; inspect individual oracles.,WF:SRC-007; WF:SRC-008; WF:SRC-009; WF:SRC-010; WF:SRC-011; WF:SRC-012; WF:SRC-013; WF:SRC-014; F-01; F-05
+SRC-006,Save filter set,Mapped; inspect individual oracles.,WF:SRC-020; WF:SRC-021; WF:SRC-022
+SRC-007,Apply filter set,Mapped; inspect individual oracles.,WF:SRC-028; WF:SRC-029; WF:SRC-030; WF:SRC-031; WF:SRC-032; WF:SRC-033; WF:SRC-034; WF:SRC-035; WF:SRC-036
+SRC-008,Manage filter sets,Mapped; inspect individual oracles.,WF:SRC-023; WF:SRC-024; WF:SRC-025; WF:SRC-026; WF:SRC-027; WF:SRC-045
+SRC-009,Schedule filter set,Mapped; inspect individual oracles.,WF:SRC-037; WF:SRC-038; WF:SRC-039; WF:SRC-040; WF:SRC-041; WF:SRC-042; WF:SRC-043; WF:SRC-044; WF:SCH-001; WF:SCH-002; WF:SCH-003; WF:SCH-004; WF:SCH-005; WF:SCH-006; WF:SCH-007; WF:SCH-008; WF:SCH-009; WF:SCH-010; WF:SCH-011; WF:SCH-012; WF:SCH-013; WF:SCH-014; WF:SCH-015; WF:SCH-016; WF:SCH-017; WF:SCH-018; WF:SCH-019; WF:SCH-020; E-07; S-03
+SRC-010,Delete source,Mapped; inspect individual oracles.,E-06
+LIST-001,Blocked allowed redirected tabs,Mapped; inspect individual oracles.,WF:HOME-QA-007; M-03; L-01
+LIST-002,Search rules,Mapped; inspect individual oracles.,L-02; L-03; L-11
+LIST-003,Add user rule,Mapped; inspect individual oracles.,L-04; L-10
+LIST-004,Edit delete user rule,Mapped; inspect individual oracles.,L-05; L-06; G-05
+LIST-005,Toggle rule enabled,Mapped; inspect individual oracles.,L-07
+LIST-006,Downloaded rule override,Mapped; inspect individual oracles.,L-08
+LIST-007,Loading empty error states,Mapped; inspect individual oracles.,L-02; L-09
+RUNTIME-001,Download parse insert apply,Mapped; inspect individual oracles.,WF:SITE-004; ON-05; H-02; V-02
+RUNTIME-000,Ad-block method dispatch,Mapped; inspect individual oracles.,V-01; P-02
+RUNTIME-002,Conditional GET,Mapped; inspect individual oracles.,V-02
+RUNTIME-003,Failed-source preservation,Mapped; inspect individual oracles.,F-01; V-02
+RUNTIME-004,Active generation sync,Mapped; inspect individual oracles.,L-10; F-01; V-02; B-02
+RUNTIME-005,Hosts and DNS rule parsing,Mapped; inspect individual oracles.,E-05; V-03
+RUNTIME-006,Exact and suffix matching,Mapped; inspect individual oracles.,V-03; D-02
+RUNTIME-007,Root hosts apply,Out of scope: privileged hosts install/remount.,
+RUNTIME-008,Local VPN DNS blocking,Mapped; inspect individual oracles.,WF:HOME-QA-001; WF:HOME-QA-002; WF:SITE-001; WF:SITE-002; WF:SITE-003; WF:SITE-005; WF:SITE-006; ON-04; V-01
+RUNTIME-009,VPN lifecycle watchdog,Mapped; inspect individual oracles.,V-05; PV-02
+RUNTIME-011,DNS packet enforcement,Mapped; inspect individual oracles.,WF:SITE-001; WF:SITE-002; WF:SITE-003; WF:SITE-005; WF:SITE-006; V-01
+RUNTIME-012,DNS server and DoH routing,Mapped; inspect individual oracles.,V-05; V-06; P-06
+RUNTIME-010,Large update scale,Mapped; inspect individual oracles.,V-04
+DOMAIN-001,Check domain result,Mapped; inspect individual oracles.,WF:PB-QA-D01; M-01; D-01; D-02
+DOMAIN-002,Normalize input,Mapped; inspect individual oracles.,D-01
+DOMAIN-003,Advice and mutation,Mapped; inspect individual oracles.,WF:PB-QA-D01; D-03; D-04
+LOG-001,View DNS requests,Mapped; inspect individual oracles.,M-02; F-08; G-01; G-03; G-04; P-07
+LOG-002,Sort and group log entries,Mapped; inspect individual oracles.,G-02
+LOG-003,Redirect rule from log,Mapped; inspect individual oracles.,F-08; G-05; G-06
+LOG-004,Root DNS log expectation,Out of scope: root-mode DNS log expectation; VPN log is active.,
+PREF-001,Theme,Mapped; inspect individual oracles.,P-01
+PREF-002,Switch blocking method,Mapped; inspect individual oracles.,ON-03; M-06; P-02
+PREF-003,Root redirection settings,"Out of scope: root settings, redirection and hosts viewer.",
+PREF-004,Root web server,Out of scope: root web server and its controls.,
+PREF-005,VPN app bypass,Mapped; inspect individual oracles.,P-06; PV-03
+PREF-006,VPN excluded apps,Mapped; inspect individual oracles.,F-07; PV-05; PV-06; PV-07
+PREF-007,System app exclusion,Mapped; inspect individual oracles.,PV-04
+PREF-008,Scheduled hosts updates,Mapped; inspect individual oracles.,WF:SCH-001; WF:SCH-002; WF:SCH-003; WF:SCH-004; WF:SCH-005; WF:SCH-006; WF:SCH-007; WF:SCH-008; WF:SCH-009; WF:SCH-010; WF:SCH-011; WF:SCH-012; WF:SCH-013; WF:SCH-014; WF:SCH-015; WF:SCH-016; WF:SCH-017; WF:SCH-018; WF:SCH-019; WF:SCH-020; F-02; PU-03; PU-04; PU-05
+PREF-009,App update checks,Mapped; inspect individual oracles.,PU-01; PU-02
+PREF-010,Notification settings,Mapped; inspect individual oracles.,PU-06
+PREF-011,Backup export restore,Mapped; inspect individual oracles.,M-07; F-02; B-01; B-02
+PREF-013,Android backup agent,Mapped; inspect individual oracles.,B-03
+PREF-012,Language and telemetry,Mapped; inspect individual oracles.,P-03; P-04; P-05
+UPDATE-001,Check for updates,Mapped; inspect individual oracles.,WF:PB-QA-U01; N-03; U-01
+UPDATE-002,Signed APK self-update,Mapped; inspect individual oracles.,WF:PB-QA-U02; U-02; U-03
+UPDATE-003,Download status UI,Mapped; inspect individual oracles.,WF:PB-QA-U02; WF:PB-QA-U03; U-01; U-02
+UPDATE-004,Direct release self-update gate,Mapped; inspect individual oracles.,U-03
+UPDATE-005,Startup update check preference,Mapped; inspect individual oracles.,PU-01
+NOTIF-001,Notification channels,Mapped; inspect individual oracles.,N-01; N-05; N-06
+NOTIF-002,Hosts and app update alerts,Mapped; inspect individual oracles.,N-02; N-03; PU-05
+NOTIF-003,Notification permission affordance,Mapped; inspect individual oracles.,N-01; N-04; PU-06
+MORE-001,Tools entry points,Mapped; inspect individual oracles.,M-01; M-02; M-03; M-04; M-05; M-06; M-07; M-08; M-09; P-07; P-08
+ADW-001,Scanner,Mapped; inspect individual oracles.,M-05; A-01
+ADW-003,Adware signature freshness,Mapped; inspect individual oracles.,A-01
+ADW-002,Uninstall action,Mapped; inspect individual oracles.,A-02
+ABOUT-001,About and licenses,Mapped; inspect individual oracles.,M-08; A-03
+SYS-001,Quick Settings tile,Mapped; inspect individual oracles.,T-01; T-02
+SYS-002,Boot restore,Mapped; inspect individual oracles.,N-04; S-01; PV-01
+SYS-003,External command API,Mapped; inspect individual oracles.,N-05; S-02
+SYS-004,Package replaced handling,Mapped; inspect individual oracles.,S-03
+SYS-005,Launcher shortcuts,Mapped; inspect individual oracles.,S-04; S-05; S-06
+REL-001,License boundary,Separate release evidence: source/artifact license boundary; not a device action.,
+REL-002,Release artifact verification,"Separate release evidence: signed release checksum, package, version and cert.",
+REL-003,Physical release smoke,Mapped; inspect individual oracles.,V-07
+REL-004,UX matrix sign-off,Mapped; inspect individual oracles.,WF:DISC-059; WF:DISC-060; WF:SRC-046; WF:SRC-047; F-04; F-06; V-08
+REL-005,Final readiness aggregation,Separate release evidence: readiness aggregation; no UI method can close it.,

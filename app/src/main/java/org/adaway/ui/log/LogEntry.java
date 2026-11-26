@@ -15,11 +15,13 @@ class LogEntry implements Comparable<LogEntry> {
     private final String host;
 
     @Nullable
-    private ListType type;
+    private final ListType type;
+    private final boolean removable;
 
-    LogEntry(@NonNull String host, @Nullable ListType type) {
+    LogEntry(@NonNull String host, @Nullable ListType type, boolean removable) {
         this.host = host;
         this.type = type;
+        this.removable = removable;
     }
 
     @NonNull
@@ -32,8 +34,8 @@ class LogEntry implements Comparable<LogEntry> {
         return this.type;
     }
 
-    public void setType(@Nullable ListType type) {
-        this.type = type;
+    boolean isRemovable() {
+        return removable;
     }
 
     @Override
@@ -44,14 +46,14 @@ class LogEntry implements Comparable<LogEntry> {
         LogEntry that = (LogEntry) o;
 
         if (!host.equals(that.host)) return false;
-        return type == that.type;
+        return type == that.type && removable == that.removable;
     }
 
     @Override
     public int hashCode() {
         int result = host.hashCode();
         result = 31 * result + (type != null ? type.hashCode() : 0);
-        return result;
+        return 31 * result + Boolean.hashCode(removable);
     }
 
     @Override

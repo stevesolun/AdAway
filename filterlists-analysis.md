@@ -1,6 +1,13 @@
 # FilterLists.com Syntax Coverage Analysis
 ## AdAway SourceLoader Parser — Gap Report
 
+**Historical research, March 2026.** The yields and code proposals below
+describe an earlier simulator, not the current app or a compatibility promise.
+In particular, recognizing a domain in a rule is not permission to block every
+request for that domain. Current parser support is documented in the
+[filter rule capability matrix](docs/filter-rule-capabilities.md). For choosing a
+source today, see [Add a custom filter list](README.md#add-a-custom-filter-list).
+
 **Generated:** 2026-03-02
 **Methodology:** 81 real filter lists downloaded from FilterLists.com API, parsed line-by-line using a Python simulation of the Java `SourceLoader.extractHostnameFromNonHostsSyntax` logic. Every regex and branch mirrors `SourceLoader.java` exactly.
 **Total unique syntaxes catalogued:** 48

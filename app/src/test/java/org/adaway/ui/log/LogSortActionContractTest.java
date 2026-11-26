@@ -51,7 +51,7 @@ public class LogSortActionContractTest {
         int copyEntries = viewModel.indexOf("new ArrayList<>(entries)", sortMethod);
         int applyComparator = viewModel.indexOf("sortedEntries.sort(this.sort.comparator())",
                 copyEntries);
-        int postSorted = viewModel.indexOf("this.logEntries.postValue(sortedEntries)",
+        int postSorted = viewModel.indexOf("this.logEntries.setValue(sortedEntries)",
                 applyComparator);
         assertTrue("Sort action must re-sort the current rows and publish the sorted list.",
                 sortMethod >= 0 &&

@@ -263,28 +263,24 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
         PreferenceHelper.setVpnServiceStatus(this, status);
         Notification notification = getNotification(status);
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        switch (status) {
-            case STARTING:
-            case RUNNING:
-                notificationManager.cancel(VPN_RESUME_SERVICE_NOTIFICATION_ID);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    Timber.d("Calling startForeground with VPN special-use type");
-                    try {
-                        startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
-                                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-                        Timber.d("startForeground success");
-                    } catch (Exception e) {
-                        Timber.d(e, "startForeground FAILED");
-                        return false;
-                    }
-                } else {
-                    startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
-                }
-                break;
-            default:
-                if (checkSelfPermission(POST_NOTIFICATIONS) == PERMISSION_GRANTED) {
-                    notificationManager.notify(VPN_RESUME_SERVICE_NOTIFICATION_ID, notification);
-                }
+        if (status == STOPPED) {
+            if (checkSelfPermission(POST_NOTIFICATIONS) == PERMISSION_GRANTED) {
+                notificationManager.notify(VPN_RESUME_SERVICE_NOTIFICATION_ID, notification);
+            }
+            return true;
+        }
+        // Waiting and reconnecting still belong to the same requested foreground service.
+        notificationManager.cancel(VPN_RESUME_SERVICE_NOTIFICATION_ID);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } catch (Exception e) {
+                Timber.d(e, "startForeground FAILED");
+                return false;
+            }
+        } else {
+            startForeground(VPN_RUNNING_SERVICE_NOTIFICATION_ID, notification);
         }
 
         // Persisted status is the UI source of truth. RUNNING is emitted by VpnWorker
@@ -308,6 +304,9 @@ public class VpnService extends android.net.VpnService implements Handler.Callba
                 .setContentTitle(title);
         switch (status) {
             case RUNNING:
+            case WAITING_FOR_NETWORK:
+            case RECONNECTING:
+            case RECONNECTING_NETWORK_ERROR:
                 Intent stopIntent = new Intent(this, CommandReceiver.class)
                         .setAction(SEND_COMMAND_ACTION);
                 STOP.appendToIntent(stopIntent);

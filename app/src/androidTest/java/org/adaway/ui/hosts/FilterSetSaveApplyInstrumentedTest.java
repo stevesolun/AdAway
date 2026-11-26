@@ -12,7 +12,10 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.CompoundButton;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -47,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -128,6 +132,255 @@ public class FilterSetSaveApplyInstrumentedTest {
         waitForListRowsEnabled(SOURCE_B_ID, true);
         waitForListRowsEnabled(SOURCE_C_ID, false);
         assertEquals(SAVED_SET_NAME, FilterSetStore.getActiveProfile(this.context));
+    }
+
+    @Test(timeout = 120_000)
+    public void savingNamedSetBehindPendingCategoryWriteStoresNewUrlsAndRemainsActive()
+            throws Exception {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            navigateToSources(scenario);
+            HomeActivity activity = waitForHomeActivity();
+            assertAccessibilityText("Filter set proof Alpha");
+
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            CountDownLatch exited = new CountDownLatch(1);
+            AppExecutors.getInstance().diskIO().execute(() -> {
+                entered.countDown();
+                try {
+                    release.await(60, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exited.countDown();
+                }
+            });
+            try {
+                assertTrue("Disk gate did not start", entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                scenario.onActivity(home -> {
+                    // The three fixture URLs belong to Custom; only Gamma starts disabled.
+                    CompoundButton master = home.findViewById(R.id.categorySwitch);
+                    assertNotNull(master);
+                    assertEquals(context.getString(R.string.filter_category_toggle_description,
+                            context.getString(R.string.filter_category_custom)),
+                            master.getContentDescription().toString());
+                    assertTrue(master.isShown() && master.isEnabled() && !master.isChecked());
+                    assertTrue(master.performClick());
+                });
+                clickToolbarAction(activity, R.id.action_hosts_save_filter_set);
+                setEditableAccessibilityText(SAVED_SET_NAME);
+                clickAccessibilityText(context.getString(R.string.button_save));
+                // Wait for the accepted dialog action, not just the injected click.
+                assertAccessibilityText("Filter set proof Alpha");
+                assertEquals("Save must be submitted while the category write is pending",
+                        1L, exited.getCount());
+                assertFalse(AppDatabase.getInstance(context).hostsSourceDao()
+                        .getById(SOURCE_C_ID).orElseThrow().isEnabled());
+            } finally {
+                release.countDown();
+                waitForDiskIoIdle();
+            }
+            assertTrue(AppDatabase.getInstance(context).hostsSourceDao()
+                    .getById(SOURCE_C_ID).orElseThrow().isEnabled());
+            assertEquals(setOf(SOURCE_A_URL, SOURCE_B_URL, SOURCE_C_URL),
+                    FilterSetStore.getSetUrls(context, SAVED_SET_NAME));
+            assertEquals(SAVED_SET_NAME, FilterSetStore.getActiveProfile(context));
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void namedApplyRollbackKeepsActiveSetAndProtectionApplyUntilRetry() throws Exception {
+        Set<String> all = setOf(SOURCE_A_URL, SOURCE_B_URL, SOURCE_C_URL);
+        Set<String> target = setOf(SOURCE_C_URL);
+        FilterSetStore.saveSet(context, SAVED_SET_NAME, target);
+        AppDatabase database = AppDatabase.getInstance(context);
+
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            navigateToSources(scenario);
+            HomeActivity activity = waitForHomeActivity();
+            assertAccessibilityText("Filter set proof Alpha");
+            applySelectionDirectly(all);
+            assertPendingProtectionAction(scenario);
+
+            clickToolbarAction(activity, R.id.action_hosts_save_filter_set);
+            setEditableAccessibilityText(RENAMED_SET_NAME);
+            clickAccessibilityText(context.getString(R.string.button_save));
+            waitForSavedSet(RENAMED_SET_NAME, all);
+            waitForDiskIoIdle();
+            assertEquals(RENAMED_SET_NAME, FilterSetStore.getActiveProfile(context));
+            assertPendingProtectionAction(scenario);
+
+            // Abort the second rule write only after its sibling was updated in this transaction.
+            String ids = "(" + SOURCE_A_ID + "," + SOURCE_B_ID + ")";
+            database.getOpenHelper().getWritableDatabase().execSQL(
+                    "CREATE TRIGGER fail_named_apply BEFORE UPDATE OF enabled ON hosts_lists "
+                            + "WHEN OLD.source_id IN " + ids + " AND NEW.enabled = 0 AND EXISTS "
+                            + "(SELECT 1 FROM hosts_lists WHERE source_id IN " + ids
+                            + " AND source_id != OLD.source_id AND enabled = 0) "
+                            + "BEGIN SELECT RAISE(ABORT, 'named apply rollback'); END");
+            try {
+                clickToolbarAction(activity, R.id.action_hosts_apply_filter_set);
+                clickAccessibilityText(SAVED_SET_NAME);
+                assertAccessibilityText(context.getString(
+                        R.string.filter_set_apply_preview_title, SAVED_SET_NAME));
+                clickAccessibilityText(context.getString(R.string.checkbox_list_context_apply));
+                assertAccessibilityText(context.getString(R.string.notification_configuration_failed));
+                scenario.onActivity(home -> {
+                    TextView message = home.findViewById(R.id.filter_set_apply_message);
+                    assertTrue(message.isShown());
+                    assertEquals(context.getString(R.string.notification_configuration_failed),
+                            message.getText().toString());
+                    assertTrue(home.findViewById(R.id.filter_set_apply_retry).isShown());
+                });
+                assertEquals(all, database.hostsSourceDao().getEnabled().stream()
+                        .map(HostsSource::getUrl).collect(Collectors.toSet()));
+                for (int id : new int[]{SOURCE_A_ID, SOURCE_B_ID, SOURCE_C_ID}) {
+                    assertEquals(1, countListRowsWithEnabled(id, true));
+                }
+                assertEquals(RENAMED_SET_NAME, FilterSetStore.getActiveProfile(context));
+                assertPendingProtectionAction(scenario);
+            } finally {
+                database.getOpenHelper().getWritableDatabase().execSQL("DROP TRIGGER fail_named_apply");
+            }
+
+            scenario.onActivity(home ->
+                    assertTrue(home.findViewById(R.id.filter_set_apply_retry).performClick()));
+            waitForDiskIoIdle();
+            assertEquals(target, database.hostsSourceDao().getEnabled().stream()
+                    .map(HostsSource::getUrl).collect(Collectors.toSet()));
+            assertEquals(1, countListRowsWithEnabled(SOURCE_A_ID, false));
+            assertEquals(1, countListRowsWithEnabled(SOURCE_B_ID, false));
+            assertEquals(1, countListRowsWithEnabled(SOURCE_C_ID, true));
+            assertEquals(SAVED_SET_NAME, FilterSetStore.getActiveProfile(context));
+            scenario.onActivity(home -> assertEquals(View.GONE,
+                    home.findViewById(R.id.filter_set_apply_status).getVisibility()));
+            assertPendingProtectionAction(scenario);
+        }
+    }
+
+    private void assertPendingProtectionAction(ActivityScenario<HomeActivity> scenario) throws Exception {
+        assertAccessibilityText(context.getString(R.string.notification_configuration_changed));
+        scenario.onActivity(home -> {
+            TextView action = home.findViewById(com.google.android.material.R.id.snackbar_action);
+            assertNotNull("Missing protection Apply action", action);
+            assertTrue(action.isShown() && action.isEnabled() && action.isClickable());
+            assertEquals(context.getString(R.string.notification_configuration_changed_action),
+                    action.getText().toString());
+        });
+    }
+
+    @Test(timeout = 120_000)
+    public void namedApplyRetryRefusesCaseOnlyRenameInManage() throws Exception {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            HomeActivity activity = showFailedNamedRetry(scenario);
+            clickToolbarAction(activity, R.id.action_hosts_manage_filter_sets);
+            clickAccessibilityText(SAVED_SET_NAME);
+            clickAccessibilityText(context.getString(R.string.filter_set_rename));
+            setEditableAccessibilityText("Travel PACK");
+            clickAccessibilityText(context.getString(R.string.filter_set_rename));
+            assertAccessibilityText("Filter set proof Alpha");
+            assertTrue(FilterSetStore.getSetNames(context).contains("Travel PACK"));
+
+            clickNamedRetry(scenario);
+            assertNamedRetryRefused(scenario, R.string.filter_set_missing);
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void namedApplyRetryRefusesDeletedSetInManage() throws Exception {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            HomeActivity activity = showFailedNamedRetry(scenario);
+            clickToolbarAction(activity, R.id.action_hosts_manage_filter_sets);
+            clickAccessibilityText(SAVED_SET_NAME);
+            clickAccessibilityText(context.getString(R.string.filter_set_delete));
+            assertAccessibilityText(context.getString(R.string.filter_set_delete_title));
+            clickAccessibilityText(context.getString(R.string.filter_set_delete));
+            waitForDeletedSet(SAVED_SET_NAME);
+
+            clickNamedRetry(scenario);
+            assertNamedRetryRefused(scenario, R.string.filter_set_missing);
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void namedApplyRetryRefusesReplacementWithSameNameAndUrls() throws Exception {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            showFailedNamedRetry(scenario);
+            assertTrue(FilterSetStore.deleteSet(context, SAVED_SET_NAME));
+            FilterSetStore.saveSet(context, SAVED_SET_NAME, setOf(SOURCE_C_URL));
+
+            clickNamedRetry(scenario);
+            assertNamedRetryRefused(scenario, R.string.filter_set_missing);
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void namedApplyRetryRefusesUrlsChangedWhileQueued() throws Exception {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            showFailedNamedRetry(scenario);
+            CountDownLatch retrySubmitted = new CountDownLatch(1);
+            FutureTask<Void> edit = new FutureTask<>(() -> {
+                assertTrue(retrySubmitted.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                FilterSetStore.saveSet(context, SAVED_SET_NAME, setOf(SOURCE_B_URL));
+                return null;
+            });
+            AppExecutors.getInstance().diskIO().execute(edit);
+            try {
+                clickNamedRetry(scenario);
+            } finally {
+                retrySubmitted.countDown();
+            }
+            edit.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            assertNamedRetryRefused(scenario, R.string.filter_set_changed_since_preview);
+        }
+    }
+
+    private HomeActivity showFailedNamedRetry(ActivityScenario<HomeActivity> scenario) throws Exception {
+        FilterSetStore.savePresetProfile(context, FilterSetStore.PROFILE_SAFE,
+                setOf(SOURCE_A_URL, SOURCE_B_URL));
+        FilterSetStore.saveSet(context, SAVED_SET_NAME, setOf(SOURCE_C_URL));
+        navigateToSources(scenario);
+        HomeActivity activity = waitForHomeActivity();
+        assertAccessibilityText("Filter set proof Alpha");
+        AppDatabase db = AppDatabase.getInstance(context);
+        db.getOpenHelper().getWritableDatabase().execSQL(
+                "CREATE TRIGGER fail_named_retry BEFORE UPDATE OF enabled ON hosts_sources "
+                        + "BEGIN SELECT RAISE(ABORT, 'show named retry'); END");
+        try {
+            clickToolbarAction(activity, R.id.action_hosts_apply_filter_set);
+            clickAccessibilityText(SAVED_SET_NAME);
+            assertAccessibilityText(context.getString(R.string.filter_set_apply_preview_title, SAVED_SET_NAME));
+            clickAccessibilityText(context.getString(R.string.checkbox_list_context_apply));
+            assertAccessibilityText(context.getString(R.string.notification_configuration_failed));
+        } finally {
+            db.getOpenHelper().getWritableDatabase().execSQL("DROP TRIGGER fail_named_retry");
+        }
+        return activity;
+    }
+
+    private static void clickNamedRetry(ActivityScenario<HomeActivity> scenario) {
+        scenario.onActivity(home -> {
+            View retry = home.findViewById(R.id.filter_set_apply_retry);
+            assertTrue(retry.isShown() && retry.performClick());
+        });
+    }
+
+    private void assertNamedRetryRefused(ActivityScenario<HomeActivity> scenario, int expectedMessage)
+            throws Exception {
+        waitForDiskIoIdle();
+        assertAccessibilityText(context.getString(expectedMessage));
+        scenario.onActivity(home -> {
+            TextView message = home.findViewById(R.id.filter_set_apply_message);
+            assertTrue(message.isShown());
+            assertEquals(context.getString(expectedMessage), message.getText().toString());
+            assertFalse(home.findViewById(R.id.filter_set_apply_retry).isShown());
+        });
+        assertEquals(setOf(SOURCE_A_URL, SOURCE_B_URL), AppDatabase.getInstance(context).hostsSourceDao()
+                .getEnabled().stream().map(HostsSource::getUrl).collect(Collectors.toSet()));
+        assertEquals(1, countListRowsWithEnabled(SOURCE_A_ID, true));
+        assertEquals(1, countListRowsWithEnabled(SOURCE_B_ID, true));
+        assertEquals(1, countListRowsWithEnabled(SOURCE_C_ID, false));
+        assertEquals(FilterSetStore.PROFILE_SAFE, FilterSetStore.getActiveProfile(context));
     }
 
     @Test(timeout = 120_000)

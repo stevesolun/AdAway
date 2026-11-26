@@ -22,6 +22,8 @@ package org.adaway.util;
 
 public class Constants {
     public static final String PREFS_NAME = "preferences";
+    public static final String PREFS_FILTER_SETS = "filter_sets";
+    public static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
 
     public static final String LOCALHOST_IPV4 = "127.0.0.1";
     public static final String LOCALHOST_IPV6 = "::1";

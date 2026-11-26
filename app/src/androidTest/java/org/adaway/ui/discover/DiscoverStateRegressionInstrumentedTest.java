@@ -5,10 +5,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
+import android.app.Instrumentation;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Parcel;
 import android.os.SystemClock;
@@ -19,8 +23,10 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.core.graphics.ColorUtils;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.Lifecycle;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -42,6 +48,7 @@ import org.adaway.testing.InstrumentedTestState;
 import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.hosts.FilterSetStore;
+import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
 import org.junit.Before;
@@ -51,9 +58,12 @@ import org.junit.runner.RunWith;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -99,6 +109,8 @@ public class DiscoverStateRegressionInstrumentedTest {
     private final CountDownLatch releaseRefresh = new CountDownLatch(1);
     private volatile String networkLists = REFRESHED_LISTS;
     private volatile String networkLanguages = LANGUAGES;
+    private static final String DETAIL_URL = "https://example.invalid/german-hosts.txt";
+    private volatile String detailResponse = "{\"viewUrls\":[{\"url\":\"" + DETAIL_URL + "\"}]}";
 
     @Before
     public void setUp() throws Exception {
@@ -139,6 +151,10 @@ public class DiscoverStateRegressionInstrumentedTest {
                 case "/syntaxes": body = SYNTAXES; break;
                 case "/tags": body = TAGS; break;
                 case "/languages": body = networkLanguages; break;
+                case "/lists/103":
+                    body = detailResponse;
+                    if (body == null) throw new IOException("Directory detail unavailable");
+                    break;
                 default: throw new IOException("Unexpected fixture request: " + path);
             }
             return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
@@ -170,6 +186,128 @@ public class DiscoverStateRegressionInstrumentedTest {
                         "tear down Discover state replay");
             }
         }
+    }
+
+    @Test
+    public void lateSubscribedRowCannotOpenAnEditorAfterANewerPick() throws Exception {
+        seedSource(101, URL_A);
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        List<Integer> editors = new CopyOnWriteArrayList<>();
+        Instrumentation.ActivityMonitor monitor = new Instrumentation.ActivityMonitor() {
+            @Override public Instrumentation.ActivityResult onStartActivity(Intent intent) {
+                if (intent.getComponent() == null || !SourceEditActivity.class.getName().equals(
+                        intent.getComponent().getClassName())) return null;
+                editors.add(intent.getIntExtra(SourceEditActivity.EXTRA_FILTER_LIST_ID, -1));
+                return new Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null);
+            }
+        };
+        CountDownLatch releaseDisk = new CountDownLatch(1);
+        inst.addMonitor(monitor);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            waitForUi(scenario, "first row subscribed", activity ->
+                    ((MaterialSwitch) row(activity, 0).findViewById(R.id.filterlistsItemSwitch)).isChecked());
+            // Hold the first editor's database lookup until the later network lookup launches.
+            holdDiskUntil(releaseDisk);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            scrollToRow(scenario, 2);
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitFor("latest editor launched", () -> editors.contains(103));
+            releaseDisk.countDown();
+            drainDiskIo();
+            inst.waitForIdleSync();
+            assertEquals("Only the last tapped filter may launch an editor",
+                    java.util.Collections.singletonList(103), editors);
+            assertEquals("Opening editors must not subscribe or remove a list",
+                    1, sourceDao.getAll().stream().filter(s -> s.getFilterListId() != null).count());
+        } finally {
+            releaseDisk.countDown();
+            inst.removeMonitor(monitor);
+        }
+    }
+
+    @Test
+    public void dismissedDirectoryDoesNotLaunchPendingEditorAndCanOpenItOnReturn() throws Exception {
+        seedSource(101, URL_A);
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor editor = inst.addMonitor(SourceEditActivity.class.getName(),
+                new Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null), true);
+        CountDownLatch releaseDisk = new CountDownLatch(1);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            waitForUi(scenario, "subscribed row", activity ->
+                    ((MaterialSwitch) row(activity, 0).findViewById(R.id.filterlistsItemSwitch)).isChecked());
+            holdDiskUntil(releaseDisk);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            scenario.moveToState(Lifecycle.State.CREATED);
+            releaseDisk.countDown();
+            drainDiskIo();
+            inst.waitForIdleSync();
+            assertEquals("Stopped directory opened an editor in the background", 0, editor.getHits());
+            scenario.moveToState(Lifecycle.State.RESUMED);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            waitFor("fresh tap after returning opens editor", () -> editor.getHits() == 1);
+        } finally {
+            releaseDisk.countDown();
+            inst.removeMonitor(editor);
+        }
+    }
+
+    @Test
+    public void compatibleRowRetriesMissingDetailsAndKeepsDirectoryLabelInEditor() {
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor editor = inst.addMonitor(SourceEditActivity.class.getName(), null, false);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 2);
+            String valid = detailResponse;
+            detailResponse = null;
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitForSnackbar(scenario, R.string.filterlists_resolve_url_failed);
+            detailResponse = "{\"viewUrls\":[]}";
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitForSnackbar(scenario, R.string.filterlists_no_direct_hosts_url);
+            assertEquals(0, editor.getHits());
+            detailResponse = valid;
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            SourceEditActivity opened = (SourceEditActivity) inst.waitForMonitorWithTimeout(editor, TIMEOUT_MS);
+            assertNotNull("Successful retry did not open an editor", opened);
+            try {
+                inst.runOnMainSync(() -> {
+                    assertEquals("Regional German Safe", ((EditText) opened.findViewById(R.id.labelEditText))
+                            .getText().toString());
+                    assertEquals(DETAIL_URL, ((EditText) opened.findViewById(R.id.location_edit_text))
+                            .getText().toString());
+                    opened.getOnBackPressedDispatcher().onBackPressed();
+                });
+                waitForUi(scenario, "Back returned to directory", activity ->
+                        activity.hasWindowFocus() && activity.findViewById(R.id.filterlistsRecyclerView) != null);
+                assertFalse("Back must not save a subscription", sourceDao.getByUrl(DETAIL_URL).isPresent());
+            } finally {
+                inst.runOnMainSync(opened::finish);
+            }
+        } finally {
+            inst.removeMonitor(editor);
+        }
+    }
+
+    private void waitForSnackbar(ActivityScenario<HomeActivity> scenario, int message) {
+        waitForUi(scenario, context.getString(message), activity -> {
+            TextView snack = activity.findViewById(com.google.android.material.R.id.snackbar_text);
+            return snack != null && snack.isShown() && context.getString(message).contentEquals(snack.getText());
+        });
+    }
+
+    private static void holdDiskUntil(CountDownLatch release) {
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     @Test
@@ -347,19 +485,161 @@ public class DiscoverStateRegressionInstrumentedTest {
                 assertTrue("First row selection must be on screen",
                         selection.getGlobalVisibleRect(target));
             });
-            long downTime = SystemClock.uptimeMillis();
-            for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
-                MotionEvent event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
-                        action, target.centerX(), target.centerY(), 0);
-                try {
-                    assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                            .injectInputEvent(event, true));
-                } finally {
-                    event.recycle();
-                }
-            }
+            tapCenter(target);
             waitForUi(scenario, "tapped filter checkbox selected", activity -> ((MaterialCheckBox)
                     row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox)).isChecked());
+        }
+    }
+
+    @Test
+    public void enabledBulkActionsAndRowSelectionContrastWithTheirActualSurfaces() {
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForCount(scenario, 4);
+            Rect checkbox = new Rect(), selected = new Rect(), all = new Rect(), chip = new Rect();
+            waitForUi(scenario, "visible Discover selection controls", activity -> {
+                View check = activity.findViewById(R.id.filterlistsItemSelectionCheckBox);
+                ChipGroup group = activity.findViewById(R.id.tagChipGroup);
+                return check != null && check.getGlobalVisibleRect(checkbox)
+                        && activity.findViewById(R.id.filterlistsSubscribeVisibleButton)
+                                .getGlobalVisibleRect(selected)
+                        && activity.findViewById(R.id.filterlistsSubscribeAllButton).getGlobalVisibleRect(all)
+                        && group.getCheckedChipId() != View.NO_ID
+                        && group.findViewById(group.getCheckedChipId()).getGlobalVisibleRect(chip);
+            });
+            scenario.onActivity(activity -> {
+                assertTrue(activity.findViewById(R.id.filterlistsSubscribeAllButton).isEnabled());
+                assertFalse(activity.findViewById(R.id.filterlistsSubscribeVisibleButton).isEnabled());
+            });
+            Bitmap before = screenshot();
+            double disabled = pixelContrast(before, selected);
+            try {
+                assertTrue("Enabled bulk text", pixelContrast(before, all) >= 4.5);
+                assertTrue("Unchecked box outline", pixelContrast(before, checkbox) >= 3);
+                // Skip the chip's transparent touch padding and rounded corners.
+                chip.inset(chip.width() / 5, chip.height() / 4);
+                assertTrue("Selected tag label", pixelContrast(before, chip) >= 4.5);
+            } finally {
+                before.recycle();
+            }
+            tapCenter(checkbox);
+            waitForUi(scenario, "rebound checked row and enabled actions", activity -> {
+                RecyclerView list = activity.findViewById(R.id.filterlistsRecyclerView);
+                MaterialCheckBox box = row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox);
+                return !list.hasPendingAdapterUpdates() && !list.isAnimating() && box.isChecked()
+                        && box.getGlobalVisibleRect(checkbox)
+                        && activity.findViewById(R.id.filterlistsSubscribeVisibleButton).isEnabled()
+                        && activity.findViewById(R.id.filterlistsRemoveVisibleButton).isEnabled();
+            });
+            Bitmap after = screenshot();
+            try {
+                double enabled = pixelContrast(after, selected);
+                assertTrue("Selected action must look enabled", enabled >= 4.5 && enabled > disabled);
+                assertTrue("Checked box fill", pixelContrast(after, checkbox) >= 3);
+            } finally {
+                after.recycle();
+            }
+            tapCenter(selected);
+            clickDialogAction(context.getString(R.string.button_cancel));
+            assertFalse("Selection and Cancel must not subscribe", sourceDao.getByUrl(URL_A).isPresent());
+        }
+    }
+
+    private static Bitmap screenshot() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        android.app.UiAutomation automation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automation.waitForIdle(500, TIMEOUT_MS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new AssertionError("Discover did not settle before the screenshot", e);
+        }
+        Bitmap shot = automation.takeScreenshot();
+        assertNotNull(shot);
+        return shot;
+    }
+
+    @Test
+    public void shortLtrRowMetadataClearsBothControlsBeforeAndAfterSubscription() {
+        assertTrue(cache.edit().putString("listsJson", LISTS.replace("Regional English Safe", "Ads")).commit());
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> activity.navigateTo(R.id.nav_discover));
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            Rect target = new Rect();
+            scenario.onActivity(activity -> {
+                View item = row(activity, 0);
+                Configuration config = item.getResources().getConfiguration();
+                String locale = InstrumentationRegistry.getArguments().getString("uxLocale");
+                if (locale != null) {
+                    java.util.Locale expected = java.util.Locale.forLanguageTag(locale);
+                    assertEquals(expected.getLanguage(), config.getLocales().get(0).getLanguage());
+                    assertEquals(android.text.TextUtils.getLayoutDirectionFromLocale(expected),
+                            item.getLayoutDirection());
+                    assertEquals(Float.parseFloat(InstrumentationRegistry.getArguments()
+                            .getString("uxFontScale")), config.fontScale, 0.02f);
+                }
+                assertRowTextClearsControls(item, false);
+                assertTrue(item.findViewById(R.id.filterlistsItemSwitch).getGlobalVisibleRect(target));
+            });
+            tapCenter(target);
+            waitFor("cached row subscribed to correct URL", () -> sourceDao.getByUrl(URL_A).isPresent());
+            waitForUi(scenario, "subscribed row laid out", activity -> {
+                RecyclerView list = activity.findViewById(R.id.filterlistsRecyclerView);
+                return !list.hasPendingAdapterUpdates() && !list.isAnimating()
+                        && row(activity, 0).findViewById(R.id.filterlistsItemStatus).getVisibility() == View.VISIBLE;
+            });
+            scenario.onActivity(activity -> assertRowTextClearsControls(row(activity, 0), true));
+        }
+    }
+
+    private static void assertRowTextClearsControls(View row, boolean subscribed) {
+        Rect box = new Rect(), toggle = new Rect(), text = new Rect();
+        row.findViewById(R.id.filterlistsItemSelectionCheckBox).getHitRect(box);
+        row.findViewById(R.id.filterlistsItemSwitch).getHitRect(toggle);
+        assertEquals("Ads", ((TextView) row.findViewById(R.id.filterlistsItemName)).getText().toString());
+        assertEquals("Hosts", ((TextView) row.findViewById(R.id.filterlistsItemSyntax)).getText().toString());
+        assertEquals(subscribed ? View.VISIBLE : View.GONE,
+                row.findViewById(R.id.filterlistsItemStatus).getVisibility());
+        for (int id : new int[]{R.id.filterlistsItemName, R.id.filterlistsItemSyntax, R.id.filterlistsItemStatus}) {
+            View label = row.findViewById(id);
+            if (label.getVisibility() == View.GONE) continue;
+            label.getHitRect(text);
+            assertTrue(label.getResources().getResourceEntryName(id) + " must fit between controls: "
+                            + text + " vs " + box + " and " + toggle,
+                    !text.isEmpty() && text.left >= Math.min(box.right, toggle.right)
+                            && text.right <= Math.max(box.left, toggle.left));
+        }
+        row.findViewById(R.id.filterlistsItemDesc).getHitRect(text);
+        assertTrue("Description must start below both touch targets",
+                !text.isEmpty() && text.top >= Math.max(box.bottom, toggle.bottom));
+    }
+
+    private static double pixelContrast(Bitmap shot, Rect bounds) {
+        // These controls have a flat fill. Count solid ink and surface, not antialiased edges.
+        Map<Integer, Integer> counts = new HashMap<>();
+        int[] pixels = new int[bounds.width() * bounds.height()];
+        shot.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top,
+                bounds.width(), bounds.height());
+        for (int pixel : pixels) {
+            counts.merge(pixel, 1, Integer::sum);
+        }
+        List<Integer> colors = counts.keySet().stream()
+                .sorted((a, b) -> Integer.compare(counts.get(b), counts.get(a)))
+                .limit(2).collect(java.util.stream.Collectors.toList());
+        return colors.size() < 2 ? 1 : ColorUtils.calculateContrast(colors.get(0), colors.get(1));
+    }
+
+    private static void tapCenter(Rect target) {
+        long down = SystemClock.uptimeMillis();
+        for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+            MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(),
+                    action, target.centerX(), target.centerY(), 0);
+            try {
+                assertTrue(InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                        .injectInputEvent(event, true));
+            } finally {
+                event.recycle();
+            }
         }
     }
 

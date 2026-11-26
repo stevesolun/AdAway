@@ -1,5 +1,9 @@
 # Release, CI, Security, and Update Audit - 2026-10-12
 
+Historical review and handoff at the October snapshot. Its debug-signing
+warning describes the build configuration then; current signing requirements
+are owned by [RELEASING.md](../RELEASING.md#4-building-release-apk).
+
 ## Final Worker Handoff (Supersedes Initial Snapshot Below)
 
 Scope is frozen for integrated testing. No Gradle, commits, pushes, releases,

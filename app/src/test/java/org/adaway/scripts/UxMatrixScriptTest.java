@@ -72,7 +72,7 @@ public class UxMatrixScriptTest {
     }
 
     @Test
-    public void instrumentationParserAcceptsOkTranscriptWhenAdbExitCodeIsNonZero()
+    public void instrumentationParserRequiresSuccessfulTransportAndPassingTranscript()
             throws Exception {
         String powershell = findPowerShell();
         assumeTrue("PowerShell is required to exercise the UX matrix parser.",
@@ -93,11 +93,14 @@ public class UxMatrixScriptTest {
                     "'INSTRUMENTATION_STATUS: test=rendersHome'," +
                     "'OK (1 test)'" +
                     ") -join [Environment]::NewLine;" +
-                    "if (-not (Test-UxInstrumentationResult -ExitCode 1 -Output $output)) {" +
-                    " throw 'OK transcript rejected';" +
+                    "if (-not (Test-UxInstrumentationResult -ExitCode 0 -Output $output)) {" +
+                    " throw 'Passing run rejected';" +
+                    "};" +
+                    "if (Test-UxInstrumentationResult -ExitCode 1 -Output $output) {" +
+                    " throw 'Transport error accepted';" +
                     "}");
 
-            assertEquals("OK instrumentation output must be authoritative over adb exit drift.\n" +
+            assertEquals("A passing transcript is valid only with a successful adb exit.\n" +
                     result.stderr, 0, result.exitCode);
         } finally {
             deleteRecursively(fixture);
@@ -204,7 +207,9 @@ public class UxMatrixScriptTest {
         assertTrue("UX matrix must include RTL at both large font scales.",
                 script.contains("Name = \"font-1.3-rtl\"") &&
                         script.contains("Name = \"font-1.6-rtl\"") &&
-                        script.contains("Locales = \"ar-XB\""));
+                        script.contains("Locales = \"he-IL\"") &&
+                        script.contains("\"uxLocale\", $Locales") &&
+                        script.contains("\"uxFontScale\", $FontScale"));
     }
 
     @Test

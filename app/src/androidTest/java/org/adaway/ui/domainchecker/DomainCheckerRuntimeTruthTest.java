@@ -321,6 +321,8 @@ public class DomainCheckerRuntimeTruthTest {
             waitForUserRule(UNKNOWN_HOST, BLOCKED, true);
             waitForRuntimeType(UNKNOWN_HOST, BLOCKED);
             waitForVisibleText(activity, context.getString(R.string.domain_checker_status_blocked));
+            waitForVisibleText(activity, context.getString(R.string.domain_checker_user_source_format,
+                    context.getString(R.string.hosts_user_source)));
 
             clickVisibleButtonText(activity, context.getString(R.string.domain_checker_delete_rule));
             waitForUserRule(UNKNOWN_HOST, BLOCKED, false);

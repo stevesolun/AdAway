@@ -24,7 +24,7 @@ import org.adaway.util.AppExecutors;
 
 /** Owns one editor's save/delete work and its result across configuration changes. */
 public class SourceEditViewModel extends AndroidViewModel {
-    static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
+    static final String PREFS_SOURCE_SCHEDULES = org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
     static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
     static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
     static final String KEY_HOUR_PREFIX = "hour_url_";

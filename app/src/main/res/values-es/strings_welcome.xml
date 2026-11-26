@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">VPN siempre activa habilitada</string>
     <string name="welcome_vpn_alwayson_description">AdAway detectó que otra VPN tiene la configuración \"VPN siempre activa\" habilitada.\n\nEsto impide que AdAway solicite acceso a la VPN. Por favor desactivar \"VPN siempre activa\" en la VPN correspondiente y volver a intentarlo.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway no pudo solicitar acceso a la VPN.\n\nEsto podría deberse a que otra VPN tiene activada la configuración de \"VPN siempre activa\". Por favor, verificar si alguna VPN tiene esta configuración habilitada y desactivarla antes de intentar nuevamente.</string>
     <string name="welcome_vpn_alwayson_settings_action">Abrir la configuración de \"VPN\"</string>
 
 

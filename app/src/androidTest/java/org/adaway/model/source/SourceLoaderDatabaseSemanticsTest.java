@@ -1,5 +1,6 @@
 package org.adaway.model.source;
 
+import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
 import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
@@ -8,6 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 import android.content.Context;
@@ -32,6 +34,7 @@ import java.io.BufferedReader;
 import java.io.StringReader;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
@@ -169,6 +172,197 @@ public class SourceLoaderDatabaseSemanticsTest {
         return new SourceLoader(source, GENERATION).parse(
                 new BufferedReader(new StringReader(content)), hostListItemDao,
                 database.getOpenHelper().getWritableDatabase(), null, null);
+    }
+
+    @Test
+    public void boundedDrainsRollBackRowsStageAndSeenKeysOnWriterFailure() {
+        assertEquals(0, parseText("0.0.0.0 retained.example\n"));
+        SupportSQLiteDatabase db = database.getOpenHelper().getWritableDatabase();
+        db.execSQL("UPDATE hosts_meta SET active_generation = ? WHERE id = 0",
+                new Object[]{GENERATION});
+        int candidate = GENERATION + 1;
+        int pendingLimit = 16_000;
+        StringBuilder input = new StringBuilder();
+        for (int i = 0; i < 36_001; i++) {
+            input.append("0.0.0.0 row-").append(i).append(".example\n");
+        }
+        SqlUpdateDeduper deduper = new SqlUpdateDeduper(db);
+        try {
+            // A different source has already succeeded in this update's shared deduper.
+            HostsSource other = insertSource(database.hostsSourceDao(), SOURCE_ID + 1, false);
+            assertEquals(0, new SourceLoader(other, candidate).parse(
+                    new BufferedReader(new StringReader("0.0.0.0 other.example\n")),
+                    hostListItemDao, db, null, deduper));
+            AtomicLong accepted = new AtomicLong();
+            RuntimeException injected = new IllegalStateException("test failure after SQL drains");
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> new SourceLoader(source, candidate).parse(
+                            new BufferedReader(new StringReader(input.toString())),
+                            hostListItemDao, db, batch -> {
+                                // The progress hook runs on the writer and sees its uncommitted rows.
+                                long total = accepted.addAndGet(batch);
+                                long pending = deduper.pendingCount();
+                                assertTrue("Pending rows at " + total + " accepted: " + pending,
+                                        pending <= pendingLimit);
+                                if (total >= 34_000) {
+                                    long flushed = deduper.count() - 1;
+                                    assertTrue("Expected intermediate drains", flushed >= 2 * pendingLimit);
+                                    assertEquals(total, flushed + pending);
+                                    assertEquals(flushed, hostListItemDao.countSourceHostsForGeneration(
+                                            SOURCE_ID, candidate));
+                                    assertEquals(flushed, scalarLong("SELECT COUNT(*) FROM "
+                                                    + "root_host_entries_stage WHERE source_id = ? AND generation = ?",
+                                            SOURCE_ID, candidate));
+                                    assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+                                    assertHostRow("retained.example", EXACT.getValue());
+                                    throw injected;
+                                }
+                            }, deduper));
+            // Propagate an unexpected parser or assertion failure with its original stack.
+            Throwable cause = failure;
+            while (cause != null && cause != injected) {
+                cause = cause.getCause();
+            }
+            if (cause != injected) {
+                throw failure;
+            }
+            assertEquals(0L, deduper.pendingCount());
+            assertEquals(1L, deduper.count());
+            assertEquals(1L, scalarLong("SELECT COUNT(*) FROM update_seen_hosts "
+                    + "WHERE source_id = ? AND host = 'other.example'", other.getId()));
+            assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, candidate));
+            assertEquals(0L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage "
+                    + "WHERE source_id = ? AND generation = ?", SOURCE_ID, candidate));
+            assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("retained.example").getType());
+            assertEquals(1L, scalarLong("SELECT COUNT(*) FROM root_host_entries_stage "
+                            + "WHERE source_id = ? AND generation = ? AND host = 'retained.example'",
+                    SOURCE_ID, GENERATION));
+        } finally {
+            deduper.drop();
+        }
+        assertScratchTableAbsent();
+    }
+
+    @Test
+    public void allowModePersistsOnlyRepresentableRulesInMixedInput() {
+        source.setAllowEnabled(true);
+        database.hostsSourceDao().update(source);
+        int skipped = parseText("plain.example# note\n"
+                + "*.wild.example\t# note\n"
+                + "||suffix.example^\n"
+                + "address=/dns.example/# # note\n"
+                + "cosmetic.example##.badge\n"
+                + "exception.example#@#.badge\n"
+                + "*.procedure.example#?#.badge\n"
+                + "extended.example#@?#.badge\n"
+                + "||conditional.example^$third-party\n"
+                + "@@||restricted.example^$document\n");
+
+        assertAllowRow("plain.example", EXACT.getValue());
+        assertAllowRow("*.wild.example", EXACT.getValue());
+        assertAllowRow("suffix.example", SUFFIX.getValue());
+        assertAllowRow("dns.example", SUFFIX.getValue());
+        for (String host : new String[]{"cosmetic.example", "exception.example", "*.procedure.example",
+                "extended.example", "conditional.example", "restricted.example"}) {
+            assertMissingHost(host);
+        }
+        assertEquals(6, skipped);
+        assertEquals(4, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+    }
+
+    @Test
+    public void blockListSkipsBothConditionalBranchesButKeepsUnconditionalRules() {
+        int skipped = parseText("0.0.0.0 before.example\n  !#if env_browser\n"
+                + "||first.example^\n!#if nested\n0.0.0.0 nested.example\n!#endif\n"
+                + "!#else\nelse.example\n!#endif\n||after.example^");
+        for (String host : new String[]{"first.example", "nested.example", "else.example"}) {
+            assertMissingHost(host);
+        }
+        assertEquals(3, skipped);
+        assertHostRow("before.example", EXACT.getValue());
+        assertHostRow("after.example", SUFFIX.getValue());
+        assertEquals(2, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+    }
+
+    @Test
+    public void unusableBlockRevisionKeepsThePreviouslyActiveRules() {
+        assertEquals(0, parseText("0.0.0.0 retained.example\n"));
+        SupportSQLiteDatabase db = database.getOpenHelper().getWritableDatabase();
+        db.execSQL("UPDATE hosts_meta SET active_generation = ? WHERE id = 0", new Object[]{GENERATION});
+        for (String revision : new String[]{"!#if browser\ninside.example\n!#endif\n",
+                "unpublished.example\n!#if browser\n", "!#else\nunpublished.example\n",
+                "##.global-ad-slot\n"}) {
+            assertThrows(IllegalStateException.class, () -> new SourceLoader(source, GENERATION + 1)
+                    .parse(new BufferedReader(new StringReader(revision)), hostListItemDao, db, null, null));
+            assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION + 1));
+            assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+            assertHostRow("retained.example", EXACT.getValue());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("retained.example").getType());
+        }
+    }
+
+    @Test
+    public void allowModeDoesNotFlattenConditionalSections() {
+        source.setAllowEnabled(true);
+        database.hostsSourceDao().update(source);
+        int skipped = parseText("before.example\n!#if environment\nfirst.example\n"
+                + "!#if nested\nnested.example\n!#endif\n!#else\nelse.example\n"
+                + "!#endif\nafter.example");
+        assertMissingHost("first.example");
+        assertMissingHost("nested.example");
+        assertMissingHost("else.example");
+        assertEquals(3, skipped);
+        assertAllowRow("before.example", EXACT.getValue());
+        assertAllowRow("after.example", EXACT.getValue());
+        assertEquals(2, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+    }
+
+    @Test
+    public void unsupportedOnlyAllowRevisionRetainsLastGoodGeneration() {
+        source.setAllowEnabled(true);
+        database.hostsSourceDao().update(source);
+        assertEquals(0, parseText("retained.example\n"));
+        SupportSQLiteDatabase db = database.getOpenHelper().getWritableDatabase();
+        db.execSQL("UPDATE hosts_meta SET active_generation = ? WHERE id = 0",
+                new Object[]{GENERATION});
+        int candidate = GENERATION + 1;
+        try {
+            new SourceLoader(source, candidate).parse(new BufferedReader(new StringReader(
+                    "rejected.example##.badge\n")), hostListItemDao, db, null, null);
+            fail("An unsupported-only allow revision must not succeed");
+        } catch (IllegalStateException expected) {
+            assertEquals("Hosts source contains no supported rules", expected.getMessage());
+        }
+        assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, candidate));
+        assertEquals(GENERATION, database.hostEntryDao().getActiveGeneration());
+        assertAllowRow("retained.example", EXACT.getValue());
+        assertTrue(database.hostEntryDao().isAllowedByActiveRule("retained.example"));
+        assertFalse(database.hostEntryDao().isAllowedByActiveRule("rejected.example"));
+        assertMissingHost("rejected.example");
+    }
+
+    @Test
+    public void globalCosmeticAndUnbalancedConditionalsAreNotSuccessfulEmptyAllowLists() {
+        source.setAllowEnabled(true);
+        database.hostsSourceDao().update(source);
+        for (String revision : new String[]{"##.badge\n", "!#if fixture\ninside.example\n!#endif",
+                "unpublished.example\n!#if fixture\n", "!#else\nunpublished.example\n"}) {
+            try {
+                parseText(revision);
+                fail("Unsupported or unbalanced revision should fail");
+            } catch (IllegalStateException expected) {
+                assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+            }
+        }
+        assertEquals(0, parseText("# ordinary comment\n! list header\n"));
+        assertEquals(0, hostListItemDao.countSourceHostsForGeneration(SOURCE_ID, GENERATION));
+    }
+
+    private void assertAllowRow(String host, int kind) {
+        assertEquals(1L, scalarLong("SELECT COUNT(*) FROM hosts_lists WHERE host = ? AND type = ? "
+                        + "AND kind = ? AND enabled = 1 AND redirection IS NULL AND source_id = ? "
+                        + "AND generation = ?", host, ALLOWED.getValue(), kind, SOURCE_ID, GENERATION));
     }
 
     @Test
@@ -335,7 +529,7 @@ public class SourceLoaderDatabaseSemanticsTest {
     }
 
     private void assertMissingHost(String host) {
-        assertEquals(0L, scalarLong("SELECT COUNT(*) FROM hosts_lists WHERE host = ?", host));
+        assertEquals(host, 0L, scalarLong("SELECT COUNT(*) FROM hosts_lists WHERE host = ?", host));
         assertEquals(0L, scalarLong(
                 "SELECT COUNT(*) FROM root_host_entries_stage WHERE host = ?", host));
     }

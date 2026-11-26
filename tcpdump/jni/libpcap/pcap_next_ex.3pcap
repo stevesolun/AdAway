@@ -117,6 +117,8 @@ if packets are being read from a live capture and the timeout expired,
 \-1 if an error occurred while reading the packet, and \-2 if
 packets are being read from a ``savefile'' and there are no more
 packets to read from the savefile.
+If the handle has not been activated, it returns
+.BR PCAP_ERROR_NOT_ACTIVATED .
 If \-1 is returned,
 .B pcap_geterr()
 or

@@ -4,8 +4,10 @@
 
 ### Lint checks
 
-Android development tools provide linter to check common errors.
-Use `./gradlew :app:lint` to run the linter and produce (human readable) reports as HTML file located at `app/build/reports/lint-results.html`.
+Run `./gradlew :app:lintDebug --dependency-verification=strict` for the Android
+lint check used by CI. Its HTML report is `app/build/reports/lint-results-debug.html`.
+Use `./gradlew :app:lint --dependency-verification=strict` to check all variants;
+reports are named `lint-results-<variant>.html` in the same directory.
 
 > [!IMPORTANT] 
 > Check no new warning was introduced before releasing.
@@ -68,6 +70,23 @@ Never commit the keystore, passwords, or manifest private key. Changing the APK
 signing identity does not allow an in-place update of an existing differently
 signed installation; disclose the required backup/reinstall migration.
 
+Debug builds always use the debug signing configuration, even when release
+signing properties are supplied. Gradle rejects a debuggable build configured
+with the release keystore and alias. Use a signed `directRelease` APK to verify
+an in-place upgrade of a production-signed installation.
+
+For local release builds, supply these properties through protected Gradle
+configuration, such as `~/.gradle/gradle.properties`:
+
+```properties
+signingStoreLocation=/path/to/keystore.jks
+signingStorePassword=your_store_password
+signingKeyAlias=your_key_alias
+signingKeyPassword=your_key_password
+updateManifestPublicKeyBase64=base64_encoded_spki_public_key
+releaseSigningCertificateSha256=trusted_release_certificate_sha256
+```
+
 Local release verification should run the same gates where possible:
 
 ```bash
@@ -104,7 +123,7 @@ Special thanks to <contributors> for theirs contributions and <bug reporters> fo
 
 [U][SIZE="4"]Download:[/SIZE][/U]
 
-[URL="https://app.adaway.org/adaway.apk"]AdAway <application version>[/URL]
+[URL="https://github.com/stevesolun/AdAway/releases/tag/v<version>"]AdAway <version> APK and checksums[/URL]
 ```
 
 ### Beta releases
@@ -429,10 +448,14 @@ Check the embedded payload before publishing or announcing a release.
 
 Tagged releases are retained for durable provenance by the tag-triggered release
 workflow; it does not automatically delete older release artifacts.
-The separate manual `cleanup-releases.yml` workflow deletes release records and
-assets by recency while retaining Git tags; it does not protect stable or beta
-feeds. Retain releases needed by installed clients and signed update feeds, and
-do not run count-based cleanup against those compatibility requirements.
+The manual `cleanup-releases.yml` workflow previews obsolete **empty**
+pre-releases on the default branch. It retains all releases with any attached
+asset (including an APK or manifest), stable releases, drafts, immutable
+releases, and the latest published beta, even with `keep_latest=0`. The count
+retains additional recent records. Only version tags matching `vX.Y.Zb`
+are eligible. To remove eligible records, select **apply** on a separate run.
+The workflow checks each release by numeric ID again before deletion.
+It never deletes source tags. Do not publish to a release while removing it.
 
 APK self-update is only for the AdAway-signed direct APK distribution. Store
 builds such as F-Droid should rely on their store update mechanism rather than

@@ -38,6 +38,7 @@ public class LogViewModel extends AndroidViewModel {
     private final MutableLiveData<List<LogEntry>> logEntries;
     private final MutableLiveData<Boolean> recording;
     private LogEntrySort sort;
+    private long refreshRevision;
 
     public LogViewModel(@NonNull Application application) {
         super(application);
@@ -60,26 +61,41 @@ public class LogViewModel extends AndroidViewModel {
     }
 
     public void clearLogs() {
+        ++this.refreshRevision;
         this.adBlockModel.clearLogs();
-        this.logEntries.postValue(Collections.emptyList());
+        this.logEntries.setValue(Collections.emptyList());
     }
 
     public void updateLogs() {
-        AppExecutors.getInstance().diskIO().execute(
-                () -> {
-                    // Get tcpdump logs
-                    List<LogEntry> logItems = this.adBlockModel.getLogs()
-                            .parallelStream()
-                            .map(log -> {
-                                ListType type = this.hostEntryDao.getTypeForHost(log);
-                                return new LogEntry(log, type);
-                            })
-                            .sorted(this.sort.comparator())
-                            .collect(Collectors.toList());
-                    // Post result
-                    this.logEntries.postValue(logItems);
-                }
-        );
+        long revision = ++this.refreshRevision;
+        LogEntrySort requestedSort = this.sort;
+        AppExecutors executors = AppExecutors.getInstance();
+        executors.diskIO().execute(() -> {
+            List<LogEntry> entries = readLogEntries(requestedSort);
+            executors.mainThread().execute(() -> {
+                if (revision != this.refreshRevision) return;
+                if (requestedSort != this.sort) entries.sort(this.sort.comparator());
+                this.logEntries.setValue(entries);
+            });
+        });
+    }
+
+    List<LogEntry> readLogEntries(LogEntrySort order) {
+        return this.adBlockModel.getLogs().parallelStream()
+                .map(this::readEntry)
+                .sorted(order.comparator())
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private LogEntry readEntry(String host) {
+        ListType type = this.hostEntryDao.getTypeForHost(host);
+        if (type == ListType.ALLOWED && !this.hostEntryDao.isAllowedByActiveRule(host)) {
+            return new LogEntry(host, null, false);
+        }
+        boolean removable = this.hostListItemDao.getExactEntriesForHost(host).stream()
+                .anyMatch(rule -> rule.getSourceId() == USER_SOURCE_ID && rule.isEnabled()
+                        && rule.getType() == type);
+        return new LogEntry(host, type, removable);
     }
 
     public void toggleSort() {
@@ -123,28 +139,19 @@ public class LogViewModel extends AndroidViewModel {
             this.database.hostsSourceDao().updateActiveRuleStats(USER_SOURCE_ID);
         }));
         // Update log entries
-        updateLogEntryType(host, type);
+        updateLogs();
     }
 
-    public void removeListItem(@NonNull String host) {
-        // Delete host list item
-        AppExecutors.getInstance().diskIO().execute(() -> this.hostListItemDao.deleteUserFromHost(host));
-        // Update log entries
-        updateLogEntryType(host, null);
-    }
-
-    private void updateLogEntryType(@NonNull String host, ListType type) {
-        // Get current values
-        List<LogEntry> entries = this.logEntries.getValue();
-        if (entries == null) {
-            return;
-        }
-        // Update entry type
-        List<LogEntry> updatedEntries = entries.stream()
-                .map(entry -> entry.getHost().equals(host) ? new LogEntry(host, type) : entry)
-                .collect(Collectors.toList());
-        // Post new values
-        this.logEntries.postValue(updatedEntries);
+    public void removeListItem(@NonNull String host, @NonNull ListType type) {
+        AppExecutors.getInstance().diskIO().execute(() -> this.database.runInTransaction(() -> {
+            for (HostListItem rule : this.hostListItemDao.getExactEntriesForHost(host)) {
+                if (rule.getSourceId() == USER_SOURCE_ID && rule.isEnabled() && rule.getType() == type) {
+                    this.hostListItemDao.delete(rule);
+                }
+            }
+            this.database.hostsSourceDao().updateActiveRuleStats(USER_SOURCE_ID);
+        }));
+        updateLogs();
     }
 
     private void sortDnsRequests(LogEntrySort sort) {
@@ -155,7 +162,7 @@ public class LogViewModel extends AndroidViewModel {
         if (entries != null) {
             List<LogEntry> sortedEntries = new ArrayList<>(entries);
             sortedEntries.sort(this.sort.comparator());
-            this.logEntries.postValue(sortedEntries);
+            this.logEntries.setValue(sortedEntries);
         }
         // Notify user
         Toast.makeText(

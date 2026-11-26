@@ -1,6 +1,7 @@
 package org.adaway.ui.hosts;
 
 import android.app.Application;
+import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -8,6 +9,7 @@ import androidx.annotation.UiThread;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.SavedStateHandle;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.db.AppDatabase;
@@ -20,7 +22,11 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import timber.log.Timber;
 
@@ -30,20 +36,39 @@ import timber.log.Timber;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class HostsSourcesViewModel extends AndroidViewModel {
-    public enum ApplyStatus { IDLE, RUNNING, FAILED, SUCCEEDED }
+    public enum ApplyStatus { IDLE, BUSY, RUNNING, FAILED, SUCCEEDED }
 
     private final HostsSourceDao hostsSourceDao;
-    private final SourceApplyState mApplyState = new SourceApplyState();
+    private static final String APPLY_BASELINE = "sources_apply_baseline";
+    private static final String FINGERPRINT = "fingerprint";
+    private static final String UNCERTAIN = "uncertain";
+    private final SourceApplyState mApplyState;
     private final MutableLiveData<ApplyStatus> mApplyStatus =
             new MutableLiveData<>(ApplyStatus.IDLE);
+    private final MutableLiveData<Set<Integer>> failedSelections =
+            new MutableLiveData<>(Collections.emptySet());
     @Nullable
     private Integer mUpdateSourceId;
     private String mObservedConfiguration;
     private long mConfigurationRevision;
 
     public HostsSourcesViewModel(@NonNull Application application) {
+        this(application, new SavedStateHandle());
+    }
+
+    public HostsSourcesViewModel(@NonNull Application application, @NonNull SavedStateHandle state) {
         super(application);
         this.hostsSourceDao = AppDatabase.getInstance(application).hostsSourceDao();
+        Bundle baseline = state.get(APPLY_BASELINE);
+        mApplyState = baseline == null ? new SourceApplyState() : new SourceApplyState(
+                baseline.getString(FINGERPRINT), baseline.getBoolean(UNCERTAIN));
+        state.setSavedStateProvider(APPLY_BASELINE, () -> {
+            Bundle saved = new Bundle();
+            saved.putString(FINGERPRINT, mApplyState.getAppliedConfiguration());
+            saved.putBoolean(UNCERTAIN, mApplyState.isUncertainOnRestore()
+                    || mApplyStatus.getValue() == ApplyStatus.RUNNING);
+            return saved;
+        });
     }
 
     public LiveData<List<HostsSource>> getHostsSources() {
@@ -61,6 +86,14 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     @UiThread
     public void onSourcesChanged(List<HostsSource> sources) {
         if (sources != null) {
+            Set<Integer> failed = failedSelections.getValue();
+            if (failed != null && !failed.isEmpty()) {
+                Set<Integer> remaining = new HashSet<>();
+                for (HostsSource source : sources) {
+                    if (failed.contains(source.getId())) remaining.add(source.getId());
+                }
+                if (remaining.size() != failed.size()) failedSelections.setValue(remaining);
+            }
             String configuration = SourceApplyState.fingerprint(sources);
             if (!configuration.equals(mObservedConfiguration)) {
                 if (mObservedConfiguration != null) {
@@ -92,13 +125,13 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         }
         mUpdateSourceId = sourceId;
         long revision = mConfigurationRevision;
-        mApplyStatus.setValue(ApplyStatus.RUNNING);
         AdAwayApplication application = getApplication();
         SourceOperationCoordinator.Lease lease = application.getSourceOperations().tryAcquire();
         if (lease == null) {
-            mApplyStatus.setValue(ApplyStatus.FAILED);
+            mApplyStatus.setValue(ApplyStatus.BUSY);
             return;
         }
+        mApplyStatus.setValue(ApplyStatus.RUNNING);
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 boolean successful = false;
@@ -143,16 +176,41 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         }
     }
 
-    public void toggleSourceEnabled(HostsSource source) {
-        mConfigurationRevision++;
-        AppExecutors.getInstance().diskIO().execute(() -> this.hostsSourceDao.toggleEnabled(source));
+    public void setSourceEnabled(HostsSource source, boolean enabled) {
+        setGroupEnabled(Collections.singletonList(source.getId()), enabled);
     }
 
-    public void setSourceEnabled(HostsSource source, boolean enabled) {
+    LiveData<Set<Integer>> getFailedSelections() {
+        return failedSelections;
+    }
+
+    @UiThread
+    private void selectionFinished(List<Integer> ids, boolean succeeded) {
+        Set<Integer> next = new HashSet<>(failedSelections.getValue());
+        boolean changed = succeeded ? next.removeAll(ids) : next.addAll(ids);
+        if (changed || !succeeded) failedSelections.setValue(next);
+    }
+
+    @UiThread
+    void setGroupEnabled(List<Integer> sourceIds, boolean enabled) {
+        if (sourceIds.isEmpty()) return;
+        List<Integer> ids = new ArrayList<>(sourceIds);
         mConfigurationRevision++;
-        AppExecutors.getInstance().diskIO().execute(() -> {
-            source.setEnabled(enabled);
-            this.hostsSourceDao.applySourceSelection(source.getId(), enabled);
-        });
+        try {
+            AppExecutors.getInstance().diskIO().execute(() -> {
+                try {
+                    hostsSourceDao.applyGroupSelection(ids, enabled);
+                } catch (RuntimeException error) {
+                    Timber.w(error, "Could not save source selection.");
+                    AppExecutors.getInstance().mainThread().execute(() -> selectionFinished(ids, false));
+                    return;
+                }
+                FilterSetStore.markCustomProfile(getApplication());
+                AppExecutors.getInstance().mainThread().execute(() -> selectionFinished(ids, true));
+            });
+        } catch (java.util.concurrent.RejectedExecutionException error) {
+            Timber.w(error, "Could not schedule source selection.");
+            selectionFinished(ids, false);
+        }
     }
 }

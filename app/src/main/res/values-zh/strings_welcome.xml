@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">启用了”始终开启的 VPN\"</string>
     <string name="welcome_vpn_alwayson_description">AdAway 检测到另一个 VPN 占用了 \"始终开启的 VPN\"。\n\n这造成 AdAway 无法请求 VPN 权限。请停用相应 VPN 的\"始终开启的 VPN\"并重试。</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway 请求 VPN 权限失败。\n\n这可能是因为另一个 VPN 占用了\"始终开启的 VPN\"。请在重试前检查是否有任何 VPN 启用了该设置，如果有的话，请先停用它。</string>
     <string name="welcome_vpn_alwayson_settings_action">打开\"VPN\" 设置</string>
 
 

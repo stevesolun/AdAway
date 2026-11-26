@@ -522,7 +522,7 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 		 * Set the pointer to the private data; that's the structure
 		 * of size "size" following the pcap_t.
 		 */
-		p->priv = (void *)(chunk + sizeof (pcap_t));
+		p->priv = (void *)(p + 1);
 	}
 
 	return (p);
@@ -1242,7 +1242,7 @@ pcap_datalink_name_to_val(const char *name)
 	int i;
 
 	for (i = 0; dlt_choices[i].name != NULL; i++) {
-		if (pcap_strcasecmp(dlt_choices[i].name + sizeof("DLT_") - 1,
+		if (pcap_strcasecmp(dlt_choices[i].name + strlen("DLT_"),
 		    name) == 0)
 			return (dlt_choices[i].dlt);
 	}
@@ -1256,7 +1256,7 @@ pcap_datalink_val_to_name(int dlt)
 
 	for (i = 0; dlt_choices[i].name != NULL; i++) {
 		if (dlt_choices[i].dlt == dlt)
-			return (dlt_choices[i].name + sizeof("DLT_") - 1);
+			return (dlt_choices[i].name + strlen("DLT_"));
 	}
 	return (NULL);
 }
@@ -1866,14 +1866,14 @@ pcap_open_dead(int linktype, int snaplen)
 int
 pcap_sendpacket(pcap_t *p, const u_char *buf, int size)
 {
-	if (p->inject_op(p, buf, size) == -1)
+	if (p->inject_op(p, buf, size) < 0)
 		return (-1);
 	return (0);
 }
 
 /*
- * API compatible with OpenBSD's "send a packet" routine - returns -1 on
- * error, number of bytes written otherwise.
+ * API compatible with OpenBSD's "send a packet" routine; see
+ * pcap_inject.3pcap for the return-value contract.
  */
 int
 pcap_inject(pcap_t *p, const void *buf, size_t size)

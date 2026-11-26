@@ -3,6 +3,8 @@ package org.adaway.model.source;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.adaway.util.SourceHttpPolicy;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +51,7 @@ public final class FilterListCompatibility {
         }
 
         String lower = value.toLowerCase(Locale.ROOT);
-        if (!lower.startsWith("https://")) {
+        if (!SourceHttpPolicy.isRemoteUrl(value)) {
             return false;
         }
         if (lower.contains("/blob/")) {

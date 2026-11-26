@@ -1,0 +1,3 @@
+path,sha256,assessment,bug_ids
+app/src/main/java/org/adaway/db/AppDatabase.java,6069bad9e8ca26f149a2bbeceb29d884bdc64b885671075be20a56b5b9d05562,"Version 32 unchanged. Create-only bound insert reserves ID and canonical URI with original flags and zero counters before deferred catalog/allowlist work. No on-open rewrite or migration.",DEEP-RESTORE-ID-001
+app/src/androidTest/java/org/adaway/db/FreshSourceIdentityTest.java,5eb46ef83a14009794071b3c77f33ce2c8ab94e18e9d53bff383b431ca2471de,"Controlled Room creation before the default seed and a same-version on-disk conflicted reopen with a dependent rule. Two tests; runtime/compile boundary described in report.",DEEP-RESTORE-ID-001

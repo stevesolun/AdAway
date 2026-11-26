@@ -1,0 +1,7 @@
+gradle.beforeProject { project ->
+    project.pluginManager.withPlugin('com.android.application') {
+        project.androidComponents.finalizeDsl { dsl ->
+            dsl.buildTypes.debug.signingConfig = dsl.signingConfigs.getByName('release')
+        }
+    }
+}

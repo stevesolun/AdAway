@@ -26,7 +26,6 @@
 
     <string name="welcome_vpn_alwayson_title">Altijd aan VPN ingeschakeld</string>
     <string name="welcome_vpn_alwayson_description">Adaway detecteerde dat een andere VPN de instelling \"altijd aan VPN ingeschaked\" actief is. .\n\nDit voorkomt Adaway om toegang te vragen tot VPN. Schakel a.u.b. \"altijd aan VPN ingeschaked\" uit op de bijbehorende VPN en probeer opnieuw.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">Adaway kan geen toegang vragen tot VPN. \n\nDit komt waarschijnlijk doordat een andere VPN de instelling \"Altijd aan VPN ingeschakeld\" actief heeft. Controleer a.u.b.  of een andere VPN deze instelling actief heeft en schakel deze uit voordat je het opnieuw probeert.</string>
     <string name="welcome_vpn_alwayson_settings_action">Open VPN instellingen</string>
 
 

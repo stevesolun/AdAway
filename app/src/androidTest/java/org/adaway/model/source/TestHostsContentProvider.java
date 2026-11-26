@@ -35,6 +35,7 @@ public class TestHostsContentProvider extends ContentProvider {
             "0.0.0.0 second-success.example\n";
     public static final Uri BACKUP_URI =
             Uri.parse("content://" + AUTHORITY + BACKUP_PATH);
+    static final Uri REFRESH_URI = Uri.parse("content://" + AUTHORITY + "/refresh.txt");
     private static volatile byte[] backupContent;
 
     public static void clearBackup(Context context) {
@@ -74,6 +75,9 @@ public class TestHostsContentProvider extends ContentProvider {
         if (SUCCESS_PATH.equals(uri.getPath())) {
             displayName = "success.txt";
             size = SUCCESS_CONTENT.getBytes(StandardCharsets.UTF_8).length;
+        } else if (REFRESH_URI.equals(uri)) {
+            displayName = "refresh.txt";
+            size = refreshFile().length();
         } else if (BACKUP_PATH.equals(uri.getPath())) {
             displayName = BACKUP_FILE_NAME;
             byte[] snapshot = backupContent;
@@ -86,7 +90,7 @@ public class TestHostsContentProvider extends ContentProvider {
                 OpenableColumns.SIZE,
                 DocumentsContract.Document.COLUMN_LAST_MODIFIED
         });
-        Long modified = System.currentTimeMillis();
+        Long modified = REFRESH_URI.equals(uri) ? refreshFile().lastModified() : System.currentTimeMillis();
         if (SUCCESS_PATH.equals(uri.getPath())) {
             String requestedModified = uri.getQueryParameter("modified");
             if ("unknown".equals(requestedModified)) {
@@ -121,6 +125,9 @@ public class TestHostsContentProvider extends ContentProvider {
     @Override
     public int delete(@NonNull Uri uri, @Nullable String selection,
                       @Nullable String[] selectionArgs) {
+        if (REFRESH_URI.equals(uri)) {
+            return refreshFile().delete() ? 1 : 0;
+        }
         if (BACKUP_PATH.equals(uri.getPath())) {
             backupContent = null;
             return 1;
@@ -141,6 +148,9 @@ public class TestHostsContentProvider extends ContentProvider {
     @Override
     public ParcelFileDescriptor openFile(@NonNull Uri uri, @NonNull String mode)
             throws FileNotFoundException {
+        if (REFRESH_URI.equals(uri)) {
+            return ParcelFileDescriptor.open(refreshFile(), ParcelFileDescriptor.parseMode(mode));
+        }
         if (BACKUP_PATH.equals(uri.getPath())) {
             return mode.contains("w") ? openBackupWritePipe(uri) : openBackupReadPipe(uri);
         }
@@ -220,6 +230,11 @@ public class TestHostsContentProvider extends ContentProvider {
         } catch (IOException ignored) {
             // The reader side owns failure reporting.
         }
+    }
+
+    @NonNull
+    private File refreshFile() {
+        return new File(getRequiredContext().getCacheDir(), "adaway-test-refresh-hosts.txt");
     }
 
     @NonNull

@@ -6,14 +6,22 @@ BEGIN	{
 	expectNext = 1
 	lastwin = -1
 	}
+$3 != ">" || $1 !~ /^[0-9]+:[0-9]+:[0-9]+([.][0-9]+)?$/ { next }
+$6 == "ack" && $7 !~ /^[0-9]+$/ { next }
+$6 != "ack" && $5 !~ /[SFR]/ && $6 !~ /^[0-9]+:[0-9]+(\([0-9]+\))?$/ { next }
 	{
 	# convert tcp trace to send/ack form.
-	n = split ($1,t,":")
-	tim = t[1]*3600 + t[2]*60 + t[3]
-	if (NR <= 1) {
+	split($1,t,":")
+	clock = t[1]*3600 + t[2]*60 + t[3]
+	# Date-less trace: a large backward jump denotes midnight, not a small reorder.
+	if (previous - clock > 43200)
+		day += 86400
+	previous = clock
+	tim = day + clock
+	if (!started) {
+		started = 1
 		tzero = tim
 		ltim = tim
-		OFS = "\t"
 	}
 	if ($6 != "ack") {
 		# we have a data packet record:
@@ -23,43 +31,42 @@ BEGIN	{
 		#   * -> re-sent packet
 		#   - -> packet after hole (missing packet(s))
 		#   # -> odd size packet
-		if ($5 !~ /[SFR]/) {
-			i = index($6,":")
-			j = index($6,"(")
-			strtSeq = substr($6,1,i-1)
-			endSeq = substr($6,i+1,j-i-1)
-			len = endSeq - strtSeq
-			id = endSeq
-			if (! timeOf[id])
-				timeOf[id] = tim
-			if (endSeq - expectNext < 0)
-				flag = "*"
-			else {
-				if (strtSeq - expectNext > 0)
-					flag = "-"
-				else if (len != packetsize)
-					flag = "#"
-				else
-					flag = " "
+		if ($5 ~ /[SFR]/)
+			next
+		split($6, seq, /[:(]/)
+		strtSeq = seq[1]+0
+		endSeq = seq[2]+0
+		len = endSeq - strtSeq
+		id = endSeq
+		if (id in timeOf)
+			flag = "*"
+		else {
+			timeOf[id] = tim
+			if (strtSeq > expectNext)
+				flag = "-"
+			else if (len != packetsize)
+				flag = "#"
+			else
+				flag = " "
+			if (endSeq > expectNext)
 				expectNext = endSeq
-			}
-			printf "%7.2f\t%7.2f\t%s send %s %d", tim-tzero, tim-ltim,\
-				flag, $5, strtSeq
-			if (++timesSent[id] > 1)
-				printf "  (%.2f) [%d]", tim - timeOf[id], timesSent[id]
-			if (len != packetsize)
-				printf " <%d>", len
 		}
+		printf "%7.2f\t%7.2f\t%s send %s %d", tim-tzero, tim-ltim,\
+			flag, $5, strtSeq
+		if (++timesSent[id] > 1)
+			printf "  (%.2f) [%d]", tim - timeOf[id], timesSent[id]
+		if (len != packetsize)
+			printf " <%d>", len
 	} else {
-		id = $7
+		id = $7+0
 
-		printf "%7.2f\t%7.2f\t%s  ack %s %d", tim-tzero, tim-ltim,\
-			flag, $5, id
-		if ($9 != lastwin) {
+		printf "%7.2f\t%7.2f\t   ack %s %d", tim-tzero, tim-ltim, $5, id
+		if ($8 == "win" && $9 ~ /^[0-9]+$/ && $9 != lastwin) {
 			printf "  win %d", $9
 			lastwin = $9
 		}
-		printf "  (%.2f)", tim - timeOf[id]
+		# Keep the delay field numeric even when the matching send is missing.
+		printf "  (%.2f)", (id in timeOf ? tim - timeOf[id] : -1)
 		if (++timesAcked[id] > 1)
 			printf " [%d]", timesAcked[id]
 	}

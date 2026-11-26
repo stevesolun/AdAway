@@ -1,53 +1,67 @@
-name: Cleanup old releases
+name: Clean up empty pre-releases
 
 on:
   workflow_dispatch:
     inputs:
       keep_latest:
-        description: "How many releases to keep"
+        description: "Minimum number of newest releases to retain"
         required: true
         default: "3"
+      apply:
+        description: "Delete eligible empty pre-releases (unchecked: preview only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   cleanup:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
+    concurrency: release-cleanup
     steps:
-      - name: Delete older releases
+      - name: Plan or remove empty pre-releases
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KEEP_LATEST: ${{ inputs.keep_latest }}
+          APPLY: ${{ inputs.apply }}
         run: |
           set -euo pipefail
 
-          if ! [[ "$KEEP_LATEST" =~ ^[0-9]+$ ]]; then
-            echo "::error::keep_latest must be a non-negative integer."
+          if ! [[ "$KEEP_LATEST" =~ ^[0-9]{1,9}$ && "$APPLY" =~ ^(true|false)$ ]]; then
+            echo "::error::Invalid retention count or apply flag."
             exit 1
           fi
 
-          # Check enumeration before parsing; process substitution hides gh failures.
-          release_list=$(gh release list --repo "$GITHUB_REPOSITORY" \
-              --limit 1000 \
-              --json tagName,createdAt \
-              --jq 'sort_by(.createdAt) | reverse | .[].tagName')
-          if [ -z "$release_list" ]; then
-            exit 0
-          fi
+          releases="repos/$GITHUB_REPOSITORY/releases"
+          # Complete pagination before considering a deletion. Keep ties for newest beta.
+          pages=$(gh api --paginate --slurp "$releases?per_page=100")
+          [[ -n "$pages" ]] || { echo "::error::No release enumeration response."; exit 1; }
+          plan=$(jq -r --arg keep "$KEEP_LATEST" '
+            if type != "array" or any(.[]; type != "array") then error("invalid release pages") else add // [] end |
+            ([.[] | select(.draft == false and .prerelease == true) |
+              .published_at | fromdateiso8601] | max) as $latest |
+            sort_by(.created_at | fromdateiso8601) | reverse | .[($keep | tonumber):][] |
+            select(.draft == false and .prerelease == true and .immutable == false and .assets == []) |
+            select((.published_at | fromdateiso8601) < $latest and
+              (.tag_name | test("^v[0-9]+[.][0-9]+[.][0-9]+b$")) and (.id | type == "number")) |
+            [.id, .tag_name, .updated_at] | @tsv' <<< "$pages")
+          if [[ -z "$plan" ]]; then echo "No eligible empty pre-releases."; exit 0; fi
 
-          releases=()
-          while IFS= read -r release; do
-            releases+=("$release")
-          done <<< "$release_list"
-
-          for index in "${!releases[@]}"; do
-            if [ "$index" -lt "$KEEP_LATEST" ]; then
-              continue
+          while IFS=$'\t' read -r id tag updated; do
+            [[ "$id" =~ ^[1-9][0-9]*$ && -n "$updated" ]] || exit 1
+            printf 'Eligible: %s (release %s)\n' "$tag" "$id"
+            if [[ "$APPLY" == true ]]; then
+              # Re-read the same numeric release, not whatever a tag might now refer to.
+              current=$(gh api "$releases/$id")
+              jq -se --argjson id "$id" --arg tag "$tag" --arg updated "$updated" '
+                length == 1 and (.[0] | .id == $id and .tag_name == $tag and .updated_at == $updated and
+                .draft == false and .prerelease == true and .immutable == false and .assets == [])
+              ' <<< "$current" > /dev/null || { echo "::error::Release changed; preview again."; exit 1; }
+              gh api --method DELETE "$releases/$id"
             fi
-            # Keep tags: source archives and GPL source provenance are tag-addressed.
-            gh release delete "${releases[$index]}" --repo "$GITHUB_REPOSITORY" --yes
-          done
+          done <<< "$plan"
 
 

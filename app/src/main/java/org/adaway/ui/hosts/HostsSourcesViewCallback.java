@@ -4,6 +4,8 @@ import android.content.Context;
 
 import org.adaway.db.entity.HostsSource;
 
+import java.util.List;
+
 /**
  * This class is represents the {@link HostsSourcesFragment} callback.
  *
@@ -24,6 +26,8 @@ public interface HostsSourcesViewCallback {
      * @param enabled The desired enabled state.
      */
     void setEnabled(HostsSource source, boolean enabled);
+
+    void setGroupEnabled(List<Integer> sourceIds, boolean enabled);
 
     /**
      * Update (download + parse) a single hosts source.

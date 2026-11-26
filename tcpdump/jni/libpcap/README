@@ -53,13 +53,10 @@ A PDF version can be found at
 
 	http://www.tcpdump.org/papers/bpf-usenix93.pdf
 
-Although most packet capture interfaces support in-kernel filtering,
-libpcap utilizes in-kernel filtering only for the BPF interface.
-On systems that don't have BPF, all packets are read into user-space
-and the BPF filters are evaluated in the libpcap library, incurring
-added overhead (especially, for selective filters).  Ideally, libpcap
-would translate BPF filters into a filter program that is compatible
-with the underlying kernel subsystem, but this is not yet implemented.
+In-kernel filtering is not limited to the BSD BPF device.  For example,
+the Linux backend can attach a BPF program to a packet socket.  When a
+filter must be evaluated in user space, packets that it discards still
+incur the cost of being copied to user space.
 
 BPF is standard in 4.4BSD, BSD/OS, NetBSD, FreeBSD, OpenBSD, DragonFly
 BSD, and Mac OS X; an older, modified and undocumented version is

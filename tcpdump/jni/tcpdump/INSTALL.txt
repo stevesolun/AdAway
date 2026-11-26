@@ -2,12 +2,11 @@ If you have not built libpcap, and your system does not have libpcap
 installed, install libpcap first.  Your system might provide a version
 of libpcap that can be installed; if so, to compile tcpdump you might
 need to install a "developer" version of libpcap as well as the
-"run-time" version.  You can also install tcpdump.org's version of
-libpcap; see the README file in this directory for the ftp location.
+"run-time" version. The libpcap source in this archive is in ../libpcap;
+its standalone build instructions are in ../libpcap/INSTALL.txt.
 
 You will need an ANSI C compiler to build tcpdump. The configure script
-will abort if your compiler is not ANSI compliant. If this happens, use
-the generally available GNU C compiler (GCC).
+checks for an option to accept ISO C89.
 
 After libpcap has been built (either install it with "make install" or
 make sure both the libpcap and tcpdump source trees are in the same
@@ -41,7 +40,7 @@ CREDITS		- people that have helped tcpdump along
 INSTALL.txt	- this file
 LICENSE		- the license under which tcpdump is distributed
 Makefile.in	- compilation rules (input to the configure script)
-README		- description of distribution
+README.md	- description of distribution (README points here)
 Readme.Win32	- notes on building tcpdump on Win32 systems (with WinPcap)
 VERSION		- version of this release
 aclocal.m4	- autoconf macros
@@ -205,7 +204,7 @@ smbutil.c	- SMB/CIFS utility routines
 stime.awk	- TCP send awk script
 strcasecmp.c	- missing routine
 tcp.h		- TCP definitions
-tcpdump.1	- manual entry
+tcpdump.1.in	- template from which configure generates tcpdump.1
 tcpdump.c	- main program
 udp.h		- UDP definitions
 util.c		- utility routines

@@ -40,7 +40,9 @@ struct, usually the result of a call to
 .BR pcap_compile() .
 .SH RETURN VALUE
 .B pcap_setfilter()
-returns 0 on success and \-1 on failure.
+returns 0 on success,
+.B PCAP_ERROR_NOT_ACTIVATED
+for a handle created but not yet activated, and \-1 on other failures.
 If \-1 is returned,
 .B pcap_geterr()
 or

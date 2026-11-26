@@ -43,7 +43,7 @@
 /* on HP-UX 9.x */
 #undef HAVE_HPUX9
 
-/* if ppa_info_t_dl_module_id exists */
+/* if dl_hp_ppa_info_t has a dl_module_id_1 member */
 #undef HAVE_HP_PPA_INFO_T_DL_MODULE_ID_1
 
 /* Define to 1 if you have the <inttypes.h> header file. */

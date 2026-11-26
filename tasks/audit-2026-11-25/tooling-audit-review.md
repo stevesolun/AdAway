@@ -50,7 +50,7 @@ keyring/wrapper artifacts are retained as explicit unread entries below.
 
 All 36 new review targets were clean and their hashes were rechecked before
 writing. Concurrent edits elsewhere were present and were neither reverted nor
-claimed. Files.csv contains only the 36 new assessments, no context-only files,
+claimed. [tooling-audit-files.csv](tooling-audit-files.csv) contains only the 36 new assessments, no context-only files,
 no artifact self-hashes, no dirty files, and no previous current-hash reviews.
 
 ### Scripts and Tests

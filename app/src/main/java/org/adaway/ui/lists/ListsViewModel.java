@@ -127,7 +127,7 @@ public class ListsViewModel extends AndroidViewModel {
     }
 
     private void addOrUpdateItemInternal(HostListItem item) {
-        Optional<Integer> id = this.hostListItemDao.getHostId(item.getHost());
+        Optional<Integer> id = this.hostListItemDao.getUserRuleId(item.getHost(), item.getKind());
         if (id.isPresent()) {
             item.setId(id.get());
             this.hostListItemDao.update(item);

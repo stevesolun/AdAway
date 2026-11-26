@@ -43,7 +43,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="4"
-				AdditionalIncludeDirectories="../../../winpcap/wpcap/libpcap/bpf,../../../winpcap/wpcap/libpcap,../../../winpcap/wpcap/libpcap/Win32/Include,../../../winpcap/wpcap/libpcap/Win32/Include/net,../../Win32/Include,../../linux-Include,../../lbl,../../,../../../winpcap/wpcap/win32-extensions"
+				AdditionalIncludeDirectories="../../../winpcap/wpcap/libpcap/bpf,../../../winpcap/wpcap/libpcap,../../../winpcap/wpcap/libpcap/Win32/Include,../../../winpcap/wpcap/libpcap/Win32/Include/net,../Include,../../lbl,../../,../../../winpcap/wpcap/win32-extensions"
 				PreprocessorDefinitions="_DEBUG;_WINDOWS;INET6;WIN32;_CONSOLE;__STDC__;WPCAP;HAVE_ADDRINFO=1;HAVE_SOCKADDR_STORAGE=1;HAVE_PCAP_LIST_DATALINKS=1;HAVE_PCAP_SET_DATALINK=1;HAVE_PCAP_DATALINK_NAME_TO_VAL=1;HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1;HAVE_PCAP_DUMP_FTELL=1;HAVE_BPF_DUMP=1;HAVE_PCAP_DUMP_FLUSH=1;HAVE_PCAP_FINDALLDEVS=1;HAVE_PCAP_IF_T=1;HAVE_PCAP_LIB_VERSION=1;HAVE_REMOTE;_U_=;_CRT_SECURE_NO_WARNINGS;USE_ETHER_NTOHOST"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
@@ -69,7 +69,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="wpcap.lib odbc32.lib odbccp32.lib wsock32.lib"
+				AdditionalDependencies="wpcap.lib odbc32.lib odbccp32.lib ws2_32.lib"
 				OutputFile="debug/WinDump.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
@@ -139,8 +139,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="1"
-				AdditionalIncludeDirectories="../../../winpcap/wpcap/libpcap/bpf,../../../winpcap/wpcap/libpcap,../../../winpcap/wpcap/libpcap/Win32/Include,../../../winpcap/wpcap/libpcap/Win32/Include/net,../../Win32/Include,../../linux-Include,../../lbl,../../,../../../winpcap/wpcap/win32-extensions"
-				PreprocessorDefinitions="NDEBUG;INET6;WIN32;_CONSOLE;__STDC__;WPCAP;HAVE_ADDRINFO=1;HAVE_SOCKADDR_STORAGE=1;HAVE_PCAP_LIST_DATALINKS=1;HAVE_PCAP_SET_DATALINK=1;HAVE_PCAP_DATALINK_NAME_TO_VAL=1;HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1;HAVE_PCAP_DUMP_FTELL=1;HAVE_BPF_DUMP=1;HAVE_PCAP_DUMP_FLUSH=1;HAVE_PCAP_FINDALLDEVS=1;HAVE_PCAP_IF_T=1;HAVE_PCAP_LIB_VERSION=1;HAVE_REMOTE;_U_=;_CRT_SECURE_NO_WARNINGS"
+				AdditionalIncludeDirectories="../../../winpcap/wpcap/libpcap/bpf,../../../winpcap/wpcap/libpcap,../../../winpcap/wpcap/libpcap/Win32/Include,../../../winpcap/wpcap/libpcap/Win32/Include/net,../Include,../../lbl,../../,../../../winpcap/wpcap/win32-extensions"
+				PreprocessorDefinitions="NDEBUG;INET6;WIN32;_CONSOLE;__STDC__;WPCAP;HAVE_ADDRINFO=1;HAVE_SOCKADDR_STORAGE=1;HAVE_PCAP_LIST_DATALINKS=1;HAVE_PCAP_SET_DATALINK=1;HAVE_PCAP_DATALINK_NAME_TO_VAL=1;HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1;HAVE_PCAP_DUMP_FTELL=1;HAVE_BPF_DUMP=1;HAVE_PCAP_DUMP_FLUSH=1;HAVE_PCAP_FINDALLDEVS=1;HAVE_PCAP_IF_T=1;HAVE_PCAP_LIB_VERSION=1;HAVE_REMOTE;_U_=;_CRT_SECURE_NO_WARNINGS;USE_ETHER_NTOHOST"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -164,7 +164,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib wsock32.lib wpcap.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib ws2_32.lib wpcap.lib"
 				OutputFile="release/WinDump.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
@@ -249,28 +249,6 @@
 			</FileConfiguration>
 		</File>
 		<File
-			RelativePath="..\..\bpf_dump.c"
-			>
-			<FileConfiguration
-				Name="Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-		</File>
-		<File
 			RelativePath="..\..\checksum.c"
 			>
 			<FileConfiguration
@@ -294,50 +272,6 @@
 		</File>
 		<File
 			RelativePath="..\..\cpack.c"
-			>
-			<FileConfiguration
-				Name="Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-		</File>
-		<File
-			RelativePath="..\..\missing\datalinks.c"
-			>
-			<FileConfiguration
-				Name="Debug|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Release|Win32"
-				>
-				<Tool
-					Name="VCCLCompilerTool"
-					AdditionalIncludeDirectories=""
-					PreprocessorDefinitions=""
-				/>
-			</FileConfiguration>
-		</File>
-		<File
-			RelativePath="..\..\missing\dlnames.c"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -3201,11 +3135,11 @@
 			</FileConfiguration>
 		</File>
 		
-		<File RelativePath="..\Src\ether_ntohost.c">
+		<File RelativePath="..\src\ether_ntohost.c">
 		</File>
 		
 		<File
-			RelativePath="..\..\Tcpdump.c"
+			RelativePath="..\..\tcpdump.c"
 			>
 			<FileConfiguration
 				Name="Debug|Win32"
@@ -3247,6 +3181,122 @@
 					PreprocessorDefinitions=""
 				/>
 			</FileConfiguration>
+		</File>
+		<File
+			RelativePath="..\..\in_cksum.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-802_15_4.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-ahcp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-aoe.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-babel.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-calm-fast.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-carp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-forces.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-ftp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-geneve.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-geonet.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-http.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-ipnet.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-loopback.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-m3ua.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-mptcp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-msnlb.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-nflog.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-openflow-1.0.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-openflow.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-otv.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-pktap.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-ppi.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-rtsp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-smtp.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-tipc.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-usb.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-vxlan.c"
+			>
+		</File>
+		<File
+			RelativePath="..\..\print-zeromq.c"
+			>
 		</File>
 	</Files>
 	<Globals>

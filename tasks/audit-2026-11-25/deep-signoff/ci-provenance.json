@@ -1,0 +1,26 @@
+{
+  "run": 45661198805,
+  "run_url": "https://github.com/stevesolun/AdAway/actions/runs/45661198805",
+  "run_status_at_fetch": "completed",
+  "conclusion_at_fetch": "failure",
+  "sha": "3837d1951138b531410bb5767f7bf1a434f5dea4",
+  "branch": "codex/post-beta-audit",
+  "artifact_id": 15048006671,
+  "artifact_name": "connected-android-test-artifacts",
+  "artifact_digest": "sha256:df965f2655b962faf631ed8802dc1644a0dd7d84c567d10c1a1f89611536a3a1",
+  "xml_member": "outputs/androidTest-results/connected/debug/TEST-emulator-5554 - 14-_app-.xml",
+  "xml_sha256": "d9efe1deaa584ba3333c4d5071e647a387e85cddbea2325323b75c69a4d81961",
+  "device": "emulator-5554 - 14",
+  "report_totals": {
+    "passed": 607,
+    "skipped": 18,
+    "failed": 1
+  },
+  "mapped_execution": {
+    "passed": 262,
+    "skipped": 10,
+    "failed": 1,
+    "host-only": 6,
+    "not-in-report": 5
+  }
+}

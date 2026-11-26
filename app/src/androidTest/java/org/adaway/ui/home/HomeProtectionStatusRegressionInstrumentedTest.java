@@ -34,6 +34,7 @@ import org.adaway.model.source.FilterOperationState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.util.AppExecutors;
+import org.adaway.vpn.VpnStatus;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -109,10 +110,31 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
     }
 
     @Test
+    public void visibleHeaderTracksWaitingWithoutClearingRequestOrClaimingMissingTunnel()
+            throws Exception {
+        snapshot(2, 2);
+        publishApplied(true);
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            PreferenceHelper.setVpnServiceStatus(this.context, VpnStatus.WAITING_FOR_NETWORK);
+            assertStatus(scenario, R.string.home_protection_status_vpn_waiting, true, false);
+            scenario.recreate();
+            assertStatus(scenario, R.string.home_protection_status_vpn_waiting, true, false);
+            PreferenceHelper.setVpnServiceStatus(this.context, VpnStatus.RUNNING);
+            assertStatus(scenario, R.string.home_protection_status_vpn_disconnected, true, false);
+            publishApplied(false);
+            assertStatus(scenario, R.string.home_protection_status_inactive, false, false);
+            assertEquals(0, this.model.mutations.get());
+        } finally {
+            PreferenceHelper.setVpnServiceStatus(this.context, VpnStatus.STOPPED);
+        }
+    }
+
+    @Test
     public void vpnWithZeroRulesStaysEnabledWithoutClaimingActiveProtection() throws Exception {
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
             publishApplied(true);
+            publishEstablished(scenario);
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
             snapshot(2, 2);
             assertStatus(scenario, R.string.home_protection_status_active, true, true);
@@ -149,6 +171,7 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
         publishApplied(true);
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
+            publishEstablished(scenario);
             assertStatus(scenario, R.string.home_protection_status_vpn_checking_rules, true, false);
             snapshot(0, 0);
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
@@ -162,6 +185,7 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
         publishApplied(true);
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
+            publishEstablished(scenario);
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
             waitForText(scenario, R.id.blockedHostCounterTextView, "0");
             drainCounterRefresh();
@@ -188,6 +212,7 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
             assertStatus(scenario, R.string.home_protection_status_active, true, true);
 
             scenario.recreate();
+            publishEstablished(scenario);
             assertStatus(scenario, R.string.home_protection_status_active, true, true);
             snapshot(0, 0);
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
@@ -207,6 +232,7 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
         publishApplied(true);
         try (ActivityScenario<HomeActivity> scenario =
                      ActivityScenario.launch(HomeActivity.class)) {
+            publishEstablished(scenario);
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
             scenario.onActivity(activity -> {
                 HomeFragment fragment = home(activity);
@@ -215,6 +241,7 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
                 activity.getSupportFragmentManager().beginTransaction()
                         .attach(fragment).commitNow();
             });
+            publishEstablished(scenario);
             snapshot(2, 2);
             assertStatus(scenario, R.string.home_protection_status_active, true, true);
             waitForText(scenario, R.id.blockedHostCounterTextView, "2");
@@ -222,6 +249,12 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
             assertStatus(scenario, R.string.home_protection_status_vpn_no_rules, true, false);
             waitForText(scenario, R.id.blockedHostCounterTextView, "0");
         }
+    }
+
+    // These rule-count fixtures simulate an already-established tunnel, not a real VPN.
+    private static void publishEstablished(ActivityScenario<HomeActivity> scenario) {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        scenario.onActivity(activity -> home(activity).onVpnTunnelObserved(true));
     }
 
     private void assertStatus(ActivityScenario<HomeActivity> scenario, int textId,
@@ -235,9 +268,12 @@ public class HomeProtectionStatusRegressionInstrumentedTest {
             assertEquals(applied, Boolean.TRUE.equals(this.model.isApplied().getValue()));
             TextView status = activity.findViewById(R.id.protectionStatusTextView);
             assertTrue("Empty-rule wording must be allowed to wrap", status.getMaxLines() > 1);
-            int color = !applied ? R.color.status_red
-                    : effective ? R.color.status_green : R.color.ui_text_primary;
+            int color = !applied ? R.color.home_protection_off_text
+                    : effective ? R.color.home_protection_on_text : R.color.ui_text_primary;
             assertEquals(activity.getColor(color), status.getCurrentTextColor());
+            assertTrue("Protection status must be readable over the Home background",
+                    androidx.core.graphics.ColorUtils.calculateContrast(
+                            status.getCurrentTextColor(), activity.getColor(R.color.ui_bg)) >= 4.5);
         });
     }
 

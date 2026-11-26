@@ -221,6 +221,17 @@ try {
     Assert-Restored
     $script:Passed++
 
+    foreach ($case in @(
+        @{ Code = 1; Text = "OK (1 test)" },
+        @{ Code = $null; Text = "OK (1 test)" },
+        @{ Code = 0; Text = "OK (0 tests)" },
+        @{ Code = 0; Text = "FAILURES!!!`nOK (1 test)" }
+    )) {
+        Assert-True (-not (Test-UxInstrumentationResult -ExitCode $case.Code -Output $case.Text)) `
+                "Incomplete or failed capture accepted: exit=$($case.Code) output=$($case.Text)"
+        $script:Passed++
+    }
+
     # No raw adb entry points may bypass serial pinning, including Start-Process.
     $rawAdb = @($ast.FindAll({
         param($node)

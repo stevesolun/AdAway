@@ -108,35 +108,35 @@ $UxMatrixVariantSpecs = @(
         Name = "baseline"
         FontScale = ""
         Locales = ""
-        Label = "Default font scale, default locale"
+        Label = "Default font scale, English"
         ReviewFocus = "Default navigation, copy density, status hierarchy, and brand signal"
     },
     [pscustomobject]@{
         Name = "font-1.3"
         FontScale = "1.3"
         Locales = ""
-        Label = "Large font scale 1.3, default locale"
+        Label = "Large font scale 1.3, English"
         ReviewFocus = "Large-text wrapping, touch targets, and row density"
     },
     [pscustomobject]@{
         Name = "font-1.6"
         FontScale = "1.6"
         Locales = ""
-        Label = "Large font scale 1.6, default locale"
+        Label = "Large font scale 1.6, English"
         ReviewFocus = "Stress large-text clipping, scroll reachability, and controls"
     },
     [pscustomobject]@{
         Name = "font-1.3-rtl"
         FontScale = "1.3"
-        Locales = "ar-XB"
-        Label = "Large font scale 1.3, RTL pseudo-locale"
+        Locales = "he-IL"
+        Label = "Large font scale 1.3, Hebrew RTL"
         ReviewFocus = "RTL anchoring, mirrored navigation, and readable source rows"
     },
     [pscustomobject]@{
         Name = "font-1.6-rtl"
         FontScale = "1.6"
-        Locales = "ar-XB"
-        Label = "Large font scale 1.6, RTL pseudo-locale"
+        Locales = "he-IL"
+        Label = "Large font scale 1.6, Hebrew RTL"
         ReviewFocus = "Worst-case RTL text fit, FAB clearance, and bottom navigation"
     }
 )
@@ -208,6 +208,7 @@ function Test-UxInstrumentationResult {
         [AllowNull()][string]$Output
     )
 
+    if ($null -eq $ExitCode -or $ExitCode -ne 0) { return $false }
     $text = if ($null -eq $Output) { "" } else { $Output }
     $hasFailure = $text -match "(?im)^\s*FAILURES!!!\s*$|Process crashed|" +
             "^\s*INSTRUMENTATION_(RESULT|STATUS):\s*(shortMsg|stack)="
@@ -215,7 +216,7 @@ function Test-UxInstrumentationResult {
         return $false
     }
 
-    return $text -match "(?m)^\s*OK\s+\(\d+\s+tests?\)\s*$"
+    return $text -match "(?m)^\s*OK\s+\([1-9]\d*\s+tests?\)\s*$"
 }
 
 function Install-TestPackages {
@@ -240,7 +241,9 @@ function Dismiss-ExternalSystemDialogs {
 }
 
 function Invoke-UxTest {
-    param([string]$Variant)
+    param([string]$Variant, [string]$FontScale, [string]$Locales)
+    if (-not $FontScale) { $FontScale = "1.0" }
+    if (-not $Locales) { $Locales = "en-US" }
 
     Stop-TestPackages
     Dismiss-ExternalSystemDialogs
@@ -250,7 +253,8 @@ function Invoke-UxTest {
     try {
         $process = Start-Process -FilePath $adb -ArgumentList @(
             "-s", (Get-AuthorizedDeviceSerial),
-            "shell", "am", "instrument", "-w", "-e", "class",
+            "shell", "am", "instrument", "-w",
+            "-e", "uxLocale", $Locales, "-e", "uxFontScale", $FontScale, "-e", "class",
             "org.adaway.ui.UxDeviceMatrixTest", $testRunner
         ) -NoNewWindow -RedirectStandardOutput $stdoutFile `
                 -RedirectStandardError $stderrFile -PassThru
@@ -358,6 +362,7 @@ function Write-UxMatrixReviewManifest {
     $lines.Add("")
     $lines.Add("Generated: $(Get-Date -Format o)")
     $lines.Add("- Source commit: $(Get-SourceCommit)")
+    $lines.Add("- Capture: VPN method; rendered locale, direction and font scale checked in each activity.")
     $lines.Add("")
     $lines.Add("Manual sign-off checklist:")
     $lines.Add("- [ ] Text is readable without clipping, ellipsizing, or overlap.")
@@ -465,7 +470,7 @@ function Invoke-UxMatrix {
         Install-TestPackages
         foreach ($variant in $UxMatrixVariantSpecs) {
             Set-DeviceState -FontScale $variant.FontScale -Locales $variant.Locales
-            Invoke-UxTest -Variant $variant.Name
+            Invoke-UxTest -Variant $variant.Name -FontScale $variant.FontScale -Locales $variant.Locales
         }
         Write-UxMatrixReviewManifest -Directory $OutputDir
     } finally {

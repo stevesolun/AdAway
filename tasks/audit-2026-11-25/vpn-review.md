@@ -44,7 +44,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-01 - P1 - Android Always-On Start Intent Is Ignored
 
-**Location:** [VpnService.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/VpnService.java:125), lines 125-142, especially 129 and 140-142. Boundary: [Command.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/broadcast/Command.java:34), lines 34-46. Manifest service declaration: `app/src/main/AndroidManifest.xml:144-153`.
+**Location:** [VpnService.java](../../app/src/main/java/org/adaway/vpn/VpnService.java), lines 125-142, especially 129 and 140-142. Boundary: [Command.java](../../app/src/main/java/org/adaway/broadcast/Command.java), lines 34-46. Manifest service declaration: `app/src/main/AndroidManifest.xml:144-153`.
 
 **Source proof:** Only a null intent or an explicit private `COMMAND=START` reaches `startVpn()`. A non-null framework service intent has no such extra, so it resolves to UNKNOWN and returns START_NOT_STICKY without creating a worker or entering foreground. The manifest advertises the VPN service and does not opt out of always-on. Android documents system starts through onStartCommand and unflagged intents; [AOSP Android 11 startAlwaysOnVpn](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-11.0.0_r1/services/core/java/com/android/server/connectivity/Vpn.java) constructs the service-action/package intent without application extras (lines 664-668). See [Android always-on lifecycle and opt-out contract](https://developer.android.com/develop/connectivity/vpn#always-on).
 
@@ -54,7 +54,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-02 - P1 - In-Flight Lookup Repopulates Invalidated Rule Cache
 
-**Location:** [VpnModel.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/model/vpn/VpnModel.java:79), lines 79-81; cooperating paths at 46-50 and 139-140. Update boundary excerpts: `SourceModel.java:1668-1695`, `AdAwayApplication.java:104-107`.
+**Location:** [VpnModel.java](../../app/src/main/java/org/adaway/model/vpn/VpnModel.java), lines 79-81; cooperating paths at 46-50 and 139-140. Update boundary excerpts: `SourceModel.java:1668-1695`, `AdAwayApplication.java:104-107`.
 
 **Source proof:** LruCache.create() reads the rule DAO outside the cache lock. invalidateRulesCache() only evicts entries already present; it has no generation/epoch or lock spanning lookup and publication. [Android's create contract](https://developer.android.com/reference/android/util/LruCache#create(K)) explicitly permits concurrent cache access. [AOSP Android 14 LruCache.get](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-14.0.0_r1/core/java/android/util/LruCache.java), lines 126-146, inserts the created value after create returns.
 
@@ -64,7 +64,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-03 - P2 - Losing One Network Clears All Networks Of Its Transport
 
-**Location:** [VpnService.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/VpnService.java:367), lines 367-375, with identity discarded at 395-405 and a Set<NetworkType> at 99/358-360.
+**Location:** [VpnService.java](../../app/src/main/java/org/adaway/vpn/VpnService.java), lines 367-375, with identity discarded at 395-405 and a Set<NetworkType> at 99/358-360.
 
 **Source proof/repro:** Call onAvailable(WiFi A), onAvailable(WiFi B), then onLost(WiFi A), with no cellular network. Both available events collapse to one WIFI entry. Losing A removes WIFI entirely, invokes waitForNetVpn(), stops the worker and publishes WAITING_FOR_NETWORK although B is still up. No new onAvailable(B) is owed because B was already delivered. [Android NetworkCallback](https://developer.android.com/reference/android/net/ConnectivityManager.NetworkCallback#onAvailable(android.net.Network)) specifies that registerNetworkCallback can report multiple networks; onLost is per matching network, not a transport-wide disconnect.
 
@@ -74,7 +74,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-04 - P2 - Resolver Snapshot Survives DNS And Default-Network Changes
 
-**Location:** [VpnService.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/VpnService.java:358), lines 358-364 and 388-405. Snapshot/forwarding: [DnsServerMapper.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java:101), lines 101-121 and 314-319; [VpnWorker.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/worker/VpnWorker.java:395), lines 395-404.
+**Location:** [VpnService.java](../../app/src/main/java/org/adaway/vpn/VpnService.java), lines 358-364 and 388-405. Snapshot/forwarding: [DnsServerMapper.java](../../app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java), lines 101-121 and 314-319; [VpnWorker.java](../../app/src/main/java/org/adaway/vpn/worker/VpnWorker.java), lines 395-404.
 
 **Source proof:** Resolver addresses are read only when establishing a tunnel. The service registers availability/loss callbacks but implements neither link-property changes nor a default-network-change path. Gaining WiFi while cellular remains in the set does not reconnect. Protected sockets are not bound to the Network from which resolver addresses were obtained. [Android's link-properties callback](https://developer.android.com/reference/android/net/ConnectivityManager.NetworkCallback#onLinkPropertiesChanged(android.net.Network,%20android.net.LinkProperties)) is the distinct notification for changed network link data.
 
@@ -84,7 +84,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-05 - P2 - IPv6 Provider Routes Depend On DNS Resolver Family
 
-**Location:** [DnsServerMapper.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java:126), lines 126-127, with gating at 106/372-376 and route list at 143-149. [VpnBuilder.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/main/java/org/adaway/vpn/worker/VpnBuilder.java:73), lines 73-75.
+**Location:** [DnsServerMapper.java](../../app/src/main/java/org/adaway/vpn/dns/DnsServerMapper.java), lines 126-127, with gating at 106/372-376 and route list at 143-149. [VpnBuilder.java](../../app/src/main/java/org/adaway/vpn/worker/VpnBuilder.java), lines 73-75.
 
 **Source proof:** includeIpv6 for provider blocking equals whether an IPv6 DNS alias subnet was created. That subnet requires an IPv6 upstream DNS-server address, not IPv6 internet connectivity. A dual-stack network can legitimately advertise only IPv4 resolvers. Even with the IPv6 preference enabled, that configuration omits every known-provider IPv6 /128 route while allowFamily(AF_INET6) permits IPv6 fall-through. [Android allowFamily contract](https://developer.android.com/reference/android/net/VpnService.Builder#allowFamily(int)) confirms the fall-through behavior.
 
@@ -94,7 +94,7 @@ Status: **implemented-awaiting-test** for these two IDs only. NOV-VPN-03 through
 
 ### NOV-VPN-06 - P2 - DNS Instrumentation Cleanup Deletes Unrelated User Rules
 
-**Location:** [DnsPacketProxyRuntimeTruthTest.java](/Users/steves/Steves_Files/Work/Research_and_Papers/AdAway/app/src/androidTest/java/org/adaway/vpn/dns/DnsPacketProxyRuntimeTruthTest.java:242), lines 242-245, called at 92 and 98.
+**Location:** [DnsPacketProxyRuntimeTruthTest.java](../../app/src/androidTest/java/org/adaway/vpn/dns/DnsPacketProxyRuntimeTruthTest.java), lines 242-245, called at 92 and 98.
 
 **Source proof/repro:** Every test's setup and teardown loops over SiteCompatibilityAllowlist.REQUIRED_DOMAINS and calls deleteUserFromHost. The DAO query at `HostListItemDao.java:38-39` deletes all USER rows for that hostname, regardless of type or fixture ownership. Seed a user redirect/block/allow for www.ynet.co.il, run even the unrelated exact-block test, and that row is removed with no restoration. The compatibility list includes 15 real domains, not test-unique names.
 

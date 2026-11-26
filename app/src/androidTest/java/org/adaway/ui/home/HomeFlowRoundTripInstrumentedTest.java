@@ -10,12 +10,15 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
+import android.app.Dialog;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
+import android.graphics.Region;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -28,6 +31,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.TextView;
 
 import androidx.fragment.app.Fragment;
@@ -100,6 +104,7 @@ public class HomeFlowRoundTripInstrumentedTest {
     private Instrumentation.ActivityMonitor intentMonitor;
     private boolean databaseSwapped;
     private boolean resetStarted;
+    private boolean addedWindowFlag;
     private boolean dnsTouched;
     private String originalMode;
     private String originalSpecifier;
@@ -110,6 +115,12 @@ public class HomeFlowRoundTripInstrumentedTest {
         context = ApplicationProvider.getApplicationContext();
         assumeFalse("Home round trips require a disposable device with no active VPN",
                 hasVpnNetwork());
+        AccessibilityServiceInfo info = instrumentation.getUiAutomation().getServiceInfo();
+        if ((info.flags & AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS) == 0) {
+            info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+            instrumentation.getUiAutomation().setServiceInfo(info);
+            addedWindowFlag = true;
+        }
         resetStarted = true;
         InstrumentedTestState.resetForPassiveRootUi(context, "Home flow setup");
         drainDisk();
@@ -163,6 +174,11 @@ public class HomeFlowRoundTripInstrumentedTest {
                         drainDisk();
                     }
                 } finally {
+                    if (addedWindowFlag) {
+                        AccessibilityServiceInfo info = instrumentation.getUiAutomation().getServiceInfo();
+                        info.flags &= ~AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+                        instrumentation.getUiAutomation().setServiceInfo(info);
+                    }
                     if (databaseSwapped) databaseField().set(null, previousDatabase);
                     if (database != null) database.close();
                 }
@@ -173,6 +189,39 @@ public class HomeFlowRoundTripInstrumentedTest {
     @Test(timeout = 120_000)
     public void emptyCounterCardsOpenTheirRuleTabsAndBackReturnsToRecreatedHome() {
         exerciseCounterCards(false);
+    }
+
+    @Test
+    public void coveredTapPointBelongsToDialogUntilItIsDismissed() {
+        scenario = ActivityScenario.launch(HomeActivity.class);
+        waitForText(COUNTERS[0], "0", true);
+        int[] home = new int[3];
+        scenario.onActivity(activity -> {
+            View card = activity.findViewById(CARDS[0]);
+            card.getLocationOnScreen(home);
+            home[0] += card.getWidth() / 2;
+            home[1] += card.getHeight() / 2;
+            home[2] = windowId(card);
+        });
+        await("Home owns uncovered point", () -> windowAt(home[0], home[1]) == home[2] && home[2] >= 0);
+        AtomicReference<Dialog> cover = new AtomicReference<>();
+        scenario.onActivity(activity -> {
+            Dialog dialog = new Dialog(activity);
+            cover.set(dialog);
+            dialog.show();
+            dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        });
+        try {
+            await("dialog owns covered point", () -> {
+                int[] dialogId = {-1};
+                scenario.onActivity(activity -> dialogId[0] = windowId(cover.get().getWindow().getDecorView()));
+                return dialogId[0] >= 0 && dialogId[0] != home[2]
+                        && windowAt(home[0], home[1]) == dialogId[0];
+            });
+        } finally {
+            scenario.onActivity(activity -> cover.get().dismiss());
+        }
+        await("Home regains point", () -> windowAt(home[0], home[1]) == home[2]);
     }
 
     @Test(timeout = 120_000)
@@ -374,11 +423,26 @@ public class HomeFlowRoundTripInstrumentedTest {
             view.requestRectangleOnScreen(new Rect(0, 0, view.getWidth(), view.getHeight()), true);
         });
         Rect target = new Rect();
-        scenario.onActivity(activity -> {
-            View view = activity.findViewById(id);
-            assertTrue("Control must be enabled and clickable", view.isEnabled() && view.isClickable());
-            assertTrue("Control must be on screen", view.isShown() && view.getGlobalVisibleRect(target));
-            assertTrue(target.width() > 0 && target.height() > 0);
+        await("focused Home tap target " + context.getResources().getResourceEntryName(id), () -> {
+            Rect sample = new Rect();
+            int[] window = {-1};
+            scenario.onActivity(activity -> {
+                View view = activity.findViewById(id);
+                if (view == null || !view.hasWindowFocus() || view.isLayoutRequested()
+                        || !view.isShown() || !view.isEnabled() || !view.isClickable()
+                        || !view.getLocalVisibleRect(sample)) return;
+                int[] location = new int[2];
+                view.getLocationOnScreen(location);
+                sample.offset(location[0], location[1]);
+                window[0] = windowId(view);
+            });
+            if (sample.isEmpty() || window[0] < 0 || windowAt(sample.centerX(), sample.centerY()) != window[0]) {
+                target.setEmpty();
+                return false;
+            }
+            boolean stable = sample.equals(target);
+            target.set(sample);
+            return stable;
         });
         long down = SystemClock.uptimeMillis();
         for (int action : new int[]{MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
@@ -390,6 +454,36 @@ public class HomeFlowRoundTripInstrumentedTest {
             } finally {
                 event.recycle();
             }
+        }
+    }
+
+    private static int windowId(View view) {
+        AccessibilityNodeInfo node = view.createAccessibilityNodeInfo();
+        try {
+            return node.getWindowId();
+        } finally {
+            node.recycle();
+        }
+    }
+
+    private int windowAt(int x, int y) {
+        // A focused Home may still sit behind a system notification's touch region.
+        List<AccessibilityWindowInfo> windows = instrumentation.getUiAutomation().getWindows();
+        try {
+            for (AccessibilityWindowInfo window : windows) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Region region = new Region();
+                    window.getRegionInScreen(region);
+                    if (region.contains(x, y)) return window.getId();
+                } else {
+                    Rect bounds = new Rect();
+                    window.getBoundsInScreen(bounds);
+                    if (bounds.contains(x, y)) return window.getId();
+                }
+            }
+            return -1;
+        } finally {
+            for (AccessibilityWindowInfo window : windows) window.recycle();
         }
     }
 

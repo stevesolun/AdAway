@@ -2,6 +2,8 @@ package org.adaway.model.git;
 
 import androidx.annotation.Nullable;
 
+import org.adaway.util.MetadataBody;
+import org.adaway.util.SourceHttpPolicy;
 import org.json.JSONException;
 
 import java.io.IOException;
@@ -31,13 +33,17 @@ public abstract class GitHostsJsonApiSource extends GitHostsSource {
 
     @Nullable
     protected ZonedDateTime getLastUpdateFromApi(String commitApiUrl) {
-        // Create client and request
-        OkHttpClient client = new OkHttpClient();
+        OkHttpClient client = SourceHttpPolicy.newClientBuilder().build();
+        return getLastUpdateFromApi(commitApiUrl, client);
+    }
+
+    @Nullable
+    ZonedDateTime getLastUpdateFromApi(String commitApiUrl, OkHttpClient client) {
         Request request = new Request.Builder().url(commitApiUrl).build();
-        try (Response response = client.newCall(request).execute();
-             ResponseBody body = response.body()) {
-            if (response.isSuccessful()) {
-                return parseJsonBody(body.string());
+        try (Response response = client.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (response.isSuccessful() && body != null) {
+                return parseJsonBody(MetadataBody.read(body, MetadataBody.DETAIL_BYTES));
             }
         } catch (UnknownHostException | SocketTimeoutException exception) {
             Timber.i(exception, "Unable to reach API backend.");

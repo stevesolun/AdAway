@@ -133,6 +133,7 @@
     <string name="filter_set_name_reserved">This name is reserved. Choose a different filter set name.</string>
     <string name="filter_set_name_duplicate">A filter set with this name already exists.</string>
     <string name="filter_set_missing">This filter set is no longer available.</string>
+    <string name="filter_set_changed_since_preview">This filter set has changed. Choose it again to review the new selection.</string>
     <string name="filter_set_apply_preview_title">Apply %1$s?</string>
     <string name="filter_set_apply_preview_message">Enable %1$d lists, disable %2$d lists, keep %3$d enabled.</string>
     <string name="filter_set_apply_preview_no_changes">No list changes. My Lists already matches this profile.</string>
@@ -157,7 +158,6 @@
     <string name="menu_manage_schedules">Manage schedules</string>
     <string name="schedule_global_title">Global updates</string>
     <string name="schedule_global_desc">Automatically update all enabled sources</string>
-    <string name="schedule_edit">Edit schedule</string>
     <string name="schedule_off">Off</string>
     <string name="schedule_daily_at">Daily at %1$s</string>
     <string name="schedule_weekly_at">Weekly on %1$s at %2$s</string>
@@ -361,7 +361,7 @@
     <string name="vpn_notification_starting">starting</string>
     <string name="vpn_notification_running">active</string>
     <string name="vpn_notification_stopping">stopping</string>
-    <string name="vpn_notification_waiting_for_net">wait for network</string>
+    <string name="vpn_notification_waiting_for_net">waiting for network</string>
     <string name="vpn_notification_reconnecting">reconnecting</string>
     <string name="vpn_notification_reconnecting_error">reconnecting error</string>
 

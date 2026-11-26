@@ -24,6 +24,7 @@ import static org.adaway.ui.Animations.hideView;
 import static org.adaway.ui.Animations.showView;
 import static java.lang.Boolean.TRUE;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -40,6 +41,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.R;
 import org.adaway.databinding.LogActivityBinding;
@@ -115,12 +117,15 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
             this.binding.toggleLogRecording.setContentDescription(
                     getString(R.string.log_root_recording_unavailable));
         }
-        this.mViewModel.isRecording().observe(this, recoding ->
-                this.binding.toggleLogRecording.setImageResource(TRUE.equals(recoding) ?
-                        R.drawable.ic_pause_24dp :
-                        R.drawable.ic_record_24dp
-                )
-        );
+        this.mViewModel.isRecording().observe(this, recording -> {
+            boolean active = TRUE.equals(recording);
+            this.binding.toggleLogRecording.setImageResource(
+                    active ? R.drawable.ic_pause_24dp : R.drawable.ic_record_24dp);
+            if (loggingAvailable) {
+                this.binding.toggleLogRecording.setContentDescription(getString(
+                        active ? R.string.log_pause_action : R.string.log_record_action));
+            }
+        });
         /*
          * Configure snackbar.
          */
@@ -221,18 +226,26 @@ public class LogActivity extends AppCompatActivity implements LogViewCallback {
     }
 
     @Override
-    public void removeListItem(@NonNull String hostName) {
+    public void removeListItem(@NonNull String hostName, @NonNull ListType type) {
         if (this.mViewModel != null && this.mApplySnackbar != null) {
-            this.mViewModel.removeListItem(hostName);
+            this.mViewModel.removeListItem(hostName, type);
             this.mApplySnackbar.notifyUpdateAvailable();
         }
     }
 
     @Override
     public void openHostInBrowser(@NonNull String hostName) {
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(Uri.parse("http://" + hostName));
-        startActivity(intent);
+        if (RegexUtils.isValidHostname(hostName)) {
+            Uri uri = new Uri.Builder().scheme("https").authority(hostName).build();
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                return;
+            } catch (ActivityNotFoundException | SecurityException ignored) {
+                // Managed devices may have no permitted browser.
+            }
+        }
+        Snackbar.make(this.binding.getRoot(), R.string.update_support_link_unavailable,
+                Snackbar.LENGTH_LONG).show();
     }
 
     @Override

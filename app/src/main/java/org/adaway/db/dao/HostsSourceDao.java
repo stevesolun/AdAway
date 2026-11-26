@@ -44,6 +44,16 @@ public interface HostsSourceDao {
     @Query("SELECT * FROM hosts_sources WHERE enabled = 1 AND id != 1 ORDER BY url ASC")
     List<HostsSource> getEnabled();
 
+    @Query("SELECT * FROM hosts_sources WHERE enabled = 1 AND id != 1 AND id > :afterId " +
+            "ORDER BY id LIMIT :limit")
+    List<HostsSource> getEnabledAfter(int afterId, int limit);
+
+    @Query("UPDATE hosts_sources SET last_modified_online = :observed " +
+            "WHERE id = :id AND enabled = 1 AND url = :url AND entityTag IS :tag " +
+            "AND last_modified_local IS :local AND last_modified_online IS :online")
+    int publishStartupMetadata(int id, String url, String tag, ZonedDateTime local,
+                               ZonedDateTime online, ZonedDateTime observed);
+
     default void toggleEnabled(HostsSource source) {
         int id = source.getId();
         boolean enabled = !source.isEnabled();
@@ -61,6 +71,18 @@ public interface HostsSourceDao {
     default void applySourceSelection(int id, boolean enabled) {
         setSourceEnabled(id, enabled);
         setSourceItemsEnabled(id, enabled);
+    }
+
+    @Query("UPDATE hosts_sources SET enabled = :enabled WHERE id = :id AND enabled != :enabled")
+    int changeSelectionIfNeeded(int id, boolean enabled);
+
+    @Transaction
+    default void applyGroupSelection(List<Integer> ids, boolean enabled) {
+        for (int id : ids) {
+            if (changeSelectionIfNeeded(id, enabled) != 0) {
+                setSourceItemsEnabled(id, enabled);
+            }
+        }
     }
 
     @Transaction

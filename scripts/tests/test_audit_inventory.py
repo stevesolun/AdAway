@@ -44,6 +44,21 @@ class AuditInventoryTest(unittest.TestCase):
         self.assertEqual("pending", self.rows()["example.java"]["review_status"])
         self.run_inventory("--check")
 
+    def test_validation_code_and_android_build_inputs_are_not_documentation(self):
+        for filename, kind in {
+            "scripts/tests/vpn-runtime-state.Tests.rb": "test-source",
+            "scripts/tests/test_audit_inventory.py": "test-source",
+            "scripts/tests/run-ux-matrix-safety.Tests.ps1": "test-source",
+            "scripts/audit_inventory.py": "source",
+            "gradle/libs.versions.toml": "build-or-configuration",
+            "third_party/maven/core.aar": "binary-asset",
+            "third_party/maven/core.module": "build-or-configuration",
+            "third_party/maven/core.pom": "build-or-configuration",
+            "tasks/qa/report.csv": "review-evidence",
+        }.items():
+            with self.subTest(filename=filename):
+                self.assertEqual(kind, AUDIT.classify(Path(filename)))
+
     def test_changed_reviewed_file_becomes_stale(self):
         self.run_inventory("--record", self.report())
         self.assertEqual("reviewed", self.rows()["example.java"]["review_status"])

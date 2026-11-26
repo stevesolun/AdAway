@@ -1,5 +1,7 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
+
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -64,7 +66,7 @@ public final class FilterSetUpdateService {
         // Reconciliation also runs in a receiver: do not query Room on the main thread.
         // Retain configured URL schedules even while their sources are disabled or absent.
         for (Map.Entry<String, ?> entry : context.getSharedPreferences(
-                "source_schedules", Context.MODE_PRIVATE).getAll().entrySet()) {
+                PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE).getAll().entrySet()) {
             if (entry.getKey().startsWith("schedule_url_")
                     && (Integer.valueOf(FilterSetStore.SCHEDULE_DAILY).equals(entry.getValue())
                     || Integer.valueOf(FilterSetStore.SCHEDULE_WEEKLY).equals(entry.getValue()))) {

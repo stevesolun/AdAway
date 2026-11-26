@@ -22,6 +22,9 @@ The bounded beta release is distinct from completing this audit. Its observed
 - A changed reviewed file becomes `stale` until reviewed again. `--check` catches
   inventory/hash drift, not completion. Binary/resource/vendor files are included;
   their presence or successful build does not count as a manual review.
+- Android CI runs the read-only inventory check immediately after checkout.
+  After editing files, run `python3 scripts/audit_inventory.py` and commit the
+  refreshed ledger with the changes; use `--record` only for actual reviews.
 - `bugs.csv` is the central bug register. Source-supported findings, reproduced
   failures, implemented fixes and verified closure are separate statuses.
 - `*-workflows.csv` records control/chain expectations and variants. Static tracing
@@ -34,6 +37,12 @@ The bounded beta release is distinct from completing this audit. Its observed
   remain explicit gaps, never implicit passes.
 
 ## Work Lanes
+
+The [deep non-root control inventory](deep-signoff/README.md) links stories,
+screens and specific test methods. Actual outcomes are in the separate
+`deep-*-journeys.csv` files; planned, blocked, baseline failures and verified
+fixes are not interchangeable. The filter URL and VPN acceptance criteria
+apply to arbitrary supported lists, not a particular locale or publisher.
 
 1. Main: complete repository inventory; Home controls and consent; integrated QA.
 2. Data: all database and source-import files and cross-boundary behavior.

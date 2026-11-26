@@ -8,8 +8,8 @@ directory.
 
 If configure says:
 
-    configure: warning: cannot determine packet capture interface
-    configure: warning: (see INSTALL for more info)
+    configure: WARNING: cannot determine packet capture interface
+    configure: WARNING: (see the INSTALL doc for more info)
 
 then your system either does not support packet capture or your system
 does support packet capture but libpcap does not support that
@@ -28,15 +28,11 @@ Another example is to force a supported packet capture type in the case
 where the configure scripts fails to detect it.
 
 You will need an ANSI C compiler to build libpcap. The configure script
-will abort if your compiler is not ANSI compliant. If this happens, use
-the generally available GNU C compiler (GCC).
+checks for an option to accept ISO C89.
 
-If you use flex, you must use version 2.4.6 or higher. The configure
-script automatically detects the version of flex and will not use it
-unless it is new enough. You can use "flex -V" to see what version you
-have (unless it's really old). The current version of flex is available
-at flex.sourceforge.net and often comes packaged by means of the OS.
-As of this writing, the current version is 2.5.37.
+The upstream build notes call for flex 2.4.6 or higher. The configure
+script tests whether "flex -V" succeeds (a check for 2.4 or higher);
+it does not check the patch version.
 
 If you use bison, you must use flex (and visa versa). The configure
 script automatically falls back to lex and yacc if both flex and bison
@@ -54,9 +50,9 @@ program uses other lex/yacc generated code. (Although it's possible to
 map the yy* identifiers with a script, we use flex and bison so we
 don't feel this is necessary.)
 
-Some systems support the Berkeley Packet Filter natively; for example
-out of the box OSF and BSD/OS have bpf. If your system does not support
-bpf, you will need to pick up:
+The following historical instructions concern systems that require the
+BSD BPF driver. Platforms with another supported capture interface do
+not need to install it. The upstream BPF distribution was available at:
 
 	ftp://ftp.ee.lbl.gov/bpf-*.tar.Z
 
@@ -104,16 +100,8 @@ when using DLPI, look for the DL_ERROR_ACK error return values, usually
 in /usr/include/sys/dlpi.h, and find the corresponding value.
 
 Under {DEC OSF/1, Digital UNIX, Tru64 UNIX}, packet capture must be
-enabled before it can be used.  For instructions on how to enable packet
-filter support, see:
-
-	ftp://ftp.digital.com/pub/Digital/dec-faq/Digital-UNIX
-
-Look for the "How do I configure the Berkeley Packet Filter and capture
-tcpdump traces?" item.
-
-Once you enable packet filter support, your OSF system will support bpf
-natively.
+enabled before it can be used. See README.tru64 for the packetfilter
+kernel option, devices and interface configuration.
 
 Under Ultrix, packet capture must be enabled before it can be used. For
 instructions on how to enable packet filter support, see:
@@ -149,10 +137,11 @@ HP-UX 10, you will, apparently, need a late "LAN products cumulative
 patch" (at one point, it was claimed that this would be PHNE_18173 for
 s700/10.20; at another point, it was claimed that the required patches
 were PHNE_20892, PHNE_20725 and PHCO_10947, or newer patches), and to do
-so on HP-UX 11 you will, apparently, need the latest lancommon/DLPI
+so on HP-UX 11.00 you will, apparently, need the latest lancommon/DLPI
 patches and the latest driver patch for the interface(s) in use on HP-UX
 11 (at one point, it was claimed that patches PHNE_19766, PHNE_19826,
-PHNE_20008, and PHNE_20735 did the trick).
+PHNE_20008, and PHNE_20735 did the trick). README.hpux distinguishes
+these reports from HP-UX 11i, which included outbound support.
 
 Furthermore, on HP-UX 10, you will need to turn on a kernel switch by
 doing
@@ -268,10 +257,9 @@ libpcap program and it dies with:
 You must add streams NIT support to your kernel configuration, run
 config and boot the new kernel.
 
-If you are running a version of SunOS earlier than 4.1, you will need
-to replace the Sun supplied /sys/sun{3,4,4c}/OBJ/nit_if.o with the
-appropriate version from this distribution's SUNOS4 subdirectory and
-build a new kernel:
+Historical note: for SunOS earlier than 4.1, upstream described replacing
+/sys/sun{3,4,4c}/OBJ/nit_if.o and building a new kernel. The SUNOS4
+directory and the following replacement objects are not in this archive:
 
 	nit_if.o.sun3-sunos4		(any flavor of sun3)
 	nit_if.o.sun4c-sunos4.0.3c	(SS1, SS1+, IPC, SLC, etc.)
@@ -291,7 +279,7 @@ ChmodBPF/*	- Mac OS X startup item to set ownership and permissions
 		  on /dev/bpf*
 CREDITS		- people that have helped libpcap along
 INSTALL.txt	- this file
-LICENSE		- the license under which tcpdump is distributed
+LICENSE		- the license under which libpcap is distributed
 Makefile.in	- compilation rules (input to the configure script)
 README		- description of distribution
 README.aix	- notes on using libpcap on AIX
@@ -303,15 +291,13 @@ README.septel   - notes on using libpcap to capture on Intel/Septel devices
 README.sita	- notes on using libpcap to capture on SITA devices
 README.tru64	- notes on using libpcap on Digital/Tru64 UNIX
 README.Win32	- notes on using libpcap on Win32 systems (with WinPcap)
-SUNOS4		- pre-SunOS 4.1 replacement kernel nit modules
 VERSION		- version of this release
-acconfig.h	- support for post-2.13 autoconf
 aclocal.m4	- autoconf macros
 arcnet.h	- ARCNET definitions
 atmuni31.h	- ATM Q.2931 definitions
-bpf/net		- copy of bpf_filter.c
+bpf/net/bpf_filter.c - BPF filter implementation
 bpf_dump.c	- BPF program printing routines
-bpf_filter.c	- symlink to bpf/net/bpf_filter.c
+bpf_filter.c	- checked-in wrapper that includes bpf/net/bpf_filter.c
 bpf_image.c	- BPF disassembly routine
 config.guess	- autoconf support
 config.h.in	- autoconf input
@@ -328,8 +314,8 @@ fad-glifc.c	- pcap_findalldevs() for systems with SIOCGLIFCONF
 fad-null.c	- pcap_findalldevs() for systems without capture support
 fad-sita.c	- pcap_findalldevs() for systems with SITA support
 fad-win32.c	- pcap_findalldevs() for WinPcap
-filtertest.c	- test program for BPF compiler
-findalldevstest.c - test program for pcap_findalldevs()
+tests/filtertest.c - test program for BPF compiler
+tests/findalldevstest.c - test program for pcap_findalldevs()
 gencode.c	- BPF code generation routines
 gencode.h	- BPF code generation definitions
 grammar.y	- filter string grammar
@@ -343,7 +329,6 @@ mkdep		- construct Makefile dependency list
 msdos/*		- drivers for MS-DOS capture support
 nametoaddr.c	- hostname to address routines
 nlpid.h		- OSI network layer protocol identifier definitions
-net		- symlink to bpf/net
 optimize.c	- BPF optimization routines
 pcap/bluetooth.h - public definition of DLT_BLUETOOTH_HCI_H4_WITH_PHDR header
 pcap/bpf.h	- BPF definitions
@@ -366,10 +351,8 @@ pcap-libdlpi.c	- Data Link Provider Interface support for systems with libdlpi
 pcap-linux.c	- Linux packet socket support
 pcap-namedb.h	- header for backwards compatibility
 pcap-nit.c	- SunOS Network Interface Tap support
-pcap-nit.h	- SunOS Network Interface Tap definitions
 pcap-null.c	- dummy monitor support (allows offline use of libpcap)
 pcap-pf.c	- Ultrix and Digital/Tru64 UNIX Packet Filter support
-pcap-pf.h	- Ultrix and Digital/Tru64 UNIX Packet Filter definitions
 pcap-septel.c   - Intel/Septel device capture support
 pcap-septel.h   - Intel/Septel device capture support
 pcap-sita.c	- SITA device capture support
@@ -381,12 +364,12 @@ pcap-snoop.c	- IRIX Snoop network monitoring support
 pcap-usb-linux.c - USB capture support for Linux
 pcap-usb-linux.h - USB capture support for Linux
 pcap-win32.c	- WinPcap capture support
-pcap.3pcap	- manual entry for the library
+pcap.3pcap.in	- template for the library manual entry
 pcap.c		- pcap utility routines
 pcap.h		- header for backwards compatibility
 pcap_*.3pcap	- manual entries for library functions
-pcap-filter.4	- manual entry for filter syntax
-pcap-linktype.4	- manual entry for link-layer header types
+pcap-filter.manmisc.in - template for the filter syntax manual entry
+pcap-linktype.manmisc.in - template for the link-layer types manual entry
 ppp.h		- Point to Point Protocol definitions
 runlex.sh	- wrapper for Lex/Flex
 savefile.c	- offline support

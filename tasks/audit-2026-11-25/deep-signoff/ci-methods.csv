@@ -1,0 +1,638 @@
+method,android14_execution,seconds,xml_detail,test_file_at_handoff,oracle_ids
+org.adaway.broadcast.BootReceiverBehaviorTest#bootReceiverDispatchesBootCompletedIntent,passed,0.002,,no file diff observed; not product certification,
+org.adaway.broadcast.BootReceiverBehaviorTest#bootReceiverIgnoresNonBootIntent,passed,0.001,,no file diff observed; not product certification,S-01
+org.adaway.broadcast.BootReceiverBehaviorTest#bootRestoreDoesNothingWhenVpnOnBootDisabledOrMethodIsNotVpn,passed,0.021,,no file diff observed; not product certification,PV-01
+org.adaway.broadcast.BootReceiverBehaviorTest#bootRestoreRequestsNotificationWithoutLaunchingConsentOrStartingService,passed,0.054,,no file diff observed; not product certification,S-01
+org.adaway.broadcast.BootReceiverBehaviorTest#bootRestoreStartsVpnServiceWhenPermissionIsAlreadyGranted,passed,0.027,,no file diff observed; not product certification,S-01; PV-01
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#checkedModelFailuresReleaseStartAndStopLeases,passed,0.052,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#heldExternalLeaseRejectsStartWithBusyFeedback,passed,0.026,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#heldExternalLeaseRejectsStopWithBusyFeedback,passed,0.001,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#nullWrongActionAndMalformedCommandsDoNotClaimOrDispatch,passed,0.077,,no file diff observed; not product certification,S-02
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#queuedCommandOwnsLeaseAndRapidOppositeCommandIsNotQueued,passed,0.027,,no file diff observed; not product certification,S-02
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#rejectedDispatchReleasesLeaseAndAllowsRetry,passed,0.029,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverOperationInstrumentedTest#uncheckedModelFailuresReleaseStartAndStopLeases,passed,0.055,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#installedCommandReceiverIsExportedAndSignaturePermissionProtected,passed,0.001,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#instrumentationPackageDoesNotHoldCommandPermissionByDefault,passed,0.026,,no file diff observed; not product certification,
+org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#packageWithoutCommandPermissionCannotDeliverCommandBroadcast,passed,0.256,,no file diff observed; not product certification,S-02
+org.adaway.broadcast.CommandReceiverSecurityInstrumentedTest#sendCommandActionResolvesOnlyToProtectedCommandReceiver,passed,0.001,,no file diff observed; not product certification,
+org.adaway.broadcast.UpdateReceiverPackageReplaceInstrumentedTest#packageReplacedRepairsConfiguredUpdateSchedules,passed,1.083,,no file diff observed; not product certification,S-03
+org.adaway.db.HostDbTest#testDuplicateAllowedHosts,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.HostDbTest#testDuplicateBlockedHosts,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.HostDbTest#testDuplicateRedirectedHosts,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.HostDbTest#testEmptyByDefault,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.HostDbTest#testInsertThenDeleteHosts,passed,0.077,,no file diff observed; not product certification,
+org.adaway.db.HostDbTest#testRedirectionPriority,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.HostListSnapshotTest#exactAndSuffixReadsShareATransactionInBothModes,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#clearingDownloadedPropertiesMakesSourceNeedUpdate,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#disabledSourcesAreExcludedRegardlessOfDownloadState,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#downloadedEmptySourceIsUpToDate,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#downloadedSourcesKeepTheirDateBasedClassification,passed,0.03,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#enablingNeverDownloadedSourceMakesItNeedUpdate,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#failedFirstDownloadStillNeedsUpdate,passed,0.028,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#freshDefaultSubscriptionsNeedDownload,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#onlineDateWithoutLocalDownloadStillNeedsUpdate,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.HostsSourceFreshnessTest#userRulesNeverContributeToSubscriptionFreshness,passed,0.029,,no file diff observed; not product certification,
+org.adaway.db.LegacyV4MigrationInstrumentedTest#tableForm4To32PreservesUserRulesAndSources,passed,0.128,,no file diff observed; not product certification,
+org.adaway.db.LegacyV4MigrationInstrumentedTest#tableForm4To5RetainsCachedRowsAndUniqueIndex,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.LegacyV4MigrationInstrumentedTest#viewForm4To32PreservesUserRulesAndSources,passed,0.177,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration11To12_preservesExactRowsAndAddsRuleKind,passed,0.253,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration12To13_dropsRedundantHostIndexAndKeepsExactLookupIndexed,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration13To14_rebuildsRootExportIndexAsCoveringIndex,passed,0.204,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration14To15_createsAndPopulatesMaterializedRootExport,passed,0.103,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration15To16_addsActiveAllowProbeIndexes,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration16To17_rebuildsHostEntriesWithoutRowid,passed,0.077,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration17To18_rebuildsKindHostAsRuntimeImportCoveringIndex,passed,0.077,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration18To19_createsRuntimeStatsTable,passed,0.152,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration19To20_backfillsSourceStatsMetadata,passed,0.353,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration1To6_enablesUserRuleTypesOnlyForReservedSource,passed,0.104,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration20To21_addsFilterListsProvenanceColumns,passed,0.077,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration21To22_addsAndBackfillsReverseHostKeys,passed,0.102,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration22To23_addsRootExportMaterializedState,passed,0.076,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration23To24_addsRootExportReverseHostIndex,passed,0.076,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration24To25_rebuildsRootExportWithoutRowid,passed,0.227,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration25To26_rebuildsRootExportForAppendWrites,passed,0.078,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration26To27_createsRootExportStageTable,passed,0.126,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration27To28_addsFilterListsDirectoryProvenanceColumns,passed,0.129,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration28To29_dropsUnusedRootExportStageReverseIndex,passed,0.103,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration29To30_dropsPersistentRootExportIndexes,passed,0.127,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration30To31_addsStageBackedRootExportState,passed,0.077,,no file diff observed; not product certification,
+org.adaway.db.MigrationTest#migration31To32_makesRootStageReverseIndexCovering,passed,0.177,,no file diff observed; not product certification,
+org.adaway.db.RootExportStagingTest#copiedStageRedirectsUseCanonicalPriorityInBothImportOrders,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.RootExportStagingTest#stageBackedExportTracksSelectionDeletionAndCopiedFallback,passed,146.673,,no file diff observed; not product certification,
+org.adaway.db.RootExportStagingTest#stageReadersKeepUserRowsIndependentOfGenerationAndSourceSelection,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testActiveGenerationSuffixAllowRulesRemoveNestedRuntimeRowsOnly,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testAllowRulesOverrideSuffixBlocksAtRuntime,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testAllowedHostsFromDisabledSource,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testBlockedHostsFromDisabledSource,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testBlockedRuntimeImportStreamsExistingKindHostIndex,passed,0.001,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testBlockedStatsReadActiveTruthWithoutMaterializedRuntimeRows,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testCompleteRootExportStageDedupesBlockedDuplicatesWithoutRedirects,passed,0.001,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testCompleteRootExportStageIgnoresDisabledSources,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testCompleteRootExportStageRequiresPerSourceCounts,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testIncompleteRootExportStageFallsBackToActiveRules,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testLargeRuntimeSkipRedirectsUseSourcePriorityBeforeRedirectionValue,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testLargeRuntimeSkipStillMaterializesRootExportRows,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testLargeRuntimeSkipUsesCompleteRootExportStage,passed,7.45,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRedirectedHostsFromDisabledSource,passed,0.027,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootExportKeepsMaterializedStateWhenValidOutputIsEmpty,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsCursorExportStaysBoundedAtScale,passed,0.277,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsCursorReadsActiveTruthAndMatchesListApi,passed,0.302,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsExportDoesNotDuplicateExactRedirectAndSuffixBlock,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsExportDoesNotDuplicateSuffixWhenExactExists,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsExportReadsActiveTruthWithoutMaterializedRows,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRootHostsMaterializedCursorBuildsFileLines,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeRebuildMaterializesRootExportRows,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeRebuildWithTransactionDbRestoresRootExportIndex,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeRedirectsUseCanonicalRedirectionWithinSource,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeResolutionReadsActiveTruthWithoutMaterializedRows,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeSyncCanonicalizesMixedCaseHosts,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeSyncUsesOnlyActiveGeneration,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testRuntimeSyncUsesSetBasedRulesAtScale,passed,0.378,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSourceCount,passed,0.0,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSourceDeletion,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSourceSizeCanBeUpdatedForSingleGeneration,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSuffixAllowDeleteUsesReverseHostIndexes,passed,0.001,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSuffixAllowRulesRemoveNestedExactAndSuffixRuntimeRows,passed,0.051,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSuffixAllowRulesRespectLabelBoundaries,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testSuffixRuntimeResolutionUsesOnlyActiveGeneration,passed,0.052,,no file diff observed; not product certification,
+org.adaway.db.SourceDbTest#testUnderscoreIsLiteralForRuntimeAndRootAllowRules,passed,0.026,,no file diff observed; not product certification,
+org.adaway.db.UserListTest#testUserList,passed,0.077,,no file diff observed; not product certification,
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#blockedChannelSuppressesAlertsWhileAppNotificationsAreEnabled,skipped,0.026,,no file diff observed; not product certification,N-01
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#bootPermissionAlertPostingRespectsCurrentAppAndVpnChannelSettings,passed,1.005,,no file diff observed; not product certification,N-04
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#bootPermissionNotificationOpensHomeWithoutAnAutomaticStartAction,passed,0.026,,no file diff observed; not product certification,N-04
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#channelResetStopsPreparedForegroundVpnBeforeDeletion,skipped,0.026,,no file diff observed; not product certification,
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#createChannelsUpdatesMetadataAndPreservesExistingSettings,passed,0.026,,no file diff observed; not product certification,N-01
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#existingFilterListsStyleChannelDoesNotUpgradeFromLowToDefaultImportance,passed,0.026,,no file diff observed; not product certification,N-01
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#postingGuardRejectsMissingManagerOrChannel,passed,0.001,,no file diff observed; not product certification,
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#updateAlertPostingMatchesCurrentNotificationPermissionState,passed,1.031,,no file diff observed; not product certification,N-02
+org.adaway.helper.NotificationHelperChannelInstrumentedTest#updateAlertsBuildDistinctActionableNotificationsWithoutPermissionMutation,passed,0.026,,no file diff observed; not product certification,N-02; N-03
+org.adaway.model.adblocking.AdBlockModelDispatchTest#getAdBlockModelDispatchesUndefinedRootAndVpnMethods,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.adblocking.AdBlockModelDispatchTest#getAdBlockModelRebuildsCachedModelWhenStoredMethodChanges,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.AppBackupAgentPlatformInstrumentedTest#restoredPlatformBackupStateIsPresent,skipped,0.001,,no file diff observed; not product certification,B-03
+org.adaway.model.backup.AppBackupAgentPlatformInstrumentedTest#seedPlatformBackupState,skipped,0.026,,no file diff observed; not product certification,B-03
+org.adaway.model.backup.BackupExportCapacityInstrumentedTest#invalidGeneratedRowDoesNotTruncateExistingDestination,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupExportCapacityInstrumentedTest#overSourceLimitDoesNotOpenOrTruncateExistingDestination,passed,0.052,,no file diff observed; not product certification,B-01
+org.adaway.model.backup.BackupExportCapacityInstrumentedTest#oversizedSerializedBackupDoesNotTruncateExistingDestination,passed,1.631,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupExportCapacityInstrumentedTest#twoHundredSourcesExportAndReimportWithoutTruncation,passed,0.252,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupImportAtomicityTest#databaseFailureRollsBackEarlierSourceAndRuleWrites,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupImportAtomicityTest#exactAndSuffixRulesSurviveRepeatedRestoreWithoutCollapsing,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupImportAtomicityTest#malformedLaterListLeavesSourcesAndExistingRulesUnchanged,passed,0.0,,no file diff observed; not product certification,B-02
+org.adaway.model.backup.BackupImportAtomicityTest#overLimitDocumentIsRejectedInsteadOfPartiallyImported,passed,0.052,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#databaseFailureReleasesBothGuardsAndAllowsRetry,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#heldOperationLeaseRejectsWithoutMutationAndRetrySucceeds,passed,0.051,,no file diff observed; not product certification,B-02
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#heldSourceMutationGuardRejectsAndReleasesTheOuterLease,passed,0.052,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#malformedDocumentDoesNotMutateOrLeakOwnership,passed,0.052,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#restoreInvalidatesWarmedAllowedDecisionWithoutStartingVpn,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupRestoreRuntimeInstrumentedTest#restoreInvalidatesWarmedBlockedDecisionWithoutManualApply,passed,0.051,,no file diff observed; not product certification,B-02
+org.adaway.model.backup.BackupSourceReconciliationTest#allowFormatChangeClearsRowsStageAndValidatorsWithoutReplacingSource,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupSourceReconciliationTest#existingRedirectTrustIsRevokedAndItsCachedContentDiscarded,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupSourceReconciliationTest#laterDatabaseFailureRollsBackExistingSourceAndStagingChanges,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupSourceReconciliationTest#newUrlIsInsertedWithoutGrantingRedirectTrust,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupSourceReconciliationTest#reservedUserSourceCannotBeDisabledOrCleared,passed,0.025,,no file diff observed; not product certification,
+org.adaway.model.backup.BackupSourceReconciliationTest#selectionAndLabelRestoreKeepIdRowsValidatorsAndMetadata,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.root.RootModelApplyInstrumentedTest#rootModelApplyWritesGeneratedHostsFileToWritableSystem,skipped,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#fastPathParse_persistsExtractedRuleSemanticsAndSkipsUnsafeRows,passed,0.026,,no file diff observed; not product certification,V-03
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#hostsAliasesDoNotEnableRedirectsOrBroadenAllowListSyntax,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#hostsAliasesUseFastPathDeduplicationAndIgnoreComments,passed,0.025,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#hostsAliasesUseRoomPathAndCountMalformedLinesOnce,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#interruptedParseJoinsWorkersBeforeReturningAndRollsBack,passed,0.478,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#oversizedLineFailsWithoutPublishingAPartialImport,passed,0.076,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#redirectAliasesPreservePublicAddressAndRejectPrivateAddresses,passed,0.026,,no file diff observed; not product certification,V-03
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#redirectEnabledSource_fallsBackToBlockSafeRpzSyntaxBeforeRedirecting,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#sourceTextCannotImpersonateEndMarkers,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderDatabaseSemanticsTest#utf8BomAndMixedLineEndingsPreserveFirstAndLastRules,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#parseInsertSyncAndRootApply_mixedRules10k_staysWithinBudget,passed,1.456,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#parseInsertSyncAndRootApply_requestedScale_recordsBenchmark,skipped,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#parseReadFailure_rollsBackTargetGenerationAndKeepsActiveRows,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#rebuildRuntimeEntries_allowHeavyRequestedRows_recordsBenchmark,passed,0.152,,no file diff observed; not product certification,V-04
+org.adaway.model.source.SourceLoaderPerformanceTest#refreshRuntimeStats_allowHeavyRequestedRows_recordsBenchmark,passed,0.101,,no file diff observed; not product certification,V-04
+org.adaway.model.source.SourceLoaderPerformanceTest#rootModelCreateHostsFile_requestedRows_recordsWriteBenchmark,skipped,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#sqlUpdateDedupAndCarryForward_requestedScale_recordsBenchmark,skipped,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#sqlUpdateDeduper_carryForwardSkipsAlreadySeenRowsAndMarksCopiedRows,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#sqlUpdateDeduper_largeRootExportPrefersRedirectOverBlockedDuplicate,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceLoaderPerformanceTest#sqlUpdateDeduper_preservesSourceOwnershipAndKeepsRedirectTargets,passed,0.076,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#finalizeGeneration_runtimeCacheRebuildFailureDoesNotRollBackActivation,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#finalizeGeneration_runtimeCacheRebuildFailureDoesNotRollBackSourceMetadata,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#fullUpdate_allSourcesFail_abortsBeforeActivatingStagingGeneration,passed,0.051,,no file diff observed; not product certification,V-02
+org.adaway.model.source.SourceModelGenerationFailureTest#fullUpdate_carryForwardWriteFailureAbortsEvenWithSuccessfulSource,passed,0.101,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#fullUpdate_fileParserFailureIsRecordedAndKeepsActiveGeneration,passed,0.076,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#fullUpdate_mixedFileSuccessAndFailure_activatesCompleteGeneration,passed,0.202,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#fullUpdate_zeroEnabledSources_removesDisabledRuntimeEntries,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#mutationGateRejectsOverlappingUpdatesAndAlwaysReleases,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#parallelDownloadsShareOneHttpClientAndCache,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#retrieveHostsSource_publicFailure_preservesActiveRowsAndReportsDownloadFailed,passed,0.05,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#targetedFinalizer_metadataOnlyCommitDoesNotRebuildRuntimeRows,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelGenerationFailureTest#targetedFinalizer_runtimeCacheRebuildFailureDoesNotRollBackDisabledSourceCleanup,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#changedResponseWithoutEtagClearsPreviousValidator,passed,0.127,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#checkAndRetrieveHostsSources_all304_keepsActiveGenerationAndRuntimeRows,passed,0.202,,no file diff observed; not product certification,V-02
+org.adaway.model.source.SourceModelHttpConditionalTest#checkAndRetrieveHostsSources_changedSourcePublishesWithoutRuntimeMaterialization,passed,0.151,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#checkAndRetrieveHostsSources_mixed200304AndFailurePreservesCoverage,passed,0.152,,no file diff observed; not product certification,V-02
+org.adaway.model.source.SourceModelHttpConditionalTest#checkAndRetrieveHostsSources_stopDuringDownloadReturnsCancelledAndKeepsRuntimeTruth,passed,0.202,,no file diff observed; not product certification,H-05
+org.adaway.model.source.SourceModelHttpConditionalTest#checkThenRefreshDownloadsNewRevisionBeforeAcceptingNotModified,passed,0.176,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#disableDuringDownloadDoesNotImportEnabledRowsFromStaleSnapshot,passed,0.226,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#expiredMetadataForcesNetworkInsteadOfReusingHttpCache,passed,0.126,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#failedFirstDownloadWithoutLastModifiedRemainsUpdateNeeded,passed,0.126,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#freshGoneSourceAbortsPartialGenerationWithoutDisablingSelection,passed,0.151,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#notModifiedDoesNotRenewTheLastBodyFetchDate,passed,0.101,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#oversizedResponseFailsBeforeReadingAndPreservesPreviousRows,passed,0.102,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#successfulEmptySourceWithoutLastModifiedUsesWeeklyRefresh,passed,0.277,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#successfulHttpErrorPageDoesNotReplaceWorkingFilters,passed,0.127,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#unsolicited304FailsAndPreservesPreviousRows,passed,0.101,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelHttpConditionalTest#weakEtagIsStoredAndSentUnchanged,passed,0.126,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#disabledUrlDoesNotBlockLocalFileImportOffline,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#disabledUrlOnlyCleansOldRowsOfflineAndPreservesUserRules,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#enabledUrlOfflinePreservesGenerationAndReleasesGateForLocalRetry,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#fullLocalFileImportUsesMillisecondsForOnlineDate,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#localFileImportsOfflineAndUpdatesRuntimeRules,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineCheckInvalidatesLegacyFileDateBeforeAutomaticImport,passed,0.077,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineCheckInvalidatesLegacyFileDateWhenProviderDateIsUnknown,passed,0.077,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineCheckPreservesMatchingFutureFileDates,passed,0.025,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineCheckStillRejectsEnabledUrlBeforeUpdatingLocalMetadata,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineChecksHandleNoSourcesAndLocalSourcesWithUnknownDates,passed,0.076,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#offlineUpdateCannotInspectSelectionWhileMutationOwnsGate,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#targetedDisabledUrlCleansUpOfflineWithoutTouchingUserRules,failed,0.051,java.lang.AssertionError: expected:<2> but was:<1>,no file diff observed; not product certification,F-01
+org.adaway.model.source.SourceModelOfflineFileTest#targetedEnabledUrlStillRejectsOfflineAndReleasesGate,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#targetedLocalFileImportsOfflineAndRepairsOldMillisecondMetadata,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#targetedLocalUpdatesStillRespectMutationGateOffline,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#targetedMixedOfflineFailureRollsBackEarlierLocalImport,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#targetedMultipleLocalFilesImportOfflineWithoutChangingGeneration,passed,0.076,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelOfflineFileTest#userOnlyRulesRemainUsableOffline,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceModelRuntimeTruthMutationTest#syncHostEntries_keepsActiveTruthAcrossUserAndSourceMutations,passed,0.101,,no file diff observed; not product certification,
+org.adaway.model.source.SourceUpdateServiceWorkManagerTest#enable_replacesExistingHostsUpdateWorkWithoutDuplicates,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceUpdateServiceWorkManagerTest#enable_updatesExistingHostsUpdateConstraints,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.source.SourceUpdateServiceWorkManagerTest#immediateWorkerRetriesWhenAnotherUpdateOwnsTheGate,passed,0.027,,no file diff observed; not product certification,
+org.adaway.model.source.SourceUpdateServiceWorkManagerTest#immediateWorkerRetriesWhenRetrievalDoesNotComplete,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.source.SourceUpdateServiceWorkManagerTest#syncPreferences_enqueuesAndCancelsHostsUpdateWork,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadProviderInstrumentedTest#systemProviderBroadcastReachesReceiverAndRejectsUntrustedBytes,skipped,0.001,,no file diff observed; not product certification,U-02
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#cancelledReceiverIgnoresQueuedCompletionAndFallback,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#earlyForgedHintsKeepReceiverUntilProviderReportsSuccess,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#failedDownloadCleansUpWithoutReadingOrInstallingApk,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#ignoresNullWrongActionMissingIdAndOtherDownloads,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#immediateFallbackAndLaterBroadcastInstallOnlyOnce,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#missingApkCannotInstall,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#missingMalformedAndMismatchedRowsDoNotConsumeReceiver,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#providerQueryFailureIsFailClosedAndCanRetry,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#providerUriFailureCannotInstallOrRepeatCleanup,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkDownloadReceiverInstrumentedTest#successfulRowStillRequiresVerifiedApk,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallContinuationInstrumentedTest#cancelledUpdateCannotResumePendingInstall,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallContinuationInstrumentedTest#changedApkIsRejectedWhenPermissionReturns,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallContinuationInstrumentedTest#deniedPermissionDoesNotLoopSettingsOrLosePendingApk,passed,0.006,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallContinuationInstrumentedTest#permissionGrantResumesSameVerifiedApkExactlyOnce,passed,0.0,,no file diff observed; not product certification,U-03
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#cancelledReceiverCannotResumeOrDirectlyLaunch,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#changedOrUnreadablePendingApkReportsFailureAndClearsContinuation,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#completionAtOrAfterExpiryRejectsBeforeReadingApkAndCleansUpOnce,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#delayedPermissionReturnExpiresAndCannotBeRevived,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#expiryDuringPermissionReturnReverificationCannotLaunch,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#expiryDuringVerificationCannotLaunchInstaller,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#missingInstallerOrSettingsPublishesFailureAndDropsContinuation,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#permissionDenialDoesNotLoopAndGrantReverifiesExactlyOnce,passed,0.001,,no file diff observed; not product certification,
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#returningAfterInstallerCancellationNeverAutomaticallyRelaunches,passed,0.0,,no file diff observed; not product certification,U-03
+org.adaway.model.update.ApkInstallExpiryRetryInstrumentedTest#verificationRejectionPublishesFailureNotDownloadCompletion,passed,0.0,,no file diff observed; not product certification,
+org.adaway.model.update.ApkUpdateServiceWorkManagerTest#enable_replacesExistingApkUpdateWorkWithoutDuplicates,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.update.ApkUpdateServiceWorkManagerTest#syncPreferences_enqueuesAndCancelsApkUpdateWork,passed,0.026,,no file diff observed; not product certification,
+org.adaway.model.update.ApkUpdateServiceWorkManagerTest#syncPreferences_updatesExistingApkUpdatePeriod,passed,0.051,,no file diff observed; not product certification,
+org.adaway.model.update.UpdateModelNetworkFailureInstrumentedTest#coldNotificationEntryCanCheckAndRetryUntilCurrent,passed,8.241,,no file diff observed; not product certification,WF:PB-QA-U01; N-03
+org.adaway.model.update.UpdateModelNetworkFailureInstrumentedTest#currentSignedVersionIsPublishedButCannotStartDownload,passed,0.251,,no file diff observed; not product certification,
+org.adaway.model.update.UpdateModelNetworkFailureInstrumentedTest#failedManifestDownloadClearsPreviouslyAvailableUpdate,passed,0.302,,no file diff observed; not product certification,U-01
+org.adaway.model.vpn.VpnModelCacheInvalidationTest#inFlightAllowedLookupCannotRepopulateCacheAfterBlocking,passed,0.358,,no file diff observed; not product certification,
+org.adaway.model.vpn.VpnModelCacheInvalidationTest#inFlightBlockedLookupCannotRepopulateCacheAfterAllowing,passed,0.686,,no file diff observed; not product certification,
+org.adaway.model.vpn.VpnModelCacheInvalidationTest#invalidateRulesCacheRefreshesLiveVpnTruthAfterDirectSync,passed,0.305,,no file diff observed; not product certification,
+org.adaway.model.vpn.VpnModelCacheInvalidationTest#sourceModelSyncHostEntriesInvalidatesLiveVpnTruth,passed,0.13,,no file diff observed; not product certification,
+org.adaway.security.SystemReceiverContractTest#launcherShortcutsUseGeneratedApplicationIdResource,host-only,,,no file diff observed; not product certification,S-04; S-05; S-06
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#checkedApplyAndRevertFailuresReleaseLease,passed,0.053,,no file diff observed; not product certification,
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#externalLeaseChangesRefreshListeningTileWithoutAClick,passed,0.102,,no file diff observed; not product certification,T-02
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#heldExternalLeaseRejectsEnableAndShowsUnavailable,passed,0.028,,no file diff observed; not product certification,T-02
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#heldExternalLeaseRejectsStopAndShowsUnavailable,passed,0.0,,no file diff observed; not product certification,
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#rapidClicksClaimBeforeDispatchAndOnlyQueueOneToggle,passed,0.028,,no file diff observed; not product certification,T-02
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#rejectedDispatchReleasesLeaseRestoresStateAndAllowsRetry,passed,0.0,,no file diff observed; not product certification,T-02
+org.adaway.tile.AdBlockingTileOperationInstrumentedTest#uncheckedApplyAndRevertFailuresReleaseLease,passed,0.0,,no file diff observed; not product certification,
+org.adaway.tile.AdBlockingTileServiceInstrumentedTest#installedTileServiceIsExportedAndQuickSettingsPermissionProtected,passed,0.0,,no file diff observed; not product certification,T-01
+org.adaway.tile.AdBlockingTileServiceInstrumentedTest#listeningStopsObservingOriginalModelEvenAfterModelChanges,passed,0.029,,no file diff observed; not product certification,T-01
+org.adaway.tile.AdBlockingTileServiceInstrumentedTest#quickSettingsTileActionResolvesOnlyToProtectedTileService,passed,0.027,,no file diff observed; not product certification,
+org.adaway.tile.AdBlockingTileServiceInstrumentedTest#statusBarCommandCanAddClickAndRemoveTileWhenAvailable,passed,0.657,,no file diff observed; not product certification,T-01
+org.adaway.ui.UxDeviceMatrixTest#keyScreens_haveScreenshotsLabelsAndTouchTargets,passed,14.695,,changed since CI; no transfer,WF:SRC-046; V-08
+org.adaway.ui.about.AboutActivitySmokeInstrumentedTest#preferencesAboutOpensProjectVersionAndLicenseAttribution,passed,2.809,,no file diff observed; not product certification,A-03
+org.adaway.ui.adblocking.ApplyConfigurationSnackbarThreadTest#hostFailureBuildsErrorFeedbackOnMainThread,passed,5.137,,no file diff observed; not product certification,
+org.adaway.ui.adblocking.ApplyConfigurationSnackbarThreadTest#successfulApplyBuildsCompletionFeedbackOnMainThread,passed,5.19,,no file diff observed; not product certification,
+org.adaway.ui.adblocking.ApplyConfigurationSnackbarThreadTest#unexpectedDatabaseFailureEndsLoadingOnMainThread,passed,4.71,,no file diff observed; not product certification,
+org.adaway.ui.adblocking.SourceApplyFeedbackInstrumentedTest#pendingPromptReturnsAfterSameFrameLoadingAndCompletion,passed,3.468,,no file diff observed; not product certification,WF:SRC-011
+org.adaway.ui.adblocking.SourceApplyFeedbackInstrumentedTest#pendingPromptReturnsAfterSameFrameSelectionReversal,passed,4.277,,no file diff observed; not product certification,WF:SRC-011
+org.adaway.ui.adware.AdwareLiveDataMatcherTest#scannerCopyDisclosesStaticSignatureFreshnessLimit,host-only,,,no file diff observed; not product certification,A-01
+org.adaway.ui.adware.AdwareRefreshInstrumentedTest#installedAppHasNormalUninstallPermissionButNotPrivilegedDelete,passed,0.179,,no file diff observed; not product certification,
+org.adaway.ui.adware.AdwareRefreshInstrumentedTest#interceptedUninstallAndCanceledReturnPreserveInstalledRow,passed,2.854,,no file diff observed; not product certification,A-02
+org.adaway.ui.adware.AdwareRefreshInstrumentedTest#reopeningScannerUsesSameModelAndRescansAfterAnEmptyResult,passed,1.75,,no file diff observed; not product certification,A-01
+org.adaway.ui.adware.AdwareRefreshInstrumentedTest#returningToScannerRefreshesAndPublishesEmptyState,passed,2.687,,no file diff observed; not product certification,A-02
+org.adaway.ui.adware.AdwareScannerInstrumentedTest#scannerShowsInstalledLaunchablePackageWithKnownAdwareComponent,passed,4.935,,no file diff observed; not product certification,A-01
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#corruptCacheOfflineShowsRetryAndRecoversWhenNetworkReturns,passed,3.269,,no file diff observed; not product certification,WF:DISC-007; WF:DISC-059
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#freshCorruptLanguagesRefetchInsteadOfShowingEmptyDirectory,passed,2.844,,no file diff observed; not product certification,WF:DISC-008
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#freshCorruptListsRefetchInsteadOfShowingEmptyDirectory,passed,2.937,,no file diff observed; not product certification,WF:DISC-006; WF:DISC-008
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#freshCorruptSyntaxesRefetchInsteadOfShowingEmptyDirectory,passed,2.942,,no file diff observed; not product certification,WF:DISC-008
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#freshCorruptTagsRefetchInsteadOfShowingEmptyDirectory,passed,4.796,,no file diff observed; not product certification,WF:DISC-008
+org.adaway.ui.discover.DiscoverCacheRecoveryInstrumentedTest#freshValidCacheDoesNotFetchNetwork,passed,2.729,,no file diff observed; not product certification,WF:DISC-001; WF:DISC-008
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#catalogDeselectOneAfterSelectAllKeepsOthers,passed,3.295,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#filteredPresetDoesNotSelectHiddenRowsOrRetainFullPresetIdentity,passed,3.568,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#filteringIndividualSelectionPrunesHiddenRowAndHidesAddButton,passed,3.297,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#filteringSelectAllRetainsVisibleSelectionsWithoutResurrectingHiddenRows,passed,3.456,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#selectAllExcludesAlreadyAddedRowsAndEmptySearchCannotLeaveHiddenSelection,passed,3.422,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverCatalogSelectionInstrumentedTest#selectingEveryRowReflectsMasterAndExplicitClearAllStillClears,passed,3.27,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverFilterListsFiltersInstrumentedTest#directorySearchTagLanguageAndDnsSafeControlsUpdateVisibleScope,passed,3.376,,changed since CI; no transfer,WF:DISC-010; WF:DISC-012; WF:DISC-013; WF:DISC-014; WF:DISC-016; WF:DISC-059
+org.adaway.ui.discover.DiscoverLabelLayoutInstrumentedTest#landscapeLargeFontShowsCompleteNameAndFormat,passed,0.127,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverLabelLayoutInstrumentedTest#landscapeNormalFontShowsCompleteNameAndFormat,passed,0.437,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverLabelLayoutInstrumentedTest#portraitLargeFontShowsCompleteNameAndFormat,passed,0.077,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverLabelLayoutInstrumentedTest#portraitNormalFontShowsCompleteNameAndFormat,passed,0.508,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverProfileStatusInstrumentedTest#profileStatusReflectsExactExtendedPartialAndCustomState,passed,3.721,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverQuickPresetInstrumentedTest#balancedAddsMissingReenablesDisabledAndKeepsCustomSource,passed,4.935,,no file diff observed; not product certification,WF:DISC-003
+org.adaway.ui.discover.DiscoverQuickPresetInstrumentedTest#balancedUpdatesKnownOutdatedSourceAndPreservesUnrelatedSource,passed,3.134,,no file diff observed; not product certification,WF:DISC-003
+org.adaway.ui.discover.DiscoverQuickPresetInstrumentedTest#currentAggressiveThenSafePreservesExtrasWithoutQueuingAnotherUpdate,passed,5.689,,no file diff observed; not product certification,WF:DISC-002; WF:DISC-004
+org.adaway.ui.discover.DiscoverQuickPresetInstrumentedTest#safePresetChipAddsPresetSourcesPersistsProfileAndQueuesImmediateUpdate,passed,2.979,,no file diff observed; not product certification,WF:DISC-002
+org.adaway.ui.discover.DiscoverRecoveryInstrumentedTest#closingUnsupportedChooserDoesNotResolveOrDiscardChoices,passed,3.026,,no file diff observed; not product certification,WF:DISC-050
+org.adaway.ui.discover.DiscoverRecoveryInstrumentedTest#legacyLedgerStillOffersRecoveryUntilNextRun,passed,0.718,,no file diff observed; not product certification,WF:DISC-049
+org.adaway.ui.discover.DiscoverRecoveryInstrumentedTest#newRecoverySetsOverrideTruncatedOrStaleLedger,passed,0.732,,no file diff observed; not product certification,WF:DISC-049; WF:DISC-053; WF:DISC-054
+org.adaway.ui.discover.DiscoverRecoveryInstrumentedTest#reviewTextKeepsEightyRowLimitAndExplicitRemainingCount,passed,0.101,,no file diff observed; not product certification,WF:DISC-048
+org.adaway.ui.discover.DiscoverRecoveryInstrumentedTest#unsupportedChoiceBeyondEightyCanBeScrolledToAndOpened,passed,9.327,,no file diff observed; not product certification,WF:DISC-050; WF:DISC-054
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#authoritativeSnapshotPrunesRemovedCheckedIds,passed,4.419,,changed since CI; no transfer,WF:DISC-019; WF:DISC-021
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#enabledBulkActionsAndRowSelectionContrastWithTheirActualSurfaces,not-in-report,,,changed since CI; no transfer,F-06
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#landscapeDiscoverKeepsFilterRowsReachable,passed,4.46,,changed since CI; no transfer,WF:DISC-018; WF:DISC-060
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#lateRefreshPreservesSubscribeObservedWhileCachedRowsAreVisible,passed,3.442,,changed since CI; no transfer,WF:DISC-008; WF:DISC-009
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#lateRefreshPreservesUnsubscribeObservedWhileCachedRowsAreVisible,passed,3.243,,changed since CI; no transfer,WF:DISC-009; WF:DISC-015
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#parcelledStateKeepsCheckedIdsUntilColdDirectorySnapshotArrives,passed,3.52,,changed since CI; no transfer,WF:DISC-006; WF:DISC-021
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#profileStatusUpdatesAfterChildSubscriptionWithoutLeavingDiscover,passed,4.756,,changed since CI; no transfer,WF:DISC-005; WF:DISC-029
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#recreationPreservesCheckedIdsAndTagScope,passed,4.509,,changed since CI; no transfer,WF:DISC-001; WF:DISC-012; WF:DISC-018; WF:DISC-019; WF:DISC-021
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#refreshRetainsLanguageIdAcrossMetadataReordering,passed,3.401,,changed since CI; no transfer,WF:DISC-013; WF:DISC-017
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#refreshRetainsLanguageWithUnchangedMetadata,passed,3.284,,changed since CI; no transfer,WF:DISC-017
+org.adaway.ui.discover.DiscoverStateRegressionInstrumentedTest#restoredSubscribedSelectionWaitsForInitialSourceObservation,passed,3.529,,changed since CI; no transfer,WF:DISC-015; WF:DISC-021
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#bulkUnsubscribeRebuildsOnceAndKeepsNonDirectorySource,passed,2.992,,no file diff observed; not product certification,WF:DISC-040
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#catalogRemovalClearsRuntimeAndPrimedVpnCache,passed,2.966,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#catalogRemovalStillSynchronizesAfterViewIsDestroyed,passed,2.808,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#daoOnlyDeletionLeavesPrimedVpnDecisionBlocked,passed,0.844,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#rootApplyInstallsPostRemovalConfigurationWithoutDownloadingSources,passed,4.031,,no file diff observed; not product certification,
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#selectedUnsubscribeLeavesUnselectedDirectorySourceBlocking,passed,3.181,,no file diff observed; not product certification,WF:DISC-039
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#singleUnsubscribeClearsRuntimeAndPrimedVpnCacheWithoutStartingVpn,passed,3.12,,no file diff observed; not product certification,WF:DISC-029; WF:DISC-031
+org.adaway.ui.discover.DiscoverUnsubscribeRuntimeInstrumentedTest#singleUnsubscribeStillSynchronizesAfterViewIsDestroyed,passed,4.362,,no file diff observed; not product certification,WF:DISC-056
+org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest#unsupportedRowReviewShowsDisclosureAndManualAddPrefillsSourceEditor,passed,4.792,,no file diff observed; not product certification,WF:DISC-032
+org.adaway.ui.discover.DiscoverUnsupportedReviewInstrumentedTest#unsupportedRowSwitchSubscribesWithoutManualReview,passed,3.429,,no file diff observed; not product certification,WF:DISC-027
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#credentialsCannotSelectOrMutateUsernameHost,passed,3.013,,no file diff observed; not product certification,D-01
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#failedAllowRefreshRetriesWithoutDuplicatesOrLosingUnderlyingBlock,passed,3.458,,no file diff observed; not product certification,D-04
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#failedReplacementRollsBackPreviousAllowRuleThenRetries,passed,2.936,,no file diff observed; not product certification,
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#heldAllowRemoveAndDeleteDoNotAnnounceSuccessEarly,passed,3.236,,no file diff observed; not product certification,D-03
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#heldBlockHasNoSuccessAndCompletesOnRecreatedView,passed,3.78,,no file diff observed; not product certification,
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#insertFailureIsDeliveredAfterStoppedOwnerRecreationAndCanRetry,passed,5.169,,no file diff observed; not product certification,
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#newerCheckWinsOverMutationRefreshWithNoIdleGap,passed,3.475,,no file diff observed; not product certification,D-01
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#readFailureClearsBusyAndStaleResultThenCheckRetries,passed,3.007,,no file diff observed; not product certification,D-04
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#runtimeSyncFailureDoesNotClaimSuccessAndRetrySynchronizes,passed,3.723,,no file diff observed; not product certification,D-04
+org.adaway.ui.domainchecker.DomainCheckerOperationsInstrumentedTest#sharedSourceOperationRejectsMutationWithoutWritingAndAllowsRetry,passed,3.757,,no file diff observed; not product certification,D-04
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#allowProvenanceIsReadOnlyAndDoesNotOverrideRedirects,passed,1.271,,changed since CI; no transfer,WF:PB-QA-D01; D-02
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerFragmentActionsMutateOnlyNormalizedUserRules,passed,3.75,,changed since CI; no transfer,D-03
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerFragmentNormalizesPastedInputBeforeLookup,passed,2.53,,changed since CI; no transfer,D-01
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerFragmentRendersRuntimeTruthStates,passed,3.123,,changed since CI; no transfer,D-02
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#domainCheckerUsesRootExactTruthAndVpnSuffixTruth,passed,0.754,,changed since CI; no transfer,
+org.adaway.ui.domainchecker.DomainCheckerRuntimeTruthTest#removingExactAllowInVpnUiPreservesWildcardAndSibling,passed,4.407,,changed since CI; no transfer,D-03
+org.adaway.ui.home.HomeCountersInstrumentedTest#homeCountersFreezeDuringActiveUpdateAndRefreshAfterCompletion,passed,5.398,,no file diff observed; not product certification,WF:HOME-QA-006
+org.adaway.ui.home.HomeCountersInstrumentedTest#homeCountersReflectSeededRuntimeAndSourceTruth,passed,2.304,,no file diff observed; not product certification,H-01
+org.adaway.ui.home.HomeCountersInstrumentedTest#homeFreshnessCountsNeverDownloadedSubscriptionsAndTracksChanges,passed,2.912,,no file diff observed; not product certification,WF:HOME-QA-006; H-01
+org.adaway.ui.home.HomeDiscoverDeepEntryInstrumentedTest#discoverLaunchExtraOpensDiscoverAsInitialTab,passed,3.372,,no file diff observed; not product certification,WF:HOME-QA-005; WF:HOME-QA-009
+org.adaway.ui.home.HomeDiscoverDeepEntryInstrumentedTest#homeNoSourceDiscoverCtaNavigatesToDiscover,passed,3.472,,no file diff observed; not product certification,WF:HOME-QA-009
+org.adaway.ui.home.HomeFlowRoundTripInstrumentedTest#emptyCounterCardsOpenTheirRuleTabsAndBackReturnsToRecreatedHome,passed,8.15,,no file diff observed; not product certification,WF:HOME-QA-007
+org.adaway.ui.home.HomeFlowRoundTripInstrumentedTest#populatedCounterCardsKeepCorrectRulesAcrossListAndHomeRecreation,passed,9.403,,no file diff observed; not product certification,WF:HOME-QA-007; L-01
+org.adaway.ui.home.HomeFlowRoundTripInstrumentedTest#privateDnsButtonLaunchesAndroidSettingsAndBackRefreshesRealGlobalState,passed,9.464,,no file diff observed; not product certification,WF:HOME-QA-008; H-06
+org.adaway.ui.home.HomeFlowRoundTripInstrumentedTest#vpnSettingsButtonReturnsWithUpdatedExclusionStateAndNoVpnStart,passed,7.852,,no file diff observed; not product certification,WF:HOME-QA-008; H-06
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#authorizedEnableWaitsForExternalCompletionAcrossRecreation,passed,2.943,,changed since CI; no transfer,WF:HOME-QA-003
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#authorizedEnableWaitsForFailedImportAcrossRecreation,passed,2.126,,changed since CI; no transfer,WF:HOME-QA-003
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#authorizedEnableWaitsForStoppedImportAcrossRecreation,passed,3.595,,changed since CI; no transfer,WF:HOME-QA-003
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#bootstrapHandoffCoalescesBehindExternalOperationAndBlocksToggle,passed,3.228,,changed since CI; no transfer,ON-05
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#cancelledConsentAndMethodChangeDoNotReplayEnable,passed,3.017,,changed since CI; no transfer,WF:HOME-QA-004
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#externalWorkerApplyFailureReleasesRecreatedHome,passed,2.53,,changed since CI; no transfer,
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#externalWorkerOwnsLeaseThroughFinalApplyAndRecreatedHome,passed,3.147,,changed since CI; no transfer,
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#inlineProtectionControlResumesPausesAndSurvivesRecreation,passed,2.296,,changed since CI; no transfer,WF:HOME-QA-001; WF:HOME-QA-002
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#passiveLaunchDefaultsToHomeAndRoutesEveryBottomNavDestination,passed,2.841,,changed since CI; no transfer,WF:DISC-001; WF:HOME-QA-005
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#preparationWithoutDownloadUnlocksRecreatedControl,passed,3.575,,changed since CI; no transfer,
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#protectionStatusRendersOffAndActiveModelStates,passed,2.344,,changed since CI; no transfer,
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#repeatedTapsQueueOneOperationAndRecreatedViewUnlocks,passed,2.343,,changed since CI; no transfer,WF:HOME-QA-002
+org.adaway.ui.home.HomeLaunchNavigationStateInstrumentedTest#singleTopDiscoverIntentUpdatesSelectedTabAndStoredIntent,passed,2.102,,changed since CI; no transfer,WF:HOME-QA-005
+org.adaway.ui.home.HomeLeakStatusInstrumentedTest#homeLeakCardRendersPrivateDnsAndVpnBypassRisksFromDeviceSettings,passed,3.235,,no file diff observed; not product certification,
+org.adaway.ui.home.HomeNavigationSourcesInstrumentedTest#sourcesTabShowsSourceManagementWithToolbarActions,passed,3.263,,no file diff observed; not product certification,WF:SRC-001; WF:HOME-QA-005
+org.adaway.ui.home.HomeProgressInstrumentedTest#homeProgressRendersActiveTerminalAndIdleStates,passed,2.715,,no file diff observed; not product certification,H-03
+org.adaway.ui.home.HomeProtectionStatusRegressionInstrumentedTest#missingSnapshotIsCheckingRatherThanActiveOrEmpty,passed,2.285,,changed since CI; no transfer,H-01
+org.adaway.ui.home.HomeProtectionStatusRegressionInstrumentedTest#recreatingTheSameFragmentViewReattachesSnapshotAndCounterObservers,passed,2.788,,changed since CI; no transfer,
+org.adaway.ui.home.HomeProtectionStatusRegressionInstrumentedTest#rootStatusUsesExactBlockingCountNotOtherRuleTypes,passed,2.437,,changed since CI; no transfer,
+org.adaway.ui.home.HomeProtectionStatusRegressionInstrumentedTest#statusFollowsCurrentSnapshotWhileDisplayCountersAreDetached,passed,3.447,,changed since CI; no transfer,
+org.adaway.ui.home.HomeProtectionStatusRegressionInstrumentedTest#vpnWithZeroRulesStaysEnabledWithoutClaimingActiveProtection,passed,2.922,,changed since CI; no transfer,H-01
+org.adaway.ui.home.HomeUpdateActionsInstrumentedTest#checkForUpdateButtonRunsLocalSourcePipelineBeforeApply,passed,2.97,,no file diff observed; not product certification,WF:HOME-QA-006; H-02
+org.adaway.ui.home.HomeUpdateActionsInstrumentedTest#updateApplyButtonRunsLocalSourcePipelineBeforeApply,passed,2.779,,no file diff observed; not product certification,WF:HOME-QA-006; H-02
+org.adaway.ui.home.HomeUpdateControlsInstrumentedTest#pauseResumeButtonControlsActiveSourceUpdate,passed,2.359,,no file diff observed; not product certification,WF:HOME-QA-006; H-04
+org.adaway.ui.home.HomeUpdateControlsInstrumentedTest#stopButtonStopsActiveSourceUpdateAndDisablesControls,passed,2.521,,no file diff observed; not product certification,WF:HOME-QA-006; H-05
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#acknowledgingDownloadFailureLeavesNewerStatusVisible,passed,2.543,,no file diff observed; not product certification,H-07
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#appUpdateManifestMarksVersionLabelAndOpensUpdateActivity,passed,2.939,,no file diff observed; not product certification,WF:HOME-QA-009
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#discoverDeepEntryDismissesDownloadDialogWithoutAcknowledgingIt,passed,4.676,,no file diff observed; not product certification,WF:PB-QA-H01
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#failedSourceOpensSourcesWithoutReplayingOldError,passed,3.672,,no file diff observed; not product certification,H-07
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#hostErrorShowsDetailsAndHelpAction,passed,13.172,,no file diff observed; not product certification,H-07
+org.adaway.ui.home.HomeUpdateSignalErrorInstrumentedTest#rotatingThenPressingBackClearsOnlyTheDownloadPrompt,passed,5.518,,no file diff observed; not product certification,WF:PB-QA-H02
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#eitherCompletionKeepsTheOtherTaskVisibleInBothDeliveryOrders,passed,0.051,,no file diff observed; not product certification,WF:HOME-QA-006; H-03
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#queuedPeriodicWorkIsIdleButQueuedSubscriptionIsPreparing,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#regressionsAreIgnoredButNewJobsAndNewTotalsResetProgress,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#retryAttemptsAndUpdatedWorkResetProgressForTheSameId,passed,0.177,,no file diff observed; not product certification,H-03
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#runningWorkWinsOverHistoricalAndQueuedRows,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.home.HomeWorkProgressRegressionInstrumentedTest#scheduledCompletionClearsProgressAfterSubscribeObserverHasSettled,passed,0.052,,no file diff observed; not product certification,WF:HOME-QA-006
+org.adaway.ui.hosts.FilterListsBulkUiInstrumentedTest#lastRunRetryShowsProgressAndCanBeCancelledFromDiscover,passed,3.112,,no file diff observed; not product certification,WF:DISC-042; WF:DISC-043; WF:DISC-048; WF:DISC-049; WF:DISC-052
+org.adaway.ui.hosts.FilterListsLargeScopeUiInstrumentedTest#retrySixThousandFailuresEnqueuesExactScopeAndCanBeCancelled,passed,5.716,,no file diff observed; not product certification,WF:DISC-043; WF:DISC-049; WF:DISC-053
+org.adaway.ui.hosts.FilterListsLargeScopeUiInstrumentedTest#sixThousandCheckedIdsEnqueueExactScopeAndCanBeCancelled,passed,5.64,,no file diff observed; not product certification,WF:DISC-034; WF:DISC-043
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#cancellationDuringLargeScopeKeepsLateFailuresAndSnapshot,passed,0.177,,no file diff observed; not product certification,WF:DISC-044
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#cancellingRetryBeforeFirstCandidateKeepsEveryFailure,passed,0.101,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#cancellingRetryKeepsUnprocessedFailuresButDropsSuccessfulRetryIds,passed,0.126,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#directoryRetryKeepsExactLargeScope,passed,0.101,,no file diff observed; not product certification,WF:DISC-046
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#emptyScopeStaysEmptyAndInlineBoundaryFits,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#failedDetailFutureRetainsOriginalRecoveryId,passed,0.026,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#largeScopeIsSmallImmutableInputIndependentOfLastRunHistory,passed,0.352,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#largeSelectedScopeProcessesEveryIdAndExcludesUnselectedRows,passed,0.678,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#lateFailuresAfterFiveHundredSuccessesRemainRecoverable,passed,0.126,,no file diff observed; not product certification,WF:DISC-053; WF:DISC-054
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#replacedOrMissingScopeFailsClosedAndStorageDoesNotAccumulate,passed,0.126,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsRecoveryInstrumentedTest#thousandsOfFailuresAndUnsupportedIdsSurviveCancellation,passed,0.076,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest#doWork_returnsRetryWhenListFetchFails,passed,0.026,,no file diff observed; not product certification,WF:DISC-046
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest#doWork_skipsUnsupportedScopedRowsWithoutFetchInsertOrUpdate,passed,0.026,,no file diff observed; not product certification,WF:DISC-035
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest#doWork_stopWhileResolvingDetailsReturnsCancelledPromptly,passed,0.277,,no file diff observed; not product certification,WF:DISC-043
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest#doWork_subscribesAllWithFakeDirectoryClientAndEnqueuesUpdateOnce,passed,0.025,,no file diff observed; not product certification,WF:DISC-037; WF:DISC-052
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerDoWorkTest#doWork_subscribesOnlyListsMatchingInputScope,passed,0.025,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerRoomTest#finalizeCancelledRun_flushesPendingSourcesPersistsLedgerAndReturnsCancelled,passed,0.0,,no file diff observed; not product certification,WF:DISC-044
+org.adaway.ui.hosts.FilterListsSubscribeAllWorkerRoomTest#subscribeAllRecorder_writesCompatibleSourcesAndReturnsExactCounts,passed,0.025,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterListsVisibleBulkActionsInstrumentedTest#visibleSubscribeAndRemoveOnlyAffectCurrentVisibleFilterListsScope,passed,5.511,,no file diff observed; not product certification,WF:DISC-015; WF:DISC-016; WF:DISC-018; WF:DISC-019; WF:DISC-033; WF:DISC-034; WF:DISC-035; WF:DISC-038; WF:DISC-039; WF:DISC-042; WF:DISC-052
+org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#manageFilterSetsRenameValidationPersistsThenDeleteRemovesSet,passed,8.591,,no file diff observed; not product certification,WF:SRC-001; WF:SRC-023; WF:SRC-024; WF:SRC-025; WF:SRC-026
+org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#saveFilterSetValidationThenApplyRestoresSavedSelection,passed,6.915,,no file diff observed; not product certification,WF:SRC-001; WF:SRC-020; WF:SRC-021; WF:SRC-028; WF:SRC-029
+org.adaway.ui.hosts.FilterSetSaveApplyInstrumentedTest#scheduleSavedFilterSetDailyPersistsScheduleAndEnqueuesWorker,passed,4.553,,no file diff observed; not product certification,WF:SRC-001; WF:SRC-037; WF:SRC-039
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#globalOffKeepsDailySourceScheduleAndRefreshesConstraints,passed,0.102,,no file diff observed; not product certification,WF:SCH-003; WF:SCH-019
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#globalOffRestoresMissingWeeklySetDispatcher,passed,0.076,,no file diff observed; not product certification,WF:SCH-003
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#globalOnlyScheduleStillEnqueuesDispatcher,passed,0.076,,no file diff observed; not product certification,WF:SCH-018
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#noEnabledSchedulesCancelsDispatcherDespiteSourceTimingMetadata,passed,0.076,,no file diff observed; not product certification,WF:SCH-003; WF:SCH-018
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#packageReplacementKeepsIndependentSetSchedule,passed,0.076,,no file diff observed; not product certification,WF:SCH-018
+org.adaway.ui.hosts.FilterSetScheduleReconciliationInstrumentedTest#packageReplacementKeepsIndependentSourceSchedule,passed,0.076,,no file diff observed; not product certification,WF:SCH-018
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#backAtModeDayAndEitherTimePickerLeavesProfilesAndIdentityUnchanged,passed,8.119,,no file diff observed; not product certification,WF:SRC-043
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#cancelAtModeDayAndEitherTimePickerLeavesProfilesAndIdentityUnchanged,passed,7.864,,no file diff observed; not product certification,WF:SRC-043
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#confirmDailySelectionUsesPendingSnapshotAndAvoidsNewNameCollision,passed,4.99,,no file diff observed; not product certification,WF:SRC-042
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#confirmWeeklySelectionPersistsWeekdayWithoutChangingActiveIdentity,passed,5.322,,no file diff observed; not product certification,WF:SRC-042
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#confirmedStoreWritePublishesCompleteScheduleWithoutChangingActiveIdentity,passed,0.327,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#offForCurrentSelectionCreatesNoProfile,passed,6.659,,no file diff observed; not product certification,WF:SRC-037; WF:SRC-043
+org.adaway.ui.hosts.FilterSetSchedulingRegressionInstrumentedTest#offForExistingSetKeepsProfileAndDisablesOnlyItsSchedule,passed,5.629,,no file diff observed; not product certification,WF:SRC-037; WF:SRC-038
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#changingGlobalScheduleStartsAtNextScheduledSlot,passed,0.003,,no file diff observed; not product certification,WF:SCH-004
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#deleteActiveUserProfileClearsStableKeysAndFallsBackToCustom,passed,0.076,,no file diff observed; not product certification,WF:SRC-026; WF:SRC-045
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#globalScheduleDefaultsStartAtNextScheduledSlot,passed,0.029,,no file diff observed; not product certification,WF:SCH-004
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#legacyCanonicalDuplicatesRemainSeparatelyReachable,passed,0.051,,no file diff observed; not product certification,WF:SRC-045
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#legacyCurrentSelectionDoesNotRenameCustomProfile,passed,0.206,,no file diff observed; not product certification,WF:SRC-045
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#legacyDisplayNameProfileMigratesToStableIdKeys,passed,0.31,,no file diff observed; not product certification,WF:SRC-045
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#newProfileWritesUseStableIdKeysOnly,passed,0.001,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#reconcileActiveProfilePreservesExtendedCustomization,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#reconcileActiveProfileRepairsExactSavedProfileAfterLostPreferenceWrite,passed,0.053,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#renameUserProfilePreservesStableIdScheduleAndActiveIdentity,passed,0.377,,no file diff observed; not product certification,WF:SRC-024; WF:SRC-045
+org.adaway.ui.hosts.FilterSetStoreMigrationTest#reservedProfilesUseDeterministicProfileIds,passed,0.003,,no file diff observed; not product certification,
+org.adaway.ui.hosts.FilterSetUpdateServiceWorkManagerTest#disable_cancelsFilterSetUpdateWork,passed,0.026,,no file diff observed; not product certification,WF:SCH-019
+org.adaway.ui.hosts.FilterSetUpdateServiceWorkManagerTest#enable_replacesExistingFilterSetUpdateWorkWithoutDuplicates,passed,0.051,,no file diff observed; not product certification,WF:SCH-019
+org.adaway.ui.hosts.FilterSetUpdateServiceWorkManagerTest#enable_updatesExistingFilterSetUpdateConstraints,passed,0.051,,no file diff observed; not product certification,WF:SCH-019
+org.adaway.ui.hosts.SchedulesLifecycleRegressionInstrumentedTest#pickerAndSummaryCompletionAfterFinishDoNotTouchOldActivity,passed,2.059,,no file diff observed; not product certification,WF:SCH-013; WF:SCH-016
+org.adaway.ui.hosts.SchedulesLifecycleRegressionInstrumentedTest#pickerAndSummaryCompletionAfterRecreationDoNotTouchOldActivity,passed,2.565,,no file diff observed; not product certification,WF:SCH-012; WF:SCH-013; WF:SCH-015; WF:SCH-016
+org.adaway.ui.hosts.SchedulesLifecycleRegressionInstrumentedTest#pickerQueuedBeforePauseDoesNotReopenAfterResume,passed,2.603,,no file diff observed; not product certification,WF:SCH-013; WF:SCH-016
+org.adaway.ui.hosts.SchedulesNavigationInstrumentedTest#cancellingDailyTimeDoesNotEnablePreviousSchedule,passed,3.116,,no file diff observed; not product certification,WF:SCH-006
+org.adaway.ui.hosts.SchedulesNavigationInstrumentedTest#cancellingWeeklyDayDoesNotEnablePreviousSchedule,passed,3.726,,no file diff observed; not product certification,WF:SCH-006
+org.adaway.ui.hosts.SchedulesNavigationInstrumentedTest#toolbarUpIsVisibleLabelledAndFinishes,passed,2.589,,no file diff observed; not product certification,WF:SCH-002
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#failureWithUnchangedSelectionSurvivesLateMetadataUntilRetrySucceeds,passed,5.794,,changed since CI; no transfer,WF:SRC-010; WF:SRC-012
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#firstApplyDuringNewSourceWorkerDoesNotReportFailure,not-in-report,,,changed since CI; no transfer,F-05
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#manualApplyCompletionRefreshesRecreatedViewWithoutAnotherSourceEmission,passed,4.217,,changed since CI; no transfer,WF:SRC-014
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#returningToOriginalSelectionDuringApplyRemainsPendingAfterCompletion,passed,3.448,,changed since CI; no transfer,WF:SRC-013
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#selectionChangedAndRestoredDuringApplyStillRequiresAcknowledgement,passed,3.418,,changed since CI; no transfer,WF:SRC-013
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#selectionEditedAndRestoredBeforeFirstObservationRemainsPending,passed,0.327,,changed since CI; no transfer,WF:SRC-013
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#targetedUpdateLeavesReenabledUnrelatedSourcePending,passed,4.157,,changed since CI; no transfer,WF:SRC-007; WF:SRC-011
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#toolbarCompletionRefreshesRecreatedViewWithoutAnotherSourceEmission,passed,4.691,,changed since CI; no transfer,WF:SRC-014
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#uncertainAutomaticCompletionKeepsReenabledSourcePendingAfterRecreation,passed,6.022,,changed since CI; no transfer,WF:SRC-013; WF:SRC-014
+org.adaway.ui.hosts.SourcesApplyStateRegressionTest#updateBeforeFirstSourceObservationAcknowledgesUnchangedSelection,passed,0.176,,changed since CI; no transfer,
+org.adaway.ui.hosts.SourcesToggleApplyInstrumentedTest#automaticApplyFailureKeepsPendingAndFailedManualApplyOffersRetry,passed,5.577,,no file diff observed; not product certification,WF:SRC-012
+org.adaway.ui.hosts.SourcesToggleApplyInstrumentedTest#automaticImportClearsPromptAndNextSelectionStillPrompts,passed,6.121,,no file diff observed; not product certification,WF:SRC-005; WF:SRC-011
+org.adaway.ui.hosts.SourcesToggleApplyInstrumentedTest#togglingSourceOffPersistsRowsAndApplyRunsProtectionUpdate,passed,2.81,,no file diff observed; not product certification,WF:SRC-005; WF:SRC-011
+org.adaway.ui.hosts.SourcesToggleApplyInstrumentedTest#toolbarUpdateAcknowledgesSelectionAndMetadataCannotRestorePrompt,passed,3.641,,no file diff observed; not product certification,WF:SRC-010
+org.adaway.ui.hosts.SourcesUpdateAllInstrumentedTest#updateAllToolbarActionSyncsSourcesThenAppliesProtection,passed,2.911,,no file diff observed; not product certification,WF:SRC-001; WF:SRC-010
+org.adaway.ui.lists.ListsAddUserRulesInstrumentedTest#addDialogsStoreBlockedAllowedAndRedirectedUserRules,passed,6.664,,no file diff observed; not product certification,L-04
+org.adaway.ui.lists.ListsAddUserRulesInstrumentedTest#addDialogsUseRestoredFragmentsAfterActivityRecreation,passed,9.514,,no file diff observed; not product certification,L-04
+org.adaway.ui.lists.ListsRuleActionsInstrumentedTest#downloadedRuleToggleCreatesAllowedOverride,passed,1.98,,no file diff observed; not product certification,L-08
+org.adaway.ui.lists.ListsRuleActionsInstrumentedTest#userRuleCanToggleEditCancelDeleteAndConfirmDelete,passed,16.158,,no file diff observed; not product certification,L-05
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#allowAddRejectsLongLineVisiblyWithoutSubmittingTheOtherLine,passed,3.613,,no file diff observed; not product certification,L-04
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#allowEditRejectsLongInputAndKeepsExistingRuleUntilValidSave,passed,3.261,,no file diff observed; not product certification,L-05
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#backRestoresDownloadedCheckboxBeforeNextConfirmedChange,passed,3.811,,no file diff observed; not product certification,L-08
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#completedMutationCannotReplayAnOlderFilterAndRoomStillRefreshesRows,passed,2.96,,no file diff observed; not product certification,L-03
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#contextMoveIsHiddenForUserRedirectAndVisibleForUserBlock,passed,2.499,,no file diff observed; not product certification,L-06
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#downloadedRedirectCheckboxCreatesExactAllowAndDisablesOnlySelectedRow,passed,4.198,,no file diff observed; not product certification,
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#editingSelectedSnapshotPreservesCompletedCheckboxChange,passed,0.103,,no file diff observed; not product certification,L-05
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#movingSelectedSnapshotPreservesCompletedCheckboxAndEditChanges,passed,0.051,,no file diff observed; not product certification,L-06
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#noButtonRestoresDownloadedCheckboxBeforeNextConfirmedChange,passed,3.569,,no file diff observed; not product certification,L-08
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#outsideTouchRestoresDownloadedCheckboxBeforeNextConfirmedChange,passed,3.755,,no file diff observed; not product certification,L-08
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#redirectOverrideDoesNotDisableAnotherSourcesRedirect,passed,0.076,,no file diff observed; not product certification,L-08
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#repeatedRequestedStateIsIdempotentAndDoesNotMutatePagingSnapshot,passed,0.177,,no file diff observed; not product certification,L-07
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#retainedTabsShareQueryAndKeepNewestQueryAfterRecreation,passed,3.124,,no file diff observed; not product certification,L-02
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#rowClickCancellationAlsoKeepsAuthoritativeState,passed,3.626,,no file diff observed; not product certification,
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#staleCheckboxSnapshotPreservesCompletedEditAndMoveChanges,passed,0.051,,no file diff observed; not product certification,
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#twoUserRowTapsBeforePagingRebindRestoreTheRule,passed,2.428,,no file diff observed; not product certification,L-07
+org.adaway.ui.lists.ListsRuleFixesInstrumentedTest#writeBoundaryRejectsSameOverlengthPatternForAddAndEdit,passed,0.104,,no file diff observed; not product certification,
+org.adaway.ui.lists.ListsSearchInstrumentedTest#emptyListShowsNoRulesState,passed,2.875,,no file diff observed; not product certification,L-09
+org.adaway.ui.lists.ListsSearchInstrumentedTest#pagingLoadFailureShowsRetryAndRecovers,passed,2.438,,no file diff observed; not product certification,L-09
+org.adaway.ui.lists.ListsSearchInstrumentedTest#searchFieldFiltersVisibleRulesAndShowsNoMatchesState,passed,2.83,,no file diff observed; not product certification,L-02
+org.adaway.ui.lists.ListsTabsInstrumentedTest#requestedTabsSelectAndRenderBlockedAllowedAndRedirectedRules,passed,7.076,,no file diff observed; not product certification,L-01
+org.adaway.ui.log.LogAdapterActionsInstrumentedTest#inheritedDecisionsAreTintedButCannotRemoveRules,not-in-report,,,changed since CI; no transfer,F-08
+org.adaway.ui.log.LogAdapterActionsInstrumentedTest#neutralRowDescriptionsAndClicksAgreeForAllThreeTypes,passed,0.053,,changed since CI; no transfer,G-05
+org.adaway.ui.log.LogAdapterActionsInstrumentedTest#recycledRowUpdatesRemovalLabelsListenersTintAndHost,passed,0.026,,changed since CI; no transfer,G-05
+org.adaway.ui.log.LogEntrySortTest#testAlphabeticalComparator,host-only,,,changed since CI; no transfer,G-02
+org.adaway.ui.log.LogEntrySortTest#testTopLevelDomainComparator,host-only,,,changed since CI; no transfer,G-02
+org.adaway.ui.log.LogRootExpectationInstrumentedTest#rootModeExplainsDnsRequestLoggingUnavailable,passed,2.639,,no file diff observed; not product certification,
+org.adaway.ui.log.LogRuntimeTruthTest#changingExactUserRuleReplacesAllowAndPreservesSuffixRule,passed,0.587,,no file diff observed; not product certification,G-05
+org.adaway.ui.log.LogRuntimeTruthTest#redirectActionStoresRedirectedUserRuleFromLog,passed,2.732,,no file diff observed; not product certification,G-06
+org.adaway.ui.log.LogRuntimeTruthTest#vpnGeneratedDnsLogAppearsInLogUi,passed,1.409,,no file diff observed; not product certification,G-01
+org.adaway.ui.log.LogSortActionContractTest#sortMenuActionRoutesToViewModelToggleAndResortsCurrentRows,host-only,,,no file diff observed; not product certification,G-02
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#aboutRowOpensAboutActivity,passed,3.27,,no file diff observed; not product certification,M-08
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#adwareScannerRowOpensAdwareFragment,passed,2.733,,no file diff observed; not product certification,M-05
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#backupRowOpensBackupRestorePreferences,passed,2.81,,no file diff observed; not product certification,M-07
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#customRulesRowOpensListsActivity,passed,2.289,,no file diff observed; not product certification,M-03
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#dnsLogRowOpensLogActivity,passed,2.264,,no file diff observed; not product certification,M-02
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#domainCheckerRowOpensDomainCheckerFragment,passed,1.79,,no file diff observed; not product certification,M-01
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#filterSourcesRowSelectsSourcesTab,passed,2.06,,no file diff observed; not product certification,M-04
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#githubRowUsesGuardedExternalIntent,passed,2.152,,no file diff observed; not product certification,M-09
+org.adaway.ui.more.MoreToolsEntryPointsInstrumentedTest#preferencesRowOpensMainPreferences,passed,2.867,,no file diff observed; not product certification,M-06
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#cancellingSystemVpnConsentDoesNotDiagnoseAlwaysOn,not-in-report,,,changed since CI; no transfer,F-03
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#hebrewChooserLabelsAndLogoResolveAsHebrew,not-in-report,,,changed since CI; no transfer,F-04
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#noRootAutoDetectPreselectsVpnWithoutCompletingOnboarding,passed,1.366,,changed since CI; no transfer,ON-01
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#onboardingChooserStartsUnselectedWhenAutoDetectIsSkipped,passed,1.625,,changed since CI; no transfer,
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#onboardingCompleteHomeLaunchSubscribesDefaultSourcesWhenEmpty,passed,1.987,,changed since CI; no transfer,ON-05
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#recreationRetainsSelectionAndPendingVpnCompletion,passed,1.588,,changed since CI; no transfer,ON-02
+org.adaway.ui.onboarding.OnboardingFirstRunInstrumentedTest#undefinedMethodHomeLaunchRedirectsToOnboarding,passed,1.514,,changed since CI; no transfer,ON-01
+org.adaway.ui.prefs.HostsFileViewerInstrumentedTest#dismissedDialogIgnoresLateReadResult,passed,2.029,,no file diff observed; not product certification,
+org.adaway.ui.prefs.HostsFileViewerInstrumentedTest#readAndPermissionErrorsStayInTheReadOnlyDialog,passed,2.794,,no file diff observed; not product certification,
+org.adaway.ui.prefs.HostsFileViewerInstrumentedTest#stoppedDialogDropsOldResultAndReloadsOnStart,passed,3.649,,no file diff observed; not product certification,
+org.adaway.ui.prefs.HostsFileViewerInstrumentedTest#truncatedSnapshotIsReadOnlyAndLoadedOffMainThread,passed,6.129,,no file diff observed; not product certification,
+org.adaway.ui.prefs.PrefsAdBlockMethodSwitchInstrumentedTest#rootActiveRootRowOpensRootSettings,passed,1.368,,no file diff observed; not product certification,
+org.adaway.ui.prefs.PrefsAdBlockMethodSwitchInstrumentedTest#rootActiveVpnRowLaunchesOnboardingWithoutChangingMethod,passed,2.533,,no file diff observed; not product certification,
+org.adaway.ui.prefs.PrefsAdBlockMethodSwitchInstrumentedTest#vpnActiveRootRowLaunchesOnboardingWithoutChangingMethod,passed,1.973,,no file diff observed; not product certification,P-02
+org.adaway.ui.prefs.PrefsAdBlockMethodSwitchInstrumentedTest#vpnActiveVpnRowOpensVpnSettings,passed,1.552,,no file diff observed; not product certification,P-02
+org.adaway.ui.prefs.PrefsBackupRestoreSafInstrumentedTest#backupExporterAndImporterRoundTripThroughProviderUri,passed,1.16,,no file diff observed; not product certification,B-01
+org.adaway.ui.prefs.PrefsBackupRestoreSafInstrumentedTest#backupPreferenceLaunchesJsonCreateDocumentSafIntent,passed,1.617,,no file diff observed; not product certification,B-01
+org.adaway.ui.prefs.PrefsBackupRestoreSafInstrumentedTest#restorePreferenceLaunchesOpenDocumentSafIntent,passed,1.714,,no file diff observed; not product certification,B-02
+org.adaway.ui.prefs.PrefsLanguageTelemetryInstrumentedTest#languageAndTelemetryPreferencesPersistAndApplyTheirSideEffects,passed,3.523,,no file diff observed; not product certification,P-03; P-04
+org.adaway.ui.prefs.PrefsLiveConfigurationInstrumentedTest#actualSwitchesDoNotStartStoppedVpnOrRootMode,passed,4.862,,no file diff observed; not product certification,P-06; PV-02
+org.adaway.ui.prefs.PrefsLiveConfigurationInstrumentedTest#ipv6SwitchReplacesTunnelInBothDirectionsAcrossRecreation,skipped,0.026,,no file diff observed; not product certification,P-06
+org.adaway.ui.prefs.PrefsLiveConfigurationInstrumentedTest#monitorSwitchReplacesWorkerInBothDirectionsAcrossRecreation,skipped,0.052,,no file diff observed; not product certification,PV-02
+org.adaway.ui.prefs.PrefsRootWebServerUnavailableInstrumentedTest#rootWebServerControlsStayDisabledWhenNativeExecutableUnavailable,passed,3.613,,no file diff observed; not product certification,
+org.adaway.ui.prefs.PrefsThemeModeInstrumentedTest#themePreferenceExposesAllModesAndPersistsSelectionAfterRecreate,passed,5.341,,no file diff observed; not product certification,P-01
+org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#appUpdatePreferencesToggleStartupDailyWorkAndChannel,passed,3.573,,no file diff observed; not product certification,PU-02
+org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#hostsUpdatePreferenceTogglesPeriodicWorkAndUnmeteredConstraint,passed,2.587,,no file diff observed; not product certification,F-02; PU-04
+org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#notificationSettingsPreferenceMatchesCurrentPermissionStateWithoutMutation,passed,2.533,,no file diff observed; not product certification,PU-06
+org.adaway.ui.prefs.PrefsUpdateSchedulingInstrumentedTest#startupPreferenceFromUiControlsFreshHomeAppUpdateCheck,passed,10.061,,no file diff observed; not product certification,PU-01
+org.adaway.ui.prefs.PrefsVpnRestartInstrumentedTest#bypassPreferenceReplacesTunnelWithoutStoppingService,skipped,0.078,,no file diff observed; not product certification,PV-03
+org.adaway.ui.prefs.PrefsVpnSettingsInstrumentedTest#vpnBypassAndSystemExclusionSettingsPersistExplicitLeakChoices,passed,2.416,,no file diff observed; not product certification,PV-03; PV-04
+org.adaway.ui.prefs.exclusion.PrefsVpnExcludedAppsInstrumentedTest#excludedAppsPickerListsVisibleUserAppAndPersistsRowToggle,passed,1.646,,no file diff observed; not product certification,PV-05
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#addDraftOverridesIntentPrefillAfterRecreation,passed,2.207,,no file diff observed; not product certification,E-03
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#busyUpdateRejectsSaveAndDeleteThenDeleteClearsRuntime,passed,4.388,,no file diff observed; not product certification,E-06
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#customSourceAddRejectsInvalidUrlThenEditPersistsMetadata,passed,4.739,,no file diff observed; not product certification,WF:SRC-006; WF:SRC-016; WF:SRC-018; E-01
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#delayedReloadAfterRecreationPreservesUrlAndNewerDraftEdits,passed,2.632,,no file diff observed; not product certification,E-03
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#deleteSourceRequiresConfirmationAndRemovesDownloadedRules,passed,5.355,,no file diff observed; not product certification,WF:SRC-006; E-06
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#duplicateSaveErrorSurvivesStoppedOwnerAndRecreationThenRetries,passed,4.084,,no file diff observed; not product certification,
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#duplicateUrlEditLeavesBothSourcesAndRulesIntact,passed,2.193,,no file diff observed; not product certification,E-01
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#existingAllowSourceLoadsCorrectlyAndLabelEditPreservesFormat,passed,2.295,,no file diff observed; not product certification,E-05
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#failedDeleteSurvivesRecreationAndAllowsConfirmedRetry,passed,3.953,,no file diff observed; not product certification,E-06
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#fileDraftAndRedirectFormatSurviveRecreationWithoutPicker,passed,3.342,,no file diff observed; not product certification,E-02; E-05
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#pastedUrlCanBeSavedWithoutChoosingALabel,passed,4.144,,no file diff observed; not product certification,WF:SRC-018; E-01
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#pendingAddSurvivesRecreationAndRejectsRepeatedApply,passed,2.834,,no file diff observed; not product certification,
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#pendingDeleteClosesRecreatedEditorWithoutResubmission,passed,3.361,,no file diff observed; not product certification,
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#pendingLabelSaveClosesRecreatedEditorAndPreservesAllowRules,passed,3.099,,no file diff observed; not product certification,
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#recreationBeforeFirstLoadStillLoadsSource,passed,1.921,,no file diff observed; not product certification,
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#renamingDisabledSourcePreservesIdentityAndDownloadedRules,passed,2.804,,no file diff observed; not product certification,WF:SRC-006; E-04
+org.adaway.ui.source.SourceEditAddEditInstrumentedTest#urlEditClearsOldRuntimeBeforeReplacementDownloadCompletes,passed,3.655,,no file diff observed; not product certification,E-04
+org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest#currentSignedVersionRendersUpToDateAcrossRecreation,passed,1.794,,no file diff observed; not product certification,U-01
+org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest#resetDownloadStatusDoesNotOfferAnUnavailableUpdate,passed,2.445,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest#supportButtonsHandOffCorrectLinksAndRecoverFromRefusedLaunches,passed,1.971,,no file diff observed; not product certification,WF:PB-QA-U03
+org.adaway.ui.update.UpdateActivityDownloadStatusInstrumentedTest#updateActivityRendersPendingCompleteAndResetDownloadStatus,passed,1.814,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateProgressTrackingInstrumentedTest#reopeningPreservesOriginalTimeoutForPausedDownload,passed,0.026,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateProgressTrackingInstrumentedTest#reopeningTracksRemovedDownloadAndRecoversRetry,passed,10.646,,no file diff observed; not product certification,U-02
+org.adaway.ui.update.UpdateProgressTrackingInstrumentedTest#terminalPollingRetriesUntilModelAcknowledgesCompletion,passed,1.029,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateRetryUiInstrumentedTest#allRejectionAndUnconfirmedInstallerStatesKeepRetryVisible,passed,1.767,,no file diff observed; not product certification,WF:PB-QA-U02
+org.adaway.ui.update.UpdateRetryUiInstrumentedTest#expiredAuthorizationOffersRefetchWithoutCachedInstallOrDownload,passed,1.838,,no file diff observed; not product certification,WF:PB-QA-U02; U-03
+org.adaway.ui.update.UpdateRetryUiInstrumentedTest#queuedByteProgressCannotOverwriteVerificationFailure,passed,1.624,,no file diff observed; not product certification,WF:PB-QA-U02; U-02
+org.adaway.ui.update.UpdateRetryUiInstrumentedTest#retrySurvivesRecreationAndResumeWithoutAutomaticInstallerLaunch,passed,1.368,,no file diff observed; not product certification,WF:PB-QA-U02
+org.adaway.ui.update.UpdateRetryUiInstrumentedTest#verificationAndCheckingDoNotOfferConcurrentRetry,passed,2.169,,no file diff observed; not product certification,WF:PB-QA-U02
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#byteProgressTransitionsHaveSeparatedGeometryAtLargeFont,passed,2.277,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#byteProgressTransitionsHaveSeparatedGeometryAtNormalFont,passed,2.508,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#everyInstallStateHasSeparatedGeometryAtLargeFont,passed,3.1,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#everyInstallStateHasSeparatedGeometryAtNormalFont,passed,2.908,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#prePatchRetryConstraintsFailMeasuredSeparationAtLargeFont,passed,2.014,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#prePatchRetryConstraintsFailMeasuredSeparationAtNormalFont,passed,2.193,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#retryGeometrySurvivesRecreationAtLargeFont,passed,2.121,,no file diff observed; not product certification,
+org.adaway.ui.update.UpdateStatusLayoutInstrumentedTest#retryGeometrySurvivesRecreationAtNormalFont,passed,3.181,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnBoundRequestLifecycleInstrumentedTest#bindStartRepeatStopWhileBoundRestartAndUnbindOwnExactlyOneRequest,skipped,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnBoundRequestLifecycleInstrumentedTest#parserCountsOwnerRequestNotListenersBackgroundOrUidMentions,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnBoundRequestLifecycleInstrumentedTest#parserRejectsMissingTruncatedAmbiguousAndDuplicateEvidence,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkCallbackLiveInstrumentedTest#realRegistrationDeliversAReadyNonVpnSelection,skipped,0.03,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkCallbackLiveInstrumentedTest#realSameTransportReplacementWithOldNetworkStillReportedAndVpnUnchanged,skipped,0.0,,no file diff observed; not product certification,V-05
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#api26And27DirectDefaultSwitchesBetweenOverlappingSameTransportNetworks,passed,0.028,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#api28DoesNotWaitForAnUnavailableBlockedCallback,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#api29And30WaitForInitialBlockedStateAndRecoverWithoutGuessing,passed,0.104,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#duplicateAndStaleEventsPreserveWinnerAndReturningIdentityNeedsFreshPayloads,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#emptyDnsVpnLossAndUnavailableNeverUseAnotherObservedNetwork,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#failedActiveRegistrationRetiresItsCallbackWithoutHeuristicFallback,passed,0.002,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#partialRegistrationFailureReleasesAllAttemptsAndPreservesOriginalFailure,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#passiveCallbacksCannotSupplyOrOverrideRequestOwnedPayloads,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#realEmptyFrameworkCapabilitiesCannotMakeRequestWinnerUsable,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#registrationUsesDirectDefaultRequestOrPassiveBestAtExactApiBoundaries,passed,0.001,,no file diff observed; not product certification,V-05
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#repeatedRegistrationIsIdempotentAndStoppedGenerationCannotBeReused,passed,0.029,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#requestDnsSnapshotsAreDefensiveAndEquivalentEventsDoNotRebuild,passed,0.003,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#requestWinnerSwitchesSameTransportWithoutOldLossEvenWithIdenticalDns,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#stoppedRequestCannotPublishIntoReplacementGeneration,passed,0.004,,no file diff observed; not product certification,
+org.adaway.vpn.LegacyVpnNetworkMonitorInstrumentedTest#unregisterFailureStillAttemptsEveryCallbackAndRetiresTheirState,passed,0.003,,no file diff observed; not product certification,
+org.adaway.vpn.VpnDnsTunnelInstrumentedTest#udpDnsTraversesPreparedVpnTunnel,skipped,0.083,,no file diff observed; not product certification,WF:HOME-QA-001; V-01
+org.adaway.vpn.VpnLifecycleInstrumentedTest#frameworkStartIntentEstablishesForegroundTunnelAndResumesAfterStop,skipped,0.078,,no file diff observed; not product certification,
+org.adaway.vpn.VpnLifecycleInstrumentedTest#heartbeatStartAndStopAreLocallyObservable,passed,0.306,,no file diff observed; not product certification,
+org.adaway.vpn.VpnLifecycleInstrumentedTest#startStopResumeEstablishesTunnelStatusTunAndHeartbeatWhenVpnConsentExists,skipped,0.001,,no file diff observed; not product certification,WF:HOME-QA-001; WF:HOME-QA-002; V-01
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#blockedNetworkFallsBackAndRecoversWithoutLosingIdentity,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#capabilitiesAndDnsAreBothRequiredAndVpnIsNeverEligible,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#closedMonitorIgnoresEveryCallbackPath,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#defaultHandoffChangesNetworkEvenWithIdenticalResolverAddress,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#duplicateAvailabilityAndUnknownLossDoNotRebuild,passed,0.002,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#equivalentCapabilitiesAndUnrelatedLinkChangesDoNotRebuild,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#frameworkCapabilityPayloadUsesTheSameEligibilityRules,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#lossOfUnselectedNetworkDoesNotRebuild,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#lostNetworkCannotBeResurrectedByLatePropertyCallbacks,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#passiveTransportHintAloneCannotIdentifySameTransportWinner,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#passiveVpnTransportHintChangesFallbackSelection,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#platformBestNetworkOverridesVpnTransportHints,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#sameNetworkDnsChangePublishesNewImmutableSnapshot,passed,0.025,,no file diff observed; not product certification,
+org.adaway.vpn.VpnNetworkMonitorInstrumentedTest#sameTransportOverlapLosesOnlyTheDepartingNetwork,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#explicitCommandsTakePrecedenceOverFrameworkFallback,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#frameworkActionStartsWithoutPrivateCommandEvenWithOtherExtras,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#invalidPrivateCommandDoesNotFallBackToStart,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#ordinaryCommandReaderStillRejectsAbsentCommand,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#stickyRecreationStartsWithoutAnIntent,passed,0.003,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceCommandInstrumentedTest#unrelatedUnflaggedIntentsDoNotStartVpn,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest#callbackBurstRebuildsOnceWithLatestResolverSnapshot,passed,0.102,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest#legacyRequestBurstRebuildsOnceWithTheReplacementWinner,passed,0.101,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest#legacyRequestLatePayloadsCannotRestartAfterRetirement,passed,0.201,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest#overlappingNetworkLossWaitsOnlyAfterFinalUsableNetwork,passed,0.227,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceNetworkCallbackInstrumentedTest#queuedAndLateCallbacksCannotRestartAfterIntentionalStop,passed,0.201,,no file diff observed; not product certification,V-05
+org.adaway.vpn.VpnServiceRuntimeStateTest#lateNetworkAvailableDoesNotStartStoppedService,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceRuntimeStateTest#queuedMonitorRecoveryCannotRestartStoppedServiceOrReplaceNewWorker,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.VpnServiceRuntimeStateTest#retiredWorkerStatusCannotStopReplacement,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#cleanupPreservesExistingUserRules,passed,0.05,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#dnsRequestForChildDomain_isBlockedByRuntimeSuffixRule,passed,0.202,,no file diff observed; not product certification,V-01; V-03
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#dnsRequestForExactBlockedDomain_isAnsweredLocallyWithoutForwarding,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#dnsRequestForRedirectedDomain_returnsSyntheticAnswerWithoutForwarding,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#dnsRequestWithoutMatchingRule_isForwardedToMappedDns,passed,0.025,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsPacketProxyRuntimeTruthTest#ynetCompatibilityAllowlistForwardsCoreHostsWithoutOpeningTrackingHosts,passed,0.051,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsQueryDescriptorTest#closingPollingDescriptorDoesNotCloseLiveSocketOnEverySupportedApi,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsQueryDescriptorTest#closingQueryClosesSocketAndPollingDescriptor,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsQueryDescriptorTest#pollErrorClosesQueryWithoutBlockingForAReply,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsQueryDescriptorTest#pollingDescriptorSurvivesSocketCloseOnEverySupportedApi,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsResponseIdentityInstrumentedTest#upstreamResponseMustMatchTransactionAndQuestion,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#ipv4DnsWithIpv6DisabledStillRoutesIpv6Providers,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#ipv4DnsWithIpv6EnabledStillRoutesIpv6Providers,passed,0.025,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#ipv6OnlyDnsWithIpv6DisabledRetainsEveryResolver,passed,0.025,,no file diff observed; not product certification,V-06
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#ipv6OnlyDnsWithIpv6EnabledMapsEveryResolver,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#missingSelectedNetworkCannotFallBackToUnboundSocket,passed,0.0,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#mixedDnsWithIpv6DisabledOmitsOnlyIpv6Aliases,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#mixedDnsWithIpv6EnabledMapsBothFamilies,passed,0.026,,no file diff observed; not product certification,V-06
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#noResolverStillRejectsTunnelConfiguration,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#publicConfigurationUsesDefensiveDnsSnapshotInsteadOfRediscovery,passed,0.001,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperConfigurationInstrumentedTest#reconfigurationReplacesMappingsAndRemovesOldFamilyAliases,passed,0.026,,no file diff observed; not product certification,
+org.adaway.vpn.dns.DnsServerMapperDohRoutesTest#commonDohBlockRoutes_withIpv6AddsCommonIpv6HostRoutes,host-only,,,no file diff observed; not product certification,V-06
+org.adaway.vpn.worker.VpnBuilderExcludedApplicationsInstrumentedTest#excludedSystemAppsAllDisallowsInstalledSystemAppsExceptAdAway,passed,0.101,,no file diff observed; not product certification,PV-04
+org.adaway.vpn.worker.VpnBuilderExcludedApplicationsInstrumentedTest#excludedSystemAppsAllExceptBrowsersPreservesBrowserPackages,passed,0.076,,no file diff observed; not product certification,PV-04
+org.adaway.vpn.worker.VpnBuilderExcludedApplicationsInstrumentedTest#excludedSystemAppsNoneKeepsDeviceSystemAppsInsideVpn,passed,0.051,,no file diff observed; not product certification,PV-04
+org.adaway.vpn.worker.VpnPacketProcessorRuntimeTruthTest#dnsPacketThroughProcessorRecordsVpnLogAndAppearsInLogUi,passed,1.774,,no file diff observed; not product certification,G-01

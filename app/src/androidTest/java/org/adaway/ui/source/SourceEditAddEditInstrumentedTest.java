@@ -8,9 +8,13 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
+import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.SystemClock;
 import android.view.Menu;
 import android.view.View;
@@ -156,6 +160,144 @@ public class SourceEditAddEditInstrumentedTest {
         Field field = AdAwayApplication.class.getDeclaredField("adBlockModel");
         field.setAccessible(true);
         return field;
+    }
+
+    @Test(timeout = 120_000)
+    public void deletedBeforeLookupReturnsFromEditorWithoutRecreatingTheSource() throws Exception {
+        seedDownloadedSource(this.context);
+        CountDownLatch release = new CountDownLatch(1);
+        holdDiskIo(release);
+        Intent edit = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(edit)) {
+            runDatabaseWork(this.context, db -> db.hostsSourceDao().delete(
+                    db.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow()));
+            release.countDown();
+            awaitEditorClosed(scenario);
+            waitForSourceMissing(DELETE_URL);
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void scheduleOnDraftAddressLeavesBothAddressesUntouchedWhenGoingBack() throws Exception {
+        seedDownloadedSource(this.context);
+        SharedPreferences prefs = this.context.getSharedPreferences(
+                SourceEditViewModel.PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
+        String savedKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + DELETE_URL;
+        String draftKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + EDIT_URL;
+        prefs.edit().putInt(savedKey, 2).remove(draftKey).commit();
+        Intent edit = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(edit)) {
+            SourceEditActivity activity = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(activity, R.id.labelEditText, DELETE_LABEL);
+            scenario.onActivity(owner -> {
+                ((TextView) owner.findViewById(R.id.location_edit_text)).setText(EDIT_URL);
+                dispatchEditorAction(owner, R.id.auto_update_action);
+            });
+            AtomicReference<CharSequence> message = new AtomicReference<>();
+            scenario.onActivity(owner -> message.set(
+                    ((TextView) owner.findViewById(R.id.location_edit_text)).getError()));
+            if (message.get() == null) {
+                // If the old schedule picker opened for the draft, complete its shortest write.
+                clickAccessibilityText(this.context.getString(R.string.filter_set_schedule_off));
+            }
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(
+                    android.view.KeyEvent.KEYCODE_BACK);
+            awaitEditorClosed(scenario);
+            assertEquals(2, prefs.getInt(savedKey, -1));
+            assertFalse("Back must not leave a schedule under an unsaved URL", prefs.contains(draftKey));
+            assertEquals(this.context.getString(R.string.source_edit_schedule_save_first),
+                    String.valueOf(message.get()));
+            assertEquals(DELETE_SOURCE_ID, waitForSource(DELETE_URL).getId());
+            waitForSourceMissing(EDIT_URL);
+        } finally {
+            prefs.edit().remove(savedKey).remove(draftKey).commit();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void savingNewAddressThenChangingScheduleOnlyWritesForSavedSource() throws Exception {
+        seedDownloadedSource(this.context);
+        SharedPreferences prefs = this.context.getSharedPreferences(
+                SourceEditViewModel.PREFS_SOURCE_SCHEDULES, Context.MODE_PRIVATE);
+        String oldKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + DELETE_URL;
+        String newKey = SourceEditViewModel.KEY_SCHEDULE_PREFIX + EDIT_URL;
+        prefs.edit().putInt(oldKey, 2).remove(newKey).commit();
+        Intent edit = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        try {
+            try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(edit)) {
+                SourceEditActivity activity = waitForActivity(SourceEditActivity.class);
+                waitForFieldText(activity, R.id.labelEditText, DELETE_LABEL);
+                saveSource(activity, EDIT_LABEL, EDIT_URL);
+                awaitEditorClosed(scenario);
+            }
+            assertEquals(DELETE_SOURCE_ID, waitForSource(EDIT_URL).getId());
+            assertFalse(prefs.contains(oldKey));
+            assertFalse(prefs.contains(newKey));
+            try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(edit)) {
+                waitForFieldText(waitForActivity(SourceEditActivity.class), R.id.location_edit_text, EDIT_URL);
+                scenario.onActivity(owner -> dispatchEditorAction(owner, R.id.auto_update_action));
+                clickAccessibilityText(this.context.getString(R.string.filter_set_schedule_off));
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+                assertEquals(0, prefs.getInt(newKey, -1));
+                assertFalse(prefs.contains(oldKey));
+            }
+        } finally {
+            SharedPreferences.Editor cleanup = prefs.edit().remove(oldKey);
+            for (String prefix : new String[]{SourceEditViewModel.KEY_SCHEDULE_PREFIX,
+                    SourceEditViewModel.KEY_WEEKDAY_PREFIX, SourceEditViewModel.KEY_HOUR_PREFIX,
+                    SourceEditViewModel.KEY_MINUTE_PREFIX, SourceEditViewModel.KEY_LAST_RUN_PREFIX}) {
+                cleanup.remove(prefix + EDIT_URL);
+            }
+            cleanup.commit();
+        }
+    }
+
+    @Test(timeout = 120_000)
+    public void refusedDocumentGrantKeepsPreviousFileAndAllowsReturningToUrl() throws Exception {
+        seedDownloadedSource(this.context);
+        String original = "content://org.adaway.test/saved-file";
+        runDatabaseWork(this.context, db -> {
+            HostsSource source = db.hostsSourceDao().getById(DELETE_SOURCE_ID).orElseThrow();
+            source.setUrl(original);
+            db.hostsSourceDao().update(source);
+        });
+        Intent edit = new Intent(this.context, SourceEditActivity.class)
+                .putExtra(SourceEditActivity.SOURCE_ID, DELETE_SOURCE_ID);
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        IntentFilter picker = new IntentFilter(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.addDataType("*/*");
+        Intent denied = new Intent().setData(Uri.parse("content://org.adaway.test/no-read-grant"));
+        Instrumentation.ActivityMonitor monitor = inst.addMonitor(picker,
+                new Instrumentation.ActivityResult(Activity.RESULT_OK, denied), true);
+        try (ActivityScenario<SourceEditActivity> scenario = ActivityScenario.launch(edit)) {
+            SourceEditActivity activity = waitForActivity(SourceEditActivity.class);
+            waitForFieldText(activity, R.id.file_location_text_view, original);
+            scenario.onActivity(owner -> owner.findViewById(R.id.file_location_text_view).performClick());
+            inst.waitForIdleSync();
+            assertEquals(1, monitor.getHits());
+            scenario.onActivity(owner -> {
+                TextView file = owner.findViewById(R.id.file_location_text_view);
+                assertEquals(original, file.getText().toString());
+                assertEquals(owner.getString(R.string.source_edit_file_grant_denied),
+                        String.valueOf(file.getError()));
+                owner.findViewById(R.id.url_button).performClick();
+                ((TextView) owner.findViewById(R.id.location_edit_text)).setText(EDIT_URL);
+                owner.findViewById(R.id.file_button).performClick();
+            });
+            inst.waitForIdleSync();
+            assertEquals(2, monitor.getHits());
+            scenario.onActivity(owner -> owner.findViewById(R.id.url_button).performClick());
+            assertFieldText(activity, R.id.location_edit_text, EDIT_URL);
+            assertEquals(DELETE_SOURCE_ID, waitForSource(original).getId());
+        } finally {
+            inst.removeMonitor(monitor);
+        }
     }
 
     @Test(timeout = 120_000)

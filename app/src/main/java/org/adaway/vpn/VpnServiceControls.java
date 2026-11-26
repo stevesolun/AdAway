@@ -1,12 +1,14 @@
 package org.adaway.vpn;
 
+import static android.content.Context.ACTIVITY_SERVICE;
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static org.adaway.broadcast.Command.START;
 import static org.adaway.broadcast.Command.STOP;
 import static org.adaway.vpn.VpnStatus.RUNNING;
-import static org.adaway.vpn.VpnStatus.STOPPED;
 
+import android.app.ActivityManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
@@ -35,11 +37,10 @@ public final class VpnServiceControls {
     }
 
     /**
-     * Check if the VPN service is currently running.
+     * Alias for {@link #isTunnelEstablished(Context)}, not a service-process liveness check.
      *
      * @param context The application context.
-     * @return {@code true} if the VPN service is currently running, {@code false}
-     *         otherwise.
+     * @return {@code true} if AdAway has an established VPN tunnel, {@code false} otherwise.
      */
     public static boolean isRunning(Context context) {
         return isTunnelEstablished(context);
@@ -55,10 +56,8 @@ public final class VpnServiceControls {
     public static boolean isTunnelEstablished(Context context) {
         boolean networkVpnCapability = checkAdAwayNetworkVpnCapability(context);
         VpnStatus status = PreferenceHelper.getVpnServiceStatus(context);
-        if (status == RUNNING && !networkVpnCapability) {
-            status = STOPPED;
-            PreferenceHelper.setVpnServiceStatus(context, status);
-        }
+        // Connectivity and the service publish independently. A missing network in
+        // this snapshot must not erase the worker's post-establishment state.
         return status == RUNNING && networkVpnCapability;
     }
 
@@ -72,11 +71,31 @@ public final class VpnServiceControls {
         return PreferenceHelper.getVpnServiceStatus(context).isStarted();
     }
 
+    static boolean isVpnServiceRunning(Context context) {
+        return findRunningVpnService(context) != null;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static ActivityManager.RunningServiceInfo findRunningVpnService(Context context) {
+        ActivityManager manager = (ActivityManager) context.getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) {
+            return null;
+        }
+        ComponentName component = new ComponentName(context, VpnService.class);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (component.equals(service.service) && service.pid > 0 && service.restarting == 0) {
+                return service;
+            }
+        }
+        return null;
+    }
+
     /**
      * Start the VPN service.
      *
      * @param context The application context.
-     * @return {@code true} if the service is started, {@code false} otherwise.
+     * @return {@code true} if a tunnel already exists or the start request was accepted;
+     *         this does not guarantee that the requested tunnel is established.
      */
     public static boolean start(Context context) {
         Timber.d("VpnServiceControls.start() called");
@@ -151,7 +170,8 @@ public final class VpnServiceControls {
             return false;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return true;
+            ActivityManager.RunningServiceInfo service = findRunningVpnService(context);
+            return service != null && service.foreground;
         }
         return networkCapabilities.getOwnerUid() == context.getApplicationInfo().uid;
     }

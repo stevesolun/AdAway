@@ -4,6 +4,7 @@ import static org.adaway.db.entity.HostsSource.USER_SOURCE_ID;
 import static org.adaway.db.entity.HostsSource.USER_SOURCE_URL;
 import static org.adaway.db.entity.ListType.ALLOWED;
 import static org.adaway.db.entity.ListType.BLOCKED;
+import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.model.error.HostError.NO_CONNECTION;
 import static org.adaway.model.error.HostError.UPDATE_IN_PROGRESS;
 import static org.junit.Assert.assertEquals;
@@ -12,6 +13,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.database.Cursor;
@@ -23,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.db.entity.ListType;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -30,6 +33,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.time.Instant;
@@ -84,6 +90,80 @@ public class SourceModelOfflineFileTest {
         assertImportedFile();
         assertEquals(ALLOWED, database.hostEntryDao().resolveEntry(OLD_HOST).getType());
         assertEquals(Integer.valueOf(17), sourceModel.runSourceMutation(() -> 17));
+    }
+
+    @Test
+    public void repeatedLocalRefreshDeduplicatesAcrossDrainsAndPublishesChangedRevision()
+            throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        ContentResolver resolver = context.getContentResolver();
+        insertSource(FILE_SOURCE_ID, TestHostsContentProvider.REFRESH_URI.toString(), true);
+        HostsSource file = database.hostsSourceDao().getById(FILE_SOURCE_ID).orElseThrow();
+        file.setRedirectEnabled(true);
+        database.hostsSourceDao().update(file);
+        insertSource(USER_SOURCE_ID, USER_SOURCE_URL, true);
+        String sharedHost = "row-0.example";
+        insertHost(sharedHost, USER_SOURCE_ID, ALLOWED);
+        int userRowId = queryInt("SELECT id FROM hosts_lists WHERE source_id = ?", USER_SOURCE_ID);
+        try {
+            // Exactly two drains of accepted rows, one duplicate across them, no valid tail.
+            // The malformed line also catches mistaking an empty final drain for an empty import.
+            int accepted = 32_000;
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                    resolver.openOutputStream(TestHostsContentProvider.REFRESH_URI, "wt"),
+                    StandardCharsets.UTF_8))) {
+                for (int i = 0; i < accepted; i++) {
+                    writer.write("0.0.0.0 row-" + (i == accepted - 1 ? 0 : i) + ".example\n");
+                }
+                writer.write("||conditional.example^$third-party\n");
+            }
+            for (int refresh = 0; refresh < 2; refresh++) {
+                assertTrue(sourceModel.checkAndRetrieveHostsSources());
+                assertPublishedRevision(accepted - 1, accepted - 1, 0, 1);
+                assertEquals(1, queryInt("SELECT COUNT(*) FROM hosts_lists "
+                        + "WHERE source_id = ? AND host = ?", FILE_SOURCE_ID, sharedHost));
+                assertEquals(1, queryInt("SELECT COUNT(*) FROM root_host_entries_stage "
+                        + "WHERE source_id = ? AND host = ?", FILE_SOURCE_ID, sharedHost));
+                assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("row-1.example").getType());
+                assertEquals(ALLOWED, database.hostEntryDao().resolveEntry(sharedHost).getType());
+            }
+
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                    resolver.openOutputStream(TestHostsContentProvider.REFRESH_URI, "wt"),
+                    StandardCharsets.UTF_8))) {
+                writer.write("0.0.0.0 row-0.example\n9.9.9.9 row-1.example\n||new.example^\n");
+            }
+            assertTrue(sourceModel.checkAndRetrieveHostsSources());
+            assertPublishedRevision(3, 1, 1, 0);
+            assertEquals(REDIRECTED, database.hostEntryDao().resolveEntry("row-1.example").getType());
+            assertEquals("9.9.9.9", database.hostEntryDao().resolveEntry("row-1.example").getRedirection());
+            assertEquals(BLOCKED, database.hostEntryDao().resolveEntry("child.new.example").getType());
+            assertEquals(ALLOWED, database.hostEntryDao().resolveEntry("row-2.example").getType());
+            assertEquals(1, queryInt("SELECT COUNT(*) FROM hosts_lists WHERE id = ? AND source_id = ? "
+                            + "AND generation = ? AND host = ? AND enabled = 1 AND type = ?",
+                    userRowId, USER_SOURCE_ID, ACTIVE_GENERATION, sharedHost, ALLOWED.getValue()));
+            assertEquals(ALLOWED, database.hostEntryDao().resolveEntry(sharedHost).getType());
+        } finally {
+            resolver.delete(TestHostsContentProvider.REFRESH_URI, null, null);
+        }
+    }
+
+    private void assertPublishedRevision(int size, int blockedExact, int redirected, int skipped) {
+        int generation = activeGeneration();
+        HostsSource file = database.hostsSourceDao().getById(FILE_SOURCE_ID).orElseThrow();
+        assertNull(file.getLastDownloadError());
+        assertEquals(size, file.getSize());
+        assertEquals(size, file.getActiveRuleCount());
+        assertEquals(size - redirected, file.getBlockedCount());
+        assertEquals(blockedExact, file.getBlockedExactCount());
+        assertEquals(redirected, file.getRedirectedCount());
+        assertEquals(skipped, file.getSkippedCount());
+        for (String table : new String[]{"hosts_lists", "root_host_entries_stage"}) {
+            assertEquals(table, size, queryInt("SELECT COUNT(*) FROM " + table
+                    + " WHERE source_id = ? AND generation = ?", FILE_SOURCE_ID, generation));
+            assertEquals(table, 0, queryInt("SELECT COUNT(*) FROM " + table
+                    + " WHERE source_id = ? AND generation != ?", FILE_SOURCE_ID, generation));
+        }
     }
 
     @Test
@@ -444,9 +524,13 @@ public class SourceModelOfflineFileTest {
     }
 
     private void insertHost(String host, int sourceId) {
+        insertHost(host, sourceId, BLOCKED);
+    }
+
+    private void insertHost(String host, int sourceId, ListType type) {
         HostListItem item = new HostListItem();
         item.setHost(host);
-        item.setType(BLOCKED);
+        item.setType(type);
         item.setEnabled(true);
         item.setSourceId(sourceId);
         item.setGeneration(ACTIVE_GENERATION);

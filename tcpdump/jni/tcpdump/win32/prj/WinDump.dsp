@@ -42,7 +42,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "../../../winpcap/wpcap/libpcap/bpf" /I "../../../winpcap/wpcap/libpcap" /I "../../../winpcap/wpcap/libpcap/Win32/Include" /I "../../../winpcap/wpcap/libpcap/Win32/Include/net" /I "../../Win32/Include" /I "../../linux-Include" /I "../../lbl" /I "../../" /I "../../../winpcap/wpcap/win32-extensions" /D "NDEBUG" /D "INET6" /D "WIN32" /D "_MBCS" /D "_CONSOLE" /D "__STDC__" /D "WPCAP" /D HAVE_ADDRINFO=1 /D HAVE_SOCKADDR_STORAGE=1 /D HAVE_PCAP_LIST_DATALINKS=1 /D HAVE_PCAP_SET_DATALINK=1 /D HAVE_PCAP_DATALINK_NAME_TO_VAL=1 /D HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1 /D HAVE_PCAP_DUMP_FTELL=1 /D HAVE_BPF_DUMP=1 /D HAVE_PCAP_DUMP_FLUSH=1 /D HAVE_PCAP_FINDALLDEVS=1 /D HAVE_PCAP_IF_T=1 /D HAVE_PCAP_LIB_VERSION=1 /D "HAVE_REMOTE" /D _U_= /DUSE_ETHER_NTOHOST /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I "../../../winpcap/wpcap/libpcap/bpf" /I "../../../winpcap/wpcap/libpcap" /I "../../../winpcap/wpcap/libpcap/Win32/Include" /I "../../../winpcap/wpcap/libpcap/Win32/Include/net" /I "../Include" /I "../../lbl" /I "../../" /I "../../../winpcap/wpcap/win32-extensions" /D "NDEBUG" /D "INET6" /D "WIN32" /D "_MBCS" /D "_CONSOLE" /D "__STDC__" /D "WPCAP" /D HAVE_ADDRINFO=1 /D HAVE_SOCKADDR_STORAGE=1 /D HAVE_PCAP_LIST_DATALINKS=1 /D HAVE_PCAP_SET_DATALINK=1 /D HAVE_PCAP_DATALINK_NAME_TO_VAL=1 /D HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1 /D HAVE_PCAP_DUMP_FTELL=1 /D HAVE_BPF_DUMP=1 /D HAVE_PCAP_DUMP_FLUSH=1 /D HAVE_PCAP_FINDALLDEVS=1 /D HAVE_PCAP_IF_T=1 /D HAVE_PCAP_LIB_VERSION=1 /D "HAVE_REMOTE" /D _U_= /DUSE_ETHER_NTOHOST /YX /FD /c
 # ADD BASE RSC /l 0x410 /d "NDEBUG"
 # ADD RSC /l 0x410 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -50,7 +50,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib wpcap.lib /nologo /subsystem:console /machine:I386 /out:"release/WinDump.exe" /libpath:"../../../winpcap/wpcap/lib"
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ws2_32.lib wpcap.lib /nologo /subsystem:console /machine:I386 /out:"release/WinDump.exe" /libpath:"../../../winpcap/wpcap/lib"
 
 !ELSEIF  "$(CFG)" == "WinDump - Win32 Debug"
 
@@ -66,7 +66,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /Zi /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /Gm /Gi /GX /ZI /I "../../../winpcap/wpcap/libpcap/bpf" /I "../../../winpcap/wpcap/libpcap" /I "../../../winpcap/wpcap/libpcap/Win32/Include" /I "../../../winpcap/wpcap/libpcap/Win32/Include/net" /I "../../Win32/Include" /I "../../linux-Include" /I "../../lbl" /I "../../" /I "../../../winpcap/wpcap/win32-extensions" /D "_DEBUG" /D "_WINDOWS" /D "INET6" /D "WIN32" /D "_MBCS" /D "_CONSOLE" /D "__STDC__" /D "WPCAP" /D HAVE_ADDRINFO=1 /D HAVE_SOCKADDR_STORAGE=1 /D HAVE_PCAP_LIST_DATALINKS=1 /D HAVE_PCAP_SET_DATALINK=1 /D HAVE_PCAP_DATALINK_NAME_TO_VAL=1 /D HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1 /D HAVE_PCAP_DUMP_FTELL=1 /D HAVE_BPF_DUMP=1 /D HAVE_PCAP_DUMP_FLUSH=1 /D HAVE_PCAP_FINDALLDEVS=1 /D HAVE_PCAP_IF_T=1 /D HAVE_PCAP_LIB_VERSION=1 /D "HAVE_REMOTE" /D _U_= /DUSE_ETHER_NTOHOST /FR /YX /FD /c
+# ADD CPP /nologo /W3 /Gm /Gi /GX /ZI /I "../../../winpcap/wpcap/libpcap/bpf" /I "../../../winpcap/wpcap/libpcap" /I "../../../winpcap/wpcap/libpcap/Win32/Include" /I "../../../winpcap/wpcap/libpcap/Win32/Include/net" /I "../Include" /I "../../lbl" /I "../../" /I "../../../winpcap/wpcap/win32-extensions" /D "_DEBUG" /D "_WINDOWS" /D "INET6" /D "WIN32" /D "_MBCS" /D "_CONSOLE" /D "__STDC__" /D "WPCAP" /D HAVE_ADDRINFO=1 /D HAVE_SOCKADDR_STORAGE=1 /D HAVE_PCAP_LIST_DATALINKS=1 /D HAVE_PCAP_SET_DATALINK=1 /D HAVE_PCAP_DATALINK_NAME_TO_VAL=1 /D HAVE_PCAP_DATALINK_VAL_TO_DESCRIPTION=1 /D HAVE_PCAP_DUMP_FTELL=1 /D HAVE_BPF_DUMP=1 /D HAVE_PCAP_DUMP_FLUSH=1 /D HAVE_PCAP_FINDALLDEVS=1 /D HAVE_PCAP_IF_T=1 /D HAVE_PCAP_LIB_VERSION=1 /D "HAVE_REMOTE" /D _U_= /DUSE_ETHER_NTOHOST /FR /YX /FD /c
 # ADD BASE RSC /l 0x410 /d "_DEBUG"
 # ADD RSC /l 0x410 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -74,7 +74,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 wpcap.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib /nologo /subsystem:console /map /debug /debugtype:both /machine:I386 /out:"debug/WinDump.exe" /pdbtype:sept /libpath:"../../../winpcap/wpcap/lib"
+# ADD LINK32 wpcap.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ws2_32.lib /nologo /subsystem:console /map /debug /debugtype:both /machine:I386 /out:"debug/WinDump.exe" /pdbtype:sept /libpath:"../../../winpcap/wpcap/lib"
 # SUBTRACT LINK32 /pdb:none
 
 !ENDIF 
@@ -93,23 +93,11 @@ SOURCE=..\..\af.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\bpf_dump.c
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\checksum.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\cpack.c
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\missing\datalinks.c
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\missing\dlnames.c
 # End Source File
 # Begin Source File
 
@@ -629,15 +617,135 @@ SOURCE=..\..\missing\strsep.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\Tcpdump.c
+SOURCE=..\..\tcpdump.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\Src\ether_ntohost.c
+SOURCE=..\src\ether_ntohost.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\util.c
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\in_cksum.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-802_15_4.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-ahcp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-aoe.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-babel.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-calm-fast.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-carp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-forces.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-ftp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-geneve.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-geonet.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-http.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-ipnet.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-loopback.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-m3ua.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-mptcp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-msnlb.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-nflog.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-openflow-1.0.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-openflow.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-otv.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-pktap.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-ppi.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-rtsp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-smtp.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-tipc.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-usb.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-vxlan.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\print-zeromq.c"
+# End Source File
+# Begin Source File
+
+SOURCE="..\..\signature.c"
 # End Source File
 # End Target
 # End Project

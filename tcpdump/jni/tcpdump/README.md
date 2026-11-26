@@ -33,13 +33,10 @@ anonymous ftp to `ftp.ee.lbl.gov`, in `tcpdump.tar.Z`.  More recent
 development is performed at tcpdump.org, http://www.tcpdump.org/
 
 Tcpdump uses libpcap, a system-independent interface for user-level
-packet capture.  Before building tcpdump, you must first retrieve and
-build libpcap, also originally from LBL and now being maintained by
-tcpdump.org; see http://www.tcpdump.org/ .
-
-Once libpcap is built (either install it or make sure it's in
-`../libpcap`), you can build tcpdump using the procedure in the `INSTALL.txt`
-file.
+packet capture. For the standalone upstream build, use an installed
+libpcap development package or build the sibling sources in
+`../libpcap`. See `INSTALL.txt`. This archived module is not part of
+the AdAway application build.
 
 The program is loosely based on SMI's "etherfind" although none of the
 etherfind code remains.  It was originally written by Van Jacobson as
@@ -92,6 +89,11 @@ Current versions can be found at www.tcpdump.org.
 original text by: Steve McCanne, Craig Leres, Van Jacobson
 
 -------------------------------------
+The following upstream examples describe the older text trace format
+expected by the bundled awk scripts. Malformed records are skipped. For
+these date-less traces, a backward clock jump greater than 12 hours is
+treated as midnight; smaller out-of-order timestamps are preserved.
+
 ```
 This directory also contains some short awk programs intended as
 examples of ways to reduce tcpdump data when you're tracking
@@ -103,10 +105,13 @@ send-ack.awk
 	the other only acks, all address information is left off and
 	we just note if the packet is a "send" or an "ack".
 
-	There is one output line per line of the original trace.
+	There is one output line per accepted data send or ack; sends
+	with SYN, FIN or RST flags are omitted.
 	Field 1 is the packet time in decimal seconds, relative
-	to the start of the conversation.  Field 2 is delta-time
-	from last packet.  Field 3 is packet type/direction.
+	to the first accepted trace record, including a control packet.
+	Field 2 is delta-time from the previous output record (or that
+	initial trace record for the first output). Field 3 is packet
+	type/direction.
 	"Send" means data going from sender to receiver, "ack"
 	means an ack going from the receiver to the sender.  A
 	preceding "*" indicates that the data is a retransmission.
@@ -117,11 +122,12 @@ send-ack.awk
 	number (start seq. num for sender, next expected seq number
 	for acks).  The number in parens following an ack is
 	the delta-time from the first send of the packet to the
-	ack.  A number in parens following a send is the
+	ack, or -1.00 when no matching send was observed.
+	A number in parens following a send is the
 	delta-time from the first send of the packet to the
 	current send (on duplicate packets only).  Duplicate
 	sends or acks have a number in square brackets showing
-	the number of duplicates so far.
+	the total number of occurrences so far, including the first.
 
 	Here is a short sample from near the start of an ftp:
 		3.00    0.20   send . 512
@@ -129,7 +135,7 @@ send-ack.awk
 		3.20    0.00   send P 1024
 		3.40    0.20    ack . 1536  (0.20)
 		3.80    0.40 * send . 0  (3.80) [2]
-		3.82    0.02 *  ack . 1536  (0.62) [2]
+		3.82    0.02    ack . 1536  (0.62) [2]
 	Three seconds into the conversation, bytes 512 through 1023
 	were sent.  200ms later they were acked.  Shortly thereafter
 	bytes 1024-1535 were sent and again acked after 200ms.
@@ -160,8 +166,11 @@ packetdat.awk
 	   6 - time of last ack
 	   7 - number of times chunk was sent
 	   8 - number of times chunk was acked
-	(all times are in decimal seconds, relative to the start
-	of the conversation.)
+	Times are in decimal seconds relative to the first send of
+	chunk 1, or the first observed send if chunk 1 is missing.
+	A missing send or covering ack is reported as -1.00 in its time
+	columns. A cumulative ack supplies the ack time for earlier
+	chunks without an explicit ack; their ack counts remain zero.
 
 	As an example, here is the first part of the output for
 	an ftp trace:
@@ -181,22 +190,19 @@ packetdat.awk
 	since the average packet size was 512 bytes).  It took
 	536 packets to transfer the data (i.e., on the average
 	each chunk was transmitted four times).  Looking at,
-	say, chunk 4, we see it represents the 512 bytes of
-	sequence space from 1561 to 2048.  It was first sent
-	1.86 seconds into the conversation.  It was last
-	sent 15 seconds into the conversation and was sent
-	a total of 6 times (i.e., it was retransmitted every
-	2 seconds on the average).  It was acked once, 140ms
-	after it first arrived.
+	say, chunk 4, its recorded start sequence number is 1561.
+	It was first sent 1.86 seconds into the conversation and last
+	sent at 15.00 seconds, with 6 sends in total. The one ack was
+	recorded at 2.00 seconds, 140 ms after the first send.
 
 stime.awk
 atime.awk
 	Output one line per send or ack, respectively, in the form
 		<time> <seq. number>
-	where <time> is the time in seconds since the start of the
-	transfer and <seq. number> is the sequence number being sent
-	or acked.  I typically plot this data looking for suspicious
-	patterns.
+	where <time> is measured from the first accepted trace record
+	for both scripts, including a control packet, and <seq. number>
+	is the sequence number divided by 1024. I typically plot this
+	data looking for suspicious patterns.
 
 
 The problem I was looking at was the bulk-data-transfer
@@ -216,14 +222,14 @@ The method was:
     closing the receive window while waiting for a disk write).
 
   - When transfer is finished, stop tcpdump.  Use awk to make up
-    two files of summary data (maxsize is the maximum packet size,
-    tracedata is the file of tcpdump tracedata):
-      awk -f send-ack.awk packetsize=avgsize tracedata >sa
-      awk -f packetdat.awk packetsize=avgsize tracedata >pd
+    two files of summary data (512 is the example data segment size
+    in bytes):
+      awk -v packetsize=512 -f send-ack.awk tracefile >sa
+      awk -v packetsize=512 -f packetdat.awk tracefile >pd
 
   - While the summary data files are printing, take a look at
     how the transfer behaved:
-      awk -f stime.awk tracedata | xgraph
+      awk -f stime.awk tracefile | xgraph
     (90% of what you learn seems to happen in this step).
 
   - Do all of the above steps several times, both directions,

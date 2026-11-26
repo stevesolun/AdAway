@@ -1,25 +1,33 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.clickPickerRow;
 import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.clickText;
 import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.drainDiskAndMain;
 import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.hasText;
+import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.openToolbarPicker;
 import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.waitFor;
+import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.waitForPickerRows;
+import static org.adaway.ui.hosts.ScheduleRegressionTestSupport.withDialogView;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.SystemClock;
 import android.view.KeyEvent;
+import android.view.View;
+import android.widget.ListView;
+import android.widget.TimePicker;
 
+import androidx.annotation.RequiresApi;
 import androidx.fragment.app.Fragment;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.work.WorkManager;
-
-import com.google.android.material.appbar.MaterialToolbar;
 
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
@@ -111,7 +119,7 @@ public class FilterSetSchedulingRegressionInstrumentedTest {
         try (ActivityScenario<HomeActivity> scenario = launchSources()) {
             Map<String, ?> before = new HashMap<>(mPrefs.getAll());
             openCurrentSelection(scenario);
-            clickText(mContext.getString(R.string.filter_set_schedule_off));
+            clickPickerRow(scenario, mContext.getString(R.string.filter_set_schedule_off));
             waitForNoDialog();
             assertEquals(before, mPrefs.getAll());
         }
@@ -123,9 +131,9 @@ public class FilterSetSchedulingRegressionInstrumentedTest {
         FilterSetStore.setLastRun(mContext, ACTIVE, System.currentTimeMillis());
         try (ActivityScenario<HomeActivity> scenario = launchSources()) {
             Set<String> names = FilterSetStore.getSetNames(mContext);
-            openScheduleMenu(scenario);
-            clickText(ACTIVE);
-            clickText(mContext.getString(R.string.filter_set_schedule_off));
+            openToolbarPicker(scenario);
+            clickPickerRow(scenario, ACTIVE);
+            clickPickerRow(scenario, mContext.getString(R.string.filter_set_schedule_off));
             waitForNoDialog();
             assertEquals(names, FilterSetStore.getSetNames(mContext));
             assertEquals(ACTIVE, FilterSetStore.getActiveProfile(mContext));
@@ -187,27 +195,29 @@ public class FilterSetSchedulingRegressionInstrumentedTest {
             for (int step = 0; step < 4; step++) {
                 openCurrentSelection(scenario);
                 if (step == 1 || step == 3) {
-                    clickText(mContext.getString(R.string.filter_set_schedule_weekly));
-                    waitFor("weekday picker", () -> hasText(
-                            mContext.getString(R.string.filter_set_schedule_pick_day)));
+                    clickPickerRow(scenario, mContext.getString(R.string.filter_set_schedule_weekly));
+                    waitForPickerRows(scenario, mContext.getString(R.string.filter_set_schedule_pick_day));
                     if (step == 3) {
-                        clickText(DayOfWeek.WEDNESDAY.getDisplayName(
+                        clickPickerRow(scenario, DayOfWeek.WEDNESDAY.getDisplayName(
                                 TextStyle.FULL, Locale.getDefault()));
                     }
                 } else if (step == 2) {
-                    clickText(mContext.getString(R.string.filter_set_schedule_daily));
+                    clickPickerRow(scenario, mContext.getString(R.string.filter_set_schedule_daily));
                 }
-                if (step >= 2) {
-                    waitFor("time picker", () -> hasText(mContext.getString(android.R.string.ok)));
-                }
-                if (back) {
-                    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(
-                            KeyEvent.KEYCODE_BACK);
+                if (back && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    backFromFocusedPicker(scenario, step);
                 } else {
-                    clickText(mContext.getString(step >= 2
-                            ? android.R.string.cancel : R.string.button_cancel));
+                    if (step >= 2) {
+                        waitFor("time picker", () -> hasText(mContext.getString(android.R.string.ok)));
+                    }
+                    if (back) {
+                        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+                    } else {
+                        clickText(mContext.getString(step >= 2
+                                ? android.R.string.cancel : R.string.button_cancel));
+                    }
+                    waitForNoDialog();
                 }
-                waitForNoDialog();
                 assertEquals("Cancelled step " + step + " changed persisted state",
                         before, mPrefs.getAll());
                 assertEquals(ACTIVE, FilterSetStore.getActiveProfile(mContext));
@@ -238,10 +248,10 @@ public class FilterSetSchedulingRegressionInstrumentedTest {
                     AppDatabase.getInstance(mContext).hostsSourceDao().update(source);
                 });
                 waitForSourceEnabled(scenario, false);
-                clickText(mContext.getString(weekly ? R.string.filter_set_schedule_weekly
+                clickPickerRow(scenario, mContext.getString(weekly ? R.string.filter_set_schedule_weekly
                         : R.string.filter_set_schedule_daily));
                 if (weekly) {
-                    clickText(DayOfWeek.WEDNESDAY.getDisplayName(TextStyle.FULL, Locale.getDefault()));
+                    clickPickerRow(scenario, DayOfWeek.WEDNESDAY.getDisplayName(TextStyle.FULL, Locale.getDefault()));
                 }
                 clickText(mContext.getString(android.R.string.ok));
                 waitForNoDialog();
@@ -328,22 +338,38 @@ public class FilterSetSchedulingRegressionInstrumentedTest {
         }
     }
 
-    private void openScheduleMenu(ActivityScenario<HomeActivity> scenario) {
-        scenario.onActivity(activity -> {
-            MaterialToolbar toolbar = activity.findViewById(R.id.hosts_sources_toolbar);
-            assertNotNull(toolbar);
-            assertTrue(toolbar.getMenu().performIdentifierAction(
-                    R.id.action_hosts_schedule_filter_set, 0));
-        });
-        waitFor("set picker", () ->
-                hasText(mContext.getString(R.string.menu_schedule_filter_set)));
+    private void openCurrentSelection(ActivityScenario<HomeActivity> scenario) {
+        openToolbarPicker(scenario);
+        clickPickerRow(scenario, mContext.getString(R.string.filter_set_schedule_current_selection));
+        waitForPickerRows(scenario, mContext.getString(R.string.filter_set_schedule_daily));
     }
 
-    private void openCurrentSelection(ActivityScenario<HomeActivity> scenario) {
-        openScheduleMenu(scenario);
-        clickText(mContext.getString(R.string.filter_set_schedule_current_selection));
-        waitFor("schedule modes", () ->
-                hasText(mContext.getString(R.string.filter_set_schedule_daily)));
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private void backFromFocusedPicker(ActivityScenario<HomeActivity> scenario, int step) {
+        Class<? extends View> type = step < 2 ? ListView.class : TimePicker.class;
+        String label = step == 0 ? mContext.getString(R.string.filter_set_schedule_daily)
+                : step == 1 ? mContext.getString(R.string.filter_set_schedule_pick_day) : null;
+        View[] target = new View[1];
+        withDialogView(scenario, type, label, picker -> {
+            View window = picker.getRootView();
+            target[0] = window;
+            long downTime = SystemClock.uptimeMillis();
+            // A global key can reach Home while a new dialog is taking focus.
+            assertTrue("Picker must handle Back down at step " + step, window.dispatchKeyEvent(
+                    new KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0)));
+            assertTrue("Picker must handle Back up at step " + step, window.dispatchKeyEvent(
+                    new KeyEvent(downTime, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP,
+                            KeyEvent.KEYCODE_BACK, 0)));
+        });
+        waitFor("step " + step + " picker detached and Sources focused", () -> {
+            AtomicBoolean restored = new AtomicBoolean();
+            scenario.onActivity(activity -> {
+                View toolbar = activity.findViewById(R.id.hosts_sources_toolbar);
+                restored.set(activity == mActivity && !target[0].isAttachedToWindow()
+                        && toolbar != null && toolbar.isShown() && toolbar.hasWindowFocus());
+            });
+            return restored.get();
+        });
     }
 
     private void waitForNoDialog() {

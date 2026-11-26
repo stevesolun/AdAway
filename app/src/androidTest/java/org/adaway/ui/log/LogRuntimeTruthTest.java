@@ -6,6 +6,7 @@ import static org.adaway.db.entity.ListType.REDIRECTED;
 import static org.adaway.db.entity.RuleKind.EXACT;
 import static org.adaway.model.adblocking.AdBlockMethod.VPN;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -128,6 +129,14 @@ public class LogRuntimeTruthTest {
                 && row.getKind() == org.adaway.db.entity.RuleKind.SUFFIX).count());
         hostEntryDao.sync();
         assertEquals(BLOCKED, hostEntryDao.getTypeForHost(LOG_HOST));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                model.get().removeListItem(LOG_HOST, BLOCKED));
+        waitForDiskIoIdle();
+        assertFalse(hostListItemDao.getExactEntriesForHost(LOG_HOST).stream()
+                .anyMatch(row -> row.getSourceId() == USER_SOURCE_ID));
+        assertTrue(hostListItemDao.getSuffixEntriesForHost(LOG_HOST).stream()
+                .anyMatch(row -> row.getSourceId() == USER_SOURCE_ID));
+        assertEquals(BLOCKED, hostEntryDao.getTypeForHost("sibling." + LOG_HOST));
     }
 
     @Test(timeout = 120_000)
@@ -137,6 +146,27 @@ public class LogRuntimeTruthTest {
         try (ActivityScenario<LogActivity> scenario = ActivityScenario.launch(LogActivity.class)) {
             LogActivity activity = waitForActivity(LogActivity.class);
             waitForVisibleText(activity, LOG_HOST);
+        }
+    }
+
+    @Test
+    public void recordingActionFollowsStateAcrossRecreation() {
+        application.getAdBlockModel().setRecordingLogs(false);
+        try (ActivityScenario<LogActivity> scenario = ActivityScenario.launch(LogActivity.class)) {
+            scenario.onActivity(activity -> {
+                View button = activity.findViewById(R.id.toggle_log_recording);
+                assertEquals(activity.getString(R.string.log_record_action), button.getContentDescription());
+                button.performClick();
+            });
+            scenario.recreate();
+            scenario.onActivity(activity -> {
+                View button = activity.findViewById(R.id.toggle_log_recording);
+                assertEquals(activity.getString(R.string.log_pause_action), button.getContentDescription());
+                button.performClick();
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> assertEquals(activity.getString(R.string.log_record_action),
+                    activity.findViewById(R.id.toggle_log_recording).getContentDescription()));
         }
     }
 
@@ -169,6 +199,36 @@ public class LogRuntimeTruthTest {
         model.setRecordingLogs(false);
         assertTrue("VPN model must record generated DNS request.",
                 model.getLogs().contains(LOG_HOST));
+    }
+
+    @Test(timeout = 30_000)
+    public void clearingLogDiscardsAnOlderRefreshThatFinishesLater() throws Exception {
+        recordFixtureDnsRequest();
+        CountDownLatch captured = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        LogViewModel model = new LogViewModel(application) {
+            @Override List<LogEntry> readLogEntries(LogEntrySort order) {
+                List<LogEntry> beforeClear = super.readLogEntries(order);
+                captured.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("No release");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+                return beforeClear;
+            }
+        };
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(model::updateLogs);
+            assertTrue(captured.await(5, TimeUnit.SECONDS));
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(model::clearLogs);
+        } finally {
+            release.countDown();
+        }
+        waitForDiskIoIdle();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                assertTrue("Old refresh repopulated the visible log", model.getLogs().getValue().isEmpty()));
     }
 
     private void insertSource() {

@@ -32,6 +32,13 @@ through the VPN; KSP stopped at verification on this run.
 
 ## Post-beta Review
 
+[PR #15](https://github.com/stevesolun/AdAway/pull/15) merged at
+`4ad8bdb6` after all six required checks passed, including the
+[connected Android suite](https://github.com/stevesolun/AdAway/actions/runs/45668923931).
+The subsequent deep-QA candidate has independent [signoff evidence](deep-signoff/decision.md)
+and a [signed Android 14 upgrade and DNS/browser test](deep-signoff/signed-upgrade.md).
+Neither the merged base nor a locally signed candidate is a published APK.
+
 These changes follow the public 13.5.6b tag; they are not in the published APK.
 On the disposable Android 14 emulator, the Balanced preset skipped an update
 when one downloaded source had a known-newer online copy. Before the fix, the
@@ -413,6 +420,12 @@ or native-runtime success is implied. One other native-printer review agent
 failed before producing coverage; its assigned files remain pending.
 
 ## Remaining Evidence Boundaries
+
+For the new non-root Android pass see the [control inventory](deep-signoff/README.md)
+and the [runtime and UI decision](deep-signoff/decision.md). The signed
+pre-integration upgrade was separately [recorded on PR 15](https://github.com/stevesolun/AdAway/pull/15#issuecomment-7168181377).
+The user deferred physical-phone verification. Mixed DNS/browser lists should
+import only supported DNS rules, not silently claim cosmetic page filtering.
 
 - Existing 145 Sources and nine Home workflow rows now carry method-level
   evidence from the retained phase-one artifacts: 88 partial and 66 pending.

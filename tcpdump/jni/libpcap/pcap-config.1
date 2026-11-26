@@ -18,7 +18,7 @@
 .\" WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
 .\" MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 .\"
-.TH PCAP-CONFIG 1 "22 May 2009"
+.TH PCAP-CONFIG 1 "May 22, 2009"
 .SH NAME
 pcap-config \- write libpcap compiler and linker flags to standard output
 .SH SYNOPSIS
@@ -28,11 +28,13 @@ pcap-config \- write libpcap compiler and linker flags to standard output
 .B \-\-static
 ]
 [
-.B \-\-cflags | \-\-libs | \-\-additional-libs
+.B \-\-cflags
+]
+[
+.B \-\-libs | \-\-additional-libs
 ]
 .ad
 .SH DESCRIPTION
-.LP
 When run with the
 .B \-\-cflags
 option,
@@ -48,25 +50,22 @@ writes to the standard output the
 .B \-L
 and
 .B \-l
-linker flags required to link with libpcap, including
-.B \-l
-flags for libraries required by libpcap.
+linker flags required to link with libpcap. For shared linking, these
+may also include a run-time search path. For static linking, they
+include the additional libraries required by libpcap.
 When run with the
 .B \-\-additional-libs
 option,
 .I pcap-config
-writes to the standard output the
-.B \-L
-and
-.B \-l
-flags for libraries required by libpcap, but not the
-.B \-lpcap
-flag to link with libpcap itself.
-.LP
-By default, it writes flags appropriate for compiling with a
-dynamically-linked version of libpcap; the
+reports only the additional linker flags for libpcap's dependencies.
+There are no such flags for shared linking; with
 .B \-\-static
-flag causes it to write flags appropriate for compiling with a
-statically-linked version of libpcap.
+these are the dependency flags recorded at configure time, without
+the search path or link flag for libpcap itself.
+.LP
+By default, it writes flags for linking with the shared libpcap library. The
+.B \-\-static
+option reports the flags needed when linking with the archive; it does
+not force the linker to select that archive.
 .SH "SEE ALSO"
 pcap(3PCAP)

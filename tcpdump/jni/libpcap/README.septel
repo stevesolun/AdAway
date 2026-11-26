@@ -5,7 +5,7 @@ from Intel (http://www.intel.com)
 1) Install and build the Septel software distribution by following the
 instructions supplied with that package.
 
-2) Configure libcap. To allow the 'configure' script to locate the Septel
+2) Configure libpcap. To allow the 'configure' script to locate the Septel
 software distribution use the '--with-septel' option:
 
         ./configure --with-septel=DIR
@@ -13,8 +13,8 @@ software distribution use the '--with-septel' option:
 where DIR is the root of the Septel software distribution, for example
 /var/src/septel.
 
-By default (if you write only ./configure --with-septel) it takes
-./../septel as argument for DIR.
+With --with-septel but no DIR, configure looks for ../septel relative
+to the libpcap source directory.
 
 If the Septel software is correctly detected 'configure' will
 report:

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="domain_checker_subtitle">כאן אפשר לבדוק אם AdAway חוסם אתר, ולאפשר או לחסום אותו מיד.</string>
+    <string name="domain_checker_input_hint">כתובת אתר או שם מתחם</string>
+    <string name="domain_checker_check_button">בדיקה</string>
+    <string name="domain_checker_status_blocked">חסום</string>
+    <string name="domain_checker_status_not_blocked">לא חסום</string>
+    <string name="domain_checker_status_unknown">לא ידוע</string>
+    <string name="domain_checker_blocked_by">מקור החסימה:</string>
+    <string name="domain_checker_user_source_format">כלל אישי: %1$s</string>
+    <string name="domain_checker_filter_source_format">מקור הסינון: %1$s</string>
+    <string name="domain_checker_allow_button">הוספה לרשימת ההיתרים</string>
+    <string name="domain_checker_remove_allow_button">הסרת כלל ההיתר</string>
+    <string name="domain_checker_block_button">חסימה</string>
+    <string name="domain_checker_already_allowed">כבר קיים כלל שמתיר את שם המתחם הזה.</string>
+    <string name="domain_checker_not_blocked">שם המתחם הזה לא מופיע באף רשימת חסימה.</string>
+    <string name="domain_checker_delete_rule">מחיקת הכלל</string>
+    <string name="domain_checker_rule_deleted">הכלל נמחק</string>
+    <string name="domain_checker_allow_removed">כלל ההיתר הוסר</string>
+    <string name="domain_checker_allowed_snack">%1$s נוסף לרשימת ההיתרים</string>
+    <string name="domain_checker_blocked_snack">%1$s נחסם</string>
+    <string name="domain_checker_invalid_input">יש להזין שם מתחם תקין או כתובת HTTP או HTTPS ללא פרטי התחברות.</string>
+    <string name="domain_checker_check_failed">לא ניתן היה לבדוק את שם המתחם. נא לנסות שוב.</string>
+    <string name="domain_checker_change_failed">עדכון הכללים לא הושלם. יש לבדוק את שם המתחם ולנסות שוב.</string>
+</resources>

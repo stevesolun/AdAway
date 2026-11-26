@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <color name="discover_control_accent">#FFADA8</color>
+    <style name="Widget.AdAway.Discover.TextButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/discover_action_text</item>
+    </style>
+</resources>

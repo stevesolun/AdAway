@@ -1,0 +1,7 @@
+! Local QA fixture, not a recommended subscription.
+||www.example.com^
+!#if env_browser
+||www.kernel.org^
+!#else
+||www.iana.org^
+!#endif

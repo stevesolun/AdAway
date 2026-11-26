@@ -1,6 +1,8 @@
 package org.adaway.model.backup;
 
 import static org.adaway.util.Constants.PREFS_NAME;
+import static org.adaway.util.Constants.PREFS_FILTER_SETS;
+import static org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
 
 import android.app.backup.BackupAgentHelper;
 import android.app.backup.BackupDataInputStream;
@@ -11,28 +13,38 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 
+import org.adaway.ui.hosts.FilterSetUpdateService;
+
 import java.io.File;
 import java.io.IOException;
 
 import timber.log.Timber;
 
 /**
- * This class is a {@link android.app.backup.BackupAgent} to backup and restore application state
- * using Android Backup Service. It is based on key-value pairs backup to prevent killing the
- * application during the backup (leaving the VPN foreground service always running). It backs up
- * and restores the application preferences and the user rules.
+ * This {@link android.app.backup.BackupAgent} uses Android's key-value backup to avoid killing
+ * the application during backup and interrupting an active VPN service. See the repository
+ * {@code README.md}, Backup & Restore section, for the user-facing backup contract.
  *
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class AppBackupAgent extends BackupAgentHelper {
     private static final String PREFS_BACKUP_KEY = "prefs";
+    private static final String FILTER_SETTINGS_BACKUP_KEY = "filter-settings";
     private static final String RULES_BACKUP_KEY = "rules";
 
     @Override
     public void onCreate() {
         super.onCreate();
         addHelper(PREFS_BACKUP_KEY, new SharedPreferencesBackupHelper(this, PREFS_NAME));
+        addHelper(FILTER_SETTINGS_BACKUP_KEY, new SharedPreferencesBackupHelper(this,
+                PREFS_FILTER_SETS, PREFS_SOURCE_SCHEDULES));
         addHelper(RULES_BACKUP_KEY, new SourceBackupHelper(this));
+    }
+
+    @Override
+    public void onRestoreFinished() {
+        super.onRestoreFinished();
+        FilterSetUpdateService.syncPreferences(this);
     }
 
     /**

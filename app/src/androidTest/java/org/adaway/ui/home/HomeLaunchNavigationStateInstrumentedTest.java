@@ -25,6 +25,7 @@ import android.widget.CompoundButton;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.ViewModelProvider;
@@ -59,6 +60,7 @@ import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.discover.DiscoverFragment;
 import org.adaway.ui.hosts.HostsSourcesTabFragment;
 import org.adaway.ui.more.MoreFragment;
+import org.adaway.vpn.VpnStatus;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -198,6 +200,26 @@ public class HomeLaunchNavigationStateInstrumentedTest {
     }
 
     @Test(timeout = 60_000)
+    public void returningHomeWithoutVpnConsentClearsStaleAppliedSwitch() throws Exception {
+        org.junit.Assume.assumeNotNull(android.net.VpnService.prepare(this.context));
+        PreferenceHelper.setAbBlockMethod(this.context, VPN);
+        PreferenceHelper.setVpnServiceStatus(this.context, VpnStatus.STOPPED);
+        injectAdBlockModel(this.application, null);
+        AdBlockModel model = this.application.getAdBlockModel();
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            waitForDestination(scenario, R.id.nav_home, "home", HomeFragment.class);
+            scenario.onActivity(activity -> {
+                ((MutableLiveData<Boolean>) model.isApplied()).setValue(true);
+                assertTrue(protectionControl(activity).isChecked());
+            });
+            scenario.moveToState(Lifecycle.State.CREATED);
+            scenario.moveToState(Lifecycle.State.RESUMED);
+            scenario.onActivity(activity -> assertFalse(protectionControl(activity).isChecked()));
+            assertProtectionStatus(scenario, R.string.home_protection_status_inactive);
+        }
+    }
+
+    @Test(timeout = 60_000)
     public void inlineProtectionControlResumesPausesAndSurvivesRecreation() {
         ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class);
         waitForDestination(scenario, R.id.nav_home, "home", HomeFragment.class);
@@ -300,7 +322,8 @@ public class HomeLaunchNavigationStateInstrumentedTest {
             assertEquals("A terminal parser state must not consume the authorized request.",
                     0, this.testAdBlockModel.applyCount.get());
             external.close();
-            assertProtectionStatus(scenario, R.string.home_protection_status_active);
+            // The fake accepts the enable but never establishes a platform tunnel.
+            assertProtectionStatus(scenario, R.string.home_protection_status_vpn_disconnected);
             waitForProtectionControl(scenario, true);
             scenario.onActivity(activity ->
                     assertFalse(homeModel(activity).hasAuthorizedVpnEnableRequest()));

@@ -17,6 +17,8 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.google.android.material.snackbar.Snackbar;
+
 import org.adaway.R;
 import org.adaway.databinding.FragmentMoreBinding;
 import org.adaway.ui.adware.AdwareFragment;
@@ -130,13 +132,19 @@ public class MoreFragment extends Fragment {
     private void openExternalUri(@NonNull Uri uri) {
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
+            showLinkUnavailable();
             Timber.w("No Activity available to open external URL: %s", uri);
             return;
         }
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException | SecurityException exception) {
+            showLinkUnavailable();
             Timber.w(exception, "Failed to open external URL: %s", uri);
         }
+    }
+
+    private void showLinkUnavailable() {
+        Snackbar.make(requireView(), R.string.update_support_link_unavailable, Snackbar.LENGTH_LONG).show();
     }
 }

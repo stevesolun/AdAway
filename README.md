@@ -1,6 +1,6 @@
 # ![AdAway logo](app/src/main/res/mipmap-mdpi/icon.png) AdAway
 
-**AdAway** is an open-source, system-level ad blocker for Android. It uses the hosts file (root mode) or a local VPN (non-root mode) to block ads, trackers, malware, and unwanted domains network-wide — across every app and browser.
+**AdAway** is an open-source domain blocker for Android. Without root, it uses a local VPN to filter DNS requests that reach it. It can block listed advertising and tracking domains, but not ads served from the same domain as a page or traffic that bypasses its DNS.
 
 AdAway ships with a modernized Material 3 UI, deep FilterLists.com integration,
 categorized filter management, and one-tap onboarding.
@@ -58,11 +58,10 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 
 ### Performance
 
-- Parallel download + parse pipeline using all available CPU cores
+- Concurrent downloads with bounded parser workers and one database import writer
 - Conditional GET skips re-downloading unchanged lists (ETag / Last-Modified)
-- Batch DB inserts (5000 hosts per transaction)
-- WAL mode — reads never block writes
-- Global host deduplication — same host from multiple sources stored once
+- Batched database writes and staging for large lists
+- Source-specific rules are retained so Domain Checker can identify matching lists
 - OkHttp connection pool tuning — larger pool, more parallel connections
 
 ### Safety
@@ -89,9 +88,9 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 1. Go to [**Releases**](https://github.com/stevesolun/AdAway/releases) and select
    the release or beta you intend to install.
 2. Download its `AdAway_<version>.apk` asset and read its upgrade notes.
-3. **If you have the official AdAway installed**, uninstall it first — different signing key.
-4. Open the APK on your device → allow "Install unknown apps" if prompted.
-5. Open AdAway and complete one-tap onboarding.
+3. **Already using this fork?** Install the APK over your existing app if the signing key matches. Do not uninstall a working copy just to update it.
+4. **Switching from upstream or a differently signed build?** Android cannot install this APK over it. Before uninstalling, export the rules and sources you want to keep to a file outside the app. Uninstalling removes app data. The JSON backup does not include preferences.
+5. Open the APK on your device and allow "Install unknown apps" for the installer if prompted. For a new installation, choose VPN and approve Android's consent prompt. Use **More → Backup & Restore** to restore a compatible backup, then update the sources.
 
 ### Requirements
 
@@ -102,7 +101,7 @@ Both modes block at the DNS level — no content injection, no HTTPS inspection.
 > **Note**: CI debug artifacts are signed with a debug key. Tagged GitHub
 > releases must be production-signed and pass APK hash, package, version, and
 > signing-certificate verification before upload. Android prevents updating over
-> the official AdAway when signing keys differ. Uninstall first.
+> the official AdAway when signing keys differ. Follow the backup steps above before switching.
 
 For this fork's prior beta signing compatibility, follow the
 [changelog's upgrade notes](CHANGELOG.md). The in-app updater reports download,
@@ -266,7 +265,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-ux-matrix.ps1 
   -OutputDir app\build\reports\ux-matrix
 ```
 
-The runner covers baseline, 1.3/1.6 font scales, and RTL pseudo-locale variants.
+The runner covers English at baseline and 1.3/1.6 font scales, plus Hebrew RTL at 1.3/1.6.
+It checks the rendered locale, layout direction and font scale on each screen in VPN mode.
 It pulls screenshots for the key app shells and writes
 `app/build/reports/ux-matrix/ux-matrix-review.md`, a checklist packet for manual
 review of clipping, overlap, touch targets, RTL anchoring, FAB clearance, and the
@@ -381,71 +381,29 @@ Successful runs upload a `release-readiness-report` artifact.
 
 ### Production Signing
 
-Add to `~/.gradle/gradle.properties`:
-
-```properties
-signingStoreLocation=/path/to/keystore.jks
-signingStorePassword=your_store_password
-signingKeyAlias=your_key_alias
-signingKeyPassword=your_key_password
-updateManifestPublicKeyBase64=base64_encoded_spki_public_key
-```
+Follow the [release signing requirements](RELEASING.md#4-building-release-apk)
+for local production builds, trust inputs, and debug/release signing isolation.
 
 ### CI/CD — Automatic Releases
 
-Push a signed version tag to trigger the release pipeline:
+Follow the [release publication procedure](RELEASING.md#stable-releases),
+including the protected pull request, required checks, signed tag, repository
+secrets, and artifact verification. Beta releases use the same protected path;
+see the [beta release scope](RELEASING.md#beta-releases).
 
-```bash
-git tag -s v<version> -m "AdAway <version>"
-git verify-tag v<version>
-git push origin v<version>
-```
+After the protected PR and required checks complete, use `git tag -s v<version>`
+and `git verify-tag v<version>` as described in the publication procedure.
+The release workflow verifies the tag with `RELEASE_TAG_PUBLIC_KEY_BASE64`,
+builds `:app:assembleDirectRelease`, and attests the APK, manifest, SBOM, and
+their `.sha256` checksum sidecars.
 
-GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
-1. Verify the signed release tag with `RELEASE_TAG_PUBLIC_KEY_BASE64`
-2. Build `assembleDirectRelease`
-3. Rename the APK to `AdAway_<version>.apk`
-4. Verify the APK package name, tag-matching version, signer SHA-256, and file SHA-256
-5. Generate the signed update manifest
-6. Generate the CycloneDX SBOM and SHA-256 checksum files
-7. Attest the APK, manifest, SBOM, and their `.sha256` checksum sidecars
-8. Verify those GitHub attestations with the canonical artifact verifier
-9. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
-
-Before announcing a release, run the `RELEASING.md` artifact verifier and
-release smoke. Full smoke requires an attached physical device. After the
-release is created, run the manual `verify-release-artifacts.yml` workflow as
-the CI-backed post-publish artifact and attestation check; successful runs
-upload a `release-artifact-verification-report` artifact. For install/launch
-coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
-`android-device`; it downloads all six tagged assets and runs the full release smoke
-against a physical device. Successful physical smoke runs upload a
-`physical-release-smoke-report` artifact with release tag, APK name, APK
-SHA-256, signer certificate identity, and the observed launch result. Regular
-CI also uploads a `license-boundary-report`; tagged direct-APK releases upload
-`release-license-boundary-reports` covering source and packaged artifact
-GPL/MIT boundary checks.
-Run `verify-release-readiness.yml` last to download those proof artifacts,
-download the generated UX sign-off report, run `verify-release-readiness.ps1`,
-verify the same review packet hash, and upload the final
-`release-readiness-report` artifact.
-
-**Repository Secrets** (for production-signed APKs):
-
-| Secret | Description |
-|--------|-------------|
-| `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file |
-| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
-| `ANDROID_KEY_ALIAS` | Key alias |
-| `ANDROID_KEY_PASSWORD` | Key password |
-| `UPDATE_MANIFEST_PUBLIC_KEY_BASE64` | Base64 SPKI public key embedded for signed update-manifest verification |
-| `UPDATE_MANIFEST_PRIVATE_KEY_BASE64` | Base64 PEM private key used to sign update manifests |
-| `ANDROID_RELEASE_CERT_SHA256` | Expected release APK signing certificate SHA-256 digest |
-| `RELEASE_TAG_PUBLIC_KEY_BASE64` | Base64 public key imported before `git verify-tag` |
-
-Regular CI and CodeQL build debug artifacts. Production release builds are
-expected to fail closed without the signing properties, signed-tag key, and
-update-manifest trust material above.
+Before announcing a release, run the post-publish
+[artifact verifier](.github/workflows/verify-release-artifacts.yml), which uploads
+`release-artifact-verification-report`, and the
+[physical release smoke](.github/workflows/physical-release-smoke.yml), which
+uploads `physical-release-smoke-report`. Full smoke requires an attached physical device
+on a self-hosted runner labeled `android-device`. Follow [RELEASING.md](RELEASING.md)
+for the inputs and final release-readiness aggregation.
 
 ### Key Dependencies
 
@@ -470,13 +428,25 @@ update-manifest trust material above.
 5. Wait for the download and apply to finish before relying on filter protection.
    If setup fails, use **Update** on Home to try again; reopening the app does not retry setup.
 
+In VPN mode, Home distinguishes **Protection active** from an enabled VPN that is
+waiting for a network, disconnected, or has no blocking rules loaded. Check the
+**Leak resistance** details for DNS paths or excluded apps that may bypass filtering.
+
 ### Add a Filter List from FilterLists.com
 
 1. Tap the **Discover** tab.
 2. Use the search box or filter by tag / language.
-3. Tap a list → **Subscribe**.
-4. The list is added and enabled; downloading and applying starts automatically.
+3. Use the switch on the row to subscribe. Tapping the row itself opens the
+   source editor or a compatibility explanation; Back leaves the selection unchanged.
+4. After subscribing, the list is enabled and downloading and applying starts automatically.
    See [Source Update Feedback](#source-update-feedback).
+
+For a batch, check the rows you want, then use **Subscribe selected** or
+**Unsubscribe selected**. **Show subscribed** narrows the view to existing
+subscriptions. Bulk subscribe processes DNS-safe formats by default. Use
+an individual switch to opt into domain extraction from a mixed-format list.
+Selecting a row is not itself a subscription. A browser-only list may have
+no DNS-compatible rules; choosing it cannot make those rules work at the domain level.
 
 ### Apply a Quick-Start Preset
 
@@ -491,10 +461,17 @@ update-manifest trust material above.
 ### Add a Custom Filter List
 
 1. Open the **Sources** tab.
-2. Tap the **+** button.
-3. Enter a compatible filter URL; the name is optional.
+2. Tap **+**, then **Add custom source**.
+3. Enter the public HTTPS URL of a DNS-compatible filter; the name is optional.
 4. Save with the toolbar checkmark. The enabled source downloads and applies automatically.
    See [Source Update Feedback](#source-update-feedback).
+
+The region or publisher does not matter; see the
+[filter rule capability matrix](docs/filter-rule-capabilities.md) for supported syntax
+and DNS limitations. To use a local list, choose **File** in the editor and select
+it with Android's picker.
+Remote refreshes require a direct public HTTPS route. AdAway does not fetch
+private network addresses or silently bypass a required system proxy.
 
 ### Source Update Feedback
 
@@ -503,6 +480,8 @@ for the configuration it applied. Download metadata alone does not bring the pro
 back. Later selection or URL changes can still need **Apply**; updating one source
 does not acknowledge pending changes to other sources. If a Sources update/apply
 fails, its failure message keeps an **Apply** action that retries the same operation.
+When another update already owns the operation, Sources reports that it is busy
+instead of reporting a download failure.
 
 When Home reports a failed source download, tap **Sources** to inspect each source's
 error, correct or disable the failing source, then apply again. A source failure does
@@ -516,26 +495,37 @@ user rules are excluded from both freshness totals.
 ### Block / Allow a Specific Domain
 
 1. Go to **More → Custom Rules**.
-2. Tap **+** → choose **Block** or **Allow** → enter the domain.
-3. Tap **Save**. Rules apply immediately (no update needed).
+2. Select **Blocked** or **Allowed**, tap **+**, and enter the domain.
+3. Tap **Add**, then **Apply** in the configuration prompt to activate the rule.
 
-### Batch Import Domains
+### Use a Domain List File
 
-1. **More → Custom Rules → ⋮ → Batch Import**.
-2. Paste domains, one per line.
-3. Choose Block or Allow → confirm.
+To load a file containing domains, follow [Add a Custom Filter List](#add-a-custom-filter-list).
 
 ### View DNS Query Log (VPN mode only)
 
 1. Go to **More → DNS Log**.
-2. See real-time queries. Blocked = red, allowed = green.
-3. Tap any entry → **Block** or **Allow** to add a custom rule.
+2. Tap **Record**, browse or use apps, then return or swipe to refresh the queries.
+3. Use a row's **Block**, **Allow**, or **Redirect** icon to add a custom rule,
+   then tap **Apply**. Tapping the hostname opens it in your browser.
+
+The highlighted icon reflects the current active rule, not the outcome when the
+query was recorded. A highlighted icon can remove only your own exact rule of
+that type; inherited rules from a source or a broader rule are read-only here.
 
 ### Schedule Automatic Updates
 
-1. **More → Filter Sources → ⋮ → Manage schedules**.
-2. Set daily (time) or weekly (day + time).
-3. Updates run in the background at the scheduled time.
+1. Open **Sources → ⋮ → Manage schedules**.
+2. Choose **Edit global schedule**, **Edit filter set schedule**, or
+   **Edit source schedule**. The global schedule refreshes all enabled sources;
+   the other schedules refresh only their enabled sources.
+3. Choose **Daily** (time), **Weekly** (day and time), or **Off**. An existing
+   schedule opens with its saved choices. Cancel leaves it unchanged; confirm the
+   final time to save an edit.
+
+Updates run in the background when due and Android permits the work, subject to
+network and storage constraints and the **Sync on unmetered network only**
+preference. The selected time is not an exact alarm.
 
 ### Check If a Domain Is Blocked
 
@@ -552,12 +542,14 @@ user rules are excluded from both freshness totals.
 domain. It preserves downloaded rules and broader wildcard or suffix allows, so
 the domain can remain allowed after removal. **Block it** is offered for Unknown
 results, not for domains already allowed by a filter.
+Likewise, **Delete rule** is available only for your exact block or redirect;
+broader suffix rules remain intact.
 
 ### Backup & Restore
 
-1. **More → Preferences → Backup & Restore**.
-2. **Backup** — exports filter sources and custom rules as JSON; app preferences
-   are not included.
+1. **More → Backup & Restore**.
+2. **Backup** — exports filter sources and custom rules as JSON; app preferences,
+   saved filter sets, and schedules are not included.
 3. **Restore** — imports from a backup file. If another operation is in progress,
    wait for it to finish, then select **Restore** again.
 
@@ -565,11 +557,15 @@ Restoring a source with the same URL updates its configuration while retaining i
 identity. Download newly restored sources or sources whose rule format changed, then
 apply. File-source read permission must be granted again when it is no longer available.
 
+Android's system backup, when enabled and available, also includes app preferences,
+saved filter sets, and global and per-source schedules. After Android restores that
+backup, AdAway reconciles the restored schedules with its background worker.
+
 ### Force English Locale
 
 Some Android versions override language settings. To lock AdAway in English:
 1. **More → Preferences → General → Force English**.
-2. Force-stop and relaunch the app.
+2. The app switches its interface to English. Turn the setting off to follow the system language again.
 
 ---
 
@@ -613,10 +609,10 @@ Root mode additionally requires `su` access to write `/etc/hosts`.
 | Samsung Pay / OEM feature broken | Disable the **DEVICE** category |
 | Filter list not updating | Follow [Source Update Feedback](#source-update-feedback) to inspect and retry the failed source |
 | App crashes on subscribe | Reopen the app and retry; report repeated failures through [this fork's issues](https://github.com/stevesolun/AdAway/issues) |
-| Can't install over official AdAway | Uninstall the official AdAway first (different signing key) |
+| Can't install over official AdAway | Different signing key. Follow the [backup and installation steps](#download-apk-quickest) before removing anything. |
 | "Install unknown apps" blocked | Android Settings → Apps → Special app access → Install unknown apps |
 | Domain Checker result is unexpected | See [Check If a Domain Is Blocked](#check-if-a-domain-is-blocked) for result meanings and allow-rule controls |
-| Force English not working | Force-stop the app after toggling the setting |
+| Some text stays in English | Turning off **Force English** follows your system language; strings without a translation still use English. |
 
 ---
 

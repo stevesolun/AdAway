@@ -150,7 +150,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, true);
 
             clickButton(scenario, R.id.filterlistsSubscribeVisibleButton);
-            waitForAccessibilityText("AdAway will add 1 DNS-safe selected lists");
+            waitForAccessibilityText("DNS-safe lists selected: 1.");
             clickExactAccessibilityText("Subscribe");
 
             HostsSource subscribed = waitForSource(VISIBLE_SAFE_URL, true)

@@ -21,15 +21,17 @@
 package org.adaway.ui.hosts;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.format.DateFormat;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -46,7 +48,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
@@ -61,14 +62,13 @@ import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
-import java.time.DayOfWeek;
-import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static org.adaway.ui.source.SourceEditActivity.SOURCE_ID;
 
@@ -87,7 +87,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private HostsSourcesViewModel mViewModel;
     private CategorizedSourcesAdapter mAdapter;
     private CoordinatorLayout coordinatorLayout;
-    private ApplyConfigurationSnackbar mApplySnackbar;
+    @Nullable
+    private BottomSheetDialog mAddSourceSheet;
     private List<HostsSource> lastSources = new ArrayList<>();
 
     @Override
@@ -95,7 +96,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Get activity
         Activity activity = requireActivity();
         // Initialize view model
-        this.mViewModel = new ViewModelProvider(this).get(HostsSourcesViewModel.class);
+        this.mViewModel = new ViewModelProvider(requireActivity()).get(HostsSourcesViewModel.class);
         LifecycleOwner lifecycleOwner = getViewLifecycleOwner();
         // Create fragment view
         View view = inflater.inflate(R.layout.hosts_sources_fragment, container, false);
@@ -109,7 +110,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Create apply snackbar
         ApplyConfigurationSnackbar applySnackbar =
                 new ApplyConfigurationSnackbar(coordinatorLayout, this.mViewModel);
-        this.mApplySnackbar = applySnackbar;
         // Bind snackbar to view models
         this.mViewModel.getApplyStatus().observe(lifecycleOwner,
                 status -> applySnackbar.refreshSourceState());
@@ -138,8 +138,16 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         recyclerView.setLayoutManager(linearLayoutManager);
         
         // Create the new categorized adapter (uBlock-style)
-        mAdapter = new CategorizedSourcesAdapter(this);
+        SourceCategoryViewState categoryState =
+                new ViewModelProvider(requireActivity()).get(SourceCategoryViewState.class);
+        mAdapter = new CategorizedSourcesAdapter(this, categoryState);
         recyclerView.setAdapter(mAdapter);
+        View selectionError = view.findViewById(R.id.source_selection_error);
+        mViewModel.getFailedSelections().observe(lifecycleOwner, failed -> {
+            selectionError.setVisibility(failed.isEmpty() ? View.GONE : View.VISIBLE);
+            // A rolled-back transaction does not cause Room to emit.
+            if (!failed.isEmpty()) mAdapter.updateSources(lastSources);
+        });
         
         // Bind adapter to view model
         this.mViewModel.getHostsSources().observe(lifecycleOwner, sources -> {
@@ -156,6 +164,14 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         
         // Return fragment view
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        BottomSheetDialog sheet = mAddSourceSheet;
+        mAddSourceSheet = null;
+        if (sheet != null) sheet.dismiss();
+        super.onDestroyView();
     }
 
     @Override
@@ -229,8 +245,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                             layout.setError(null);
                             String name = FilterSetStore.normalizeActiveProfile(rawName);
                             saveFilterSet(name);
-                            Snackbar.make(coordinatorLayout, R.string.filter_set_saved,
-                                    Snackbar.LENGTH_SHORT).show();
                             dialog.dismiss();
                         }));
         dialog.show();
@@ -239,8 +253,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void promptManageFilterSets() {
         List<String> names = getManageableFilterSetNames();
         if (names.isEmpty()) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_manage_none,
-                    Snackbar.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.filter_set_manage_none, Toast.LENGTH_SHORT).show();
             return;
         }
         String[] arr = names.toArray(new String[0]);
@@ -311,8 +324,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                             layout.setError(null);
                             String newName = FilterSetStore.normalizeActiveProfile(rawName);
                             if (FilterSetStore.renameSet(requireContext(), name, newName)) {
-                                Snackbar.make(coordinatorLayout, R.string.filter_set_renamed,
-                                        Snackbar.LENGTH_SHORT).show();
+                                Toast.makeText(requireContext(), R.string.filter_set_renamed, Toast.LENGTH_SHORT).show();
                             }
                             dialog.dismiss();
                         }));
@@ -325,8 +337,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 .setMessage(getString(R.string.filter_set_delete_message, name))
                 .setPositiveButton(R.string.filter_set_delete, (dialog, which) -> {
                     if (FilterSetStore.deleteSet(requireContext(), name)) {
-                        Snackbar.make(coordinatorLayout, R.string.filter_set_deleted,
-                                Snackbar.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), R.string.filter_set_deleted, Toast.LENGTH_SHORT).show();
                     }
                 })
                 .setNegativeButton(R.string.button_cancel, null)
@@ -348,24 +359,35 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void saveFilterSet(String name) {
-        Set<String> enabledUrls = new HashSet<>();
-        for (HostsSource s : lastSources) {
-            if (s.getId() != HostsSource.USER_SOURCE_ID && s.isEnabled()) {
-                enabledUrls.add(s.getUrl());
+        Context appCtx = requireContext().getApplicationContext();
+        View anchor = coordinatorLayout;
+        AppExecutors executors = AppExecutors.getInstance();
+        // Snapshot and assign the active profile in one queue entry, after earlier switch writes.
+        CompletableFuture.supplyAsync(() -> {
+            Set<String> enabledUrls = AppDatabase.getInstance(appCtx).hostsSourceDao().getEnabled()
+                    .stream().map(HostsSource::getUrl).collect(Collectors.toSet());
+            if (FilterSetStore.PROFILE_CUSTOM.equals(name)) {
+                FilterSetStore.saveCustomProfile(appCtx, enabledUrls);
+            } else {
+                int error = getFilterSetNameError(FilterSetStore.validateSetName(name,
+                        FilterSetStore.getSetNames(appCtx)));
+                if (error != 0) return error;
+                FilterSetStore.saveSet(appCtx, name, enabledUrls);
+                FilterSetStore.setActiveProfile(appCtx, name);
             }
-        }
-        if (FilterSetStore.PROFILE_CUSTOM.equals(name)) {
-            FilterSetStore.saveCustomProfile(requireContext(), enabledUrls);
-            return;
-        }
-        FilterSetStore.saveSet(requireContext(), name, enabledUrls);
-        FilterSetStore.setActiveProfile(requireContext(), name);
+            return R.string.filter_set_saved;
+        }, executors.diskIO()).whenCompleteAsync((message, failure) -> {
+            if (anchor.isAttachedToWindow()) {
+                Toast.makeText(appCtx, failure == null ? message : R.string.source_edit_save_failed,
+                        Toast.LENGTH_SHORT).show();
+            }
+        }, executors.mainThread());
     }
 
     private void promptApplyFilterSet() {
         Set<String> names = FilterSetStore.getSetNames(requireContext());
         if (names == null || names.isEmpty()) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_none, Snackbar.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.filter_set_none, Toast.LENGTH_SHORT).show();
             return;
         }
         String[] arr = names.toArray(new String[0]);
@@ -379,8 +401,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     private void previewApplyFilterSet(@NonNull String name) {
         android.content.Context appCtx = requireContext().getApplicationContext();
         if (!FilterSetStore.hasSet(appCtx, name) || !FilterSetStore.hasSetUrls(appCtx, name)) {
-            Snackbar.make(coordinatorLayout, R.string.filter_set_missing, Snackbar.LENGTH_SHORT)
-                    .show();
+            Toast.makeText(requireContext(), R.string.filter_set_missing, Toast.LENGTH_SHORT).show();
             return;
         }
         Set<String> targetUrls = FilterSetStore.getSetUrls(appCtx, name);
@@ -500,25 +521,55 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void applyFilterSet(@NonNull String name, @NonNull Set<String> enabledUrls) {
-        // QA-27: capture Context and DAO on the main thread to avoid calling requireContext()
-        // from a background thread if the fragment detaches while the lambda is queued.
-        android.content.Context appCtx = requireContext().getApplicationContext();
-        HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
+        String confirmedId = FilterSetStore.getSetIdForDisplayName(requireContext(), name);
+        applyConfirmedFilterSet(name, enabledUrls, confirmedId);
+    }
 
-        Snackbar waitSnackbar = Snackbar.make(coordinatorLayout, R.string.notification_configuration_installing, Snackbar.LENGTH_INDEFINITE);
-        waitSnackbar.show();
+    private void applyConfirmedFilterSet(@NonNull String name, @NonNull Set<String> enabledUrls,
+            @Nullable String confirmedId) {
+        Context appCtx = requireContext().getApplicationContext();
+        View status = coordinatorLayout.findViewById(R.id.filter_set_apply_status);
+        TextView message = status.findViewById(R.id.filter_set_apply_message);
+        View retry = status.findViewById(R.id.filter_set_apply_retry);
+        // Only the latest confirmed request owns this view's progress or retry action.
+        Object request = new Object();
+        status.setTag(request);
+        retry.setOnClickListener(null);
+        retry.setVisibility(View.GONE);
+        message.setText(R.string.notification_configuration_installing);
+        status.setVisibility(View.VISIBLE);
 
-        AppExecutors.getInstance().diskIO().execute(() -> {
+        AppExecutors executors = AppExecutors.getInstance();
+        CompletableFuture.supplyAsync(() -> {
+            // Manage can rename, delete or replace a set while a retry is waiting on disk IO.
+            if (confirmedId == null
+                    || !confirmedId.equals(FilterSetStore.getSetIdForDisplayName(appCtx, name))
+                    || !FilterSetStore.hasSetUrls(appCtx, name)) {
+                return R.string.filter_set_missing;
+            }
+            if (!enabledUrls.equals(FilterSetStore.getSetUrls(appCtx, name))) {
+                return R.string.filter_set_changed_since_preview;
+            }
+            HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
             dao.applySourceSelections(enabledUrls);
             FilterSetStore.setActiveProfile(appCtx, name);
             FilterSetUpdateService.enable(appCtx);
-            AppExecutors.getInstance().mainThread().execute(() -> {
-                waitSnackbar.dismiss();
-                if (isAdded()) {
-                    Snackbar.make(coordinatorLayout, R.string.filter_set_applied, Snackbar.LENGTH_SHORT).show();
-                }
-            });
-        });
+            return 0;
+        }, executors.diskIO()).whenCompleteAsync((refusalMessage, failure) -> {
+            if (failure != null) timber.log.Timber.w(failure, "Could not apply saved filter set.");
+            if (!status.isAttachedToWindow() || status.getTag() != request) return;
+            status.setTag(null);
+            if (failure != null) {
+                message.setText(R.string.notification_configuration_failed);
+                retry.setOnClickListener(v -> applyConfirmedFilterSet(name, enabledUrls, confirmedId));
+                retry.setVisibility(View.VISIBLE);
+            } else if (refusalMessage != 0) {
+                message.setText(refusalMessage);
+            } else {
+                status.setVisibility(View.GONE);
+                Toast.makeText(appCtx, R.string.filter_set_applied, Toast.LENGTH_SHORT).show();
+            }
+        }, executors.mainThread());
     }
 
     private void promptScheduleFilterSet() {
@@ -529,18 +580,35 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         options.addAll(names);
         String[] arr = options.toArray(new String[0]);
 
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        androidx.appcompat.app.AlertDialog picker = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.menu_schedule_filter_set)
-                .setItems(arr, (d, which) -> {
-                    if (which == 0) {
-                        // Keep the selected URLs in memory until the final time is confirmed.
-                        promptScheduleForOne(arr[which], getEnabledSourceUrls());
-                    } else {
-                        promptScheduleForOne(arr[which], null);
-                    }
-                })
+                .setItems(arr, null)
                 .setNegativeButton(R.string.button_cancel, null)
                 .show();
+        picker.getListView().setOnItemClickListener((parent, item, which, id) -> {
+            if (which != 0) {
+                picker.dismiss();
+                promptScheduleForOne(arr[which], null);
+                return;
+            }
+            // Leave Cancel available while waiting for prior writes. Nothing is saved yet.
+            picker.getListView().setEnabled(false);
+            Context appCtx = requireContext().getApplicationContext();
+            View anchor = coordinatorLayout;
+            AppExecutors executors = AppExecutors.getInstance();
+            CompletableFuture.supplyAsync(() -> AppDatabase.getInstance(appCtx).hostsSourceDao()
+                    .getEnabled().stream().map(HostsSource::getUrl).collect(Collectors.toSet()),
+                    executors.diskIO()).whenCompleteAsync((urls, failure) -> {
+                if (!picker.isShowing()) return;
+                picker.dismiss();
+                if (!anchor.isAttachedToWindow() || !isResumed()) return;
+                if (failure == null) {
+                    promptScheduleForOne(arr[which], urls);
+                } else {
+                    Toast.makeText(appCtx, R.string.source_edit_save_failed, Toast.LENGTH_SHORT).show();
+                }
+            }, executors.mainThread());
+        });
     }
 
     @NonNull
@@ -558,41 +626,21 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void promptScheduleForOne(String name, @Nullable Set<String> pendingUrls) {
-        CharSequence[] scheduleOptions = new CharSequence[]{
-                getString(R.string.filter_set_schedule_off),
-                getString(R.string.filter_set_schedule_daily),
-                getString(R.string.filter_set_schedule_weekly)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle(name)
-                .setItems(scheduleOptions, (d, which) -> {
-                    if (which == 0) {
+        Context context = requireContext();
+        SchedulePicker picker = pendingUrls == null
+                ? SchedulePicker.forSet(context, name) : SchedulePicker.unsaved();
+        picker.show(context, name, R.string.filter_set_schedule_off, true,
+                (cadence, day, hour, minute, label) -> {
+                    if (cadence == FilterSetStore.SCHEDULE_OFF) {
                         if (pendingUrls == null) {
-                            FilterSetStore.setSchedule(requireContext(), name,
-                                    FilterSetStore.SCHEDULE_OFF);
-                            FilterSetUpdateService.enable(requireContext());
+                            FilterSetStore.setSchedule(context, name, cadence);
+                            FilterSetUpdateService.syncPreferences(context);
                         }
-                        showScheduleApplied(scheduleOptions[which]);
-                        return;
+                    } else {
+                        saveConfirmedSchedule(name, pendingUrls, cadence, day, hour, minute);
                     }
-                    if (which == 1) {
-                        // Daily -> pick time
-                        pickTime((hour, minute) -> {
-                            saveConfirmedSchedule(name, pendingUrls,
-                                    FilterSetStore.SCHEDULE_DAILY, 1, hour, minute);
-                            showScheduleApplied(scheduleOptions[which]);
-                        });
-                        return;
-                    }
-                    // Weekly -> pick day then time
-                    pickDayOfWeek(dowIso -> pickTime((hour, minute) -> {
-                        saveConfirmedSchedule(name, pendingUrls,
-                                FilterSetStore.SCHEDULE_WEEKLY, dowIso, hour, minute);
-                        showScheduleApplied(scheduleOptions[which]);
-                    }));
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+                    showScheduleApplied(label);
+                });
     }
 
     private void saveConfirmedSchedule(String name, @Nullable Set<String> pendingUrls,
@@ -603,51 +651,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         } else {
             FilterSetStore.setSchedule(requireContext(), name, schedule, weekdayIso, hour, minute);
         }
-        FilterSetUpdateService.enable(requireContext());
+        FilterSetUpdateService.syncPreferences(requireContext());
     }
 
     private void showScheduleApplied(@NonNull CharSequence scheduleLabel) {
-        Snackbar.make(coordinatorLayout,
-                getString(R.string.filter_set_schedule_applied, scheduleLabel),
-                Snackbar.LENGTH_SHORT).show();
-    }
-
-    private interface TimePicked {
-        void onPicked(int hour24, int minute);
-    }
-
-    private void pickTime(@NonNull TimePicked picked) {
-        java.util.Calendar c = java.util.Calendar.getInstance();
-        int hour = c.get(java.util.Calendar.HOUR_OF_DAY);
-        int minute = c.get(java.util.Calendar.MINUTE);
-        new android.app.TimePickerDialog(
-                requireContext(),
-                (view, hourOfDay, minuteOfHour) -> picked.onPicked(hourOfDay, minuteOfHour),
-                hour,
-                minute,
-                DateFormat.is24HourFormat(requireContext())
-        ).show();
-    }
-
-    private interface DayPicked {
-        void onPicked(int isoDay);
-    }
-
-    private void pickDayOfWeek(@NonNull DayPicked picked) {
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
-    }
-
-    @NonNull
-    private String[] getWeekdayLabels() {
-        String[] labels = new String[DayOfWeek.values().length];
-        for (int i = 0; i < labels.length; i++) {
-            labels[i] = DayOfWeek.of(i + 1).getDisplayName(TextStyle.FULL, Locale.getDefault());
-        }
-        return labels;
+        Toast.makeText(requireContext(), getString(R.string.filter_set_schedule_applied, scheduleLabel),
+                Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -655,7 +664,12 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
      * Scheduling stays in the Sources toolbar and Manage schedules screen.
      */
     private void showAddSourceOptions() {
+        if (!isResumed() || mAddSourceSheet != null) return;
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
+        mAddSourceSheet = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (mAddSourceSheet == dialog) mAddSourceSheet = null;
+        });
         View sheetView = getLayoutInflater().inflate(
                 R.layout.hosts_add_options_sheet,
                 (ViewGroup) requireView(),
@@ -665,7 +679,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Browse catalog option — opens Discover tab in HomeActivity (catalog is embedded there)
         View catalogOption = sheetView.findViewById(R.id.browseCatalogOption);
         catalogOption.setOnClickListener(v -> {
-            dialog.dismiss();
+            if (!consumeAddSourceSheet(dialog)) return;
             Intent intent = new Intent(requireContext(), HomeActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             intent.putExtra(HomeActivity.EXTRA_NAV_DISCOVER, true);
@@ -675,18 +689,29 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         // Add custom source option
         View customOption = sheetView.findViewById(R.id.addCustomOption);
         customOption.setOnClickListener(v -> {
-            dialog.dismiss();
-            startSourceEdition(null);
+            if (consumeAddSourceSheet(dialog)) startSourceEdition(null);
         });
 
         dialog.setContentView(sheetView);
         dialog.show();
     }
 
+    private boolean consumeAddSourceSheet(BottomSheetDialog dialog) {
+        // A queued tap may outlive its view, or arrive after a new sheet opens.
+        if (mAddSourceSheet != dialog || !isResumed() || !dialog.isShowing()) return false;
+        mAddSourceSheet = null;
+        dialog.dismiss();
+        return true;
+    }
+
     @Override
     public void setEnabled(HostsSource source, boolean enabled) {
-        FilterSetStore.markCustomProfile(requireContext());
         this.mViewModel.setSourceEnabled(source, enabled);
+    }
+
+    @Override
+    public void setGroupEnabled(List<Integer> sourceIds, boolean enabled) {
+        mViewModel.setGroupEnabled(sourceIds, enabled);
     }
 
     @Override
@@ -713,8 +738,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     }
 
     private void runCheckUpdates() {
-        Snackbar info = Snackbar.make(coordinatorLayout, R.string.status_check, Snackbar.LENGTH_LONG);
-        info.show();
+        Toast.makeText(requireContext(), R.string.status_check, Toast.LENGTH_SHORT).show();
         // QA-05: capture Context before background thread to avoid IllegalStateException on navigation.
         AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {

@@ -7,6 +7,8 @@
     <!-- Update activity -->
     <string name="update_up_to_date_header">זו הגרסה האחרונה</string>
     <string name="update_update_available_header">עדכון זמין</string>
+    <string name="update_unavailable_header">לא ניתן לבדוק אם יש עדכונים</string>
+    <string name="update_check_again_button">בדיקה חוזרת</string>
     <string name="update_support_link_unavailable">לא ניתן לפתוח את הקישור במכשיר הזה.</string>
 
     <string name="update_update_button">עדכן כעת</string>

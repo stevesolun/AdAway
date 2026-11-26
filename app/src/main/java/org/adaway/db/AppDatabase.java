@@ -30,6 +30,8 @@ import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.WaTgSafetyAllowlist;
 import org.adaway.util.AppExecutors;
 
+import java.util.concurrent.Executor;
+
 import static org.adaway.db.Migrations.MIGRATION_1_2;
 import static org.adaway.db.Migrations.MIGRATION_2_3;
 import static org.adaway.db.Migrations.MIGRATION_3_4;
@@ -104,23 +106,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppDatabase.class,
                             "app.db"
                     ).setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                    .addCallback(new Callback() {
-                        @Override
-                        public void onCreate(@NonNull SupportSQLiteDatabase db) {
-                            optimizeCreatedDatabaseStorage(db);
-                            // Ensure the single-row hosts_meta exists.
-                            db.execSQL("INSERT OR IGNORE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
-                            db.execSQL("INSERT OR IGNORE INTO `hosts_stats` " +
-                                    "(`id`, `blocked_count`, `blocked_exact_count`, " +
-                                    "`allowed_count`, `redirected_count`, `active_rule_count`) " +
-                                    "VALUES (0, 0, 0, 0, 0, 0)");
-                            AppExecutors.getInstance().diskIO().execute(() -> {
-                                AppDatabase.initialize(context, instance);
-                                WaTgSafetyAllowlist.ensureAllowlistSync(context);
-                                SiteCompatibilityAllowlist.ensureAllowlistSync(context);
-                            });
-                        }
-                    }).addMigrations(
+                    .addCallback(creationCallback(context, AppExecutors.getInstance().diskIO()))
+                    .addMigrations(
                             MIGRATION_1_2,
                             MIGRATION_2_3,
                             MIGRATION_3_4,
@@ -159,6 +146,33 @@ public abstract class AppDatabase extends RoomDatabase {
         return instance;
     }
 
+    static Callback creationCallback(Context context, Executor diskIO) {
+        return new Callback() {
+            @Override
+            public void onCreate(@NonNull SupportSQLiteDatabase db) {
+                optimizeCreatedDatabaseStorage(db);
+                db.execSQL("INSERT OR IGNORE INTO `hosts_meta` (`id`, `active_generation`) VALUES (0, 0)");
+                db.execSQL("INSERT OR IGNORE INTO `hosts_stats` " +
+                        "(`id`, `blocked_count`, `blocked_exact_count`, " +
+                        "`allowed_count`, `redirected_count`, `active_rule_count`) " +
+                        "VALUES (0, 0, 0, 0, 0, 0)");
+                // Reserve the user identity before a restore or subscription can allocate its ID.
+                db.execSQL("INSERT INTO hosts_sources " +
+                        "(id, label, url, enabled, allowEnabled, redirectEnabled, size, " +
+                        "skipped_count, active_rule_count, blocked_count, blocked_exact_count, " +
+                        "allowed_count, redirected_count, filter_list_compatibility_score) " +
+                        "VALUES (?, ?, ?, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0)",
+                        new Object[]{USER_SOURCE_ID, context.getString(R.string.hosts_user_source),
+                                USER_SOURCE_URL});
+                diskIO.execute(() -> {
+                    AppDatabase.initialize(context, instance);
+                    WaTgSafetyAllowlist.ensureAllowlistSync(context);
+                    SiteCompatibilityAllowlist.ensureAllowlistSync(context);
+                });
+            }
+        };
+    }
+
     /**
      * Apply storage optimizations Room cannot express in entity annotations.
      *
@@ -175,21 +189,12 @@ public abstract class AppDatabase extends RoomDatabase {
      * Sets up default filter sources and the Facebook whitelist.
      */
     private static void initialize(Context context, AppDatabase database) {
-        // Check if there is no hosts source
+        // getAll() excludes the reserved user row. Do not seed over restored subscriptions.
         HostsSourceDao hostsSourceDao = database.hostsSourceDao();
         HostListItemDao hostListItemDao = database.hostsListItemDao();
         if (!hostsSourceDao.getAll().isEmpty()) {
             return;
         }
-        
-        // User list
-        HostsSource userSource = new HostsSource();
-        userSource.setLabel(context.getString(R.string.hosts_user_source));
-        userSource.setId(USER_SOURCE_ID);
-        userSource.setUrl(USER_SOURCE_URL);
-        userSource.setAllowEnabled(true);
-        userSource.setRedirectEnabled(true);
-        hostsSourceDao.insert(userSource);
         
         // Add default sources from catalog (Ads + Malware categories enabled by default)
         for (FilterListCatalog.CatalogEntry entry : FilterListCatalog.getDefaults()) {

@@ -19,8 +19,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import timber.log.Timber;
-
 /**
  * This class is the model to represent VPN service configuration.
  *
@@ -31,8 +29,7 @@ public class VpnModel extends AdBlockModel {
     private final HostEntryDao hostEntryDao;
     private volatile LruCache<String, HostEntry> blockCache;
     private final LinkedHashSet<String> logs;
-    private boolean recordingLogs;
-    private int requestCount;
+    private volatile boolean recordingLogs;
 
     /**
      * Constructor.
@@ -49,7 +46,6 @@ public class VpnModel extends AdBlockModel {
         this.blockCache = createRulesCache();
         this.logs = new LinkedHashSet<>();
         this.recordingLogs = false;
-        this.requestCount = 0;
         this.applied.postValue(VpnServiceControls.isRunning(context));
     }
 
@@ -63,7 +59,8 @@ public class VpnModel extends AdBlockModel {
         // Clear cache
         invalidateRulesCache();
         // Start VPN
-        boolean started = VpnServiceControls.start(this.context);
+        boolean started = android.net.VpnService.prepare(this.context) == null
+                && VpnServiceControls.start(this.context);
         this.applied.postValue(started);
         if (!started) {
             throw new HostErrorException(ENABLE_VPN_FAIL);
@@ -78,7 +75,6 @@ public class VpnModel extends AdBlockModel {
         // LruCache.create runs outside its lock. Retire the entire cache so an in-flight
         // lookup can only publish into its old cache, without blocking on database I/O.
         this.blockCache = createRulesCache();
-        this.requestCount = 0;
     }
 
     private LruCache<String, HostEntry> createRulesCache() {
@@ -103,7 +99,9 @@ public class VpnModel extends AdBlockModel {
 
     @Override
     public void setRecordingLogs(boolean recording) {
-        this.recordingLogs = recording;
+        synchronized (this.logs) {
+            this.recordingLogs = recording;
+        }
     }
 
     @Override
@@ -128,19 +126,11 @@ public class VpnModel extends AdBlockModel {
      */
     public HostEntry getEntry(String host) {
         LruCache<String, HostEntry> cache = this.blockCache;
-        // Compute miss rate periodically
-        this.requestCount++;
-        if (this.requestCount >= 1000) {
-            int hits = cache.hitCount();
-            int misses = cache.missCount();
-            double missRate = 100D * (hits + misses) / misses;
-            Timber.d("Host cache miss rate: %s.", missRate);
-            this.requestCount = 0;
-        }
         // Add host to logs
         if (this.recordingLogs) {
             synchronized (this.logs) {
-                if (this.logs.add(host) && this.logs.size() > MAX_LOG_ENTRIES) {
+                // Pause/clear may have completed while this lookup was waiting.
+                if (this.recordingLogs && this.logs.add(host) && this.logs.size() > MAX_LOG_ENTRIES) {
                     String first = this.logs.iterator().next();
                     this.logs.remove(first);
                 }

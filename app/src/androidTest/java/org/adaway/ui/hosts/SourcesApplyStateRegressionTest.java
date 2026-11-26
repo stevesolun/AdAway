@@ -5,6 +5,7 @@ import static org.adaway.model.adblocking.AdBlockMethod.ROOT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -12,15 +13,27 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.Context;
 import android.database.Cursor;
+import android.os.Bundle;
+import android.os.Parcel;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleRegistry;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.Observer;
+import androidx.lifecycle.SavedStateViewModelFactory;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.lifecycle.ViewModelStore;
+import androidx.lifecycle.ViewModelStoreOwner;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.savedstate.SavedStateRegistry;
+import androidx.savedstate.SavedStateRegistryController;
+import androidx.savedstate.SavedStateRegistryOwner;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -44,7 +57,9 @@ import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceModel;
+import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
@@ -70,6 +85,7 @@ public class SourcesApplyStateRegressionTest {
     private static final long TIMEOUT_MS = 15_000;
     private static final int SOURCE_A = 1911;
     private static final int SOURCE_B = 1912;
+    private static final int NEW_SOURCE = 1913;
 
     private Context context;
     private AdAwayApplication application;
@@ -142,6 +158,119 @@ public class SourcesApplyStateRegressionTest {
     }
 
     @Test(timeout = 90_000)
+    public void pendingApplySurvivesMoreThenSourcesOnSameActivity() {
+        HomeActivity activity = launchSources();
+        AtomicReference<HostsSourcesFragment> first = new AtomicReference<>();
+        onMain(() -> {
+            first.set(sourcesFragment(activity));
+            RecyclerView list = activity.findViewById(R.id.hosts_sources_list);
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View row = list.getChildAt(i);
+                if (hasText(row, "Apply regression source " + SOURCE_A)) {
+                    row.findViewById(R.id.sourceSwitch).performClick();
+                    return;
+                }
+            }
+            throw new AssertionError("Missing source switch");
+        });
+        waitForText(activity, R.string.notification_configuration_changed);
+        onMain(() -> assertTrue(activity.findViewById(R.id.nav_more).performClick()));
+        await("More replaced Sources", () -> onMainBoolean(() -> {
+            Fragment tab = activity.getSupportFragmentManager()
+                    .findFragmentById(R.id.nav_fragment_container);
+            return tab != null && "more".equals(tab.getTag()) && !first.get().isAdded();
+        }));
+        onMain(() -> assertTrue(activity.findViewById(R.id.nav_sources).performClick()));
+        assertSame(activity, waitForActivity(null));
+        onMain(() -> assertNotSame(first.get(), sourcesFragment(activity)));
+        waitForText(activity, R.string.notification_configuration_changed);
+        assertFalse(database.hostsSourceDao().getById(SOURCE_A).orElseThrow().isEnabled());
+        assertEquals(0, adBlockModel.applyCount.get());
+        clickApplyAction(activity);
+        waitForText(activity, R.string.notification_configuration_applied);
+        waitForTextAbsent(activity, R.string.notification_configuration_changed);
+        assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test
+    public void savedTaskRestoresDirtyBaselineIntoFreshStoreWithoutSourceUrls() {
+        onMain(() -> {
+            SavedTask first = new SavedTask(null);
+            HostsSourcesViewModel original = first.model(application);
+            HostsSource source = new HostsSource();
+            source.setId(SOURCE_A);
+            source.setUrl("https://fixture.example/"
+                    + String.join("", Collections.nCopies(1024, "0123456789abcdef")));
+            source.setEnabled(true);
+            List<HostsSource> rows = Collections.singletonList(source);
+            original.onSourcesChanged(rows);
+            source.setEnabled(false);
+            original.onSourcesChanged(rows);
+            assertTrue(original.getApplyState().isPending());
+
+            SavedTask second = new SavedTask(first.saveAndDiscard());
+            HostsSourcesViewModel restored = second.model(application);
+            assertNotSame(original, restored);
+            restored.observeAutomaticWork("historical", true, SourceApplyState.fingerprint(rows));
+            restored.onSourcesChanged(rows);
+            assertTrue(restored.getApplyState().isPending());
+            source.setEnabled(true);
+            restored.onSourcesChanged(rows);
+            assertFalse(restored.getApplyState().isPending());
+            restored.observeAutomaticWork("new", true, null);
+
+            SavedTask third = new SavedTask(second.saveAndDiscard());
+            HostsSourcesViewModel uncertain = third.model(application);
+            uncertain.onSourcesChanged(rows);
+            assertTrue(uncertain.getApplyState().isPending());
+            third.discard();
+        });
+    }
+
+    // A new registry and store cannot retain the old ViewModel as activity.recreate() can.
+    private static final class SavedTask implements SavedStateRegistryOwner, ViewModelStoreOwner {
+        private final LifecycleRegistry lifecycle = new LifecycleRegistry(this);
+        private final SavedStateRegistryController registry = SavedStateRegistryController.create(this);
+        private final ViewModelStore store = new ViewModelStore();
+
+        SavedTask(Bundle saved) {
+            registry.performRestore(saved);
+            lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE);
+        }
+
+        @NonNull @Override public Lifecycle getLifecycle() { return lifecycle; }
+        @NonNull @Override public ViewModelStore getViewModelStore() { return store; }
+        @NonNull @Override public SavedStateRegistry getSavedStateRegistry() {
+            return registry.getSavedStateRegistry();
+        }
+
+        HostsSourcesViewModel model(AdAwayApplication app) {
+            return new ViewModelProvider(this, new SavedStateViewModelFactory(app, this))
+                    .get(HostsSourcesViewModel.class);
+        }
+
+        Bundle saveAndDiscard() {
+            Bundle saved = new Bundle();
+            registry.performSave(saved);
+            Parcel parcel = Parcel.obtain();
+            try {
+                parcel.writeBundle(saved);
+                assertTrue("Task state must not contain the 16 KiB URL", parcel.dataSize() < 4096);
+                parcel.setDataPosition(0);
+                return parcel.readBundle(getClass().getClassLoader());
+            } finally {
+                parcel.recycle();
+                discard();
+            }
+        }
+
+        void discard() {
+            lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY);
+            store.clear();
+        }
+    }
+
+    @Test(timeout = 90_000)
     public void targetedUpdateLeavesReenabledUnrelatedSourcePending() {
         sourceModel.realUpdates = true;
         HomeActivity activity = launchSources();
@@ -163,6 +292,61 @@ public class SourcesApplyStateRegressionTest {
         assertEquals(0, sourceRuleCount(SOURCE_B));
         assertTrue(sourceRuleCount(SOURCE_A) > 0);
         assertTrue(database.hostsSourceDao().getById(SOURCE_B).orElseThrow().isEnabled());
+    }
+
+    @Test(timeout = 90_000)
+    public void firstApplyDuringNewSourceWorkerDoesNotReportFailure() throws Exception {
+        sourceModel.realUpdates = true;
+        HomeActivity activity = launchSources();
+        HostsSource added = new HostsSource();
+        added.setId(NEW_SOURCE);
+        added.setLabel("Named Hebrew fixture");
+        added.setUrl("content://org.adaway.test.hosts/success.txt?source=" + NEW_SOURCE);
+        added.setEnabled(true);
+        database.hostsSourceDao().insert(added);
+        waitForText(activity, R.string.notification_configuration_changed);
+        adBlockModel.blockApply();
+        SourceUpdateService.enqueueUpdateNow(context);
+        assertTrue(adBlockModel.entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+
+        clickApplyAction(activity);
+        assertFalse("A held worker lease is not an Apply failure", onMainBoolean(() ->
+                viewModelOnMain(activity).getApplyStatus().getValue()
+                        == HostsSourcesViewModel.ApplyStatus.FAILED));
+        waitForText(activity, R.string.error_update_in_progress_details);
+        assertTrue(onMainBoolean(() -> viewModelOnMain(activity).getApplyState().isPending()));
+        adBlockModel.releaseApply();
+
+        waitForText(activity, R.string.notification_configuration_applied);
+        assertFalse(onMainBoolean(() -> viewModelOnMain(activity).getApplyState().isPending()));
+        assertEquals(2, sourceRuleCount(NEW_SOURCE));
+        assertEquals(1, sourceModel.fullUpdates.get());
+        assertEquals(1, adBlockModel.applyCount.get());
+    }
+
+    @Test(timeout = 90_000)
+    public void busyTargetedRefreshCanRetryWithoutApplyingUnrelatedSelections() throws Exception {
+        HomeActivity activity = launchSources();
+        selectSource(SOURCE_B, false);
+        waitForText(activity, R.string.notification_configuration_changed);
+        HostsSource sourceA = database.hostsSourceDao().getById(SOURCE_A).orElseThrow();
+        try (SourceOperationCoordinator.Lease ignored = application.getSourceOperations().acquire()) {
+            onMain(() -> sourcesFragment(activity).updateSource(sourceA));
+            waitForText(activity, R.string.error_update_in_progress_details);
+            AtomicReference<View> firstAction = new AtomicReference<>();
+            onMain(() -> firstAction.set(activity.findViewById(
+                    com.google.android.material.R.id.snackbar_action)));
+            clickApplyAction(activity);
+            await("First busy banner dismissed", () -> onMainBoolean(() ->
+                    !firstAction.get().isAttachedToWindow()));
+            waitForText(activity, R.string.error_update_in_progress_details);
+            assertEquals(0, sourceModel.targetedUpdates.get());
+        }
+        clickApplyAction(activity);
+        waitForStatus(activity, HostsSourcesViewModel.ApplyStatus.SUCCEEDED);
+        waitForText(activity, R.string.notification_configuration_changed);
+        assertEquals(1, sourceModel.targetedUpdates.get());
+        assertEquals(0, sourceModel.fullUpdates.get());
     }
 
     @Test(timeout = 90_000)
@@ -419,7 +603,7 @@ public class SourcesApplyStateRegressionTest {
     }
 
     private static HostsSourcesViewModel viewModelOnMain(HomeActivity activity) {
-        return new ViewModelProvider(sourcesFragment(activity)).get(HostsSourcesViewModel.class);
+        return new ViewModelProvider(activity).get(HostsSourcesViewModel.class);
     }
 
     private static HostsSourcesViewModel viewModel(HomeActivity activity) {

@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertTrue;
 
@@ -45,18 +47,14 @@ public class SystemReceiverContractTest {
     }
 
     @Test
-    public void launcherShortcutsUseGeneratedApplicationIdResource() throws IOException {
+    public void launcherShortcutsUseLiteralInstalledPackage() throws IOException {
         String build = read("app/build.gradle");
         String shortcuts = read("app/src/main/res/xml/shortcuts.xml");
 
-        assertTrue("Application id should be explicit so launcher shortcut package is auditable.",
-                build.contains("applicationId = 'org.adaway'"));
-        assertTrue("Shortcut target package must be generated from the application id.",
-                build.contains("resValue \"string\", \"shortcut_target_package\", applicationId"));
-        assertTrue("Static shortcuts must not bake a literal package that can drift by build.",
-                !shortcuts.contains("android:targetPackage=\"org.adaway\""));
-        assertTrue("All three static shortcut intents should use the generated package resource.",
-                count(shortcuts, "android:targetPackage=\"@string/shortcut_target_package\"") == 3);
+        Matcher id = Pattern.compile("(?m)^\\s*applicationId\\s*=\\s*'([^']+)'\\s*$").matcher(build);
+        assertTrue("Expected explicit installed package.", id.find());
+        assertTrue("All static shortcut intents must name the installed package literally.",
+                count(shortcuts, "android:targetPackage=\"" + id.group(1) + "\"") == 3);
         assertTrue("Preferences shortcut target must remain explicit.",
                 shortcuts.contains("android:targetClass=\"org.adaway.ui.prefs.PrefsActivity\""));
         assertTrue("DNS requests shortcut target must remain explicit.",

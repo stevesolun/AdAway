@@ -1,8 +1,9 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.util.Constants.PREFS_SOURCE_SCHEDULES;
+
 import android.content.Context;
 import android.os.Bundle;
-import android.text.format.DateFormat;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -31,7 +32,6 @@ import java.util.Locale;
  */
 public class SchedulesActivity extends AppCompatActivity {
 
-    private static final String PREFS_SOURCE_SCHEDULES = "source_schedules";
     private static final String KEY_SCHEDULE_PREFIX = "schedule_url_";
     private static final String KEY_LAST_RUN_PREFIX = "last_run_url_";
     private static final String KEY_HOUR_PREFIX = "hour_url_";
@@ -39,8 +39,6 @@ public class SchedulesActivity extends AppCompatActivity {
     private static final String KEY_WEEKDAY_PREFIX = "weekday_url_";
 
     private static final int SCHEDULE_OFF = 0;
-    private static final int SCHEDULE_DAILY = 1;
-    private static final int SCHEDULE_WEEKLY = 2;
 
     private TextView globalStatus;
     private TextView filterSetSummary;
@@ -150,37 +148,15 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private void editGlobalSchedule() {
-        CharSequence[] options = new CharSequence[]{
-                getString(R.string.schedule_off),
-                getString(R.string.filter_set_schedule_daily),
-                getString(R.string.filter_set_schedule_weekly)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.schedule_global_title)
-                .setItems(options, (d, which) -> {
-                    if (which == 0) {
-                        FilterSetStore.setGlobalEnabled(this, false);
-                        FilterSetStore.setGlobalSchedule(this, FilterSetStore.SCHEDULE_OFF, 1, 3, 0);
-                        FilterSetUpdateService.enable(this);
-                        refreshSummary();
-                        return;
-                    }
-                    if (which == 1) {
-                        pickTime((h, m) -> {
-                            FilterSetStore.setGlobalSchedule(this, FilterSetStore.SCHEDULE_DAILY, 1, h, m);
-                            FilterSetUpdateService.enable(this);
-                            refreshSummary();
-                        });
-                    } else {
-                        pickDayOfWeek(dow -> pickTime((h, m) -> {
-                            FilterSetStore.setGlobalSchedule(this, FilterSetStore.SCHEDULE_WEEKLY, dow, h, m);
-                            FilterSetUpdateService.enable(this);
-                            refreshSummary();
-                        }));
-                    }
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+        SchedulePicker picker = new SchedulePicker(FilterSetStore.getGlobalSchedule(this),
+                FilterSetStore.getGlobalWeekdayIso(this), FilterSetStore.getGlobalHour(this),
+                FilterSetStore.getGlobalMinute(this));
+        picker.show(this, getString(R.string.schedule_global_title), R.string.schedule_off,
+                FilterSetStore.isGlobalScheduleEnabled(this), (cadence, day, hour, minute, label) -> {
+                    FilterSetStore.setGlobalSchedule(this, cadence, day, hour, minute);
+                    FilterSetUpdateService.syncPreferences(this);
+                    refreshSummary();
+                });
     }
 
     private void editFilterSetSchedules() {
@@ -201,36 +177,16 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private void promptScheduleForSet(@NonNull String name) {
-        CharSequence[] options = new CharSequence[]{
-                getString(R.string.filter_set_schedule_off),
-                getString(R.string.filter_set_schedule_daily),
-                getString(R.string.filter_set_schedule_weekly)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(name)
-                .setItems(options, (d, which) -> {
-                    if (which == 0) {
-                        FilterSetStore.setSchedule(this, name, FilterSetStore.SCHEDULE_OFF);
-                        FilterSetUpdateService.enable(this);
-                        refreshSummary();
-                        return;
+        SchedulePicker.forSet(this, name).show(this, name, R.string.filter_set_schedule_off,
+                true, (cadence, day, hour, minute, label) -> {
+                    if (cadence == SCHEDULE_OFF) {
+                        FilterSetStore.setSchedule(this, name, cadence);
+                    } else {
+                        FilterSetStore.setSchedule(this, name, cadence, day, hour, minute);
                     }
-                    if (which == 1) {
-                        pickTime((h, m) -> {
-                            FilterSetStore.setSchedule(this, name, FilterSetStore.SCHEDULE_DAILY, 1, h, m);
-                            FilterSetUpdateService.enable(this);
-                            refreshSummary();
-                        });
-                        return;
-                    }
-                    pickDayOfWeek(dow -> pickTime((h, m) -> {
-                        FilterSetStore.setSchedule(this, name, FilterSetStore.SCHEDULE_WEEKLY, dow, h, m);
-                        FilterSetUpdateService.enable(this);
-                        refreshSummary();
-                    }));
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+                    FilterSetUpdateService.syncPreferences(this);
+                    refreshSummary();
+                });
     }
 
     private void editSourceSchedules() {
@@ -262,36 +218,16 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private void promptScheduleForUrl(@NonNull String url) {
-        CharSequence[] options = new CharSequence[]{
-                getString(R.string.filter_set_schedule_off),
-                getString(R.string.filter_set_schedule_daily),
-                getString(R.string.filter_set_schedule_weekly)
-        };
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(url)
-                .setItems(options, (d, which) -> {
-                    if (which == 0) {
-                        saveSourceSchedule(url, SCHEDULE_OFF, 1, 3, 0);
-                        FilterSetUpdateService.enable(this);
-                        refreshSummary();
-                        return;
-                    }
-                    if (which == 1) {
-                        pickTime((h, m) -> {
-                            saveSourceSchedule(url, SCHEDULE_DAILY, 1, h, m);
-                            FilterSetUpdateService.enable(this);
-                            refreshSummary();
-                        });
-                        return;
-                    }
-                    pickDayOfWeek(dow -> pickTime((h, m) -> {
-                        saveSourceSchedule(url, SCHEDULE_WEEKLY, dow, h, m);
-                        FilterSetUpdateService.enable(this);
-                        refreshSummary();
-                    }));
-                })
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS_SOURCE_SCHEDULES, MODE_PRIVATE);
+        SchedulePicker picker = new SchedulePicker(prefs.getInt(KEY_SCHEDULE_PREFIX + url, SCHEDULE_OFF),
+                prefs.getInt(KEY_WEEKDAY_PREFIX + url, 1), prefs.getInt(KEY_HOUR_PREFIX + url, 3),
+                prefs.getInt(KEY_MINUTE_PREFIX + url, 0));
+        picker.show(this, url, R.string.filter_set_schedule_off, true,
+                (cadence, day, hour, minute, label) -> {
+                    saveSourceSchedule(url, cadence, day, hour, minute);
+                    FilterSetUpdateService.syncPreferences(this);
+                    refreshSummary();
+                });
     }
 
     private void saveSourceSchedule(String url, int schedule, int weekdayIso, int hour24, int minute) {
@@ -303,44 +239,6 @@ public class SchedulesActivity extends AppCompatActivity {
         e.putInt(KEY_MINUTE_PREFIX + url, Math.max(0, Math.min(59, minute)));
         e.remove(KEY_LAST_RUN_PREFIX + url);
         e.apply();
-    }
-
-    private interface TimePicked {
-        void onPicked(int hour24, int minute);
-    }
-
-    private void pickTime(@NonNull TimePicked picked) {
-        java.util.Calendar c = java.util.Calendar.getInstance();
-        int hour = c.get(java.util.Calendar.HOUR_OF_DAY);
-        int minute = c.get(java.util.Calendar.MINUTE);
-        new android.app.TimePickerDialog(
-                this,
-                (view, hourOfDay, minuteOfHour) -> picked.onPicked(hourOfDay, minuteOfHour),
-                hour,
-                minute,
-                DateFormat.is24HourFormat(this)
-        ).show();
-    }
-
-    private interface DayPicked {
-        void onPicked(int isoDay);
-    }
-
-    private void pickDayOfWeek(@NonNull DayPicked picked) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.filter_set_schedule_pick_day)
-                .setItems(getWeekdayLabels(), (d, which) -> picked.onPicked(which + 1))
-                .setNegativeButton(R.string.button_cancel, null)
-                .show();
-    }
-
-    @NonNull
-    private String[] getWeekdayLabels() {
-        String[] labels = new String[DayOfWeek.values().length];
-        for (int i = 0; i < labels.length; i++) {
-            labels[i] = dayName(i + 1);
-        }
-        return labels;
     }
 
     private String dayName(int iso) {

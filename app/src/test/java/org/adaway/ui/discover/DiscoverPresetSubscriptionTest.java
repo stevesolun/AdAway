@@ -153,12 +153,17 @@ public class DiscoverPresetSubscriptionTest {
         String source = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/HostsSourcesFragment.java");
 
-        assertTrue("Saving a named source selection must make the named set active.",
-                source.contains("FilterSetStore.saveSet(requireContext(), name, enabledUrls)") &&
-                        source.contains("FilterSetStore.setActiveProfile(requireContext(), name)"));
-        assertFalse("Saving a named set must not silently overwrite the custom profile first.",
-                source.contains("FilterSetStore.saveCustomProfile(requireContext(), enabledUrls);\n"
-                        + "        if (!FilterSetStore.PROFILE_CUSTOM.equals(name))"));
+        String save = source.substring(source.indexOf("private void saveFilterSet("),
+                source.indexOf("private void promptApplyFilterSet("));
+        int custom = save.indexOf("FilterSetStore.saveCustomProfile(appCtx, enabledUrls)");
+        int named = save.indexOf("FilterSetStore.saveSet(appCtx, name, enabledUrls)");
+        assertTrue("Saving a named set must snapshot committed selections and make that set active.",
+                save.contains("hostsSourceDao().getEnabled()") && save.contains("executors.diskIO()")
+                        && named >= 0 && save.indexOf("FilterSetStore.setActiveProfile(appCtx, name)") > named);
+        int namedBranch = save.indexOf("} else {", custom);
+        assertTrue("Saving a named set must not overwrite the custom profile first.",
+                save.contains("if (FilterSetStore.PROFILE_CUSTOM.equals(name))")
+                        && custom >= 0 && namedBranch > custom && named > namedBranch);
         assertTrue("Saving a named set must reject reserved or duplicate display names.",
                 source.contains("FilterSetStore.validateSetName(") &&
                         source.contains("R.string.filter_set_name_reserved") &&
@@ -173,8 +178,12 @@ public class DiscoverPresetSubscriptionTest {
                 source.contains("R.string.filter_set_name_empty"));
         assertTrue("Applying any saved set must record it as the active profile.",
                 source.contains("FilterSetStore.setActiveProfile(appCtx, name)"));
-        assertTrue("Manual source toggles must mark the active profile custom.",
-                source.contains("FilterSetStore.markCustomProfile(requireContext())"));
+        String model = readRepoFile(
+                "app/src/main/java/org/adaway/ui/hosts/HostsSourcesViewModel.java");
+        assertTrue("Manual source toggles must mark the active profile custom after saving.",
+                model.indexOf("hostsSourceDao.applyGroupSelection(ids, enabled)") >= 0
+                        && model.indexOf("FilterSetStore.markCustomProfile(getApplication())")
+                            > model.indexOf("hostsSourceDao.applyGroupSelection(ids, enabled)"));
         assertTrue("Scheduling current selection must generate a real non-reserved saved-set name.",
                 source.contains("createScheduledSelectionName()") &&
                         source.contains("filter_set_schedule_current_selection_saved_name") &&
@@ -267,6 +276,7 @@ public class DiscoverPresetSubscriptionTest {
                 "app/src/main/java/org/adaway/ui/source/SourceEditActivity.java");
         String schedules = readRepoFile(
                 "app/src/main/java/org/adaway/ui/hosts/SchedulesActivity.java");
+        String picker = readRepoFile("app/src/main/java/org/adaway/ui/hosts/SchedulePicker.java");
         String strings = readRepoFile("app/src/main/res/values/strings.xml");
 
         assertTrue("Filter-set schedule snackbars must use a string resource.",
@@ -274,9 +284,11 @@ public class DiscoverPresetSubscriptionTest {
         assertFalse("Filter-set schedule snackbars must not hard-code English copy.",
                 hosts.contains("\"Scheduled: \""));
         assertTrue("Schedule pickers must use localized weekday labels.",
-                hosts.contains("getWeekdayLabels()") &&
+                hosts.contains("SchedulePicker.forSet(") &&
                         sourceEdit.contains("getWeekdayLabels()") &&
-                        schedules.contains("getWeekdayLabels()"));
+                        schedules.contains("SchedulePicker.forSet(") &&
+                        picker.contains("getDisplayName(TextStyle.FULL,") &&
+                        picker.contains("Locale.getDefault()"));
         assertFalse("Hosts schedule picker must not hard-code Monday.",
                 hosts.contains("\"Monday\""));
         assertFalse("Source schedule picker must not hard-code Monday.",
@@ -659,7 +671,7 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("Manual add must remain an explicit dialog action.",
                 source.contains("builder.setPositiveButton(R.string.filterlists_add_manually"));
         assertTrue("Manual add must still route through the normal source editor.",
-                source.contains("openSourceEditForFilterList(summary, label, url)"));
+                source.contains("(dialog, which) -> openSourceEditForFilterList(summary,"));
         assertFalse("Unsupported row tap must not be only a dead-end snackbar.",
                 source.contains("showSnackbar(getString(R.string.filterlists_manual_review_required));\n"
                         + "            return;"));

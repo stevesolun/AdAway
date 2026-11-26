@@ -21,10 +21,10 @@ The project is open to any kind of contribution so feel free to share your ideas
 * [Translating to your language](#translating-to-your-language)
 * [Your first code contribution](#your-first-code-contribution)
 
-[Styleguides](#styleguides)
+[Style guidelines](#style-guidelines)
 * [Git commit messages](#git-commit-messages)
-* [Java styleguide](#java-styleguide)
-* [XML styleguide](#xml-styleguide)
+* [Java style guidelines](#java-style-guidelines)
+* [XML style guidelines](#xml-style-guidelines)
 
 [Additional notes](#additional-notes)
 * [tcpdump and webserver modules](#tcpdump-and-webserver-modules)
@@ -72,9 +72,9 @@ export PATH="$JAVA_HOME/bin:$PATH"
 3. Launch a debug build:
 `./gradlew assembleDebug`
 
-Without release signing properties, this uses the local debug key.
-For signed production builds and their required signing and update-trust inputs,
-follow the [release guide](RELEASING.md). Release trust checks remain required.
+For debug signing isolation, signed production builds, and required signing and
+update-trust inputs, follow the [release guide](RELEASING.md#4-building-release-apk).
+Release trust checks remain required.
 
 The first full build of the apk can take a lot of time, about 20 minutes, whereas an incremental build of the `app` module takes less than a dozen seconds.
 
@@ -89,7 +89,7 @@ capture, follow the [UX matrix instructions](README.md#ux-matrix-review-packet).
 
 ### Reporting bugs
 
-> **Note:** Before submitting a bug report, please use [the GitHub search on Issues page](https://github.com/AdAway/AdAway/issues) to check if there is already similar reports.
+> **Note:** For this fork, [search its issues](https://github.com/stevesolun/AdAway/issues) before filing a new report. Upstream AdAway has a separate tracker.
 
 #### How do I submit a (good) bug report?
 
@@ -101,7 +101,7 @@ Include hosts sources or domains you use, web pages URL you test.
 * **Explain which behavior you expected to see instead and why.**
 * **If you're reporting that AdAway crashed**, include a logcat.
 Use `adb logcat` if you have developer settings enabled on your device or use any application like [CatLog](https://play.google.com/store/apps/details?id=com.nolanlawson.logcat) to save logs.
-Include the crash report in the issue in a [code block](https://help.github.com/articles/markdown-basics/#multiple-lines), a [file attachment](https://help.github.com/articles/file-attachments-on-issues-and-pull-requests/), or put it in a [gist](https://gist.github.com/) and provide link to it.
+Share only the lines relevant to the crash. Before posting publicly, remove private URLs, DNS history, tokens and device identifiers.
 * **Specify which version of AdAway you're using.**
 You can get the exact version by opening in-app help and checking the _About_ tab.
 * **Specify the Android version and the ROM you're using.**
@@ -131,8 +131,8 @@ So if you want to complete or edit your language support for the application, ch
 Unsure where to begin contributing?
  You can start by looking through these `good first issue` and `help wanted` issues:
 
-* [Good first issues](https://github.com/AdAway/AdAway/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) - issues which should only require a few lines of code, and a test or two.
-* [Help wanted issues](https://github.com/AdAway/AdAway/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) - issues which should be a bit more involved than `beginner` issues.
+* [Good first issues](https://github.com/stevesolun/AdAway/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
+* [Help wanted issues](https://github.com/stevesolun/AdAway/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
 
 Both issue lists are sorted by total number of comments. While not perfect, the number of comments is a reasonable way of determining the impact a given change will have.
 

@@ -4,11 +4,16 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import javax.xml.parsers.DocumentBuilderFactory;
 
 public class HomeNavigationSourcesContractTest {
     @Test
@@ -470,9 +475,8 @@ public class HomeNavigationSourcesContractTest {
                                 "android:paddingBottom=\"@dimen/fab_list_bottom_clearance\"") &&
                         hostsListsLayout.contains(
                                 "android:paddingEnd=\"@dimen/fab_list_side_clearance\""));
-        assertTrue("Custom Rules shell must use RTL-safe constraints and FAB anchoring.",
-                listsLayout.contains("app:layout_anchorGravity=\"bottom|end\"") &&
-                        listsLayout.contains("app:layout_constraintStart_toStartOf=\"parent\"") &&
+        assertTrue("Custom Rules shell must use RTL-safe constraints.",
+                listsLayout.contains("app:layout_constraintStart_toStartOf=\"parent\"") &&
                         listsLayout.contains("app:layout_constraintEnd_toEndOf=\"parent\""));
         assertFalse("Custom Rules shell must not keep legacy left/right constraints.",
                 listsLayout.contains("layout_constraintLeft") ||
@@ -568,11 +572,28 @@ public class HomeNavigationSourcesContractTest {
                 sourceItem.contains("app:layout_constraintEnd_toStartOf=\"@id/hostCountBadge\""));
         assertTrue("Category headers should use the same restrained 8dp card radius.",
                 categoryHeader.contains("app:cardCornerRadius=\"8dp\""));
-        assertTrue("Sources FAB and preview item must match the categorized list users see.",
-                sourcesLayout.contains("app:layout_anchorGravity=\"bottom|end\"") &&
-                        sourcesLayout.contains("tools:listitem=\"@layout/filter_source_item\""));
+        assertTrue("Sources preview item must match the categorized list users see.",
+                sourcesLayout.contains("tools:listitem=\"@layout/filter_source_item\""));
         assertFalse("Sources layout must not keep legacy right gravity for the FAB.",
                 sourcesLayout.contains("bottom|right|end"));
+    }
+
+    @Test
+    public void snackbarButtonsDodgeThePromptWithoutFightingAFullScreenAnchor() throws Exception {
+        for (String layout : new String[]{"lists_fragment", "hosts_sources_fragment", "log_activity"}) {
+            String xml = readRepoFile("app/src/main/res/layout/" + layout + ".xml");
+            var document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    .parse(new InputSource(new StringReader(xml)));
+            var buttons = document.getElementsByTagName(
+                    "com.google.android.material.floatingactionbutton.FloatingActionButton");
+            org.junit.Assert.assertEquals(layout, 1, buttons.getLength());
+            Element button = (Element) buttons.item(0);
+            org.junit.Assert.assertEquals(layout, "androidx.coordinatorlayout.widget.CoordinatorLayout",
+                    button.getParentNode().getNodeName());
+            org.junit.Assert.assertEquals(layout, "bottom|end", button.getAttribute("android:layout_gravity"));
+            assertFalse(layout + ": a full-screen anchor repositions the button on every inset dodge",
+                    button.hasAttribute("app:layout_anchor"));
+        }
     }
 
     @Test
@@ -636,16 +657,23 @@ public class HomeNavigationSourcesContractTest {
     public void homeRefreshesLeakStatusAfterVpnProtectionStarts() throws Exception {
         String homeFragment = readRepoFile(
                 "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
-        int notifyStart = homeFragment.indexOf("private void notifyAdBlocked(boolean adBlocked)");
-        int notifyEnd = homeFragment.indexOf("private void notifyError", notifyStart);
-        String notifyAdBlocked = homeFragment.substring(notifyStart, notifyEnd);
-
-        assertTrue("Home must resample leak status after VPN transitions from starting to running.",
-                homeFragment.contains("VPN_LEAK_STATUS_REFRESH_DELAY_MS") &&
-                        notifyAdBlocked.contains("renderLeakStatus();") &&
-                        notifyAdBlocked.contains("postDelayed(this::renderLeakStatus") &&
-                        notifyAdBlocked.contains("PreferenceHelper.getAdBlockMethod") &&
-                        notifyAdBlocked.contains("== VPN"));
+        String observer = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/VpnLeakStatusObserver.java");
+        assertTrue("Home must bind the leak card refresh to the view lifecycle.",
+                homeFragment.contains("getViewLifecycleOwner().getLifecycle().addObserver(") &&
+                        homeFragment.contains("new VpnLeakStatusObserver(requireContext(), this::renderLeakStatus)"));
+        assertTrue("Register for VPN networks; the default NOT_VPN request excludes them.",
+                observer.contains("removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)") &&
+                        observer.contains("addTransportType(NetworkCapabilities.TRANSPORT_VPN)") &&
+                        observer.contains("registerNetworkCallback(vpn, this, this.main)"));
+        assertTrue("Home must also refresh when the service publishes its post-establish state.",
+                observer.contains("pref_vpn_service_status_key") &&
+                        observer.contains("registerOnSharedPreferenceChangeListener(this)") &&
+                        observer.contains("this.statusKey.equals(key)) scheduleRefresh()"));
+        assertTrue("A stopped view must release both event sources and queued UI work.",
+                observer.contains("unregisterNetworkCallback(this)") &&
+                        observer.contains("unregisterOnSharedPreferenceChangeListener(this)") &&
+                        observer.contains("removeCallbacks(this.refresh)"));
     }
 
     private static boolean statLabelUsesAutosize(String layout, String id) {

@@ -14,10 +14,10 @@ public class LogEntrySortTest {
     @Test
     public void testTopLevelDomainComparator() {
         Comparator<LogEntry> comparator = TOP_LEVEL_DOMAIN.comparator();
-        LogEntry entry1 = new LogEntry("google.com", null);
-        LogEntry entry1Copy = new LogEntry("google.com", ALLOWED);
-        LogEntry entry2 = new LogEntry("beta.google.com", null);
-        LogEntry entry3 = new LogEntry("www.google.com", null);
+        LogEntry entry1 = new LogEntry("google.com", null, false);
+        LogEntry entry1Copy = new LogEntry("google.com", ALLOWED, false);
+        LogEntry entry2 = new LogEntry("beta.google.com", null, false);
+        LogEntry entry3 = new LogEntry("www.google.com", null, false);
 
         // Check equality
         assertEquals(0, comparator.compare(entry1, entry1));
@@ -42,10 +42,10 @@ public class LogEntrySortTest {
     @Test
     public void testAlphabeticalComparator() {
         Comparator<LogEntry> comparator = ALPHABETICAL.comparator();
-        LogEntry entry1 = new LogEntry("google.com", null);
-        LogEntry entry1Copy = new LogEntry("google.com", ALLOWED);
-        LogEntry entry2 = new LogEntry("beta.google.com", null);
-        LogEntry entry3 = new LogEntry("www.google.com", null);
+        LogEntry entry1 = new LogEntry("google.com", null, false);
+        LogEntry entry1Copy = new LogEntry("google.com", ALLOWED, false);
+        LogEntry entry2 = new LogEntry("beta.google.com", null, false);
+        LogEntry entry3 = new LogEntry("www.google.com", null, false);
 
         // Check equality
         assertEquals(0, comparator.compare(entry1, entry1));

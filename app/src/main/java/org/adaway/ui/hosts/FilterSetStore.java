@@ -1,5 +1,7 @@
 package org.adaway.ui.hosts;
 
+import static org.adaway.util.Constants.PREFS_FILTER_SETS;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -29,7 +31,6 @@ import java.util.UUID;
  * Stores by URL, because URL is unique in the DB.
  */
 public final class FilterSetStore {
-    private static final String PREFS_FILTER_SETS = "filter_sets";
     private static final String KEY_SET_NAMES = "names";
     private static final String KEY_SET_PREFIX = "set_";
     private static final String KEY_SET_IDS = "ids";
@@ -301,6 +302,13 @@ public final class FilterSetStore {
     public static boolean hasSet(@NonNull Context context, @NonNull String name) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
         return resolveSetId(prefs, name) != null;
+    }
+
+    @Nullable
+    static String getSetIdForDisplayName(@NonNull Context context, @NonNull String name) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_FILTER_SETS, Context.MODE_PRIVATE);
+        String id = resolveSetId(prefs, name);
+        return id != null && name.equals(getProfileDisplayName(prefs, id)) ? id : null;
     }
 
     public static boolean hasSetUrls(@NonNull Context context, @NonNull String name) {

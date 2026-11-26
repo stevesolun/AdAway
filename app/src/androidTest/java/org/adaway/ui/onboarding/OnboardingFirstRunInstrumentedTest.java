@@ -17,8 +17,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
+import android.app.UiAutomation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
+import android.net.VpnService;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityNodeInfo;
 
@@ -51,6 +54,7 @@ import org.junit.runner.RunWith;
 import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
@@ -97,6 +101,60 @@ public class OnboardingFirstRunInstrumentedTest {
             if (this.context != null) {
                 this.context.deleteDatabase(TEST_DATABASE_NAME);
             }
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void cancellingSystemVpnConsentDoesNotDiagnoseAlwaysOn() throws Exception {
+        Intent consent = VpnService.prepare(this.context);
+        org.junit.Assume.assumeNotNull(consent);
+        PreferenceHelper.setAbBlockMethod(this.context, UNDEFINED);
+        Intent chooser = new Intent(this.context, OnboardingActivity.class)
+                .putExtra(OnboardingActivity.EXTRA_SKIP_AUTO_DETECT, true);
+        try (ActivityScenario<OnboardingActivity> scenario = ActivityScenario.launch(chooser)) {
+            scenario.onActivity(activity -> activity.findViewById(R.id.onboarding_vpn_card).performClick());
+            UiAutomation ui = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+            String systemPackage = consent.getComponent().getPackageName();
+            long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+            boolean cancelled = false;
+            String cancelLabel = android.content.res.Resources.getSystem().getString(android.R.string.cancel);
+            while (!cancelled && SystemClock.uptimeMillis() < deadline) {
+                AccessibilityNodeInfo node = ui.getRootInActiveWindow();
+                if (node != null) {
+                    if (systemPackage.contentEquals(node.getPackageName())) {
+                        AccessibilityNodeInfo cancel = findText(node, cancelLabel);
+                        if (cancel != null) {
+                            cancelled = cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                            cancel.recycle();
+                        }
+                    }
+                    node.recycle();
+                }
+                if (!cancelled) SystemClock.sleep(100);
+            }
+            assertTrue("Expected Cancel in Android's VPN dialog", cancelled);
+            assertAccessibilityText(this.context.getString(R.string.onboarding_vpn_denied_title));
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);
+            assertAccessibilityTextEnabled(this.context.getString(R.string.onboarding_start_button), false);
+            assertEquals(UNDEFINED, PreferenceHelper.getAdBlockMethod(this.context));
+            assertTrue(VpnService.prepare(this.context) != null);
+        }
+    }
+
+    @Test
+    public void hebrewChooserLabelsAndLogoResolveAsHebrew() {
+        Configuration config = new Configuration(this.context.getResources().getConfiguration());
+        config.setLocale(Locale.forLanguageTag("he-IL"));
+        Context localized = this.context.createConfigurationContext(config);
+        for (int id : new int[]{R.string.app_logo, R.string.app_description, R.string.onboarding_title,
+                R.string.onboarding_vpn_title, R.string.onboarding_vpn_desc,
+                R.string.onboarding_root_title, R.string.onboarding_root_desc,
+                R.string.onboarding_start_button, R.string.onboarding_method_selected,
+                R.string.onboarding_method_not_selected, R.string.onboarding_vpn_denied_title,
+                R.string.onboarding_vpn_denied_description}) {
+            String value = localized.getString(id);
+            assertTrue(value, value.codePoints().anyMatch(c -> Character.UnicodeScript.of(c)
+                    == Character.UnicodeScript.HEBREW));
         }
     }
 

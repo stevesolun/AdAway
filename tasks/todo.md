@@ -21,7 +21,58 @@ Post-release file and interaction checks: [post-beta review](audit-2026-11-25/va
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
 
+- [x] Reproduce category write failures and stale switch states, correct saved-set
+  ordering and retry, and preserve pending protection through tab and process
+  recreation. [Nine filter findings](audit-2026-11-25/deep-source-category-bugs.csv).
+- [x] On the signed phone candidate, isolate a public EasyList URL, measure
+  on/off/on results, browse ordinary sites and trace an actual block back to
+  the source in Domain Checker; verify allow and undo. [Measured outcomes](audit-2026-11-25/deep-signoff/source-category.md#phone-candidate).
+- [x] Reproduce and correct Android restore losing a named filter schedule
+  and hiding the first source. Verify the restored block and an independent
+  allowed host through the VPN. [Signed results](audit-2026-11-25/deep-signoff/platform-restore.md).
+- [x] Confirm an interrupted update does not consume the scheduled occurrence
+  before protection applies. [Stopped worker and retry](audit-2026-11-25/deep-signoff/scheduled-due.md).
+- [x] Distinguish enabled from actively filtering during Wi-Fi or mobile
+  network loss. [Signed Android 11 recovery, DNS and Chrome](audit-2026-11-25/deep-signoff/vpn-network-recovery.md#consolidated-signed-ota).
+- [x] On the same signed APK, retain one nonregional public filter over an
+  upgrade, check two independent sites, and recover the chosen selection
+  after 3,000 offline inputs. [Signed results and limits](audit-2026-11-25/deep-signoff/restored-phone-release.md).
+
 ### Next public Android beta: 13.5.7b
+
+- [x] Map non-root controls to explicit expected outcomes and tests. The
+  [inventory](audit-2026-11-25/deep-signoff/README.md) is not an execution count.
+- [x] Exercise a non-regional URL through the editor with the active VPN:
+  HaGeZi Multi LIGHT imported 85,887 rules alongside three default sources.
+  Verify ordinary sites and list-specific domains in Android Chrome.
+  The [arbitrary-filter checkpoint](audit-2026-11-25/deep-signoff/general-filter-checkpoint.md)
+  also covers an independent Dan Pollock URL, an in-place signed upgrade,
+  and a repeatable distinction between a blocked domain and a usable site.
+- [x] Fix and test missing-source recovery, file access refusal, cancellation
+  and scheduling an unsaved location. Verify block lists cannot turn
+  browser conditions into unconditional DNS rules. The [signed retest](audit-2026-11-25/deep-signoff/signed-upgrade.md#conditional-filters-on-the-phone-candidate)
+  used a third non-regional HTTPS list plus an independently enabled local file.
+- [x] Recheck the combined candidate after fixes for reproduced cross-screen
+  and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
+- [x] Retain Domain Checker feedback through recreation; two 18-case package
+  runs passed, including forced write failure and retry. On the signed APK,
+  Block survived rotation, the next Check cleared it and Delete restored DNS.
+- [x] Keep a fourth arbitrary URL (Firebog AdGuard DNS, 190k displayed) through
+  an in-place upgrade. Confirm the independent single-rule file shows 1 host.
+  See the [signed Domain Checker candidate](audit-2026-11-25/deep-signoff/signed-upgrade.md#domain-checker-phone-candidate).
+- [x] Reproduce the idle redraw on Sources and Custom Rules. Recheck all three
+  affected action buttons, real redirect and Log block/unblock, a general
+  13k list, Chrome loads, and the large-text no-rules state on the
+  [updated signed candidate](audit-2026-11-25/deep-signoff/pending-apply-and-locale.md).
+- [x] Fix rapid taps opening an old editor, retry losing the directory name,
+  and misleading confirmation counts. Verify a failed non-regional URL can be
+  repaired and retained during two real selected subscriptions and removals.
+  [Selection-order evidence](audit-2026-11-25/deep-signoff/discover-pick-order.md).
+- [x] Clean-install the signed APK, import Prigent-Ads, check two real Chrome
+  pages and a blocked domain, exercise 2,000 offline inputs, then recover the
+  live directory after reconnecting. This is bounded stress, not all click paths.
+- [x] Add hash-drift detection to the existing development CI job so earlier
+  file reviews cannot silently pass as current. Hosted validation is pending.
 
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.
@@ -31,10 +82,21 @@ The bounded beta release does not complete this ongoing audit.
     locally on API 34, then all four security cases passed after a cold reboot.
     See [bounded CI evidence](audit-2026-11-25/validation.md#pr-15-connected-test-correction).
 
-- [ ] Verify the signed candidate upgrades 13.5.6b without losing selected
-  filters. Exercise the non-root VPN and distinguish ordinary site content from
-  third-party verification screens.
+- [x] Verify the signed candidate upgrades 13.5.6b without losing selected
+  filters: [signed upgrade and browser evidence](audit-2026-11-25/deep-signoff/signed-upgrade.md).
+- [x] Verify the repeated 5M refresh low-memory fix on the retained
+  3 GiB emulator with [matched evidence](audit-2026-11-25/deep-stress-bugs.csv).
 - [ ] Merge the batched fixes only when all six required PR checks pass.
+- [x] Verify release cleanup cannot remove a published APK or update manifest;
+  24 mock scenarios passed and a read-only preview of this fork found no
+  eligible releases even with retention set to zero. The workflow is local
+  until merged. See the [delivery findings](audit-2026-11-25/deep-release-delivery-bugs.csv).
+- [x] Verify non-regional, on-device browsing and direct DNS on the signed
+  phone candidate; check in-place filter retention and debug/release signer
+  separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
+- The local independent test worker stopped on its usage limit before push.
+  No deep-QA PR or public 13.5.7b release exists at this checkpoint. Keep the
+  original protected review and CI gates; local evidence does not replace them.
 - [ ] Publish the signed beta from the merged commit. Verify the public APK and
   manifest, install the downloaded APK over 13.5.6b, and link the evidence.
 - Keep the remaining file reviews, untranslated guidance, workflow variants,

@@ -1,5 +1,6 @@
 package org.adaway.ui.source;
 
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult;
@@ -26,11 +28,11 @@ import org.adaway.helper.ThemeHelper;
 import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.SourceHttpPolicy;
 
 import java.time.DayOfWeek;
 import java.time.format.TextStyle;
 import java.util.Locale;
-import java.util.Optional;
 
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 import static android.view.View.INVISIBLE;
@@ -162,9 +164,16 @@ public class SourceEditActivity extends AppCompatActivity {
             if (result.getResultCode() == RESULT_OK
                     && data != null
                     && (uri = data.getData()) != null) {
-                // Persist read permission
-                getContentResolver().takePersistableUriPermission(uri, FLAG_GRANT_READ_URI_PERMISSION);
-                // Update file location
+                if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+                    this.binding.fileLocationTextView.setError(getString(R.string.source_edit_location_invalid));
+                    return;
+                }
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (SecurityException denied) {
+                    this.binding.fileLocationTextView.setError(getString(R.string.source_edit_file_grant_denied));
+                    return;
+                }
                 this.binding.fileLocationTextView.setText(uri.toString());
                 this.binding.fileLocationTextView.setError(null);
             }
@@ -189,20 +198,25 @@ public class SourceEditActivity extends AppCompatActivity {
         if (this.editing) {
             renderFormState();
             AppExecutors.getInstance().diskIO().execute(() -> {
-                Optional<HostsSource> hostsSource = this.hostsSourceDao.getById(sourceId);
-                hostsSource.ifPresent(source -> {
-                    AppExecutors.getInstance().mainThread().execute(() -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        this.edited = source;
-                        if (!this.formInitialized) {
-                            // Material buttons ignore setChecked while disabled. Keep listeners
-                            // unbound until the source has supplied its initial type and format.
-                            setFormEnabled(true);
-                            applyInitialValues(source);
-                            initializeForm();
+                HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
+                AppExecutors.getInstance().mainThread().execute(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (source == null) {
+                        if (!this.mViewModel.isMutationBlocked()) {
+                            Toast.makeText(this, R.string.source_edit_missing, Toast.LENGTH_SHORT).show();
                         }
-                        invalidateOptionsMenu();
-                    });
+                        finish();
+                        return;
+                    }
+                    this.edited = source;
+                    if (!this.formInitialized) {
+                        // Material buttons ignore setChecked while disabled. Bind listeners
+                        // after the source has supplied its initial type and format.
+                        setFormEnabled(true);
+                        applyInitialValues(source);
+                        initializeForm();
+                    }
+                    invalidateOptionsMenu();
                 });
             });
         } else {
@@ -310,7 +324,6 @@ public class SourceEditActivity extends AppCompatActivity {
             }
             if (isChecked) {
                 boolean isFile = checkedId == R.id.file_button;
-                this.binding.locationEditText.setText("");
                 this.binding.locationEditText.setEnabled(!isFile);
                 if (isFile) {
                     openDocument();
@@ -379,9 +392,15 @@ public class SourceEditActivity extends AppCompatActivity {
             }
             HostsSource source = validate();
             if (source == null) {
-                return false;
+                return true;
             }
-            promptAutoUpdateSchedule(source.getUrl());
+            if (!this.edited.getUrl().equals(source.getUrl())) {
+                (this.binding.typeButtonGroup.getCheckedButtonId() == R.id.url_button
+                        ? this.binding.locationEditText : this.binding.fileLocationTextView)
+                        .setError(getString(R.string.source_edit_schedule_save_first));
+                return true;
+            }
+            promptAutoUpdateSchedule(this.edited.getUrl());
             return true;
         }
         return false;
@@ -514,7 +533,7 @@ public class SourceEditActivity extends AppCompatActivity {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_url_location_required));
                 return null;
             }
-            if (url.contains(" ") || !HostsSource.isValidUrl(url)) {
+            if (url.contains(" ") || !SourceHttpPolicy.isRemoteUrl(url)) {
                 this.binding.locationEditText.setError(getString(R.string.source_edit_location_invalid));
                 return null;
             }

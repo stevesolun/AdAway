@@ -11,16 +11,8 @@ options.
 These additions/extensions have been made to PCAP to allow it to
 capture packets from a SITA ACN device (and potentially others).
 
-To enable its support you need to ensure that the distribution has
-a correct configure.in file; that can be created if neccessay by
-using the normal autoconf procedure of:
-
-aclocal
-autoconf
-autoheader
-automake
-
-Then run configure with the 'sita' option:
+The supplied configure script already supports SITA; configure.in is
+its source, not an output to regenerate. From the libpcap directory use:
 
 ./configure --with-sita
 
@@ -43,9 +35,8 @@ LAN devices.  The local system the aggregates the lists obtained from
 each IOP, sorts it, and provides it (to Wireshark et.al) as the
 list of monitorable interfaces.
 
-Once a valid interface has been selected, pcap_open() is called
-which opens a TCP session (to a well known port) on the target IOP
-and tells it to start monitoring.
+Once a valid interface has been selected, activating the capture handle
+opens a TCP session to the target IOP.
 
 All captured packets are then forwarded across that TCP session
 back to the local 'top layer' for forwarding to the actual

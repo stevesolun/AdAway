@@ -15,7 +15,6 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.update.UpdateModel;
 import org.adaway.model.vpn.VpnModel;
-import org.adaway.ui.hosts.FilterSetStore;
 import org.adaway.ui.hosts.FilterSetUpdateService;
 import org.adaway.util.AppExecutors;
 import org.adaway.util.Constants;
@@ -66,12 +65,8 @@ public class AdAwayApplication extends Application {
             }
         });
 
-        // Default: enable global daily update schedule for all enabled sources
-        // (configurable in UI).
-        FilterSetStore.ensureGlobalDefaults(this);
-        if (FilterSetStore.isGlobalScheduleEnabled(this)) {
-            FilterSetUpdateService.enable(this);
-        }
+        // A restore can be followed by immediate process death. Reconcile on launch too.
+        FilterSetUpdateService.syncPreferences(this);
     }
 
     /**

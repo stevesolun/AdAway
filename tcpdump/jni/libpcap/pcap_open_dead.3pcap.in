@@ -60,7 +60,7 @@ specifies the snapshot length for the
 .BR pcap_t .
 .PP
 When
-.BR pcap_open_dead_with_tstamp_precision() ,
+.B pcap_open_dead_with_tstamp_precision()
 is used to create a
 .B pcap_t
 for use with

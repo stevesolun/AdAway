@@ -156,6 +156,10 @@ have some other data link type, such as
 .B DLT_EN10MB
 for Ethernet.
 .SH RETURN VALUE
+Both routines return
+.B PCAP_ERROR_NOT_ACTIVATED
+if called before activation.
+.PP
 .B pcap_loop()
 returns 0 if
 .I cnt

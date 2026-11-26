@@ -1,6 +1,7 @@
 package org.adaway.model.source;
 
 import org.junit.Test;
+import org.junit.function.ThrowingRunnable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okio.Buffer;
 
 import static org.junit.Assert.*;
 
@@ -278,5 +280,25 @@ public class FilterListsDirectoryApiTest {
                 .message(code == 200 ? "OK" : "Failure")
                 .body(ResponseBody.create(body, JSON))
                 .build();
+    }
+
+    @Test
+    public void allDirectoryEndpointsRejectOversizedMetadataAsIoFailure() {
+        OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain -> {
+            boolean catalog = chain.request().url().encodedPath().equals("/lists");
+            long declared = (catalog ? 8L : 1L) * 1024 * 1024 + 1;
+            return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK")
+                    .body(ResponseBody.create(new Buffer().writeUtf8("[]"), JSON, declared))
+                    .build();
+        }).build();
+        FilterListsDirectoryApi api = new FilterListsDirectoryApi(client);
+        assertEquals("Metadata exceeds 8388608 bytes",
+                assertThrows(IOException.class, api::getListsJson).getMessage());
+        for (ThrowingRunnable fetch : new ThrowingRunnable[]{api::getTagsJson, api::getLanguagesJson,
+                api::getSyntaxesJson, () -> api.getListDetails(42)}) {
+            assertEquals("Metadata exceeds 1048576 bytes",
+                    assertThrows(IOException.class, fetch).getMessage());
+        }
     }
 }

@@ -815,7 +815,7 @@ AC_DEFUN(AC_LBL_HP_PPA_INFO_T_DL_MODULE_ID_1,
 	ac_cv_lbl_dl_hp_ppa_info_t_has_dl_module_id_1=no))
     AC_MSG_RESULT($ac_cv_lbl_dl_hp_ppa_info_t_has_dl_module_id_1)
     if test $ac_cv_lbl_dl_hp_ppa_info_t_has_dl_module_id_1 = yes ; then
-	    AC_DEFINE(HAVE_HP_PPA_INFO_T_DL_MODULE_ID_1,1,[if ppa_info_t_dl_module_id exists])
+	    AC_DEFINE(HAVE_HP_PPA_INFO_T_DL_MODULE_ID_1,1,[if dl_hp_ppa_info_t has a dl_module_id_1 member])
     fi])
 
 dnl

@@ -71,7 +71,7 @@ public class ApplyConfigurationSnackbar {
     @Nullable
     private ApplyStatus mLastSourceStatus;
     @Nullable
-    private Snackbar mFailureSnackbar;
+    private Snackbar mResultSnackbar;
 
     /**
      * Constructor.
@@ -114,11 +114,13 @@ public class ApplyConfigurationSnackbar {
             return;
         }
         this.waitSnackbar.dismiss();
-        if (status == ApplyStatus.FAILED) {
-            if (this.mFailureSnackbar == null) showFailure(this.mSourceViewModel::retry);
+        if (status == ApplyStatus.BUSY || status == ApplyStatus.FAILED) {
+            if (changed || this.mResultSnackbar == null) {
+                showUnapplied(status == ApplyStatus.BUSY, this.mSourceViewModel::retry);
+            }
             return;
         }
-        if (status == ApplyStatus.SUCCEEDED) dismissFailure();
+        if (status == ApplyStatus.SUCCEEDED) dismissResult();
         if (this.mSourceViewModel.getApplyState().isPending()) {
             notifyUpdateAvailable();
         } else {
@@ -243,7 +245,7 @@ public class ApplyConfigurationSnackbar {
 
     private void showLoading() {
         // Clear notify snackbar
-        dismissFailure();
+        dismissResult();
         dismissNotifySnackbar();
         // Show wait snackbar
         if (this.mSourceViewModel != null) {
@@ -261,7 +263,7 @@ public class ApplyConfigurationSnackbar {
             return;
         }
         if (!successfulInstall) {
-            showFailure(null);
+            showUnapplied(false, null);
             return;
         }
         if (this.update) {
@@ -283,26 +285,30 @@ public class ApplyConfigurationSnackbar {
     }
 
     @UiThread
-    public void showFailure(@Nullable Runnable retry) {
-        dismissFailure();
+    private void showUnapplied(boolean busy, @Nullable Runnable retry) {
+        dismissResult();
         dismissNotifySnackbar();
-        this.mFailureSnackbar = Snackbar.make(this.view,
-                R.string.notification_configuration_failed,
+        this.mResultSnackbar = Snackbar.make(this.view,
+                busy ? R.string.error_update_in_progress_details : R.string.notification_configuration_failed,
                 retry == null ? LENGTH_LONG : LENGTH_INDEFINITE);
         if (retry != null) {
-            this.mFailureSnackbar.setAction(R.string.notification_configuration_changed_action,
-                    v -> retry.run());
+            this.mResultSnackbar.setAction(R.string.notification_configuration_changed_action, v -> {
+                dismissResult();
+                retry.run();
+            });
         }
-        ImageView icon = new ImageView(this.view.getContext());
-        icon.setImageResource(R.drawable.ic_error_outline_24dp);
-        appendViewToSnackbar(this.mFailureSnackbar, icon);
-        this.mFailureSnackbar.show();
+        if (!busy) {
+            ImageView icon = new ImageView(this.view.getContext());
+            icon.setImageResource(R.drawable.ic_error_outline_24dp);
+            appendViewToSnackbar(this.mResultSnackbar, icon);
+        }
+        this.mResultSnackbar.show();
     }
 
-    private void dismissFailure() {
-        if (this.mFailureSnackbar != null) {
-            this.mFailureSnackbar.dismiss();
-            this.mFailureSnackbar = null;
+    private void dismissResult() {
+        if (this.mResultSnackbar != null) {
+            this.mResultSnackbar.dismiss();
+            this.mResultSnackbar = null;
         }
     }
 

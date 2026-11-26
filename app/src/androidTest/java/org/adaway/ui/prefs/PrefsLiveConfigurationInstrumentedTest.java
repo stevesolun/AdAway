@@ -114,8 +114,12 @@ public class PrefsLiveConfigurationInstrumentedTest {
                 int disabled = lifecycle.disabledWatchdogs.get();
                 int initializations = lifecycle.watchdogInitializations.get();
                 int destructions = lifecycle.destructions.get();
+                int launchesBeforeEnable = lifecycle.launches.get();
                 clickSwitch(scenario, key);
                 Network enabled = waitForTunnel(context, connectivity, initial);
+                int launchesAfterEnable = lifecycle.launches.get();
+                assertEquals("Enabling must issue exactly one restart.",
+                        launchesBeforeEnable + 1, launchesAfterEnable);
                 assertTrue(lifecycle.starts.get() > starts);
                 assertTrue(lifecycle.watchdogInitializations.get() > initializations);
                 assertTrue(snapshot.preferences.getBoolean(key, false));
@@ -125,18 +129,24 @@ public class PrefsLiveConfigurationInstrumentedTest {
                 } else if (dualStackDns) {
                     assertTrue(hasIpv6Dns(connectivity, enabled));
                 }
-                int afterEnableStarts = lifecycle.starts.get();
                 scenario.recreate();
                 InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+                // A network handoff can replace the worker without a settings launch.
+                Network beforeDisable = waitForTunnel(context, connectivity, null);
+                int startsBeforeDisable = lifecycle.starts.get();
+                int disabledWatchdogsBeforeDisable = lifecycle.disabledWatchdogs.get();
+                int launchesBeforeDisable = lifecycle.launches.get();
                 assertEquals("Recreation must not issue a duplicate restart.",
-                        afterEnableStarts, lifecycle.starts.get());
+                        launchesAfterEnable, launchesBeforeDisable);
 
                 clickSwitch(scenario, key);
-                Network disabledNetwork = waitForTunnel(context, connectivity, enabled);
-                assertTrue(lifecycle.starts.get() > afterEnableStarts);
+                Network disabledNetwork = waitForTunnel(context, connectivity, beforeDisable);
+                assertEquals("Disabling must issue exactly one restart.",
+                        launchesBeforeDisable + 1, lifecycle.launches.get());
+                assertTrue(lifecycle.starts.get() > startsBeforeDisable);
                 assertFalse(snapshot.preferences.getBoolean(key, true));
                 if (monitor) {
-                    assertTrue(lifecycle.disabledWatchdogs.get() > disabled);
+                    assertTrue(lifecycle.disabledWatchdogs.get() > disabledWatchdogsBeforeDisable);
                 } else if (dualStackDns) {
                     assertFalse(hasIpv6Dns(connectivity, disabledNetwork));
                 }

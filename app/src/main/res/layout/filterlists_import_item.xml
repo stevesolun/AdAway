@@ -24,7 +24,8 @@
             android:id="@+id/filterlistsItemSelectionCheckBox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:buttonTint="@color/status_red"
+            app:buttonTint="@color/discover_row_control"
+            app:buttonIconTint="@color/ui_bg"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -33,7 +34,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            app:thumbTint="@color/status_red"
+            app:thumbTint="@color/discover_row_control"
             app:trackTint="@color/ui_glass_stroke"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
@@ -55,40 +56,45 @@
             android:id="@+id/filterlistsItemSyntax"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
             android:layout_marginTop="2dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
+            app:layout_constraintStart_toStartOf="@id/filterlistsItemName"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemName"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toEndOf="@id/filterlistsItemName"
             tools:text="Hosts (IPv4)" />
 
         <TextView
             android:id="@+id/filterlistsItemStatus"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
             android:layout_marginTop="2dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
             android:textColor="@color/ui_neon_start"
             android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
+            app:layout_constraintStart_toStartOf="@id/filterlistsItemName"
             app:layout_constraintTop_toBottomOf="@id/filterlistsItemSyntax"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toEndOf="@id/filterlistsItemName"
             tools:text="Subscribed"
             tools:visibility="visible" />
+
+        <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/filterlistsItemMetadataBottom"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="bottom"
+            app:barrierAllowsGoneWidgets="false"
+            app:constraint_referenced_ids="filterlistsItemSelectionCheckBox,filterlistsItemSwitch,filterlistsItemSyntax,filterlistsItemStatus" />
 
         <TextView
             android:id="@+id/filterlistsItemDesc"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
             android:layout_marginTop="4dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:textColor="@color/ui_text_secondary"
-            app:layout_constraintStart_toEndOf="@id/filterlistsItemSelectionCheckBox"
-            app:layout_constraintTop_toBottomOf="@id/filterlistsItemStatus"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/filterlistsItemMetadataBottom"
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="Unified hosts with base extensions" />
 

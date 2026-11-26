@@ -27,7 +27,6 @@
 
     <string name="welcome_vpn_alwayson_title">Настроен е винаги включен VPN</string>
     <string name="welcome_vpn_alwayson_description">AdAway откри, че друга VPN услуга има активна настройка „Винаги включен VPN“.\n\nТова не позволява на AdAway да поиска достъп до VPN. Изключете „Винаги включен VPN“ на съответната VPN услуга и опитайте отново.</string>
-    <string name="welcome_vpn_alwayson_blocked_description">AdAway не можа да поиска VPN достъп.\n\nТова може да се дължи на факта, че друга VPN услуга има активна настройка „Винаги включен VPN“. Проверете дали някоя VPN услуга има включена тази настройка и я изключете, преди да опитате отново.</string>
     <string name="welcome_vpn_alwayson_settings_action">Настройки на VPN</string>
 
 
