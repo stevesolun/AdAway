@@ -4,7 +4,7 @@ This is the frozen discovery inventory, **not** a release or journey pass list. 
 
 For what actually ran and what is still open, see the
 [arbitrary-filter checkpoint](general-filter-checkpoint.md),
-[signed upgrade](signed-upgrade.md#deep-qa-phone-candidate) and
+[signed upgrade](signed-upgrade.md#final-signed-phone-candidate) and
 [verification decision](decision.md).
 
 | File | Meaning |
@@ -14,6 +14,7 @@ For what actually ran and what is still open, see the
 | `resource-crosswalk.csv` | 54 XML resources (37 layouts, 8 menus, 9 configuration/shortcut XMLs); includes inactive and root-only resources, not fabricated routes. |
 | `method-links.csv` | Exact method-to-oracle links and source pointers from the discovery snapshot. A fixture or a screen-entry assertion proves only what it actually asserts. |
 | `ci-methods.csv`, `ci-provenance.json` | Per-method Android 14 execution, separate from coverage. Includes unmapped methods, skips, the failed method, host-only links and methods absent from this run. |
+| `final-android14-methods.csv` | Final local 668-case run on app commit `07d396dd0`: terminal result and reason per case. The last column preserves prior control links; it is not a new per-control claim. |
 
 [CI run 45661198805](https://github.com/stevesolun/AdAway/actions/runs/45661198805), commit `3837d1951138b531410bb5767f7bf1a434f5dea4`, artifact `15048006671`: 626 cases, 607 passed, 18 skipped, 1 failed. That failure was the final SQLite cleanup assertion in `SourceModelOfflineFileTest#targetedDisabledUrlCleansUpOfflineWithoutTouchingUserRules`, not proof of user-rule loss. The archive and XML digests are in the provenance file. Neither these results nor historical manual evidence transfers to a later branch build.
 

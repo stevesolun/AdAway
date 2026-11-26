@@ -31,9 +31,20 @@ The bounded beta release does not complete this ongoing audit.
   The [arbitrary-filter checkpoint](audit-2026-11-25/deep-signoff/general-filter-checkpoint.md)
   also covers an independent Dan Pollock URL, an in-place signed upgrade,
   and a repeatable distinction between a blocked domain and a usable site.
+- [x] Fix and test missing-source recovery, file access refusal, cancellation
+  and scheduling an unsaved location. Verify block lists cannot turn
+  browser conditions into unconditional DNS rules. The [signed retest](audit-2026-11-25/deep-signoff/signed-upgrade.md#conditional-filters-on-the-phone-candidate)
+  used a third non-regional HTTPS list plus an independently enabled local file.
 - [x] Recheck the combined candidate after fixes for reproduced cross-screen
   and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
-  Handset testing remains user-deferred.
+  Final Android 14: 648 passed, 20 skipped, zero failures (668 cases).
+  JVM: 737 passed, three skipped, zero failures. Handset testing remains user-deferred.
+- [x] Retain Domain Checker feedback through recreation; two 18-case package
+  runs passed, including forced write failure and retry. On the signed APK,
+  Block survived rotation, the next Check cleared it and Delete restored DNS.
+- [x] Keep a fourth arbitrary URL (Firebog AdGuard DNS, 190k displayed) through
+  an in-place upgrade. Confirm the independent single-rule file shows 1 host.
+  See the [final signed phone candidate](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
 
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.
@@ -50,7 +61,7 @@ The bounded beta release does not complete this ongoing audit.
 - [ ] Merge the batched fixes only when all six required PR checks pass.
 - [x] Verify non-regional, on-device browsing and direct DNS on the signed
   phone candidate; check in-place filter retention and debug/release signer
-  separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#deep-qa-phone-candidate).
+  separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
 - The local independent test worker stopped on its usage limit before push.
   No deep-QA PR or public 13.5.7b release exists at this checkpoint. Keep the
   original protected review and CI gates; local evidence does not replace them.

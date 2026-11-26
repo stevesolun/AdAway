@@ -1,12 +1,15 @@
 # Arbitrary DNS filter: bounded Android signoff
 
-Use the [signed candidate](signed-upgrade.md#deep-qa-phone-candidate) for
+Use the [signed candidate](signed-upgrade.md#final-signed-phone-candidate) for
 phone testing. This checkpoint is about user-selected filter sources, not
 one region, a root installation, or browser-extension cosmetic filtering.
 
 | Journey | Observed on a non-root emulator |
 | --- | --- |
 | Enter a custom public URL | HaGeZi Multi LIGHT imported 85,887 rules and remained selected with the defaults. A different Dan Pollock URL imported 13,118; 25 unsupported lines were reported. |
+| Keep a third filter through an upgrade | Firebog's EasyPrivacy domain list showed 43k in the Sources UI before and after a public-to-local update and remained enabled. |
+| Keep a fourth arbitrary URL and use Domain Checker independently | Firebog's AdGuard DNS list stayed selected with a 190k badge across an in-place update. Block and Delete changed real VPN answers in both directions; the Block confirmation survived rotation. |
+| Import browser conditions without overblocking | Added a file with one unconditional rule and two conditional rules through Android's picker. The named unconditional domain was blocked, both browser-conditional domains still loaded, and turning off the file restored the blocked domain. |
 | Turn one list off and on | The recorded HaGeZi journey changed direct DNS results for two list-specific domains without removing the defaults. A cached system DNS response was distinguished from the direct VPN result. |
 | Upgrade with a selected list | A public-to-candidate upgrade chain kept app identity, the checked custom list and its 13k rule count. Restarting the Home switch restored protection. |
 | Browse ordinary sites on the phone candidate | Android Chrome returned HTTP 200 for Debian, NASA and Example Domain; the expected headings or document titles appeared. The listed media.fastclick.net failed DNS. |
@@ -25,7 +28,10 @@ tested layout languages establishes linguistic QA for all locales.
 **Remaining:** physical handset testing is user-deferred. The independent
 pre-push worker stopped on its usage limit; branch protection stays in
 place. The intermittent Android 11 first DNS timeout has not been explained.
-Three editor edge cases identified in source (document grant refusal, an
-already removed source, and scheduling an unsaved URL) are logged separately
-from the demonstrated successful URL flow. No public 13.5.7b release is
-claimed here.
+Domain Checker feedback loss across rotation was reproduced and fixed.
+Two focused Android package runs passed 18/18 each; the signed app also
+kept the confirmation across rotation and cleared it on the next check.
+The [editor recovery candidate](signed-upgrade.md#filter-editor-recovery-candidate)
+addresses the document grant refusal, deleted-source lookup, orphaned
+schedule and canceled-picker address loss. All 21 editor tests passed. No
+public 13.5.7b release is claimed here.

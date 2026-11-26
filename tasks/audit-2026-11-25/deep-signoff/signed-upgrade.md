@@ -1,5 +1,9 @@
 # Signed upgrade: Android 14, non-root VPN
 
+The [final signed phone candidate](#final-signed-phone-candidate) has the
+current checksum and its own test results. Earlier builds below are retained
+to distinguish the sources, Android sessions and fixes each one exercised.
+
 Installed the verified public 13.5.6b APK on disposable API 34 emulator-5574.
 In the regular UI, selected VPN, accepted Android's consent dialog, and added
 `https://someonewhocares.org/hosts/zero/hosts` under the name **QA Global**.
@@ -17,7 +21,7 @@ restarted it. Android then reported AdAway owning the connected tun0 VPN.
 | --- | --- |
 | Wikipedia, BBC, MDN in Android Chrome, browser cache disabled | All three main documents returned HTTP 200 and rendered; 384, 233 and 152 links respectively. |
 | Listed host `media.fastclick.net` | No A answers from the VPN DNS endpoint; Chrome returned `ERR_NAME_NOT_RESOLVED` with no document response. |
-| Ordinary DNS control `www.wikipedia.org` | Two A answers from the same VPN DNS endpoint. |
+| Ordinary DNS control `www.wikipedia.org` | One alias (CNAME) and one IPv4 address (A) from the same VPN DNS endpoint. |
 
 APK SHA-256: `30633336ec23ca8d188c48b70c123f6efafda4cad1830bb7ca72a75c24ec27b4`.
 The single signer matched the pinned public certificate
@@ -41,7 +45,7 @@ through the source editor. Both custom rows were checked (86k and 13k).
 In Android Chrome, Python.org, NASA and Wikipedia returned HTTP 200 with
 220, 284 and 384 rendered links; telemetry.mozilla.org failed DNS. Direct
 VPN DNS queries returned no A answers for telemetry.mozilla.org,
-advertising.microsoft.com or media.fastclick.net, and two for Wikipedia.
+advertising.microsoft.com or media.fastclick.net, and a CNAME plus one IPv4 address for Wikipedia.
 Evidence in the same directory: `p00-*` through `p02-*`, `b00-*`
 through `b03-*`, `bounded-package.txt`, `bounded-upgrade-tunnel.txt`,
 `bounded-multifilter-dns.json`, and `bounded-multifilter-sites.json`.
@@ -54,7 +58,7 @@ build from `b6c6a5a78` (SHA-256 `24512a34af3aaf8a4c66bbc0822201b507556130154af42
 Android verified the update in place: UID 10199 and first install time
 remained unchanged. Sources still showed the checked Dan Pollock custom
 list (13k; 25 skipped); a Home switch tap brought protection online. Direct
-VPN queries gave zero A answers for media.fastclick.net and two for Wikipedia.
+VPN queries gave zero A answers for media.fastclick.net and a CNAME plus one IPv4 address for Wikipedia.
 The certificate matched the public signer. Local evidence: `q00-*` to
 `q03-*` in the same directory. Not a published artifact.
 
@@ -68,7 +72,7 @@ protection active after starting the VPN. The Android 14 browser, with its
 cache disabled for the check, rendered Debian (37 links), NASA (284), and
 Example Domain (1); all returned HTTP 200. The listed media.fastclick.net
 failed with ERR_NAME_NOT_RESOLVED. Direct VPN DNS returned zero A answers
-for that host, three for Debian and two for Wikipedia. See `q14-sites.json`,
+for that host, three for Debian and a CNAME plus one IPv4 address for Wikipedia. See `q14-sites.json`,
 `q14-dns.json`, `q14-retained`, `q14-package.txt` and `q14-signer.txt`.
 This tests domain filtering, not cosmetic rules or every list format.
 
@@ -83,3 +87,99 @@ An additional scan checked the manifest of each APK under the local
 development certificate; none of those archived files used the release
 certificate. This is limited to that tree, not a scan of other machines
 or release history. See `q17-archived-debug-signers.txt`.
+
+## Filter editor recovery candidate
+
+Signed APK from `fb11c0976`, SHA-256
+`88247c4b1b01eb0cec4251db77f1a67934d2bc20ad110d809217bd4f92321e65`.
+On the signed public beta the real Documents picker followed by Cancel and
+switching back to URL cleared the displayed address. The public beta also
+opened the scheduling dialog against an unsaved location. Installed the
+candidate directly over 13.5.6b: app ID 10194, first installation time, the
+enabled Dan Pollock source, 13k rules and 25 skipped lines were retained.
+On the new version the same real picker round trip kept the address. The
+editor displayed “Save the new location before changing its schedule”
+instead of opening the schedule dialog. The debug regression independently
+verified both preferences and the database after Back and after a saved rename.
+
+With VPN re-enabled from Home, Chrome (cache disabled) rendered Linux Kernel
+Archives (HTTP 200; 104 links) and IANA Reserved Domains (HTTP 200; 60 links).
+The listed media.fastclick.net failed DNS in Chrome and had zero direct VPN
+answers. Direct queries returned one IPv4 address for Kernel and two for IANA.
+Evidence: `q18-public-*`, `q18-candidate-*`, `q18-signer-comparison.txt`,
+`q18-editor-dns.json`, `q18-editor-sites.json` and `q18-editor-green.txt`.
+
+## Conditional filters on the phone candidate
+
+Superseded local signed `13.5.7b/130507` from app commit `1097353af`:
+`45467825b03f832f4c0d2ae1602f8871016804f4fcbaf78a65ac0f16cbc5e923`.
+APK signature v2 and v3 verified against the public certificate.
+On public 13.5.6b, entered `https://v.firebog.net/hosts/Easyprivacy.txt`
+through the Add custom source dialog and applied it. The in-place update
+kept the original install time, app ID 10194 and the enabled 43k privacy
+filter. Home restarted protection without requiring root.
+
+Then imported the [local fixture](conditional-filter-fixture.txt) through
+Android's actual document picker. Sources showed **1 host, 2 skipped**.
+These are fresh A queries sent directly to this VPN, not browser cache hits:
+
+| Host | Before adding file | File enabled | File disabled and applied |
+| --- | --- | --- | --- |
+| www.example.com (unconditional) | 2 IPv4 addresses | No answers | 2 IPv4 addresses |
+| www.kernel.org (conditional) | 1 IPv4 address | 1 IPv4 address | 1 IPv4 address |
+| www.iana.org (else branch) | 2 IPv4 addresses | 2 IPv4 addresses | 2 IPv4 addresses |
+
+With the file enabled, actual Chrome loads (cache disabled) rendered Kernel
+(HTTP 200; 104 links) and IANA (HTTP 200; 60 links). Only www.example.com
+failed with `ERR_NAME_NOT_RESOLVED`, as the local test requested.
+The English category summary said “1 hosts”; that copy defect is separately
+logged and does not change enforcement. The 5M matched stress results are
+from the earlier staging fix, not a newly repeated 5M run on this APK.
+Evidence: `q19-{before,after,restored}-dns.json`, `q19-conditional-sites.json`,
+`q19-condition-visible`, `q19-retained-filter`, `q19-*-package.txt`.
+
+## Final signed phone candidate
+
+App commit `07d396dd0`, `AdAway_13.5.7b.apk`, version code 130507.
+SHA-256: `0fe4ac97d2dfa993653b9cac2f6f956dcb1038993731da32389a7c0a2e6fb11c`.
+APK v2/v3 verified; certificate SHA-256
+`9bf3a40102638ed9271f4dea6225a2d66e5d2c5f3e5204cc125376288f7f9595`.
+The release package was not debuggable. This is a local candidate, not a GitHub release.
+
+The compiled manifest had seven explicitly exported components. Only Home
+had no component permission. The VPN, tile and job services required Android's
+respective bind permissions, the command receiver required the app's signature
+permission (compiled protection level 0x2), and both library diagnostic
+receivers required DUMP. Neither debuggable nor testOnly was enabled.
+This is a packaged permission check, not an unrestricted security signoff.
+Local evidence: `q23-manifest-surface.txt`.
+
+On public 13.5.6b we entered `https://v.firebog.net/hosts/AdguardDNS.txt`
+as a custom URL and applied it. Installing the candidate in place kept the
+original Android app ID (10197), first-install time (02:00:53) and selection.
+The selected list showed 190k hosts (a rounded badge). We restarted the VPN
+from Home. No root, debug instrumentation or database edits were used for
+the following rule and browser checks:
+
+| Stage | Fresh IPv4 answer counts: example.com / kernel.org / iana.org (all www) |
+| --- | --- |
+| No test rule; Domain Checker says Unknown | 2 / 1 / 2 |
+| Immediately after tapping Block, while still applying | 2 / 1 / 2 |
+| Visible Blocked confirmation and refreshed result | 0 / 1 / 2 |
+| Delete Rule confirmation and refreshed Unknown result | 2 / 1 / 2 |
+
+Android Chrome, with HTTP cache disabled, rendered Debian (HTTP 200, 37 links)
+and IANA Reserved Domains (HTTP 200, 60 links). The listed media.fastclick.net
+and our deliberately blocked www.example.com each failed DNS. These are
+ordinary visits; we do not attribute every blocked request to the new feed.
+The Block confirmation remained visible in landscape and after returning to
+portrait; the next Check cleared it. Delete Rule showed its own result.
+
+Finally we disabled only the 190k custom source, applied, and selected the
+[conditional fixture](conditional-filter-fixture.txt) via Android's real file
+picker. Sources showed **1 of 2 enabled, 1 host**, with two skipped rules.
+Fresh VPN answer counts were again **0 / 1 / 2**. This verifies both the
+singular summary and the difference between unconditional and browser-only
+rules, independently of the larger filter. Raw captures: `q23-*-package.txt`,
+`q23-signed-chrome.json`, `q23-*-dns.json`, `q23-block-confirmation-*.png`,
+`q23-new-check.xml`, `q23-deleted-rule.xml` and `q23-singular-host.xml`.

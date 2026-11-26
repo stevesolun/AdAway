@@ -4,6 +4,27 @@ The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
 for the subsequent deep-QA changes. It is not yet evidence of public delivery.
 
+**Final local Android 14 result, app commit `07d396dd0`:** 668 started and
+finished: **648 passed, 20 assumption skips, zero failures or errors** in
+625.588 s. See the [per-method results and skip reasons](final-android14-methods.csv)
+and the separate [signed phone candidate and checksum](signed-upgrade.md#final-signed-phone-candidate).
+The suite ran the debug app; the upgrade, Chrome, DNS, rotation and picker
+checks ran the signed release app. The 5M stress runs below used the earlier
+memory fix; they were not rerun on each later UI change.
+
+The actual installed debug app/test SHA-256 values were
+`f1f7c1a73f0b2c797c295aa83a9e76d20e99087dbfcf2f690fb25c6a2d1afdbe` and
+`6784fe6aafbf8083af230ed68cdd7900ceb7e23f5186551f922e6dd8f9a840ea`.
+Raw instrumentation output `q23-full.txt`:
+`17d8461e6d4f1880829ea9b0e430aeccae1fb368b62df3b62ce036ba3dbfb5e6`.
+Skips: two notification, two platform backup, one root, three opt-in benchmark,
+one system download, one system tile callback and ten opt-in or unprepared
+VPN/network cases. All five Home round-trip tests and all 18 Domain Checker
+package tests passed in this complete run. Of 260 previously inventoried UI variants,
+180 have at least one historically linked method that passed in this run.
+That number is a cross-reference, **not** a count of fully signed-off journeys:
+a method can test a component without exercising every click or device state.
+
 **At review submission (18:46 UTC):** [DEEP-STRESS-001](../deep-stress-bugs.csv),
 [GitHub issue #17](https://github.com/stevesolun/AdAway/issues/17). The fresh 5M
 benchmark and a first real import succeeded, but a repeated production refresh
@@ -77,7 +98,7 @@ Raw evidence: `q06-full-connected.txt`, `q15-full-connected.txt`,
 The final public-source limits, startup batch and narrow layouts also have
 targeted regression evidence. Protected CI must validate the submitted head.
 
-**Final complete local Android 14 run:** 660 started, **641 passes, 19
+**Pre-editor complete local Android 14 run:** 660 started, **641 passes, 19
 assumption skips, zero failures or errors**, 646.919 seconds. Counts are
 from the per-case terminal statuses in `q16-final-suite.txt`, not the
 runner's total. The actual installed debug app and test APKs were verified
@@ -88,6 +109,68 @@ not a different release APK. The 19 skips comprised two channel/permission
 cases, two platform backup phases, one root apply, three opt-in benchmarks,
 one system download, and ten opt-in or unprepared live VPN/network cases.
 The separate signed VPN journey and 5M runs are not counted as suite passes.
+
+**Later editor and filter changes:** The public 13.5.6b editor lost the draft URL
+after cancelling Android's file picker. An instrumented refused document grant
+also crashed it. After the fix, all 21 editor cases passed. The full suite at
+`fb11c0976` finished 664 cases: 645 passed, 19 skipped, zero failures in
+690.641 s. Two new regressions then exposed browser-only conditional sections
+being applied as unconditional DNS rules. All 36 parser/offline cases passed
+after the fix at `1097353af`. See [signed upgrade and real browser tests](signed-upgrade.md#conditional-filters-on-the-phone-candidate).
+That earlier candidate APK SHA-256 was
+`45467825b03f832f4c0d2ae1602f8871016804f4fcbaf78a65ac0f16cbc5e923`.
+An upgrade from the public release retained the checked 43k EasyPrivacy list.
+The signed file-picker journey independently enabled, disabled and deleted
+a local source while the unrelated list remained selected.
+
+**What interrupted the first two integrated attempts:** One Android 14 emulator
+exited after 563 terminal outcomes; its graphics log reported an invalid color
+buffer. That incomplete run is not a suite pass. On a single fresh emulator
+the suite then finished 666 cases in 698.378 s: **646 passed, 19 skipped, one
+failed**. The second Home counter tap did not launch Lists. At 01:40:14.653
+Android's input event log identified NotificationShade as the recipient;
+the adjacent touchscreen events identified the attempted point as (540, 705).
+The test now waits for the intended window to own that point. It does not
+disable notifications, extend the deadline or retry the tap. All five Home
+cases then passed in 19.573 s, including a covering dialog and its dismissal.
+Raw files: `q19-parser-full.txt`, `q20-solitary-full.txt`, `q20-events.txt`,
+`q20-logcat.txt`, and `q20-home-guarded.txt`.
+
+The host suite after aligning the two screenshot-runner contracts finished
+740 cases across 95 suites: 737 passed, three skipped, zero failed, including
+all 15 host matrix tests. All 30 focused capture safety scenarios also passed.
+These tests check the capture process, not the usability of every screen.
+
+**Pre-feedback-fix Android 14 result (test commit `37742e77a`):** 667 started,
+**646 passed, 20 skipped, one failed**, 545.249 s. Counts are from per-case
+terminal statuses in `q21-final-suite.txt`. All five Home cases passed,
+including the formerly intercepted counter tap. The additional skip versus
+the preceding run was the conditional Quick Settings click: SystemUI accepted
+the command but did not dispatch its callback.
+
+The failing Domain Checker case forced a write error, recreated the stopped
+screen, restored writes and retried Block. The first failure was displayed as
+expected, and the runtime database sync ran after retry, but the test did not
+observe the visible success message before its deadline. Its subsequent
+persistence assertion therefore did not run. The finding remained open at
+that point: the identical method passed in the previous complete run and in
+three unchanged isolated repetitions (2.607, 3.038, 3.084 s), including the
+visible message and persisted rule. That does not establish the cause of
+the integrated failure. See `q21-domain-logcat.txt` and
+`q21-domain-unchanged-{1,2,3}.txt`. No public beta signoff from this run.
+
+**Domain Checker follow-up:** A whole-class run missed a different success
+message after Remove Allow. A deterministic regression then observed a
+successful Block and its stored rule, recreated the screen and found the
+confirmation gone. With the fix at `bea8c023d`, two independent full runs of
+the Domain Checker package passed all 18 cases (21.630 s and 19.981 s).
+The [final signed candidate](signed-upgrade.md#final-signed-phone-candidate)
+also retained the confirmation in landscape, cleared it on a new Check and
+restored DNS after Delete. We did not inject a failed write into the signed
+APK. A separate source-summary fix at `07d396dd0` was verified with a real
+single-rule file alongside a disabled 190k source. The final host suite
+passed 737 of 740 cases, with three skips and zero failures; Android lint
+reported 35 warnings and no errors.
 
 Android 11: three independent cold-boot, real-consent sequences on the same
 APK pair each passed the first blocked DNS query without retry (14, 31 and
