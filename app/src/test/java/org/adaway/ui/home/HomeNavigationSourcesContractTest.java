@@ -659,9 +659,18 @@ public class HomeNavigationSourcesContractTest {
                 "app/src/main/java/org/adaway/ui/home/HomeFragment.java");
         String observer = readRepoFile(
                 "app/src/main/java/org/adaway/ui/home/VpnLeakStatusObserver.java");
+        String viewModel = readRepoFile(
+                "app/src/main/java/org/adaway/ui/home/HomeViewModel.java");
         assertTrue("Home must bind the leak card refresh to the view lifecycle.",
                 homeFragment.contains("getViewLifecycleOwner().getLifecycle().addObserver(") &&
-                        homeFragment.contains("new VpnLeakStatusObserver(requireContext(), this::renderLeakStatus)"));
+                        homeFragment.contains("new VpnLeakStatusObserver(requireContext(), this::onVpnStateChanged)"));
+        int callback = homeFragment.indexOf("private void onVpnStateChanged()");
+        assertTrue(callback >= 0);
+        String refresh = homeFragment.substring(callback, homeFragment.indexOf('}', callback));
+        assertTrue("Both the switch and leak card must follow observed changes.",
+                refresh.contains("reconcileVpnProtection()") && refresh.contains("renderLeakStatus()"));
+        assertFalse("Passive model observation must not prepare or displace a VPN.",
+                viewModel.contains("VpnService.prepare("));
         assertTrue("Register for VPN networks; the default NOT_VPN request excludes them.",
                 observer.contains("removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)") &&
                         observer.contains("addTransportType(NetworkCapabilities.TRANSPORT_VPN)") &&

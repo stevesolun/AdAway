@@ -711,7 +711,7 @@ public class HomeFragment extends Fragment {
                 .setOnClickListener(v -> openVpnSettings());
         if (PreferenceHelper.getAdBlockMethod(requireContext()) == VPN) {
             getViewLifecycleOwner().getLifecycle().addObserver(
-                    new VpnLeakStatusObserver(requireContext(), this::renderLeakStatus));
+                    new VpnLeakStatusObserver(requireContext(), this::onVpnStateChanged));
         }
         renderLeakStatus();
     }
@@ -813,6 +813,11 @@ public class HomeFragment extends Fragment {
         if (dialog != this.downloadErrorDialog) return false;
         this.homeViewModel.acknowledgeError(HostError.DOWNLOAD_FAILED);
         return true;
+    }
+
+    private void onVpnStateChanged() {
+        this.homeViewModel.reconcileVpnProtection();
+        renderLeakStatus();
     }
 
     private void renderLeakStatus() {

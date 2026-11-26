@@ -113,11 +113,12 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     @MainThread
-    void reconcileProtectionOnResume() {
+    void reconcileVpnProtection() {
         if (!(this.adBlockModel instanceof VpnModel)) return;
-        // Forget VPN in Android settings revokes consent without a model command.
-        if (android.net.VpnService.prepare(getApplication()) != null) {
-            this.homeApplied.setValue(false);
+        // prepare() can revoke someone else's VPN. Only the enable flow may call it.
+        boolean enabled = VpnServiceControls.isEnabled(getApplication());
+        if (!Boolean.valueOf(enabled).equals(this.homeApplied.getValue())) {
+            this.homeApplied.setValue(enabled);
         }
     }
 
@@ -301,10 +302,10 @@ public class HomeViewModel extends AndroidViewModel {
             notifyProtectionControl();
             return;
         }
-        startUpdate();
+        startUpdate(false);
     }
 
-    private void startUpdate() {
+    private void startUpdate(boolean initialDownload) {
         SourceOperationCoordinator.Lease lease = beginOperation();
         if (lease == null) return;
         this.initialUpdateRequested = false;
@@ -312,7 +313,12 @@ public class HomeViewModel extends AndroidViewModel {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 try {
                     if (this.sourceModel.checkAndRetrieveHostsSources()) {
-                        this.adBlockModel.apply();
+                        if (initialDownload) {
+                            // Onboarding already enabled protection. A delayed download must not.
+                            this.adBlockModel.applyAfterBackgroundRefresh();
+                        } else {
+                            this.adBlockModel.apply();
+                        }
                     }
                 } catch (HostErrorException exception) {
                     Timber.w(exception, "Failed to update.");
@@ -373,7 +379,7 @@ public class HomeViewModel extends AndroidViewModel {
         }
         if (canStartOperation()) {
             if (this.initialUpdateRequested) {
-                startUpdate();
+                startUpdate(true);
             } else if (hasAuthorizedVpnEnableRequest()) {
                 if (this.adBlockModel instanceof VpnModel
                         ? VpnServiceControls.isRunning(getApplication())

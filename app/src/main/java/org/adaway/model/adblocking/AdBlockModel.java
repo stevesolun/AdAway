@@ -10,6 +10,7 @@ import org.adaway.model.OperationStatus;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.root.RootModel;
 import org.adaway.model.vpn.VpnModel;
+import org.adaway.vpn.VpnServiceControls;
 
 import java.util.List;
 
@@ -90,6 +91,17 @@ public abstract class AdBlockModel {
      * @throws HostErrorException If the model configuration could not be applied.
      */
     public abstract void apply() throws HostErrorException;
+
+    /** After SourceModel publishes refreshed rules, report whether protection uses them. */
+    public boolean applyAfterBackgroundRefresh() throws HostErrorException {
+        if (getMethod() == AdBlockMethod.VPN) {
+            // Publishing runtime rows already invalidates the live VPN lookup cache.
+            // Never prepare or start a VPN just to refresh those rows.
+            return VpnServiceControls.isTunnelEstablished(this.context);
+        }
+        apply();
+        return true;
+    }
 
     /**
      * Revert the hosts list to the default one.

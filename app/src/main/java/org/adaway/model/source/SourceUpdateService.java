@@ -202,7 +202,7 @@ public final class SourceUpdateService {
                 if (sourceModel.checkAndRetrieveHostsSources()) {
                     // Apply source updates
                     AdBlockModel adBlockModel = application.getAdBlockModel();
-                    adBlockModel.apply();
+                    adBlockModel.applyAfterBackgroundRefresh();
                 }
             } else {
                 // Display update notification
@@ -233,7 +233,10 @@ public final class SourceUpdateService {
                     return retry();
                 }
                 AdBlockModel adBlockModel = application.getAdBlockModel();
-                adBlockModel.apply();
+                if (!adBlockModel.applyAfterBackgroundRefresh()) {
+                    // Rules were downloaded, but there is no active protection to acknowledge.
+                    return success();
+                }
                 // Do not acknowledge edits made while this update was in flight.
                 if (!configuration.equals(SourceApplyState.fingerprint(sources.getAll()))) {
                     return success();
