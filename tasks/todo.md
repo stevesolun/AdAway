@@ -16,7 +16,8 @@ Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
 Historical 13.5.5b candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
 Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
-Public beta: [13.5.6b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.6b).
+Verified publication: [13.5.7b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.7b).
+For later builds, see [GitHub Releases](https://github.com/stevesolun/AdAway/releases).
 Post-release file and interaction checks: [post-beta review](audit-2026-11-25/validation.md#post-beta-review).
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
@@ -45,7 +46,7 @@ The bounded beta release does not complete this ongoing audit.
   upgrade, check two independent sites, and recover the chosen selection
   after 3,000 offline inputs. [Signed results and limits](audit-2026-11-25/deep-signoff/restored-phone-release.md).
 
-### Next public Android beta: 13.5.7b
+### Published Android beta: 13.5.7b
 
 - [x] Map non-root controls to explicit expected outcomes and tests. The
   [inventory](audit-2026-11-25/deep-signoff/README.md) is not an execution count.
@@ -78,8 +79,9 @@ The bounded beta release does not complete this ongoing audit.
 - [x] Clean-install the signed APK, import Prigent-Ads, check two real Chrome
   pages and a blocked domain, exercise 2,000 offline inputs, then recover the
   live directory after reconnecting. This is bounded stress, not all click paths.
-- [x] Add hash-drift detection to the existing development CI job so earlier
-  file reviews cannot silently pass as current. Hosted validation is pending.
+- [x] Add hash-drift detection to the development CI job. The
+  [v13.5.7b CI workflow](https://github.com/stevesolun/AdAway/blob/v13.5.7b/.github/workflows/android-ci.yml)
+  checks the audit inventory against the checkout it is building.
 
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.
@@ -93,19 +95,26 @@ The bounded beta release does not complete this ongoing audit.
   filters: [signed upgrade and browser evidence](audit-2026-11-25/deep-signoff/signed-upgrade.md).
 - [x] Verify the repeated 5M refresh low-memory fix on the retained
   3 GiB emulator with [matched evidence](audit-2026-11-25/deep-stress-bugs.csv).
-- [ ] Merge the batched fixes only when all six required PR checks pass.
-- [x] Verify release cleanup cannot remove a published APK or update manifest;
-  24 mock scenarios passed and a read-only preview of this fork found no
-  eligible releases even with retention set to zero. The workflow is local
-  until merged. See the [delivery findings](audit-2026-11-25/deep-release-delivery-bugs.csv).
+- [x] Merge the batched fixes after all six required checks passed on
+  [PR #23](https://github.com/stevesolun/AdAway/pull/23).
+- [x] Verify cleanup skips releases containing a published APK or update
+  manifest. The [cleanup workflow](https://github.com/stevesolun/AdAway/blob/v13.5.7b/.github/workflows/cleanup-releases.yml)
+  is in the v13.5.7b tag. All 24 mock scenarios passed; the read-only preview
+  found no eligible releases even at zero retention and deleted nothing.
+  See the [delivery findings](audit-2026-11-25/deep-release-delivery-bugs.csv).
 - [x] Verify non-regional, on-device browsing and direct DNS on the signed
   phone candidate; check in-place filter retention and debug/release signer
   separation. See the [APK checksum and measured outcomes](audit-2026-11-25/deep-signoff/signed-upgrade.md#final-signed-phone-candidate).
-- The local independent test worker stopped on its usage limit before push.
-  No deep-QA PR or public 13.5.7b release exists at this checkpoint. Keep the
-  original protected review and CI gates; local evidence does not replace them.
-- [ ] Publish the signed beta from the merged commit. Verify the public APK and
-  manifest, install the downloaded APK over 13.5.6b, and link the evidence.
+- [x] Publish the signed beta from the merged commit. Verify the public APK and
+  manifest and install the exact published APK over 13.5.6b through the app.
+  [Public upgrade and verification](audit-2026-11-25/deep-signoff/public-13.5.7b.md).
+- [ ] Address passive VPN ownership and post-update guidance without overriding
+  an intentional off setting or another VPN. See [issue #25](https://github.com/stevesolun/AdAway/issues/25).
+- [x] Fix the passive-ownership part: the competing VPN stayed connected
+  through Home, a background filter refresh and consent cancellation. Verify
+  in-place upgrades from both intentionally on and intentionally off using
+  the [local signed 13.5.8b candidate](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md).
+  The ordinary tunnel still needs a tap to resume after package replacement.
 - Keep the remaining file reviews, untranslated guidance, workflow variants,
   and intermittent Android 11 first-DNS-query investigation in the audit.
   A physical phone is not emulated evidence; root is not a VPN beta requirement.

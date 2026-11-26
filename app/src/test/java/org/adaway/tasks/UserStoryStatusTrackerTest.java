@@ -105,10 +105,7 @@ public class UserStoryStatusTrackerTest {
         Map<String, Row> rows = rowsById();
 
         assertOpenGate(rows, "RUNTIME-007", "rooted");
-        assertOpenGate(rows, "UPDATE-002", "device install");
-        assertOpenGate(rows, "UPDATE-004", "directrelease");
         assertOpenGate(rows, "REL-001", "legal/provenance");
-        assertOpenGate(rows, "REL-002", "tagged release");
         assertOpenGate(rows, "REL-003", "physical device");
         assertOpenGate(rows, "REL-004", "human review");
         assertOpenGate(rows, "REL-005", "real release artifacts");
@@ -200,7 +197,25 @@ public class UserStoryStatusTrackerTest {
     }
 
     @Test
-    public void update004StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+    public void signedUpdateRowsRecordPublicEmulatorUpgradeAndKeepPhysicalGateOpen() throws IOException {
+        Map<String, Row> rows = rowsById();
+        String receipt = "tasks/audit-2026-11-25/deep-signoff/public-13.5.7b.md";
+        assertTrue("Public upgrade receipt must exist.", Files.isRegularFile(repoDir().resolve(receipt)));
+        for (String id : List.of("UPDATE-002", "UPDATE-004")) {
+            assertOpenGate(rows, id, "physical device");
+            Row row = rows.get(id);
+            assertTrue(id + " must cite the public install receipt.",
+                    row.existingTestEvidence().contains(receipt));
+            assertTrue(id + " must identify the tested versions and emulator.",
+                    row.testState().contains("13.5.6b") && row.testState().contains("13.5.7b") &&
+                            row.testState().contains("Android 14 emulator"));
+            assertTrue(id + " must keep the physical install separate from the emulator result.",
+                    row.retestStatus().contains("physical device install remains open"));
+        }
+    }
+
+    @Test
+    public void update004RetainsDirectReleaseDryRunEvidence() throws IOException {
         Row row = rowsById().get("UPDATE-004");
 
         assertNotNull("UPDATE-004 row should exist.", row);
@@ -218,9 +233,6 @@ public class UserStoryStatusTrackerTest {
                         row.testState().contains("202 APK resources") &&
                         row.testState().contains("105 SBOM components") &&
                         row.testState().contains("Issues 0"));
-        assertTrue("UPDATE-004 should keep production install smoke open.",
-                row.riskNotes().contains("production signed directRelease") &&
-                        row.retestStatus().contains("signed directRelease install smoke remains open"));
     }
 
     @Test
@@ -228,34 +240,30 @@ public class UserStoryStatusTrackerTest {
             throws IOException {
         Map<String, Row> rows = rowsById();
 
-        assertReleaseHandoffGate(rows, "REL-002", "artifact verifier");
         assertReleaseHandoffGate(rows, "REL-003", "physical-smoke");
         assertReleaseHandoffGate(rows, "REL-004", "ux packet");
         assertReleaseHandoffGate(rows, "REL-005", "readiness aggregator");
     }
 
     @Test
-    public void rel002StaysOpenWithDirectReleaseDryRunEvidence() throws IOException {
+    public void rel002HasTaggedReleaseProofDistinctFromPhysicalDeviceSmoke() throws IOException {
         Row row = rowsById().get("REL-002");
 
         assertNotNull("REL-002 row should exist.", row);
         assertEquals("REL-002 should remain a P0 release artifact gate.", "P0",
                 row.priority());
-        assertFalse("REL-002 must not be marked covered by an ephemeral dry run.",
-                isFullyCovered(row));
-        assertTrue("REL-002 should point at the directRelease dry-run evidence.",
-                row.allEvidence().contains(
-                        "tasks/benchmarks/2026-06-28-update004-" +
-                                "directrelease-dry-run-evidence.md"));
-        assertTrue("REL-002 should record the directRelease dry-run scope.",
-                row.testState().contains("release packaging") &&
-                        row.testState().contains("R8/minification") &&
-                        row.testState().contains("release SBOM generation") &&
-                        row.testState().contains("strict APK/SBOM artifact-boundary"));
-        assertTrue("REL-002 should keep real signed artifact proof open.",
-                row.riskNotes().contains("production signer certificate") &&
-                        row.riskNotes().contains("signed manifest") &&
-                        row.retestStatus().contains("tagged release artifact run remains open"));
+        assertTrue(isFullyCovered(row));
+        String receipt = "tasks/audit-2026-11-25/deep-signoff/public-13.5.7b.md";
+        assertTrue(row.existingTestEvidence().contains(receipt));
+        String evidence = new String(Files.readAllBytes(repoDir().resolve(receipt)), StandardCharsets.UTF_8);
+        for (String run : List.of("45763790578", "45764511394")) {
+            String url = "https://github.com/stevesolun/AdAway/actions/runs/" + run;
+            assertTrue(row.retestStatus().contains(url));
+            assertTrue(evidence.contains(url));
+        }
+        assertTrue(evidence.contains("org.adaway") && evidence.contains("130507") &&
+                evidence.contains("039020460a1c219961a18d37c9d1660f144a95b37663e5337deeb918e7861fbc"));
+        assertTrue(row.riskNotes().contains("physical device") && row.riskNotes().contains("REL-003"));
     }
 
     @Test

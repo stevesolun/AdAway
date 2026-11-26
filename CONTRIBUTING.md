@@ -106,7 +106,7 @@ Include hosts sources or domains you use, web pages URL you test.
 Use `adb logcat` if you have developer settings enabled on your device or use any application like [CatLog](https://play.google.com/store/apps/details?id=com.nolanlawson.logcat) to save logs.
 Share only the lines relevant to the crash. Before posting publicly, remove private URLs, DNS history, tokens and device identifiers.
 * **Specify which version of AdAway you're using.**
-You can get the exact version by opening in-app help and checking the _About_ tab.
+In AdAway, open **More** and select **About** to see the installed version.
 * **Specify the Android version and the ROM you're using.**
 You can also include any root or customization related information like _Magisk_ or _SuperSU_ version and _Xposed_ modules is installed.
 
