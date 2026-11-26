@@ -72,10 +72,6 @@ public class DomainCheckerViewModel extends AndroidViewModel {
         return mOperationResult;
     }
 
-    void consumeOperationResult(OperationResult result) {
-        if (mOperationResult.getValue() == result) mOperationResult.setValue(null);
-    }
-
     public void checkDomain(String input) {
         onMain(() -> {
             String domain = DomainNormalizer.normalize(input);

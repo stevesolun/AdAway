@@ -178,6 +178,22 @@ public class DomainCheckerOperationsInstrumentedTest {
         }
     }
 
+    @Test(timeout = 60000)
+    public void successfulBlockFeedbackSurvivesRecreationAndClearsOnNextCheck() throws Exception {
+        String confirmation = application.getString(R.string.domain_checker_blocked_snack, HOST);
+        try (ActivityScenario<HomeActivity> scenario = openChecker()) {
+            check(scenario, HOST);
+            scenario.onActivity(activity -> assertTrue(activity.findViewById(R.id.blockButton).performClick()));
+            awaitIdle(scenario);
+            awaitText(scenario, confirmation);
+            assertEquals(ListType.BLOCKED, userRule().getType());
+            scenario.recreate();
+            awaitText(scenario, confirmation);
+            check(scenario, OTHER);
+            scenario.onActivity(activity -> assertFalse(hasText(activity.getWindow().getDecorView(), confirmation)));
+        }
+    }
+
     @Test(timeout = 120000)
     public void failedReplacementRollsBackPreviousAllowRuleThenRetries() throws Exception {
         seedRule(ListType.ALLOWED);

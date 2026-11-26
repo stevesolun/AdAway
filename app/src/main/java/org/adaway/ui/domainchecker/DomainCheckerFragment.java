@@ -1,6 +1,7 @@
 package org.adaway.ui.domainchecker;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,7 +21,6 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputEditText;
 
 import org.adaway.R;
@@ -47,6 +47,7 @@ public class DomainCheckerFragment extends Fragment {
 
         TextInputEditText domainEditText = view.findViewById(R.id.domainEditText);
         MaterialButton checkButton = view.findViewById(R.id.checkButton);
+        TextView feedback = view.findViewById(R.id.operationFeedback);
         MaterialCardView resultCard = view.findViewById(R.id.resultCard);
         TextView statusBadge = view.findViewById(R.id.statusBadge);
         TextView domainCheckedTextView = view.findViewById(R.id.domainCheckedTextView);
@@ -82,7 +83,11 @@ public class DomainCheckerFragment extends Fragment {
         });
 
         viewModel.getOperationResult().observe(getViewLifecycleOwner(), result -> {
-            if (result == null) return;
+            if (result == null) {
+                feedback.setVisibility(View.GONE);
+                feedback.setText(null);
+                return;
+            }
             String message;
             if (result.error != 0) {
                 message = getString(result.error);
@@ -104,9 +109,14 @@ public class DomainCheckerFragment extends Fragment {
                         return;
                 }
             }
-            Snackbar.make(view, message, result.error == 0
-                    ? Snackbar.LENGTH_SHORT : Snackbar.LENGTH_LONG).show();
-            viewModel.consumeOperationResult(result);
+            feedback.setText(message);
+            feedback.setVisibility(View.VISIBLE);
+            feedback.post(() -> {
+                if (!feedback.isShown() || viewModel.getOperationResult().getValue() != result) return;
+                Rect bounds = new Rect();
+                feedback.getDrawingRect(bounds);
+                feedback.requestRectangleOnScreen(bounds, false);
+            });
         });
 
         viewModel.checkResult.observe(getViewLifecycleOwner(), result -> {

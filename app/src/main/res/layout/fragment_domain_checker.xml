@@ -63,6 +63,18 @@
             android:layout_marginBottom="16dp"
             android:text="@string/domain_checker_check_button" />
 
+        <TextView
+            android:id="@+id/operationFeedback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp"
+            android:accessibilityLiveRegion="polite"
+            android:textColor="@color/ui_text_primary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/resultCard"
             android:layout_width="match_parent"
