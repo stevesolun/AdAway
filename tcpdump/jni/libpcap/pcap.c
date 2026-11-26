@@ -522,7 +522,7 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 		 * Set the pointer to the private data; that's the structure
 		 * of size "size" following the pcap_t.
 		 */
-		p->priv = (void *)(chunk + sizeof (pcap_t));
+		p->priv = (void *)(p + 1);
 	}
 
 	return (p);
@@ -1242,7 +1242,7 @@ pcap_datalink_name_to_val(const char *name)
 	int i;
 
 	for (i = 0; dlt_choices[i].name != NULL; i++) {
-		if (pcap_strcasecmp(dlt_choices[i].name + sizeof("DLT_") - 1,
+		if (pcap_strcasecmp(dlt_choices[i].name + strlen("DLT_"),
 		    name) == 0)
 			return (dlt_choices[i].dlt);
 	}
@@ -1256,7 +1256,7 @@ pcap_datalink_val_to_name(int dlt)
 
 	for (i = 0; dlt_choices[i].name != NULL; i++) {
 		if (dlt_choices[i].dlt == dlt)
-			return (dlt_choices[i].name + sizeof("DLT_") - 1);
+			return (dlt_choices[i].name + strlen("DLT_"));
 	}
 	return (NULL);
 }
