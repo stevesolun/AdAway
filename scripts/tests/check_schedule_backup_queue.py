@@ -44,10 +44,15 @@ LOCAL_TRANSPORTS = {
     "com.android.localtransport/com.android.localtransport.LocalTransport",
     "android/com.android.internal.backup.LocalTransport",
 }
+OBSERVATION_SECONDS = 1.0
 
 
 class ProbeError(RuntimeError):
     pass
+
+
+class UnsafeEnvironment(ProbeError):
+    """Do not attempt any further mutations in this batch."""
 
 
 def pending_packages(output):
@@ -78,13 +83,41 @@ def pending_packages(output):
 
 
 def assert_instrumentation_passed(output):
-    if not re.search(r"(?m)^OK \(1 tests?\)\s*$", output):
-        raise ProbeError("Instrumentation did not report OK (1 test)")
-    if not re.search(r"(?m)^INSTRUMENTATION_CODE:\s*-1\s*$", output):
-        raise ProbeError("Instrumentation did not finish successfully")
-    if re.search(r"FAILURES!!!|INSTRUMENTATION_(?:FAILED|ABORTED)|"
-                 r"INSTRUMENTATION_STATUS_CODE:\s*-[2345]\b", output):
-        raise ProbeError("Instrumentation reported a failure, error, or skipped test")
+    if re.search(r"FAILURES!!!|INSTRUMENTATION_(?:FAILED|ABORTED)", output):
+        raise ProbeError("Instrumentation reported a failure or abort")
+    lines = output.splitlines()
+    try:
+        end = lines.index("INSTRUMENTATION_RESULT: stream=")
+    except ValueError as error:
+        raise ProbeError("Missing instrumentation result stream") from error
+
+    codes = []
+    fields = {}
+    for line in lines[:end]:
+        if line.startswith("INSTRUMENTATION_STATUS: "):
+            key, equal, value = line[len("INSTRUMENTATION_STATUS: "):].partition("=")
+            if (not equal or key in fields
+                    or key not in {"class", "test", "current", "numtests", "id", "stream"}):
+                raise ProbeError(f"Unexpected instrumentation status field: {key}")
+            fields[key] = value
+        elif line.startswith("INSTRUMENTATION_STATUS_CODE: "):
+            if (f"{fields.get('class')}#{fields.get('test')}" != SELECTOR
+                    or fields.get("current", "1") != "1" or fields.get("numtests", "1") != "1"):
+                raise ProbeError(f"Expected a single test record for {SELECTOR}")
+            code = line[len("INSTRUMENTATION_STATUS_CODE: "):]
+            if code == "0" and fields.get("stream", ".") != ".":
+                raise ProbeError("Conflicting instrumentation terminal stream")
+            codes.append(code)
+            fields.clear()
+        elif line.startswith("INSTRUMENTATION_"):
+            raise ProbeError("Unexpected instrumentation record before the result stream")
+    if fields or codes != ["1", "0"]:
+        raise ProbeError(f"Missing or conflicting start/success records for {SELECTOR}")
+
+    summary = "\n".join(lines[end + 1:])
+    if not re.fullmatch(r"\s*(?:Time: [\d.,]+\s+)?OK \(1 tests?\)\s+"
+                        r"INSTRUMENTATION_CODE: -1\s*", summary):
+        raise ProbeError("Expected one successful test summary and final runner code")
 
 
 class Controller:
@@ -121,11 +154,25 @@ class Controller:
             raise ProbeError(f"{name}: command exited {result.returncode}")
         return result.stdout
 
-    def check_transport(self, name):
-        output = self.run(name, ["shell", "bmgr", "list", "transports"])
-        active = re.findall(r"(?m)^\s*\*\s+(\S+)\s*$", output)
-        if len(active) != 1 or active[0] not in LOCAL_TRANSPORTS:
-            raise ProbeError("Refusing backup: active transport must be Android LocalTransport")
+    def run_mutation(self, name, arguments, timeout=30):
+        # Recheck before each seed, backupnow, scheduled pass and act. Even a
+        # failed read makes the fixture unsafe to use for subsequent cases.
+        try:
+            qemu = self.run(name + "-qemu", ["shell", "getprop", "ro.kernel.qemu"])
+            if qemu.strip() != "1":
+                raise ProbeError("ro.kernel.qemu does not identify an emulator")
+            enabled = self.run(name + "-enabled", ["shell", "bmgr", "enabled"])
+            if enabled.strip() != "Backup Manager currently enabled":
+                raise ProbeError("backup is not confirmed enabled")
+            output = self.run(name + "-transport", ["shell", "bmgr", "list", "transports"])
+            selections = [line.split() for line in output.splitlines()
+                          if line.lstrip().startswith("*")]
+            active = selections[0] if len(selections) == 1 else []
+            if len(active) != 2 or active[0] != "*" or active[1] not in LOCAL_TRANSPORTS:
+                raise ProbeError("active transport must be Android LocalTransport")
+        except ProbeError as error:
+            raise UnsafeEnvironment(f"Refusing {name}; stopping batch: {error}") from error
+        return self.run(name, arguments, timeout=timeout)
 
     def instrument(self, test_case, phase):
         command = [
@@ -135,27 +182,25 @@ class Controller:
         ]
         if self.device_evidence_dir:
             command.extend(["-e", "evidenceDir", self.device_evidence_dir])
-        output = self.run(f"{test_case}-{phase}", command + [RUNNER], timeout=180)
+        output = self.run_mutation(f"{test_case}-{phase}", command + [RUNNER], timeout=180)
         assert_instrumentation_passed(output)
 
-    def queue_contains_app(self, name):
+    def queue_sample(self, name):
         output = self.run(name, ["shell", "dumpsys", "backup"])
-        return PACKAGE in pending_packages(output)
+        states = [line.strip() for line in output.splitlines() if line.strip() in
+                  {"No backups running", "Backup currently running", "Backup in progress"}]
+        return PACKAGE in pending_packages(output), states == ["No backups running"]
 
     def drain_queue(self, test_case):
         # backupnow can finish an explicit request while the earlier dataChanged
         # request remains queued. Run the scheduled pass too, on local transport.
-        self.check_transport(f"{test_case}-drain-transport")
-        self.run(f"{test_case}-drain-run", ["shell", "bmgr", "run"])
+        self.run_mutation(f"{test_case}-drain-run", ["shell", "bmgr", "run"])
         deadline = time.monotonic() + 30.0
         stable_absence = 0
         sample = 0
         while True:
-            output = self.run(f"{test_case}-before-{sample:02d}",
-                              ["shell", "dumpsys", "backup"])
-            absent = PACKAGE not in pending_packages(output)
-            idle = re.search(r"(?m)^\s*No backups running\s*$", output) is not None
-            stable_absence = stable_absence + 1 if absent and idle else 0
+            pending, idle = self.queue_sample(f"{test_case}-before-{sample:02d}")
+            stable_absence = stable_absence + 1 if not pending and idle else 0
             if stable_absence >= 2:
                 return
             if time.monotonic() >= deadline:
@@ -166,8 +211,7 @@ class Controller:
 
     def exercise(self, test_case):
         self.instrument(test_case, "seed")
-        self.check_transport(f"{test_case}-transport")
-        output = self.run(f"{test_case}-backup", [
+        output = self.run_mutation(f"{test_case}-backup", [
             "shell", "bmgr", "backupnow", PACKAGE,
         ], timeout=180)
         if not re.search(r"(?m)^Package org\.adaway with result:\s*Success\s*$", output) \
@@ -175,10 +219,14 @@ class Controller:
             raise ProbeError("Local backupnow did not report package and overall success")
         self.drain_queue(test_case)
         self.instrument(test_case, "act")
-        deadline = time.monotonic() + 1.0
+        deadline = time.monotonic() + OBSERVATION_SECONDS
         sample = 0
         while True:
-            pending = self.queue_contains_app(f"{test_case}-after-{sample:02d}")
+            name = f"{test_case}-after-{sample:02d}"
+            pending, idle = self.queue_sample(name)
+            if not idle:
+                raise ProbeError(f"{name}: backup active or idle state unknown; "
+                                 "queue observation is indeterminate")
             if pending or time.monotonic() >= deadline:
                 return int(pending)
             sample += 1
@@ -188,6 +236,8 @@ class Controller:
 def parse_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True)
+    parser.add_argument("--disposable-fixture", action="store_true", required=True,
+                        help="Acknowledge this is your disposable emulator: seed clears app state")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--evidence-dir", required=True, type=Path)
     parser.add_argument("--device-evidence-dir",
@@ -217,29 +267,32 @@ def main():
         writer = csv.writer(result_file)
         writer.writerow(["case", "expected_pending", "actual_pending", "result", "detail"])
         result_file.flush()
-        qemu = controller.run("emulator-identity", ["shell", "getprop", "ro.kernel.qemu"])
-        if qemu.strip() != "1":
-            raise ProbeError("Refusing backup: ro.kernel.qemu does not identify an emulator")
-        controller.check_transport("active-transport")
         failed = False
         for test_case in arguments.cases:
             actual = ""
             detail = ""
+            stop_batch = False
             try:
                 actual = controller.exercise(test_case)
                 result = "PASS" if actual == CASES[test_case] else "FAIL"
-                if result == "FAIL":
+                if actual == 0:
+                    detail = (f"{PACKAGE} absent in sampled idle snapshots only "
+                              f"({OBSERVATION_SECONDS:g} s post-act observation window)")
+                elif result == "FAIL":
                     detail = "Android pending queue did not match the expected edit behavior"
             except ProbeError as error:
                 result = "ERROR"
                 detail = str(error)
+                stop_batch = isinstance(error, UnsafeEnvironment)
             writer.writerow([test_case, CASES[test_case], actual, result, detail])
             result_file.flush()
             print(f"{test_case}: expected pending={CASES[test_case]}, "
                   f"actual={actual if actual != '' else 'unavailable'}; {result}", flush=True)
             if detail:
-                print(detail, file=sys.stderr, flush=True)
+                print(detail, file=sys.stdout if result == "PASS" else sys.stderr, flush=True)
             failed |= result != "PASS"
+            if stop_batch:
+                break
     print(f"Evidence: {arguments.evidence_dir}")
     return int(failed)
 
