@@ -3,7 +3,7 @@
 Non-root Android 14, signed release package. These checks exercised UI controls
 and the live VPN, not just counts in a database. Raw capture names below are in
 `app/build/reports/audit-2026-11-25/deep-geometry-final/` on the QA machine.
-The [phone APK](signed-upgrade.md#final-signed-phone-candidate) is the build
+The [phone APK](signed-upgrade.md#idle-and-locale-phone-candidate) is the build
 from `17a7d1415`; its predecessor with identical locale changes was `26e890f20`.
 
 ## When Apply is pending

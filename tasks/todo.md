@@ -37,7 +37,8 @@ The bounded beta release does not complete this ongoing audit.
   used a third non-regional HTTPS list plus an independently enabled local file.
 - [x] Recheck the combined candidate after fixes for reproduced cross-screen
   and VPN-state defects. See the [suite counts and tested boundaries](audit-2026-11-25/deep-signoff/decision.md).
-  Final Android 14: 650 passed, 19 skipped, zero failures (669 cases).
+  Current Android 14: 652 passed, 20 skipped, zero failures (672 unique cases
+  across an interrupted run and its same-binary resumption).
   JVM: 738 passed, three skipped, zero failures. Handset testing remains user-deferred.
 - [x] Retain Domain Checker feedback through recreation; two 18-case package
   runs passed, including forced write failure and retry. On the signed APK,
@@ -49,6 +50,15 @@ The bounded beta release does not complete this ongoing audit.
   affected action buttons, real redirect and Log block/unblock, a general
   13k list, Chrome loads, and the large-text no-rules state on the
   [updated signed candidate](audit-2026-11-25/deep-signoff/pending-apply-and-locale.md).
+- [x] Fix rapid taps opening an old editor, retry losing the directory name,
+  and misleading confirmation counts. Verify a failed non-regional URL can be
+  repaired and retained during two real selected subscriptions and removals.
+  [Current signed and debug evidence](audit-2026-11-25/deep-signoff/discover-pick-order.md).
+- [x] Clean-install the signed APK, import Prigent-Ads, check two real Chrome
+  pages and a blocked domain, exercise 2,000 offline inputs, then recover the
+  live directory after reconnecting. This is bounded stress, not all click paths.
+- [x] Add hash-drift detection to the existing development CI job so earlier
+  file reviews cannot silently pass as current. Hosted validation is pending.
 
 - CI follow-up for PR #15 (Connected Android tests):
   - [x] Identify the failing test and inspect the retained device log.

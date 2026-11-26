@@ -184,7 +184,7 @@ rules, independently of the larger filter. Raw captures: `q23-*-package.txt`,
 `q23-signed-chrome.json`, `q23-*-dns.json`, `q23-block-confirmation-*.png`,
 `q23-new-check.xml`, `q23-deleted-rule.xml` and `q23-singular-host.xml`.
 
-## Final signed phone candidate
+## Idle and locale phone candidate
 
 Local **AdAway_13.5.7b.apk**, version code **130507**, app commit `17a7d1415`.
 SHA-256: `9120fd846a12a010ceae073cb0043420b827bf46e24241587d4b041920828b4f`.
@@ -201,3 +201,16 @@ single list: the three default sources were enabled, too.
 
 The same binary handled an exact redirect and a Log-created block in both
 directions. See the [signed interactions, DNS answers and idle measurements](pending-apply-and-locale.md).
+
+## Final signed phone candidate
+
+Local **AdAway_13.5.7b.apk**, version code **130507**, app commit `8e2eace32`.
+APK SHA-256: `7237fe228acb59c7b8678f0ee9a4052d33d9f69122a276a999ebeff9ae6347be`.
+The installed base APK and Downloads copy matched. Signatures v2 and v3
+verified with certificate SHA-256 `9bf3a40102638ed9271f4dea6225a2d66e5d2c5f3e5204cc125376288f7f9595`.
+The in-place public -> intermediate -> final chain retained the app identity
+and repaired custom URL. [Discover selection, removal and DNS outcomes](discover-pick-order.md).
+On a separate fresh install of these exact bytes, the app imported the custom
+URL again; Android Chrome loaded kernel.org and RFC Editor and failed DNS for
+doubleclick.net with VPN protection active.
+This is a local phone-test build; no GitHub publication is implied.

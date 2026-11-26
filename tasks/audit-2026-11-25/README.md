@@ -22,6 +22,9 @@ The bounded beta release is distinct from completing this audit. Its observed
 - A changed reviewed file becomes `stale` until reviewed again. `--check` catches
   inventory/hash drift, not completion. Binary/resource/vendor files are included;
   their presence or successful build does not count as a manual review.
+- Android CI runs the read-only inventory check immediately after checkout.
+  After editing files, run `python3 scripts/audit_inventory.py` and commit the
+  refreshed ledger with the changes; use `--record` only for actual reviews.
 - `bugs.csv` is the central bug register. Source-supported findings, reproduced
   failures, implemented fixes and verified closure are separate statuses.
 - `*-workflows.csv` records control/chain expectations and variants. Static tracing

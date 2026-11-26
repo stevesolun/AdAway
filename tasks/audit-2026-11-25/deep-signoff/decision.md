@@ -4,12 +4,23 @@ The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
 for the subsequent deep-QA changes. It is not yet evidence of public delivery.
 
-**Current local Android 14 result, app commit `17a7d1415`:** 669 started
+**Current app commit `8e2eace32`:** Android 14, 672 unique cases: **652
+passed, 20 assumption skips, zero failures or errors** across two executions
+of the same installed debug/test APK pair. The emulator exited after 281
+terminal cases and while running case 282. After a cold boot and reinstall,
+all 394 cases from the interrupted class onward finished. Three completed
+cases overlapped and agreed; all expected method names are accounted for.
+This is not a single uninterrupted run. [Per-method results and skip reasons](discover-order-android14-methods.csv);
+[signed APK](signed-upgrade.md#final-signed-phone-candidate) and [real selection checks](discover-pick-order.md).
+JVM: 738 passed and three skipped (95 suites); lint: 35 warnings, no errors.
+90 repository host checks passed with JDK 21 and the configured Android SDK.
+
+**Previous local Android 14 result, app commit `17a7d1415`:** 669 started
 and finished in 611.905 s: **650 passed, 19 assumption skips, zero failures
 or errors**. See [each method and skip reason](idle-fix-android14-methods.csv).
 All 95 JVM suites completed (738 passed, three skipped, zero failures or
 errors). Android lint: 35 warnings and no errors. The non-root release APK
-was tested separately: [signed APK and checksum](signed-upgrade.md#final-signed-phone-candidate),
+was tested separately: [signed APK and checksum](signed-upgrade.md#idle-and-locale-phone-candidate),
 [5,000 rapid inputs, real browser, DNS and change/undo paths](pending-apply-and-locale.md).
 The 5M imports below were matched on the import fix, not repeated for these
 UI changes. Neither local test gate authorizes a public release.
