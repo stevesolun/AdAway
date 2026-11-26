@@ -381,72 +381,15 @@ Successful runs upload a `release-readiness-report` artifact.
 
 ### Production Signing
 
-Add to `~/.gradle/gradle.properties`:
-
-```properties
-signingStoreLocation=/path/to/keystore.jks
-signingStorePassword=your_store_password
-signingKeyAlias=your_key_alias
-signingKeyPassword=your_key_password
-updateManifestPublicKeyBase64=base64_encoded_spki_public_key
-releaseSigningCertificateSha256=trusted_release_certificate_sha256
-```
+Follow the [release signing requirements](RELEASING.md#4-building-release-apk)
+for local production builds, trust inputs, and debug/release signing isolation.
 
 ### CI/CD — Automatic Releases
 
-Push a signed version tag to trigger the release pipeline:
-
-```bash
-git tag -s v<version> -m "AdAway <version>"
-git verify-tag v<version>
-git push origin v<version>
-```
-
-GitHub Actions (`.github/workflows/fork-release-apk.yml`) will:
-1. Verify the signed release tag with `RELEASE_TAG_PUBLIC_KEY_BASE64`
-2. Build `assembleDirectRelease`
-3. Rename the APK to `AdAway_<version>.apk`
-4. Verify the APK package name, tag-matching version, signer SHA-256, and file SHA-256
-5. Generate the signed update manifest
-6. Generate the CycloneDX SBOM and SHA-256 checksum files
-7. Attest the APK, manifest, SBOM, and their `.sha256` checksum sidecars
-8. Verify those GitHub attestations with the canonical artifact verifier
-9. Create a GitHub Release with the APK, manifest, checksums, and SBOM attached
-
-Before announcing a release, run the `RELEASING.md` artifact verifier and
-release smoke. Full smoke requires an attached physical device. After the
-release is created, run the manual `verify-release-artifacts.yml` workflow as
-the CI-backed post-publish artifact and attestation check; successful runs
-upload a `release-artifact-verification-report` artifact. For install/launch
-coverage, run `physical-release-smoke.yml` on a self-hosted runner labeled
-`android-device`; it downloads all six tagged assets and runs the full release smoke
-against a physical device. Successful physical smoke runs upload a
-`physical-release-smoke-report` artifact with release tag, APK name, APK
-SHA-256, signer certificate identity, and the observed launch result. Regular
-CI also uploads a `license-boundary-report`; tagged direct-APK releases upload
-`release-license-boundary-reports` covering source and packaged artifact
-GPL/MIT boundary checks.
-Run `verify-release-readiness.yml` last to download those proof artifacts,
-download the generated UX sign-off report, run `verify-release-readiness.ps1`,
-verify the same review packet hash, and upload the final
-`release-readiness-report` artifact.
-
-**Repository Secrets** (for production-signed APKs):
-
-| Secret | Description |
-|--------|-------------|
-| `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file |
-| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
-| `ANDROID_KEY_ALIAS` | Key alias |
-| `ANDROID_KEY_PASSWORD` | Key password |
-| `UPDATE_MANIFEST_PUBLIC_KEY_BASE64` | Base64 SPKI public key embedded for signed update-manifest verification |
-| `UPDATE_MANIFEST_PRIVATE_KEY_BASE64` | Base64 PEM private key used to sign update manifests |
-| `ANDROID_RELEASE_CERT_SHA256` | Expected release APK signing certificate SHA-256 digest |
-| `RELEASE_TAG_PUBLIC_KEY_BASE64` | Base64 public key imported before `git verify-tag` |
-
-Regular CI and CodeQL build debug artifacts. Production release builds are
-expected to fail closed without the signing properties, signed-tag key, and
-update-manifest trust material above.
+Follow the [release publication procedure](RELEASING.md#stable-releases),
+including the protected pull request, required checks, signed tag, repository
+secrets, and artifact verification. Beta releases use the same protected path;
+see the [beta release scope](RELEASING.md#beta-releases).
 
 ### Key Dependencies
 
@@ -470,6 +413,10 @@ update-manifest trust material above.
    including the seeded defaults. Existing custom lists and disabled selections are preserved.
 5. Wait for the download and apply to finish before relying on filter protection.
    If setup fails, use **Update** on Home to try again; reopening the app does not retry setup.
+
+In VPN mode, Home distinguishes **Protection active** from an enabled VPN that is
+waiting for a network, disconnected, or has no blocking rules loaded. Check the
+**Leak resistance** details for DNS paths or excluded apps that may bypass filtering.
 
 ### Add a Filter List from FilterLists.com
 
@@ -505,9 +452,10 @@ no DNS-compatible rules; choosing it cannot make those rules work at the domain 
 4. Save with the toolbar checkmark. The enabled source downloads and applies automatically.
    See [Source Update Feedback](#source-update-feedback).
 
-The region or publisher does not matter. Hosts files and domain lists are
-supported; a DNS filter cannot apply browser-only cosmetic rules. To use a
-local list, choose **File** in the editor and select it with Android's picker.
+The region or publisher does not matter; see the
+[filter rule capability matrix](docs/filter-rule-capabilities.md) for supported syntax
+and DNS limitations. To use a local list, choose **File** in the editor and select
+it with Android's picker.
 Remote refreshes require a direct public HTTPS route. AdAway does not fetch
 private network addresses or silently bypass a required system proxy.
 
@@ -533,26 +481,37 @@ user rules are excluded from both freshness totals.
 ### Block / Allow a Specific Domain
 
 1. Go to **More → Custom Rules**.
-2. Tap **+** → choose **Block** or **Allow** → enter the domain.
-3. Tap **Save**. Rules apply immediately (no update needed).
+2. Select **Blocked** or **Allowed**, tap **+**, and enter the domain.
+3. Tap **Add**, then **Apply** in the configuration prompt to activate the rule.
 
-### Batch Import Domains
+### Use a Domain List File
 
-1. **More → Custom Rules → ⋮ → Batch Import**.
-2. Paste domains, one per line.
-3. Choose Block or Allow → confirm.
+To load a file containing domains, follow [Add a Custom Filter List](#add-a-custom-filter-list).
 
 ### View DNS Query Log (VPN mode only)
 
 1. Go to **More → DNS Log**.
-2. See real-time queries. Blocked = red, allowed = green.
-3. Tap any entry → **Block** or **Allow** to add a custom rule.
+2. Tap **Record**, browse or use apps, then return or swipe to refresh the queries.
+3. Use a row's **Block**, **Allow**, or **Redirect** icon to add a custom rule,
+   then tap **Apply**. Tapping the hostname opens it in your browser.
+
+The highlighted icon reflects the current active rule, not the outcome when the
+query was recorded. A highlighted icon can remove only your own exact rule of
+that type; inherited rules from a source or a broader rule are read-only here.
 
 ### Schedule Automatic Updates
 
-1. **More → Filter Sources → ⋮ → Manage schedules**.
-2. Set daily (time) or weekly (day + time).
-3. Updates run in the background at the scheduled time.
+1. Open **Sources → ⋮ → Manage schedules**.
+2. Choose **Edit global schedule**, **Edit filter set schedule**, or
+   **Edit source schedule**. The global schedule refreshes all enabled sources;
+   the other schedules refresh only their enabled sources.
+3. Choose **Daily** (time), **Weekly** (day and time), or **Off**. An existing
+   schedule opens with its saved choices. Cancel leaves it unchanged; confirm the
+   final time to save an edit.
+
+Updates run in the background when due and Android permits the work, subject to
+network and storage constraints and the **Sync on unmetered network only**
+preference. The selected time is not an exact alarm.
 
 ### Check If a Domain Is Blocked
 
@@ -569,18 +528,24 @@ user rules are excluded from both freshness totals.
 domain. It preserves downloaded rules and broader wildcard or suffix allows, so
 the domain can remain allowed after removal. **Block it** is offered for Unknown
 results, not for domains already allowed by a filter.
+Likewise, **Delete rule** is available only for your exact block or redirect;
+broader suffix rules remain intact.
 
 ### Backup & Restore
 
 1. **More → Backup & Restore**.
-2. **Backup** — exports filter sources and custom rules as JSON; app preferences
-   are not included.
+2. **Backup** — exports filter sources and custom rules as JSON; app preferences,
+   saved filter sets, and schedules are not included.
 3. **Restore** — imports from a backup file. If another operation is in progress,
    wait for it to finish, then select **Restore** again.
 
 Restoring a source with the same URL updates its configuration while retaining its
 identity. Download newly restored sources or sources whose rule format changed, then
 apply. File-source read permission must be granted again when it is no longer available.
+
+Android's system backup, when enabled and available, also includes app preferences,
+saved filter sets, and global and per-source schedules. After Android restores that
+backup, AdAway reconciles the restored schedules with its background worker.
 
 ### Force English Locale
 

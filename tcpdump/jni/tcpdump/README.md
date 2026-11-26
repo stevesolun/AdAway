@@ -90,7 +90,9 @@ original text by: Steve McCanne, Craig Leres, Van Jacobson
 
 -------------------------------------
 The following upstream examples describe the older text trace format
-expected by the bundled awk scripts.
+expected by the bundled awk scripts. Malformed records are skipped. For
+these date-less traces, a backward clock jump greater than 12 hours is
+treated as midnight; smaller out-of-order timestamps are preserved.
 
 ```
 This directory also contains some short awk programs intended as
@@ -103,10 +105,13 @@ send-ack.awk
 	the other only acks, all address information is left off and
 	we just note if the packet is a "send" or an "ack".
 
-	There is one output line per line of the original trace.
+	There is one output line per accepted data send or ack; sends
+	with SYN, FIN or RST flags are omitted.
 	Field 1 is the packet time in decimal seconds, relative
-	to the start of the conversation.  Field 2 is delta-time
-	from last packet.  Field 3 is packet type/direction.
+	to the first accepted trace record, including a control packet.
+	Field 2 is delta-time from the previous output record (or that
+	initial trace record for the first output). Field 3 is packet
+	type/direction.
 	"Send" means data going from sender to receiver, "ack"
 	means an ack going from the receiver to the sender.  A
 	preceding "*" indicates that the data is a retransmission.
@@ -117,7 +122,8 @@ send-ack.awk
 	number (start seq. num for sender, next expected seq number
 	for acks).  The number in parens following an ack is
 	the delta-time from the first send of the packet to the
-	ack.  A number in parens following a send is the
+	ack, or -1.00 when no matching send was observed.
+	A number in parens following a send is the
 	delta-time from the first send of the packet to the
 	current send (on duplicate packets only).  Duplicate
 	sends or acks have a number in square brackets showing
@@ -129,7 +135,7 @@ send-ack.awk
 		3.20    0.00   send P 1024
 		3.40    0.20    ack . 1536  (0.20)
 		3.80    0.40 * send . 0  (3.80) [2]
-		3.82    0.02 *  ack . 1536  (0.62) [2]
+		3.82    0.02    ack . 1536  (0.62) [2]
 	Three seconds into the conversation, bytes 512 through 1023
 	were sent.  200ms later they were acked.  Shortly thereafter
 	bytes 1024-1535 were sent and again acked after 200ms.
@@ -160,8 +166,11 @@ packetdat.awk
 	   6 - time of last ack
 	   7 - number of times chunk was sent
 	   8 - number of times chunk was acked
-	(all times are in decimal seconds, relative to the start
-	of the conversation.)
+	Times are in decimal seconds relative to the first send of
+	chunk 1, or the first observed send if chunk 1 is missing.
+	A missing send or covering ack is reported as -1.00 in its time
+	columns. A cumulative ack supplies the ack time for earlier
+	chunks without an explicit ack; their ack counts remain zero.
 
 	As an example, here is the first part of the output for
 	an ftp trace:
@@ -190,10 +199,10 @@ stime.awk
 atime.awk
 	Output one line per send or ack, respectively, in the form
 		<time> <seq. number>
-	where <time> is measured from the first matching send or ack,
-	respectively, and <seq. number> is the sequence number divided
-	by 1024.  I typically plot this data looking for suspicious
-	patterns.
+	where <time> is measured from the first accepted trace record
+	for both scripts, including a control packet, and <seq. number>
+	is the sequence number divided by 1024. I typically plot this
+	data looking for suspicious patterns.
 
 
 The problem I was looking at was the bulk-data-transfer

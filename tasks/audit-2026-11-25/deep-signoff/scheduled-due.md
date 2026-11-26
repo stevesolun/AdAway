@@ -1,6 +1,8 @@
 # Interrupted due source schedule
 
-**DEEP-SCHED-DUE-001: verified fixed on API 34 debug. Release re-sign required.**
+**DEEP-SCHED-DUE-001: verified fixed on API 34 debug.** The later
+[consolidated signed candidate](signed-upgrade.md#final-signed-phone-candidate)
+includes this change; this regression itself exercised debug only.
 
 Existing WorkManager tests check the unmetered constraint and independent dispatcher registration. SourceModel tests exercise targeted imports and offline rollback. Neither checks what the due worker does when WorkManager stops it during targeted retrieval.
 
@@ -32,4 +34,4 @@ adb -s emulator-5578 shell am instrument -w -r \
 
 - Installed green APK SHA-256: app `4eccdfd0b21ace8c3723f22aa822fb5ed9bb72f8f0d204733ad3d56aa2c38c85`; test `1c8434a7fe9b04508c8b6bd910ebf7cc24673e8714c7b2063024b68d76514e40`.
 - Raw local runner outputs: `red.txt`, `green.txt`, and `reconciliation.txt` retained under `app/build/reports/audit-2026-11-25/platform-restore/worker-and-identity/`, independently of the disposable AVD.
-- Release handoff: include the verified worker change before re-signing. No release build or signing in this lane; no canonical ledger edits or commits.
+- This lane performed no release build or signing, canonical ledger edits or commits. See the consolidated signed candidate linked above for the subsequent handoff.

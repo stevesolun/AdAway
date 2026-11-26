@@ -39,14 +39,7 @@ android {
         resValue "string", "release_signing_certificate_sha256", releaseCertificateSha256
     }
 
-    /*
-     * To sign release build, create file gradle.properties in ~/.gradle/ with this content:
-     *
-     * signingStoreLocation=/home/key.store
-     * signingStorePassword=xxx
-     * signingKeyAlias=alias
-     * signingKeyPassword=xxx
-     */
+    // See RELEASING.md for the complete signing and update-trust requirements.
     signingConfigs {
         debug {
             enableV1Signing = true
@@ -152,7 +145,7 @@ android {
         androidTest.assets.srcDirs += files("$projectDir/schemas")
     }
 
-    // Do not abort build if lint finds errors
+    // Translations may lag behind the default strings; other lint errors remain fatal.
     lint {
         disable 'MissingTranslation'
     }

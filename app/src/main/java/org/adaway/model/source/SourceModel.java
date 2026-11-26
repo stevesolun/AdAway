@@ -615,13 +615,9 @@ public class SourceModel {
     }
 
     /**
-     * Check and retrieve hosts sources using a true pipeline architecture.
-     * Three concurrent phases run independently:
-     * 1. Check phase: Runs in parallel, feeds sources to download queue as they're found
-     * 2. Download phase: Pool of workers consuming from download queue, feeding to parse queue
-     * 3. Parse phase: Semaphore-bounded pool parsing completed downloads
-     *
-     * This maximizes throughput by overlapping all three phases.
+     * Refresh enabled sources with conditional downloads and staged imports.
+     * Remote sources do not need a separate HEAD-check phase. Downloads overlap imports,
+     * which use the single writer lane described by {@link #IMPORT_WRITER_PARALLELISM}.
      *
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */

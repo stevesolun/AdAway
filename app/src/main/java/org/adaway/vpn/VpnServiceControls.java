@@ -37,11 +37,10 @@ public final class VpnServiceControls {
     }
 
     /**
-     * Check if the VPN service is currently running.
+     * Alias for {@link #isTunnelEstablished(Context)}, not a service-process liveness check.
      *
      * @param context The application context.
-     * @return {@code true} if the VPN service is currently running, {@code false}
-     *         otherwise.
+     * @return {@code true} if AdAway has an established VPN tunnel, {@code false} otherwise.
      */
     public static boolean isRunning(Context context) {
         return isTunnelEstablished(context);
@@ -95,7 +94,8 @@ public final class VpnServiceControls {
      * Start the VPN service.
      *
      * @param context The application context.
-     * @return {@code true} if the service is started, {@code false} otherwise.
+     * @return {@code true} if a tunnel already exists or the start request was accepted;
+     *         this does not guarantee that the requested tunnel is established.
      */
     public static boolean start(Context context) {
         Timber.d("VpnServiceControls.start() called");

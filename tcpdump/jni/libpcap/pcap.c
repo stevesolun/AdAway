@@ -1872,8 +1872,8 @@ pcap_sendpacket(pcap_t *p, const u_char *buf, int size)
 }
 
 /*
- * API compatible with OpenBSD's "send a packet" routine - returns -1 on
- * error, number of bytes written otherwise.
+ * API compatible with OpenBSD's "send a packet" routine; see
+ * pcap_inject.3pcap for the return-value contract.
  */
 int
 pcap_inject(pcap_t *p, const void *buf, size_t size)

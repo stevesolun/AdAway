@@ -4,11 +4,9 @@
 **Historical research, March 2026.** The yields and code proposals below
 describe an earlier simulator, not the current app or a compatibility promise.
 In particular, recognizing a domain in a rule is not permission to block every
-request for that domain. The current [parser](app/src/main/java/org/adaway/model/source/SourceLoader.java)
-handles specific blocking forms of Unbound and RPZ, and deliberately skips
-ambiguous BIND zones and browser-only conditions. For choosing a source today,
-see [Add a custom filter list](README.md#add-a-custom-filter-list) and the
-[non-root filter checks](tasks/audit-2026-11-25/deep-signoff/general-filter-checkpoint.md).
+request for that domain. Current parser support is documented in the
+[filter rule capability matrix](docs/filter-rule-capabilities.md). For choosing a
+source today, see [Add a custom filter list](README.md#add-a-custom-filter-list).
 
 **Generated:** 2026-03-02
 **Methodology:** 81 real filter lists downloaded from FilterLists.com API, parsed line-by-line using a Python simulation of the Java `SourceLoader.extractHostnameFromNonHostsSyntax` logic. Every regex and branch mirrors `SourceLoader.java` exactly.

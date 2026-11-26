@@ -1,7 +1,7 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.in by autoheader.  */
 
-/* define if you have the addrinfo function */
+/* define if <netdb.h> declares struct addrinfo */
 #define HAVE_ADDRINFO 1
 
 /* Define to 1 if you have the `alarm' function. */
@@ -257,10 +257,10 @@
 /* define if the platform doesn't define PRIo64 */
 /* #undef PRIo64 */
 
-/* define if the platform doesn't define PRIx64 */
+/* define if the platform doesn't define PRIu64 */
 /* #undef PRIu64 */
 
-/* define if the platform doesn't define PRIu64 */
+/* define if the platform doesn't define PRIx64 */
 /* #undef PRIx64 */
 
 /* Define as the return type of signal handlers (`int' or `void'). */
