@@ -164,7 +164,7 @@
 
     <!-- Category Summaries (shown in collapsed state) -->
     <plurals name="filter_category_summary_enabled">
-        <item quantity="one">%1$d of %2$d enabled • %3$s hosts</item>
+        <item quantity="one">%1$d of %2$d enabled • %3$s host</item>
         <item quantity="other">%1$d of %2$d enabled • %3$s hosts</item>
     </plurals>
     <string name="filter_category_summary_disabled">All disabled</string>

@@ -292,7 +292,7 @@ public class CategorizedSourcesAdapter extends RecyclerView.Adapter<RecyclerView
             String hostCount = formatHostCount(header.getTotalHosts());
             holder.summary.setText(res.getQuantityString(
                     R.plurals.filter_category_summary_enabled,
-                    header.getEnabledCount(),
+                    (int) Math.min(header.getTotalHosts(), Integer.MAX_VALUE),
                     header.getEnabledCount(),
                     header.getTotalCount(),
                     hostCount));
