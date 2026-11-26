@@ -131,6 +131,7 @@ public class DiscoverFilterListsFragment extends Fragment {
     private boolean directoryLoading = false;
     private boolean directoryLoadFailed = false;
     private boolean bulkOperationRunning = false;
+    @Nullable private Object pendingRowOpen;
 
     private Snackbar activeSnackbar;
 
@@ -334,6 +335,12 @@ public class DiscoverFilterListsFragment extends Fragment {
         super.onViewStateRestored(savedInstanceState);
         mViewStateRestored = true;
         filter();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (pendingRowOpen != null) finishRowOpen(pendingRowOpen);
     }
 
     @Override
@@ -817,13 +824,28 @@ public class DiscoverFilterListsFragment extends Fragment {
                 .apply();
     }
 
+    // Editor and review navigation share one owner, even when their lookups use different pools.
+    private Object beginRowOpen() {
+        pendingRowOpen = new Object();
+        binding.filterlistsProgress.setVisibility(View.VISIBLE);
+        return pendingRowOpen;
+    }
+
+    private boolean finishRowOpen(Object request) {
+        if (request != pendingRowOpen) return false;
+        pendingRowOpen = null;
+        if (binding == null) return false;
+        if (!directoryLoading) binding.filterlistsProgress.setVisibility(View.GONE);
+        return true;
+    }
+
     private void onPick(FilterListsDirectoryApi.ListSummary summary) {
         if (binding == null) return;
         if (!isAdAwayCompatible(summary.syntaxIds)) {
             showUnsupportedReviewDialog(summary);
             return;
         }
-        binding.filterlistsProgress.setVisibility(View.VISIBLE);
+        final Object request = beginRowOpen();
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
             try {
@@ -835,8 +857,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                     cacheResolvedUrl(appContext, summary.id, url);
                 }
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding == null) return;
-                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    if (!finishRowOpen(request)) return;
                     if (url == null) {
                         showSnackbar(getString(R.string.filterlists_no_direct_hosts_url));
                         return;
@@ -845,8 +866,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                 });
             } catch (IOException e) {
                 AppExecutors.getInstance().mainThread().execute(() -> {
-                    if (this.binding == null) return;
-                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    if (!finishRowOpen(request)) return;
                     showSnackbar(getString(R.string.filterlists_resolve_url_failed));
                 });
             }
@@ -1083,10 +1103,11 @@ public class DiscoverFilterListsFragment extends Fragment {
             @NonNull FilterListsDirectoryApi.ListSummary summary,
             @NonNull String url) {
         if (binding == null) return;
+        final Object request = beginRowOpen();
         AppExecutors.getInstance().diskIO().execute(() -> {
             HostsSource existing = hostsSourceDao.getByUrl(url).orElse(null);
             AppExecutors.getInstance().mainThread().execute(() -> {
-                if (this.binding == null) return;
+                if (!finishRowOpen(request)) return;
                 if (existing == null) {
                     existingUrls.remove(url);
                     refreshBulkActionsState();
@@ -1104,7 +1125,8 @@ public class DiscoverFilterListsFragment extends Fragment {
     private void openSourceEditForFilterList(FilterListsDirectoryApi.ListSummary summary,
             String label, String url) {
         Intent intent = new Intent(requireContext(), SourceEditActivity.class);
-        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL, label);
+        intent.putExtra(SourceEditActivity.EXTRA_INITIAL_LABEL,
+                label == null || label.trim().isEmpty() ? summary.name : label);
         intent.putExtra(SourceEditActivity.EXTRA_INITIAL_URL, url);
         intent.putExtra(SourceEditActivity.EXTRA_INITIAL_ALLOW, false);
         intent.putExtra(SourceEditActivity.EXTRA_INITIAL_REDIRECT, false);
@@ -1447,7 +1469,7 @@ public class DiscoverFilterListsFragment extends Fragment {
 
     private void showUnsupportedReviewDialog(FilterListsDirectoryApi.ListSummary summary) {
         if (binding == null) return;
-        binding.filterlistsProgress.setVisibility(View.VISIBLE);
+        final Object request = beginRowOpen();
         final Context appContext = requireContext().getApplicationContext();
         AppExecutors.getInstance().networkIO().execute(() -> {
             try {
@@ -1460,7 +1482,7 @@ public class DiscoverFilterListsFragment extends Fragment {
                     cacheResolvedUrl(appContext, summary.id, url);
                 }
                 runOnMainThreadIfAdded(() -> {
-                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    if (!finishRowOpen(request)) return;
                     String urlMessage = url == null
                             ? getString(R.string.filterlists_review_unsupported_no_url)
                             : getString(R.string.filterlists_review_unsupported_url, url);
@@ -1469,21 +1491,19 @@ public class DiscoverFilterListsFragment extends Fragment {
                             FilterListCompatibility.describe(summary.syntaxIds),
                             FilterListCompatibility.capabilitySummary(summary.syntaxIds),
                             urlMessage);
-                    String label = details.name != null && !details.name.isEmpty()
-                            ? details.name : summary.name;
                     AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
                             .setTitle(R.string.filterlists_review_unsupported_title)
                             .setMessage(message)
                             .setNegativeButton(R.string.button_close, null);
                     if (url != null) {
                         builder.setPositiveButton(R.string.filterlists_add_manually,
-                                (dialog, which) -> openSourceEditForFilterList(summary, label, url));
+                                (dialog, which) -> openSourceEditForFilterList(summary, details.name, url));
                     }
                     builder.show();
                 });
             } catch (IOException e) {
                 runOnMainThreadIfAdded(() -> {
-                    binding.filterlistsProgress.setVisibility(View.GONE);
+                    if (!finishRowOpen(request)) return;
                     showSnackbar(getString(R.string.filterlists_resolve_url_failed));
                 });
             }

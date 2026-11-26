@@ -5,7 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
+import android.app.Instrumentation;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -23,6 +26,7 @@ import android.widget.TextView;
 import androidx.core.graphics.ColorUtils;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.Lifecycle;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -44,6 +48,7 @@ import org.adaway.testing.InstrumentedTestState;
 import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.hosts.FilterSetStore;
+import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
 import org.junit.Before;
@@ -58,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -103,6 +109,8 @@ public class DiscoverStateRegressionInstrumentedTest {
     private final CountDownLatch releaseRefresh = new CountDownLatch(1);
     private volatile String networkLists = REFRESHED_LISTS;
     private volatile String networkLanguages = LANGUAGES;
+    private static final String DETAIL_URL = "https://example.invalid/german-hosts.txt";
+    private volatile String detailResponse = "{\"viewUrls\":[{\"url\":\"" + DETAIL_URL + "\"}]}";
 
     @Before
     public void setUp() throws Exception {
@@ -143,6 +151,10 @@ public class DiscoverStateRegressionInstrumentedTest {
                 case "/syntaxes": body = SYNTAXES; break;
                 case "/tags": body = TAGS; break;
                 case "/languages": body = networkLanguages; break;
+                case "/lists/103":
+                    body = detailResponse;
+                    if (body == null) throw new IOException("Directory detail unavailable");
+                    break;
                 default: throw new IOException("Unexpected fixture request: " + path);
             }
             return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
@@ -174,6 +186,128 @@ public class DiscoverStateRegressionInstrumentedTest {
                         "tear down Discover state replay");
             }
         }
+    }
+
+    @Test
+    public void lateSubscribedRowCannotOpenAnEditorAfterANewerPick() throws Exception {
+        seedSource(101, URL_A);
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        List<Integer> editors = new CopyOnWriteArrayList<>();
+        Instrumentation.ActivityMonitor monitor = new Instrumentation.ActivityMonitor() {
+            @Override public Instrumentation.ActivityResult onStartActivity(Intent intent) {
+                if (intent.getComponent() == null || !SourceEditActivity.class.getName().equals(
+                        intent.getComponent().getClassName())) return null;
+                editors.add(intent.getIntExtra(SourceEditActivity.EXTRA_FILTER_LIST_ID, -1));
+                return new Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null);
+            }
+        };
+        CountDownLatch releaseDisk = new CountDownLatch(1);
+        inst.addMonitor(monitor);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            waitForUi(scenario, "first row subscribed", activity ->
+                    ((MaterialSwitch) row(activity, 0).findViewById(R.id.filterlistsItemSwitch)).isChecked());
+            // Hold the first editor's database lookup until the later network lookup launches.
+            holdDiskUntil(releaseDisk);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            scrollToRow(scenario, 2);
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitFor("latest editor launched", () -> editors.contains(103));
+            releaseDisk.countDown();
+            drainDiskIo();
+            inst.waitForIdleSync();
+            assertEquals("Only the last tapped filter may launch an editor",
+                    java.util.Collections.singletonList(103), editors);
+            assertEquals("Opening editors must not subscribe or remove a list",
+                    1, sourceDao.getAll().stream().filter(s -> s.getFilterListId() != null).count());
+        } finally {
+            releaseDisk.countDown();
+            inst.removeMonitor(monitor);
+        }
+    }
+
+    @Test
+    public void dismissedDirectoryDoesNotLaunchPendingEditorAndCanOpenItOnReturn() throws Exception {
+        seedSource(101, URL_A);
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor editor = inst.addMonitor(SourceEditActivity.class.getName(),
+                new Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null), true);
+        CountDownLatch releaseDisk = new CountDownLatch(1);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 0);
+            waitForUi(scenario, "subscribed row", activity ->
+                    ((MaterialSwitch) row(activity, 0).findViewById(R.id.filterlistsItemSwitch)).isChecked());
+            holdDiskUntil(releaseDisk);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            scenario.moveToState(Lifecycle.State.CREATED);
+            releaseDisk.countDown();
+            drainDiskIo();
+            inst.waitForIdleSync();
+            assertEquals("Stopped directory opened an editor in the background", 0, editor.getHits());
+            scenario.moveToState(Lifecycle.State.RESUMED);
+            scenario.onActivity(activity -> assertTrue(row(activity, 0).performClick()));
+            waitFor("fresh tap after returning opens editor", () -> editor.getHits() == 1);
+        } finally {
+            releaseDisk.countDown();
+            inst.removeMonitor(editor);
+        }
+    }
+
+    @Test
+    public void compatibleRowRetriesMissingDetailsAndKeepsDirectoryLabelInEditor() {
+        Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        Instrumentation.ActivityMonitor editor = inst.addMonitor(SourceEditActivity.class.getName(), null, false);
+        try (ActivityScenario<HomeActivity> scenario = launchDirectory()) {
+            waitForCount(scenario, 4);
+            scrollToRow(scenario, 2);
+            String valid = detailResponse;
+            detailResponse = null;
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitForSnackbar(scenario, R.string.filterlists_resolve_url_failed);
+            detailResponse = "{\"viewUrls\":[]}";
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            waitForSnackbar(scenario, R.string.filterlists_no_direct_hosts_url);
+            assertEquals(0, editor.getHits());
+            detailResponse = valid;
+            scenario.onActivity(activity -> assertTrue(row(activity, 2).performClick()));
+            SourceEditActivity opened = (SourceEditActivity) inst.waitForMonitorWithTimeout(editor, TIMEOUT_MS);
+            assertNotNull("Successful retry did not open an editor", opened);
+            try {
+                inst.runOnMainSync(() -> {
+                    assertEquals("Regional German Safe", ((EditText) opened.findViewById(R.id.labelEditText))
+                            .getText().toString());
+                    assertEquals(DETAIL_URL, ((EditText) opened.findViewById(R.id.location_edit_text))
+                            .getText().toString());
+                    opened.getOnBackPressedDispatcher().onBackPressed();
+                });
+                waitForUi(scenario, "Back returned to directory", activity ->
+                        activity.hasWindowFocus() && activity.findViewById(R.id.filterlistsRecyclerView) != null);
+                assertFalse("Back must not save a subscription", sourceDao.getByUrl(DETAIL_URL).isPresent());
+            } finally {
+                inst.runOnMainSync(opened::finish);
+            }
+        } finally {
+            inst.removeMonitor(editor);
+        }
+    }
+
+    private void waitForSnackbar(ActivityScenario<HomeActivity> scenario, int message) {
+        waitForUi(scenario, context.getString(message), activity -> {
+            TextView snack = activity.findViewById(com.google.android.material.R.id.snackbar_text);
+            return snack != null && snack.isShown() && context.getString(message).contentEquals(snack.getText());
+        });
+    }
+
+    private static void holdDiskUntil(CountDownLatch release) {
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     @Test

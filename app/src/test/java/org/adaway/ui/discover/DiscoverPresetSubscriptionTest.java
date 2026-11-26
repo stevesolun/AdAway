@@ -659,7 +659,7 @@ public class DiscoverPresetSubscriptionTest {
         assertTrue("Manual add must remain an explicit dialog action.",
                 source.contains("builder.setPositiveButton(R.string.filterlists_add_manually"));
         assertTrue("Manual add must still route through the normal source editor.",
-                source.contains("openSourceEditForFilterList(summary, label, url)"));
+                source.contains("(dialog, which) -> openSourceEditForFilterList(summary,"));
         assertFalse("Unsupported row tap must not be only a dead-end snackbar.",
                 source.contains("showSnackbar(getString(R.string.filterlists_manual_review_required));\n"
                         + "            return;"));

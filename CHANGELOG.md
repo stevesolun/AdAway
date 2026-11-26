@@ -2,6 +2,12 @@
 
 ## [13.5.7b] - Unreleased
 
+- In Discover, only the last filter you tap opens an editor or a review.
+  Leaving the screen cancels pending navigation, not your subscriptions.
+  Editors keep the directory name if a provider returns a URL without a name.
+- Bulk subscribe confirmations count DNS-safe lists without promising they
+  will all be new subscriptions.
+
 - Sources, Custom Rules and Log stop redrawing while waiting for you to tap
   Apply. Their add and recording buttons remain accessible above the prompt.
 - Home updates an existing filter status message when the app language changes.

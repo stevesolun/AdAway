@@ -475,15 +475,17 @@ update-manifest trust material above.
 
 1. Tap the **Discover** tab.
 2. Use the search box or filter by tag / language.
-3. Tap a list → **Subscribe**.
-4. The list is added and enabled; downloading and applying starts automatically.
+3. Use the switch on the row to subscribe. Tapping the row itself opens the
+   source editor or a compatibility explanation; Back leaves the selection unchanged.
+4. After subscribing, the list is enabled and downloading and applying starts automatically.
    See [Source Update Feedback](#source-update-feedback).
 
 For a batch, check the rows you want, then use **Subscribe selected** or
 **Unsubscribe selected**. **Show subscribed** narrows the view to existing
-subscriptions. Selecting a row is not itself a subscription. A browser-only
-list may have no DNS-compatible rules; choosing it cannot make those rules
-work at the domain level.
+subscriptions. Bulk subscribe processes DNS-safe formats by default. Use
+an individual switch to opt into domain extraction from a mixed-format list.
+Selecting a row is not itself a subscription. A browser-only list may have
+no DNS-compatible rules; choosing it cannot make those rules work at the domain level.
 
 ### Apply a Quick-Start Preset
 

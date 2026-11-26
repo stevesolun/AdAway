@@ -92,8 +92,8 @@
     <string name="filterlists_unsubscribe_all_options">Unsubscribe all</string>
     <string name="filterlists_stop_subscribing">Stop subscribing to FilterLists sources</string>
     <string name="filterlists_confirm_subscribe_all_title">Subscribe DNS-safe lists?</string>
-    <string name="filterlists_confirm_subscribe_all_message">AdAway will add %1$d DNS-safe lists from the directory and skip unsupported browser-rule lists.</string>
-    <string name="filterlists_confirm_subscribe_filtered_message">AdAway will add %1$d DNS-safe selected lists and skip unsupported browser-rule lists.</string>
+    <string name="filterlists_confirm_subscribe_all_message">DNS-safe lists in the directory: %1$d. Lists that require a browser will be skipped.</string>
+    <string name="filterlists_confirm_subscribe_filtered_message">DNS-safe lists selected: %1$d. Lists that require a browser will be skipped.</string>
     <string name="filterlists_confirm_subscribe_all_action">Subscribe</string>
     <string name="filterlists_confirm_unsubscribe_all_title">Remove all FilterLists sources?</string>
     <string name="filterlists_confirm_unsubscribe_all_message">This removes every source imported from FilterLists.com. Existing protection changes after the next update.</string>
