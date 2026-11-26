@@ -7,11 +7,11 @@ Version: %version
 Release: 1
 Group: Development/Libraries
 License: BSD with advertising
-Source: @NAME@.tar.gz
 BuildRoot: /tmp/%{name}-buildroot
 URL: http://www.tcpdump.org
 
-Source: http://www.tcpdump.org/release/%{name}-%{version}.tar.gz
+Source0: http://www.tcpdump.org/release/%{name}-%{version}.tar.gz
+BuildRequires: flex, bison
 
 %description
 Libpcap provides a portable framework for low-level network
@@ -28,6 +28,7 @@ on your network.
 %package devel
 Summary: Libraries and header files for the libpcap library
 Group: Development/Libraries
+Requires: %{name} = %{version}-%{release}
 
 %description devel
 Libpcap provides a portable framework for low-level network
@@ -59,7 +60,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc LICENSE README CHANGES INSTALL.txt README.linux TODO VERSION CREDITS packaging/pcap.spec
+%doc LICENSE README CHANGES INSTALL.txt README.linux TODO VERSION CREDITS
 %{_libdir}/libpcap.so.*
 %{_mandir}/man7/pcap*.7*
 

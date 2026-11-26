@@ -4,6 +4,9 @@ BEGIN	{
 	if (packetsize <= 0)
 		packetsize = 512
 	}
+$3 != ">" || $1 !~ /^[0-9]+:[0-9]+:[0-9]+([.][0-9]+)?$/ { next }
+$6 == "ack" && $7 !~ /^[0-9]+$/ { next }
+$6 != "ack" && $6 !~ /^[0-9]+:[0-9]+(\([0-9]+\))?$/ { next }
 $5 !~ /[SR]/	{
 	# print out per-packet data in the form:
 	#  <packet #>
@@ -15,8 +18,13 @@ $5 !~ /[SR]/	{
 	#  <# sends>
 	#  <# acks>
 
-	n = split ($1,t,":")
-	tim = t[1]*3600 + t[2]*60 + t[3]
+	split($1,t,":")
+	clock = t[1]*3600 + t[2]*60 + t[3]
+	# Date-less trace: a large backward jump denotes midnight, not a small reorder.
+	if (previous - clock > 43200)
+		day += 86400
+	previous = clock
+	tim = day + clock
 	if ($6 != "ack") {
 		i = index($6,":")
 		strtSeq = substr($6,1,i-1)
@@ -24,7 +32,9 @@ $5 !~ /[SR]/	{
 		id -= id % 1
 		if (maxId < id)
 			maxId = id
-		if (firstSend[id] == 0) {
+		if (!totalPackets)
+			firstObservedSend = tim
+		if (!(id in firstSend)) {
 			firstSend[id] = tim
 			seqNo[id] = strtSeq
 		}
@@ -35,27 +45,34 @@ $5 !~ /[SR]/	{
 		id = 1 + ($7 - 2) / packetsize
 		id -= id % 1
 		timesAcked[id]++
-		if (firstAck[id] == 0)
+		if (!(id in firstAck))
 			firstAck[id] = tim
 		lastAck[id] = tim
 		totalAcks++
 	}
 	}
 END	{
-	print "# " maxId " chunks.  " totalPackets " packets sent.  " \
-		totalAcks " acks."
+	printf "# %d chunks.  %d packets sent.  %d acks.\n", maxId, totalPackets, totalAcks
 	# for packets that were implicitly acked, make the ack time
 	# be the ack time of next explicitly acked packet.
-	for (i = maxId-1; i > 0; --i)
-		while (i > 0 && firstAck[i] == 0) {
-			lastAck[i] = firstAck[i] = firstAck[i+1]
-			--i
-		}
-	tzero = firstSend[1]
+	# A cumulative ack can cover the last send even if its own send is absent.
+	for (id in firstAck)
+		if (id+0 > maxId && (!nextId || id+0 < nextId))
+			nextId = id+0
+	for (i = maxId; i > 0; --i) {
+		if (i in firstAck)
+			nextId = i
+		else if (nextId)
+			lastAck[i] = firstAck[i] = firstAck[nextId]
+	}
+	tzero = (1 in firstSend) ? firstSend[1] : firstObservedSend
+	# Keep numeric time columns; -1.00 means no send or covering ack was seen.
 	for (i = 1; i <= maxId; i++)
 		printf "%d\t%d\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\n",\
 			i, seqNo[i], \
-			firstSend[i] - tzero, lastSend[i] - tzero,\
-			firstAck[i] - tzero, lastAck[i] - tzero,\
+			(i in firstSend ? firstSend[i] - tzero : -1),\
+			(i in lastSend ? lastSend[i] - tzero : -1),\
+			(i in firstAck ? firstAck[i] - tzero : -1),\
+			(i in lastAck ? lastAck[i] - tzero : -1),\
 			timesSent[i], timesAcked[i]
 	}
