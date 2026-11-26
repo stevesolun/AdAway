@@ -391,6 +391,20 @@ including the protected pull request, required checks, signed tag, repository
 secrets, and artifact verification. Beta releases use the same protected path;
 see the [beta release scope](RELEASING.md#beta-releases).
 
+After the protected PR and required checks complete, use `git tag -s v<version>`
+and `git verify-tag v<version>` as described in the publication procedure.
+The release workflow verifies the tag with `RELEASE_TAG_PUBLIC_KEY_BASE64`,
+builds `:app:assembleDirectRelease`, and attests the APK, manifest, SBOM, and
+their `.sha256` checksum sidecars.
+
+Before announcing a release, run the post-publish
+[artifact verifier](.github/workflows/verify-release-artifacts.yml), which uploads
+`release-artifact-verification-report`, and the
+[physical release smoke](.github/workflows/physical-release-smoke.yml), which
+uploads `physical-release-smoke-report`. Full smoke requires an attached physical device
+on a self-hosted runner labeled `android-device`. Follow [RELEASING.md](RELEASING.md)
+for the inputs and final release-readiness aggregation.
+
 ### Key Dependencies
 
 | Library | Version | Purpose |
