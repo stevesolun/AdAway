@@ -6,6 +6,7 @@ import androidx.annotation.StringRes;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import org.adaway.R;
 import org.adaway.model.OperationStatus;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.root.RootModel;
@@ -97,6 +98,7 @@ public abstract class AdBlockModel {
         if (getMethod() == AdBlockMethod.VPN) {
             // Publishing runtime rows already invalidates the live VPN lookup cache.
             // Never prepare or start a VPN just to refresh those rows.
+            setState(R.string.status_filter_rules_updated);
             return VpnServiceControls.isTunnelEstablished(this.context);
         }
         apply();

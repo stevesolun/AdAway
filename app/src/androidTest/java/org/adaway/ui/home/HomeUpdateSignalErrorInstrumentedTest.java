@@ -9,6 +9,7 @@
 package org.adaway.ui.home;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -46,7 +47,10 @@ import androidx.test.runner.lifecycle.Stage;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
+import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.OperationStatus;
+import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
 import org.adaway.model.update.Manifest;
 import org.adaway.model.update.UpdateModel;
@@ -257,6 +261,31 @@ public class HomeUpdateSignalErrorInstrumentedTest {
                     AppCompatDelegate.setApplicationLocales(previous);
                 });
             }
+        }
+    }
+
+    @Test(timeout = 60_000)
+    public void finishedBackgroundRefreshReplacesSyncTextWithoutEnablingProtection() throws Exception {
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
+        AdBlockModel vpn = application.getAdBlockModel();
+        MutableLiveData<OperationStatus> source =
+                (MutableLiveData<OperationStatus>) application.getSourceModel().getState();
+        MutableLiveData<OperationStatus> protection = (MutableLiveData<OperationStatus>) vpn.getState();
+        OperationStatus oldSource = source.getValue();
+        OperationStatus oldProtection = protection.getValue();
+        try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
+            scenario.onActivity(activity -> source.setValue(new OperationStatus(R.string.status_sync_database)));
+            waitForTextView(scenario, R.id.stateTextView, context.getString(R.string.status_sync_database));
+            assertFalse(vpn.applyAfterBackgroundRefresh());
+            String expected = context.getString(R.string.status_filter_rules_updated);
+            waitForTextView(scenario, R.id.stateTextView, expected);
+            scenario.recreate();
+            waitForTextView(scenario, R.id.stateTextView, expected);
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                source.setValue(oldSource);
+                protection.setValue(oldProtection);
+            });
         }
     }
 

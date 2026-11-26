@@ -87,6 +87,7 @@
     <string name="status_check_copy">בדיקת העתק קובץ מארחים </string>
     <string name="status_hosts_updated">קובץ מארחים עודכן בהצלחה</string>
     <string name="status_vpn_configuration_updated">תצורת ה־VPN עודכנה בהצלחה</string>
+    <string name="status_filter_rules_updated">כללי הסינון עודכנו</string>
     <string name="notification_configuration_changed">התצורה שלך השתנתה. עליך להחיל אותה.</string>
     <string name="notification_configuration_changed_action">החל</string>
     <string name="notification_configuration_installing">מחיל תצורה חדשה…</string>
