@@ -6,6 +6,8 @@ one region, a root installation, or browser-extension cosmetic filtering.
 
 | Journey | Observed on a non-root emulator |
 | --- | --- |
+| Use an arbitrary public list as the only active source | Firebog EasyList loaded 52k rules. On the new signed APK the ad host returned 0, 8, then 0 IPv4 addresses with the list on/off/on; the control kept both addresses. [Final signed measurements](source-category.md#phone-candidate). |
+| Leave, rotate or restore Sources before applying | Pending changes survived tab replacement and Android restoring the task with a new process. Scheduling a named snapshot did not hide Apply. Database failures and competing taps have separate [source-category regressions](source-category.md). |
 | Select, cancel, subscribe and remove multiple filters | On signed app commit `8e2eace32`, selected MoaAB and Hosts Blocking, confirmed 1 and 2 candidates, saw two actual additions, and removed only those subscriptions. The separately entered Prigent-Ads URL retained its 4k rules. See [tested steps and limits](discover-pick-order.md). |
 | Block a logged request and undo it | On signed app commit `17a7d1415`, www.example.com returned two IPv4 answers, then zero after Block and Apply, then two after removal and Apply. The same APK assigned and removed a test redirect. See [measurements and UI checks](pending-apply-and-locale.md). |
 | Enter a custom public URL | HaGeZi Multi LIGHT imported 85,887 rules and remained selected with the defaults. A different Dan Pollock URL imported 13,118; 25 unsupported lines were reported. |

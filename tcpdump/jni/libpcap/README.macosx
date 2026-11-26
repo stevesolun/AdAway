@@ -23,11 +23,9 @@ Therefore, we supply:
 
 	a launchd daemon for Tiger and later versions of Mac OS X;
 
-Both of them will change the ownership of the BPF devices so that the
-"admin" group owns them, and will change the permission of the BPF
-devices to rw-rw----, so that all users in the "admin" group - i.e., all
-users with "Allow user to administer this computer" turned on - have
-both read and write access to them.
+Both helpers change the group of the BPF devices to "admin" and add
+group read and write permission (chmod g+rw). They do not change the
+owning user or remove permissions already granted to other users.
 
 The startup item is in the ChmodBPF directory in the source tree.  A
 /Library/StartupItems directory should be created if it doesn't already

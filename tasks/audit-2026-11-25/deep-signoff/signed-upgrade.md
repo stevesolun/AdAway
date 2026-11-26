@@ -202,7 +202,7 @@ single list: the three default sources were enabled, too.
 The same binary handled an exact redirect and a Log-created block in both
 directions. See the [signed interactions, DNS answers and idle measurements](pending-apply-and-locale.md).
 
-## Final signed phone candidate
+## Discover order phone candidate
 
 Local **AdAway_13.5.7b.apk**, version code **130507**, app commit `8e2eace32`.
 APK SHA-256: `7237fe228acb59c7b8678f0ee9a4052d33d9f69122a276a999ebeff9ae6347be`.
@@ -214,3 +214,14 @@ On a separate fresh install of these exact bytes, the app imported the custom
 URL again; Android Chrome loaded kernel.org and RFC Editor and failed DNS for
 doubleclick.net with VPN protection active.
 This is a local phone-test build; no GitHub publication is implied.
+
+## Final signed phone candidate
+
+Local **AdAway_13.5.7b.apk**, app commit `6da4194eb`, version code **130507**, SHA-256
+`e08123d932628ec77d6f38ed74c3727eca3494c2d94ab68f315cb5cf8a1e3570`.
+The installed base APK matched. APK schemes v2 and v3 verified with the pinned
+certificate `9bf3a40102638ed9271f4dea6225a2d66e5d2c5f3e5204cc125376288f7f9595`.
+See the [exact-build test](source-category.md#phone-candidate) for source and
+schedule controls, restore after process eviction, and DNS and browser results.
+The [earlier public-to-local chain](#discover-order-phone-candidate) is
+historical evidence. This is not a newly published GitHub artifact.

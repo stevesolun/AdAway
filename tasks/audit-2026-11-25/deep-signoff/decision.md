@@ -4,14 +4,32 @@ The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
 for the subsequent deep-QA changes. It is not yet evidence of public delivery.
 
-**Current app commit `8e2eace32`:** Android 14, 672 unique cases: **652
+**Phone candidate, app commit `6da4194eb`:** [APK identity and signed results](source-category.md#phone-candidate),
+[nine source findings](../deep-source-category-bugs.csv) and
+[offline UI stresses](offline-ui-stress.md). The JVM result was 742 passed,
+three skipped, zero failures or errors (95 suites); Android lint reported 35
+warnings and no errors; all 90 repository host checks passed.
+On the network-validated non-root API 34 emulator the final debug/test APK
+pair completed all **687** cases in **483.82 s**: **668 passed, 19 assumption
+skips, zero failures or errors**. [Per-method results and skip reasons](source-category-android14-methods.csv).
+An initial run on an intentionally offline device did not complete; its
+three network-constrained timeouts are recorded in the [test evidence](source-category.md#regression-controls).
+
+**Remaining product risks:** The [coverage cross-check](../deep-journey-evidence-files.csv)
+reconciles 104 stories, 260 control variants and 179 historical journey records,
+not 260 executed clicks or 179 passes. Prioritize Android 11/OEM network
+recovery on a physical phone; interrupted or metered scheduled multi-source
+updates; and Android's own backup restore and app-initiated update paths.
+These are separate from the signed arbitrary-filter and local document proof.
+
+**Prior app commit `8e2eace32`:** Android 14, 672 unique cases: **652
 passed, 20 assumption skips, zero failures or errors** across two executions
 of the same installed debug/test APK pair. The emulator exited after 281
 terminal cases and while running case 282. After a cold boot and reinstall,
 all 394 cases from the interrupted class onward finished. Three completed
 cases overlapped and agreed; all expected method names are accounted for.
 This is not a single uninterrupted run. [Per-method results and skip reasons](discover-order-android14-methods.csv);
-[signed APK](signed-upgrade.md#final-signed-phone-candidate) and [real selection checks](discover-pick-order.md).
+[signed APK for that run](signed-upgrade.md#discover-order-phone-candidate) and [real selection checks](discover-pick-order.md).
 JVM: 738 passed and three skipped (95 suites); lint: 35 warnings, no errors.
 90 repository host checks passed with JDK 21 and the configured Android SDK.
 

@@ -21,6 +21,13 @@ Post-release file and interaction checks: [post-beta review](audit-2026-11-25/va
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 The bounded beta release does not complete this ongoing audit.
 
+- [x] Reproduce category write failures and stale switch states, correct saved-set
+  ordering and retry, and preserve pending protection through tab and process
+  recreation. [Nine filter findings](audit-2026-11-25/deep-source-category-bugs.csv).
+- [x] On the signed phone candidate, isolate a public EasyList URL, measure
+  on/off/on results, browse ordinary sites and trace an actual block back to
+  the source in Domain Checker; verify allow and undo. [Measured outcomes](audit-2026-11-25/deep-signoff/source-category.md#phone-candidate).
+
 ### Next public Android beta: 13.5.7b
 
 - [x] Map non-root controls to explicit expected outcomes and tests. The

@@ -65,13 +65,13 @@ When given a problem, we don't reach for the first solution. We:
 
 Transform a functional ad-blocker into an *insanely great* one. The user taps "Update" and it just... works. Fast. Smooth. Invisible.
 
-**Current Problem:** App clogs during bulk filter updates despite parallel downloads, parallel parsing, batched DB inserts, and conditional GET. Something subtle remains. 
-
-**Our job:** Find it. Fix it. Make it beautiful.
+**Bulk filter updates:** An earlier investigation focused on stalls. For the
+measured limits of the repeated large-file refresh, see the [audit results](tasks/audit-2026-11-25/deep-signoff/decision.md).
+Reproduce a slowdown on the build under investigation before treating it as current.
 
 ## The Codebase
 ```
-Language Distribution:
+Historical repository language distribution (not the APK build):
 ├── C          77.4%   ← Native muscle (tcpdump, webserver)
 ├── HTML        9.0%   ← Web UI components
 ├── Java        7.2%   ← Android app logic
@@ -99,7 +99,7 @@ app/src/main/java/org/adaway/
 ├── db/                      # Room database — THE MEMORY
 │   ├── dao/                 # HostsSourceDao, HostListItemDao, HostEntryDao
 │   ├── entity/              # HostsSource, HostListItem, HostEntry
-│   └── AppDatabase.java     # CHECK WAL MODE HERE
+│   └── AppDatabase.java     # Room builder and migrations
 ├── model/
 │   └── source/              # SourceModel, SourceLoader — THE HEART
 │       ├── SourceModel.java      # Download → Parse → Insert orchestration
@@ -121,7 +121,9 @@ reviewing migrations rather than a prose copy of the schema.
 ## Performance Investigation Targets
 
 The **C engineers** want to check:
-- Is SQLite's WAL mode enabled? (AppDatabase.java)
+- The production Room builder requests write-ahead logging. For a slow refresh,
+  distinguish parallel downloads from imports: SourceModel imports one source at a
+  time, while SourceLoader parses lines within that source in parallel.
 - Are we thrashing the page cache with small transactions?
 - Memory allocation patterns in parsing loops
 
@@ -142,7 +144,9 @@ The Java target is configured in [app/build.gradle](app/build.gradle).
 
 ## Sacred Boundaries
 
-**Native code (`tcpdump/`, `webserver/`)** — The C engineers own this. Don't touch without their review.
+**Native code (`tcpdump/`)** — The C engineers own this historical source tree.
+Don't touch it without their review. The former `webserver/` directory is not
+in this checkout; neither is an active Gradle module.
 
 **Database schema** — Migrations are serious. Plan before changing.
 
@@ -159,7 +163,9 @@ The Java target is configured in [app/build.gradle](app/build.gradle).
 
 # What "Done" Looks Like
 
-- User taps "Subscribe to All" → smooth progress → done
+- In Discover, tap **Subscribe all** with DNS-safe candidates available. Check the
+  candidate count, then tap **Subscribe** to start the job. Verify the result
+  distinguishes new subscriptions, existing ones, missing URLs and unsupported lists.
 - No jank. No ANR. No spinning. No "app not responding"
 - The C engineers see efficient memory use
 - The Java engineers see clean threading

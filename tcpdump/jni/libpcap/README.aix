@@ -25,9 +25,9 @@ Using BPF:
     network link-layer type being wrong or time stamps being wrong).
 
     If you fix the problems yourself, please submit a patch by forking
-    the branch at
+    the upstream repository at
 
-	https://github.com/the-tcpdump-group/libpcap/issues
+	https://github.com/the-tcpdump-group/libpcap
 
     and issuing a pull request, so we can incorporate the fixes into the
     next release.

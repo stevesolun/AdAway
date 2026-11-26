@@ -7,7 +7,7 @@ Endace (http://www.endace.com, see below for further contact details).
 instructions supplied with that package. Current Endace customers can download
 the DAG software distibution from https://www.endace.com
 
-2) Configure libcap. To allow the 'configure' script to locate the DAG
+2) Configure libpcap. To allow the 'configure' script to locate the DAG
 software distribution use the '--with-dag' option:
 
         ./configure --with-dag=DIR
@@ -16,7 +16,7 @@ Where DIR is the root of the DAG software distribution, for example
 /var/src/dag. If the DAG software is correctly detected 'configure' will
 report:
 
-        checking whether we have DAG API... yes
+        checking whether we have the DAG API... yes
 
 If 'configure' reports that there is no DAG API, the directory may have been
 incorrectly specified or the DAG software was not built before configuring
@@ -39,15 +39,10 @@ cards and will not capture from the native OS packet stream.
 
 Libpcap when built for DAG cards against dag-2.5.1 or later releases:
 
-Timeouts are supported. pcap_dispatch() will return after to_ms milliseconds
-regardless of how many packets are received. If to_ms is zero pcap_dispatch()
-will block waiting for data indefinitely.
-
-pcap_dispatch() will block on and process a minimum of 64kB of data (before
-filtering) for efficiency. This can introduce high latencies on quiet
-interfaces unless a timeout value is set. The timeout expiring will override
-the 64kB minimum causing pcap_dispatch() to process any available data and
-return.
+With the DAG streams API, blocking reads normally wait for 64 KiB of
+data before filtering. A nonzero read timeout allows a read to return
+with less data, even none. Immediate mode sets the initial threshold to
+zero. The older, non-streams dag_offset() path does not support timeouts.
 
 pcap_setnonblock is supported. When nonblock is set, pcap_dispatch() will
 check once for available data, process any data available up to count, then

@@ -15,7 +15,10 @@ For what actually ran and what is still open, see the
 | `method-links.csv` | Exact method-to-oracle links and source pointers from the discovery snapshot. A fixture or a screen-entry assertion proves only what it actually asserts. |
 | `ci-methods.csv`, `ci-provenance.json` | Per-method Android 14 execution, separate from coverage. Includes unmapped methods, skips, the failed method, host-only links and methods absent from this run. |
 | `discover-pick-order.md` | Signed non-regional source recovery, cancellation, multi-selection, removal and DNS; separate debug regressions for delayed row opens. |
-| `discover-order-android14-methods.csv` | Current 672 unique debug cases on app commit `8e2eace32`, including skip reasons and which exact-binary execution supplied each terminal result. |
+| `source-category.md` | Exact signed APK: public URL and local file, domain attribution, on/off/on DNS, saved-task recovery, and scheduling without losing Apply. |
+| `source-category-phone.md`, `offline-ui-stress.md` | Independent public URL, ordinary sites and challenge result; separate bounded offline stresses. Each names the tested binary. |
+| `source-category-android14-methods.csv` | 687 final debug cases on app commit `6da4194eb`, one uninterrupted API 34 online run with skip reasons. |
+| `discover-order-android14-methods.csv` | Earlier 672 unique debug cases on app commit `8e2eace32`, including skip reasons and which exact-binary execution supplied each terminal result. |
 | `idle-fix-android14-methods.csv` | Earlier local 669-case run on app commit `17a7d1415`: terminal result and reason per case. The last column preserves prior control links; it is not a new per-control claim. |
 | `final-android14-methods.csv` | Earlier 668-case run on app commit `07d396dd0`, preserved for historical journey references. |
 
