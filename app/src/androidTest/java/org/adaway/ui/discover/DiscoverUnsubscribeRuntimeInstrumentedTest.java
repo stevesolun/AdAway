@@ -36,6 +36,7 @@ import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.vpn.VpnModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
@@ -176,6 +177,7 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
             });
             try {
                 assertTrue(sourceModel.syncEntered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                UiEvidence.capture(application, "discover-removal-during-rebuild");
                 scenario.onActivity(activity -> {
                     RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
                     assertEquals("Committed removal must not wait for rule synchronization",

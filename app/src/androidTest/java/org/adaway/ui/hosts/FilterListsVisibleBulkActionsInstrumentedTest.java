@@ -29,10 +29,13 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.NotificationHelper;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.source.FilterListsDirectoryApi;
 import org.adaway.model.source.FilterListsSourceMetadata;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.junit.After;
 import org.junit.Before;
@@ -83,6 +86,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
     public void setUp() throws Exception {
         context = ApplicationProvider.getApplicationContext();
         InstrumentedTestState.resetForPassiveRootUi(context, "set up FilterLists visible bulk");
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
         NotificationHelper.createNotificationChannels(context);
         AppDatabase.getInstance(context).hostsSourceDao().deleteAll();
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -146,6 +150,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             clickExactAccessibilityText("Close");
             clickButton(scenario, R.id.filterlistsRemoveVisibleButton);
             waitForAccessibilityText("No saved subscription found for the selected lists");
+            UiEvidence.capture(context, "discover-no-saved-subscription");
 
             clickRowChildForText(scenario, VISIBLE_SAFE_NAME,
                     R.id.filterlistsItemSelectionCheckBox);
@@ -163,6 +168,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForText(scenario, R.id.filterlistsSubscribeAllStatus,
                     "Last subscription: Added 1 | Already 0 | No URL 0 | Unsupported 1");
             waitForRecyclerRowText(scenario, R.id.filterlistsItemStatus, "Subscribed");
+            UiEvidence.capture(context, "discover-subscription-history");
 
             assertEquals(1, dependencies.updateEnqueued.get());
             assertEquals(Collections.singletonList(VISIBLE_SAFE_ID),
@@ -184,6 +190,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForSource(VISIBLE_SAFE_URL, false);
             waitForAccessibilityText("Sources removed: 1");
             waitForAccessibilityText("No matching lists");
+            UiEvidence.capture(context, "discover-removed");
             assertTrue("Hidden FilterLists source must survive visible remove",
                     AppDatabase.getInstance(context).hostsSourceDao()
                             .getByUrl(HIDDEN_SAFE_URL)
@@ -198,6 +205,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             waitForText(revisit, R.id.filterlistsSubscribeAllStatus, "Last subscription: Added 1");
             setSwitchChecked(revisit, R.id.filterlistsShowSubscribedSwitch, true);
             waitForRecyclerOnlyRowText(revisit, HIDDEN_SAFE_NAME, VISIBLE_SAFE_NAME);
+            UiEvidence.capture(context, "discover-revisited");
         }
     }
 

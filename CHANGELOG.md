@@ -1,6 +1,6 @@
 # Changelog
 
-## [13.5.7b] - 2026-11-26
+## [13.5.7b] - Unreleased
 
 - Discover shows removed filters disappearing from Show subscribed without
   waiting for the rule rebuild. The last subscription result is labeled as

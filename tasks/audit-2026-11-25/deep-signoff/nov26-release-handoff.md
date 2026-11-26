@@ -68,7 +68,9 @@ are retained locally in `app/build/reports/audit-2026-11-25/archive-followup/`.
 Each index entry identifies its original file and CSV row. These are static
 assessments, not executed platform tests or authorization to ship this code.
 Untriaged findings remain open; 61 archive files remain outside the completed
-reviews.
+reviews. The [follow-up evidence receipt](../deep-nov26-followup-files.csv)
+itself also remains unreviewed; see [the audit inventory](../files.csv) for
+current file review status.
 
 | Local detailed receipt | File rows | SHA-256 |
 | --- | ---: | --- |
