@@ -50,8 +50,6 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:contentDescription="@string/log_toggle_recording_description"
-        app:layout_anchor="@id/log_list"
-        app:layout_anchorGravity="bottom|right|end"
         app:srcCompat="@drawable/ic_record_24dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

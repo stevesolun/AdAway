@@ -26,8 +26,6 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:contentDescription="@string/hosts_add_dialog_title"
-        app:layout_anchor="@id/hosts_sources_list"
-        app:layout_anchorGravity="bottom|end"
         app:srcCompat="@drawable/ic_add_black_24px" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -40,8 +40,6 @@
             android:layout_gravity="bottom|end"
             android:layout_margin="16dp"
             android:contentDescription="@string/lists_add"
-            app:layout_anchor="@id/lists_view_pager"
-            app:layout_anchorGravity="bottom|end"
             app:srcCompat="@drawable/ic_add_black_24px" />
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
