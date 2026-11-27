@@ -14,6 +14,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcel;
 import android.os.SystemClock;
 import android.view.View;
@@ -162,7 +164,7 @@ public class SourcesApplyStateRegressionTest {
     }
 
     @Test(timeout = 90_000)
-    public void pendingApplySurvivesMoreThenSourcesOnSameActivity() {
+    public void pendingApplySurvivesMoreThenSourcesOnSameActivity() throws Exception {
         HomeActivity activity = launchSources();
         AtomicReference<HostsSourcesFragment> first = new AtomicReference<>();
         onMain(() -> {
@@ -190,8 +192,37 @@ public class SourcesApplyStateRegressionTest {
         waitForText(activity, R.string.notification_configuration_changed);
         assertFalse(database.hostsSourceDao().getById(SOURCE_A).orElseThrow().isEnabled());
         assertEquals(0, adBlockModel.applyCount.get());
-        clickApplyAction(activity);
-        waitForText(activity, R.string.notification_configuration_applied);
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+        CountDownLatch collected = new CountDownLatch(1);
+        AtomicBoolean collectionScheduled = new AtomicBoolean();
+        Runnable collectQueuedFeedback = () -> {
+            System.gc();
+            System.runFinalization();
+            System.gc();
+            collected.countDown();
+        };
+        Observer<HostsSourcesViewModel.ApplyStatus> collectOnCompletion = status -> {
+            if (status == HostsSourcesViewModel.ApplyStatus.SUCCEEDED
+                    && collectionScheduled.compareAndSet(false, true)) {
+                // Let construction unwind, then collect during the outgoing banner's animation.
+                mainHandler.postDelayed(collectQueuedFeedback, 100);
+            }
+        };
+        onMain(() -> viewModelOnMain(activity).getApplyStatus().observeForever(collectOnCompletion));
+        try {
+            adBlockModel.blockApply();
+            clickApplyAction(activity);
+            waitForText(activity, R.string.sources_apply_installing);
+            adBlockModel.releaseApply();
+            assertTrue("Queued feedback collection",
+                    collected.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            waitForText(activity, R.string.notification_configuration_applied);
+        } finally {
+            onMain(() -> {
+                viewModelOnMain(activity).getApplyStatus().removeObserver(collectOnCompletion);
+                mainHandler.removeCallbacks(collectQueuedFeedback);
+            });
+        }
         waitForTextAbsent(activity, R.string.notification_configuration_changed);
         assertEquals(1, adBlockModel.applyCount.get());
     }
@@ -750,7 +781,21 @@ public class SourcesApplyStateRegressionTest {
     }
 
     private void waitForText(HomeActivity activity, int resource) {
-        await(context.getString(resource), () -> hasText(activity, resource));
+        try {
+            await(context.getString(resource), () -> hasText(activity, resource));
+        } catch (AssertionError failure) {
+            AtomicReference<String> state = new AtomicReference<>();
+            onMain(() -> {
+                HostsSourcesViewModel model = viewModelOnMain(activity);
+                TextView snackbar = activity.findViewById(
+                        com.google.android.material.R.id.snackbar_text);
+                state.set("applyStatus=" + model.getApplyStatus().getValue()
+                        + ", pending=" + model.getApplyState().isPending()
+                        + ", snackbar=" + (snackbar == null ? "absent"
+                        : snackbar.getText() + " (shown=" + snackbar.isShown() + ")"));
+            });
+            throw new AssertionError(failure.getMessage() + "; " + state.get(), failure);
+        }
     }
 
     private void waitForTextAbsent(HomeActivity activity, int resource) {
