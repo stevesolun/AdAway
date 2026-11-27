@@ -1,6 +1,7 @@
 package org.adaway.ui.hosts;
 
 import android.app.Application;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -23,12 +24,14 @@ import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.Constants;
 import org.adaway.vpn.VpnServiceControls;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import timber.log.Timber;
@@ -46,6 +49,11 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     private static final String FINGERPRINT = "fingerprint";
     private static final String UNCERTAIN = "uncertain";
     private static final String DOWNLOADED_WORK = "downloaded_work";
+    private static final String CHECKPOINT = "checkpoint";
+    private final SharedPreferences mPendingPreferences;
+    private String mCheckpoint;
+    private boolean mAwaitingSelection;
+    private boolean mCleared;
     private final SourceApplyState mApplyState;
     private final MutableLiveData<ApplyStatus> mApplyStatus =
             new MutableLiveData<>(ApplyStatus.IDLE);
@@ -63,12 +71,19 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     public HostsSourcesViewModel(@NonNull Application application, @NonNull SavedStateHandle state) {
         super(application);
         this.hostsSourceDao = AppDatabase.getInstance(application).hostsSourceDao();
+        mPendingPreferences = application.getSharedPreferences(
+                Constants.PREFS_PENDING_SOURCE_APPLY, Application.MODE_PRIVATE);
+        mCheckpoint = mPendingPreferences.getString(FINGERPRINT, null);
         Bundle baseline = state.get(APPLY_BASELINE);
-        mApplyState = baseline == null ? new SourceApplyState() : new SourceApplyState(
-                baseline.getString(FINGERPRINT), baseline.getBoolean(UNCERTAIN),
-                baseline.getString(DOWNLOADED_WORK));
+        if (baseline != null && Objects.equals(mCheckpoint, baseline.getString(CHECKPOINT))) {
+            mApplyState = new SourceApplyState(baseline.getString(FINGERPRINT),
+                    baseline.getBoolean(UNCERTAIN), baseline.getString(DOWNLOADED_WORK));
+        } else {
+            mApplyState = SourceApplyState.fromPendingCheckpoint(mCheckpoint);
+        }
         state.setSavedStateProvider(APPLY_BASELINE, () -> {
             Bundle saved = new Bundle();
+            saved.putString(CHECKPOINT, mCheckpoint);
             saved.putString(FINGERPRINT, mApplyState.getAppliedConfiguration());
             saved.putBoolean(UNCERTAIN, mApplyState.isUncertainOnRestore()
                     || mApplyStatus.getValue() == ApplyStatus.RUNNING);
@@ -77,6 +92,26 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             }
             return saved;
         });
+    }
+
+    private void checkpoint(ApplyStatus status) {
+        if (mCleared) return;
+        String next = mApplyState.pendingCheckpoint(mAwaitingSelection, status == ApplyStatus.RUNNING);
+        if (!Objects.equals(mCheckpoint, next)) {
+            mPendingPreferences.edit().putString(FINGERPRINT, next).apply();
+            mCheckpoint = next;
+        }
+    }
+
+    private void publishStatus(ApplyStatus status) {
+        checkpoint(status);
+        mApplyStatus.setValue(status);
+    }
+
+    @Override
+    protected void onCleared() {
+        mCleared = true; // A late completion must not write over the next task's checkpoint.
+        super.onCleared();
     }
 
     public LiveData<List<HostsSource>> getHostsSources() {
@@ -104,6 +139,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             }
             String configuration = SourceApplyState.fingerprint(sources);
             if (!configuration.equals(mObservedConfiguration)) {
+                mAwaitingSelection = false;
                 if (mObservedConfiguration != null) {
                     mConfigurationRevision++;
                 }
@@ -111,7 +147,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             }
         }
         mApplyState.updateSources(sources);
-        mApplyStatus.setValue(acknowledgeEstablishedDownload()
+        publishStatus(acknowledgeEstablishedDownload()
                 ? ApplyStatus.SUCCEEDED : mApplyStatus.getValue());
     }
 
@@ -130,12 +166,12 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             status = downloaded == null || acknowledgeEstablishedDownload()
                     ? ApplyStatus.SUCCEEDED : ApplyStatus.IDLE;
         }
-        mApplyStatus.setValue(status);
+        publishStatus(status);
     }
 
     @UiThread
     void onVpnStateChanged() {
-        if (acknowledgeEstablishedDownload()) mApplyStatus.setValue(ApplyStatus.SUCCEEDED);
+        if (acknowledgeEstablishedDownload()) publishStatus(ApplyStatus.SUCCEEDED);
     }
 
     private boolean acknowledgeEstablishedDownload() {
@@ -166,7 +202,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             mApplyStatus.setValue(ApplyStatus.BUSY);
             return;
         }
-        mApplyStatus.setValue(ApplyStatus.RUNNING);
+        publishStatus(ApplyStatus.RUNNING);
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 boolean successful = false;
@@ -210,14 +246,14 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     } else if (result) {
                         mApplyState.invalidate();
                     }
-                    mApplyStatus.setValue(!result ? ApplyStatus.FAILED
+                    publishStatus(!result ? ApplyStatus.FAILED
                             : waitingForTunnel ? ApplyStatus.IDLE : ApplyStatus.SUCCEEDED);
                     if (result && waitingForTunnel) onVpnStateChanged();
                 });
             });
         } catch (RuntimeException exception) {
             lease.close();
-            mApplyStatus.setValue(ApplyStatus.FAILED);
+            publishStatus(ApplyStatus.FAILED);
             Timber.w(exception, "Failed to schedule source update.");
         }
     }
@@ -242,6 +278,9 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         if (sourceIds.isEmpty()) return;
         List<Integer> ids = new ArrayList<>(sourceIds);
         mConfigurationRevision++;
+        // The task can disappear before Room delivers the committed switch change.
+        mAwaitingSelection = true;
+        checkpoint(mApplyStatus.getValue());
         try {
             AppExecutors.getInstance().diskIO().execute(() -> {
                 try {

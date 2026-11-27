@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="pending_source_apply.xml" />
         <exclude
             domain="root"
             path="." />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="pending_source_apply.xml" />
         <exclude
             domain="root"
             path="." />

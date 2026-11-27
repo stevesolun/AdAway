@@ -11,6 +11,7 @@ import java.util.TreeMap;
 
 /** Tracks source configuration, excluding download and presentation metadata. */
 public final class SourceApplyState {
+    private static final String UNCONFIRMED = "unconfirmed";
     private String mCurrentConfiguration;
     private String mAppliedConfiguration;
     private Map<Integer, String> mCurrentSources;
@@ -41,6 +42,21 @@ public final class SourceApplyState {
 
     public String getAppliedConfiguration() {
         return mAppliedConfiguration;
+    }
+
+    /** New tasks have no saved state or worker receipt. Keep only outstanding local guidance. */
+    public static SourceApplyState fromPendingCheckpoint(String checkpoint) {
+        return UNCONFIRMED.equals(checkpoint)
+                ? new SourceApplyState(null, true) : new SourceApplyState(checkpoint, false);
+    }
+
+    public String pendingCheckpoint(boolean awaitingSelection, boolean running) {
+        if (running || isUncertainOnRestore() || (awaitingSelection && mAppliedConfiguration == null)) {
+            return UNCONFIRMED;
+        }
+        // Wait for Room before deciding a restored fingerprint is no longer needed.
+        return awaitingSelection || mCurrentConfiguration == null || isPending()
+                ? mAppliedConfiguration : null;
     }
 
     public boolean isUncertainOnRestore() {

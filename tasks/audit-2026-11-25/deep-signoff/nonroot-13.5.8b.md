@@ -1,5 +1,11 @@
 # Non-root Android VPN: 13.5.8b candidate
 
+**Handoff, November 27:** At the time of this check the public beta was 13.5.7b.
+The locally built 13.5.8b (130508) integration APK passed
+the [new-task DNS and browsing checks](#signed-new-task-checks); the combined
+709-case Android run finished with 688 passed, 21 skipped and no failures.
+This is local emulator evidence, not publication or stable sign-off.
+
 On public 13.5.7b, merely returning to Home disconnected another authorized
 VPN on stock Android 14. Home was asking Android to prepare a VPN to find out
 whether it was available. Scheduled filter refreshes also used the operation
@@ -56,7 +62,7 @@ have the same bytes as a future public build. The local raw evidence is under
   observer rechecked this without a new database or worker event in the Android
   regression, which controlled tunnel state. The earlier signed upgrade did not
   test this prompt.
-- **Selection changed during import (POST-VPN-004):** Two deterministic Android
+- **Worker selection changed during import (POST-VPN-004):** Two deterministic Android
   tests disabled a source for the real file import and restored the switch before
   completion. Room showed an enabled source with zero rules. Before the fix both
   cases incorrectly produced a success receipt (active and stopped). Afterward
@@ -72,7 +78,7 @@ have the same bytes as a future public build. The local raw evidence is under
 
 ## Signed filter and navigation stress, November 27
 
-The final local app at `64cbc505b`, SHA-256
+The local app for this stress run at `64cbc505b`, SHA-256
 `ede3279300efb442f7dd7733dd87f0ba84039fc343730aeee57a7fe09c012233`,
 matched the installed package bytes on non-root Android 14. Version 130508;
 APK Signature Schemes v2 and v3 matched the pinned public signer. This was
@@ -102,3 +108,83 @@ Raw UI trees, screenshots, wire answers and process history:
 local JVM suite passed 747, skipped three, and had no failures; lint found
 zero errors and 32 warnings. All 124 host checks passed. No public-artifact,
 physical phone, unlimited stress or all-controls claim follows from this test.
+
+## Protected refresh fixes
+
+| Change | Confirmed defect and scope of proof |
+| --- | --- |
+| `dbb0e249` (POST-VPN-005) | Manual refresh could report success when the VPN start request returned but the tunnel was not established. The full and single-source Android regressions control tunnel state. After establishment, a single-source receipt clears only that source; unrelated edits still need Apply. |
+| `dbb0e249` (POST-VPN-006) | Passive refresh could reuse an old VPN DNS decision when every feed returned HTTP 304. It now discards the VPN rule cache even without new downloads. The host regression checks a primed lookup across six service/ownership combinations without preparing or starting a VPN; this is not a signed all-304 wire capture. |
+| `82937ddc` (POST-VPN-007, [#27](https://github.com/stevesolun/AdAway/issues/27)) | Manual Update All twice acknowledged an enabled source with zero imported rules when it was disabled during import and restored before completion. It now checks the actual importer's receipt. The regression uses a controlled tunnel. POST-VPN-004 above was the worker, not this manual path. |
+| `aa04d13b` (POST-VPN-008) | A successful Apply could lose its queued confirmation while the installing banner was dismissing. Forced garbage collection reproduced the missing banner; retaining it passed five consecutive runs of the exact regression. This was lost feedback, not a failed import. |
+
+## Earlier signed controls
+
+The `64cbc505b` candidate also exercised a user-entered Disconnect simple_ad
+URL with all defaults off. Two catalog checks survived rotation; browser-format
+lists opened compatibility review. For MoaAB and Hosts Blocking, cancel then
+confirm reported Added 2, Already 0, No URL 0, Unsupported 0. Show subscribed
+listed both. Removing just those two kept Disconnect enabled: doubleclick.net
+had zero address answers and example.org had two. This bulk run was not
+repeated on the combined APK.
+
+On the signed `82937ddc` APK (SHA-256
+`a86f95c0aad1c3d57e57a6e5d98ba9d96989d3473ef7dc9d4f69aebf33f77828`),
+the same sole URL survived the same-version upgrade. After explicit VPN
+consent, filter on/off/on gave 0/1/0 target answers and 2/2/2 control answers.
+Chrome rendered Ynet (1,195 nonempty text nodes) and About SQLite (104).
+Ordinary taps passed here, but this APK **lost Apply** when the user removed
+the app task with Disconnect checked, never updated and showing zero hosts.
+The target still resolved; manual Update All recovered blocking.
+
+## Signed new-task checks
+
+[#29](https://github.com/stevesolun/AdAway/issues/29) (POST-VPN-009) concerns
+a *new* task with no saved activity state, not the earlier same-task return
+(DEEP-SRC-GROUP-006). The local fix keeps a fingerprint of the last confirmed
+selection across task removal. Two distinct local signed APKs exercised it:
+
+| APK (SHA-256) | Fresh task before Apply | After Apply and in a second fresh task |
+| --- | --- | --- |
+| Isolated #29 fix on `82937ddc`: `25165b9bb14a39545f2adb8244b4999f050ac35b3e82fe478963a4ccd5313939` | Disconnect checked, 0 hosts, Apply visible. Target/control address answers: 1/2. | About 3k hosts; 0/2 after Apply and again on reopen, without a new reminder. |
+| Combined `aa04d13b` + local #29 + test-only #26: `8b0d39a3d05439ed85ed16b35024b87022e9077ad2da1ff998c5f8511d6ea150` | Applied empty baseline: 1/2. Re-enabled without applying, removed task and reopened: checked, 0 hosts, Apply visible, still 1/2. | About 3k hosts; 0/2 after Apply and 0/2 on reopen with no reminder. Chrome rendered Ynet (1,210 nonempty text nodes) and About SQLite (104) with protection active. |
+
+Target = doubleclick.net; independent control = example.org. Both blocked
+captures after Apply and after reopen on each APK returned AdAway's DNS
+authority. These were fresh VPN queries, not an inference from the checkbox
+or the browser. The two page loads do not measure cosmetic ad removal.
+
+Raw evidence is local under `app/build/reports/audit-2026-11-25/`:
+`final-public-filter/RESULT.md` describes the earlier runs.
+`final-public-filter/fixed-reopen/{cold,reapply,settled}.txt` and its
+`wire-*.json` record the first fix. Separately,
+`final-refresh-feedback/fixed-reopen/regression-class.txt` passed 20/20
+on private API 34 instrumentation. For the combined APK, see
+`final-public-filter/combined-aa04/{check-cold-enabled,apply-after-reopen,check-cold-settled}.txt`,
+the adjacent wire JSON and `browser-results.json`, and the corresponding
+`final-refresh-feedback/combined-aa04/` build and test logs.
+
+## Test limits
+
+- [#26](https://github.com/stevesolun/AdAway/issues/26) (POST-QA-DISC-001)
+  is test-only. A 128-pixel landscape window offset made the injected tap
+  miss the checkbox. It failed in the earlier 705-case run and three replays;
+  correcting screen coordinates passed the exact check on the unchanged app
+  and the 15-case Discover class, including contrast checks. See
+  `final-refresh-feedback/{landscape-issue.md,tap-diagnostic-result.txt,tap-scope-suite.txt}`.
+- [#28](https://github.com/stevesolun/AdAway/issues/28) remains unexplained.
+  Home's slow-startup/manual-check case failed once in the earlier full run,
+  passed three individual replays, and its whole class passed 5/5. No
+  confirmed cause, fix or new defect count. See
+  `final-refresh-feedback/{complete-device-final-stable,control-replay-1,control-replay-2,control-replay-3,startup-whole-class-control}.txt`.
+- The combined full run finished in 320.586 seconds: 688 passed, 21 assumption
+  skips, no failures, including the previously intermittent Home case passing
+  this time. See `final-refresh-feedback/combined-aa04/all-device-tests.txt`.
+  In a disposable Git snapshot with the same changes, the complete JVM run
+  reported 753 passed, 3 skipped and no failures; all 124 host checks passed.
+  Android lint reported 24 warnings and no errors. See `combined-aa04/`
+  logs `jvm-lint-indexed.txt` and `host-repository.txt`. The Git metadata was
+  needed by checks which inspect the source archive and tracked files.
+  Skips are not passes and this run does not establish the cause of #28. Neither
+  local signed APK is hosted or proves future release bytes. Stable release,
+  physical/OEM and root behavior are not signed off. The full audit stays open.

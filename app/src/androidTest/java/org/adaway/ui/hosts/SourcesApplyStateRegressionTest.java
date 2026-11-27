@@ -12,6 +12,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.os.Handler;
@@ -70,6 +71,7 @@ import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.home.VpnLeakStatusObserver;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.Constants;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -259,6 +261,66 @@ public class SourcesApplyStateRegressionTest {
             uncertain.onSourcesChanged(rows);
             assertTrue(uncertain.getApplyState().isPending());
             third.discard();
+        });
+    }
+
+    @Test(timeout = 60_000)
+    public void freshTaskRetainsUnappliedSwitchUntilMatchingFullApply() {
+        sourceModel.realUpdates = true;
+        selectSource(SOURCE_B, false);
+        SharedPreferences checkpoint = context.getSharedPreferences(
+                Constants.PREFS_PENDING_SOURCE_APPLY, Context.MODE_PRIVATE);
+        String disabled = SourceApplyState.fingerprint(observedSources.get());
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        SavedTask[] tasks = new SavedTask[3];
+        onMain(() -> {
+            tasks[0] = new SavedTask(null);
+            model.set(tasks[0].model(application));
+            model.get().onSourcesChanged(observedSources.get());
+            assertFalse(model.get().getApplyState().isPending());
+            model.get().updateSources(null);
+        });
+        await("Disabled selection applied", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        onMain(() -> {
+            model.get().setSourceEnabled(observedSource(SOURCE_B), true);
+            // No saved bundle, and no changed Room emission to the old owner.
+            tasks[0].discard();
+        });
+        await("Switch committed", () -> observedSource(SOURCE_B).isEnabled());
+        assertEquals(Collections.singletonMap("fingerprint", disabled), checkpoint.getAll());
+        onMain(() -> {
+            tasks[1] = new SavedTask(null);
+            HostsSourcesViewModel fresh = tasks[1].model(application);
+            assertNotSame(model.get(), fresh);
+            model.set(fresh);
+            fresh.observeAutomaticWork("historical", true,
+                    SourceApplyState.fingerprint(observedSources.get()));
+            fresh.onSourcesChanged(observedSources.get());
+            assertTrue("Checking a source did not import it", fresh.getApplyState().isPending());
+            fresh.updateSources(SOURCE_A);
+        });
+        await("Other row updated", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        onMain(() -> {
+            assertTrue("A row refresh is not Update all", model.get().getApplyState().isPending());
+            model.get().updateSources(null);
+        });
+        await("Full apply confirmed", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertTrue(sourceRuleCount(SOURCE_B) > 0);
+        assertTrue(checkpoint.getAll().isEmpty());
+        onMain(() -> {
+            assertFalse(model.get().getApplyState().isPending());
+            tasks[1].discard();
+            tasks[2] = new SavedTask(null);
+            HostsSourcesViewModel clean = tasks[2].model(application);
+            assertNotSame(model.get(), clean);
+            clean.onSourcesChanged(observedSources.get());
+            assertFalse("Confirmed selection should reopen quietly", clean.getApplyState().isPending());
+            tasks[2].discard();
         });
     }
 

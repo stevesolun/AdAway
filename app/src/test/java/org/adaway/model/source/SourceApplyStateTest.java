@@ -635,6 +635,42 @@ public class SourceApplyStateTest {
         assertFalse(state.acknowledgeDownload(true));
     }
 
+    @Test
+    public void newTaskWithoutSavedStateRetainsSwitchBeforeFirstChangedEmission() {
+        HostsSource source = source(2);
+        source.setEnabled(false);
+        List<HostsSource> rows = Collections.singletonList(source);
+        SourceApplyState first = SourceApplyState.fromPendingCheckpoint(null);
+        first.updateSources(rows);
+        first.appliedSources(rows, null);
+        assertNull(first.pendingCheckpoint(false, false));
+        String checkpoint = first.pendingCheckpoint(true, false);
+        assertEquals(SourceApplyState.fingerprint(rows), checkpoint);
+
+        source.setEnabled(true);
+        SourceApplyState reopened = SourceApplyState.fromPendingCheckpoint(checkpoint);
+        reopened.observeAutomaticWork("historical", true, SourceApplyState.fingerprint(rows));
+        assertEquals(checkpoint, reopened.pendingCheckpoint(false, false));
+        reopened.updateSources(rows);
+        assertTrue(reopened.isPending());
+        assertEquals(checkpoint, reopened.pendingCheckpoint(false, false));
+        reopened.downloadedSources(rows, null);
+        assertFalse(reopened.acknowledgeDownload(false));
+
+        SourceApplyState withoutTunnel = SourceApplyState.fromPendingCheckpoint(
+                reopened.pendingCheckpoint(false, false));
+        withoutTunnel.updateSources(rows);
+        assertTrue(withoutTunnel.isPending());
+        assertFalse("No receipt was transferred to the new task",
+                withoutTunnel.acknowledgeDownload(true));
+        assertTrue(reopened.acknowledgeDownload(true));
+        assertNull(reopened.pendingCheckpoint(false, false));
+        SourceApplyState clean = SourceApplyState.fromPendingCheckpoint(
+                reopened.pendingCheckpoint(false, false));
+        clean.updateSources(rows);
+        assertFalse(clean.isPending());
+    }
+
     private static SourceApplyState restore(SourceApplyState state) {
         return new SourceApplyState(state.getAppliedConfiguration(), state.isUncertainOnRestore(),
                 state.getDownloadedWorkToRestore());

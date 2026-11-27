@@ -129,6 +129,30 @@ The bounded beta release does not complete this ongoing audit.
   and intermittent Android 11 first-DNS-query investigation in the audit.
   A physical phone is not emulated evidence; root is not a VPN beta requirement.
 
+### 13.5.8b (130508): isolated beta handoff, not published
+
+- [x] Record the protected refresh fixes: wait for the tunnel on manual Apply,
+  keep targeted acknowledgements scoped, and invalidate VPN decisions even on
+  all-304 refreshes (`dbb0e249`). Manual Update All uses the importer's receipt
+  ([#27](https://github.com/stevesolun/AdAway/issues/27), `82937ddc`); POST-VPN-004
+  remains the worker case. The queued success banner survived five consecutive
+  forced-GC regressions (`aa04d13b`).
+- [x] Verify [#29](https://github.com/stevesolun/AdAway/issues/29) on two local
+  signed APKs. On the combined build the reopened task showed Apply with zero
+  hosts; target/control DNS answers changed from 1/2 to 0/2 after Apply and
+  stayed 0/2 on a second reopen without a reminder. Ynet and About SQLite
+  rendered. The 20/20 Sources class and earlier two-list add/remove run are
+  separate evidence. [Exact APKs and measurements](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md#signed-new-task-checks).
+- [x] Correct the landscape test coordinates only
+  ([#26](https://github.com/stevesolun/AdAway/issues/26)); exact 1/1 and
+  Discover class 15/15. The product's checkboxes worked.
+- [x] Reconcile the combined Android run: 688 passed, 21 skipped, no failures
+  (709 total). Keep the intermittent
+  Home startup failure [#28](https://github.com/stevesolun/AdAway/issues/28)
+  open: one full-run failure, three individual passes, whole class 5/5, no
+  confirmed cause. The combined changes are local, not a protected merge or a
+  release. Public beta remains 13.5.7b; full audit remains open.
+
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
 ## Design Decision Log
