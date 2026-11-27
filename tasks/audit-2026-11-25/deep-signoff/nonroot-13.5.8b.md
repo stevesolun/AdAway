@@ -48,3 +48,57 @@ after installation. No physical/OEM, rooted device, lockdown, universal
 filter-syntax or every-click-sequence claim. The candidate is not asserted to
 have the same bytes as a future public build. The local raw evidence is under
 `app/build/reports/audit-2026-11-25/{passive-vpn-qa,upgrade-13.5.8b}/RESULT.md`.
+
+## Refresh feedback follow-up
+
+- **Sources Apply (POST-VPN-002):** A completed download is acknowledged only
+  after a matching selection and established tunnel. A returning lifecycle
+  observer rechecked this without a new database or worker event in the Android
+  regression, which controlled tunnel state. The earlier signed upgrade did not
+  test this prompt.
+- **Selection changed during import (POST-VPN-004):** Two deterministic Android
+  tests disabled a source for the real file import and restored the switch before
+  completion. Room showed an enabled source with zero rules. Before the fix both
+  cases incorrectly produced a success receipt (active and stopped). Afterward
+  neither receipt was emitted. The two cases and then all 48 related device tests
+  passed. See `final-refresh-feedback/race-{red,green}.txt` and `final-focused.txt`.
+- **Home status (P3, POST-VPN-003): verified in a focused API 34 debug test.**
+  The earlier immediate worker succeeded and imported two rules, but Home still
+  showed "Syncing rule database" with protection off. At `405e73004`, the
+  focused test saw "Filter rules updated" after passive finalization and again
+  after Home recreation. It failed before the fix (1/1) and passed after (1/1):
+  `app/build/reports/audit-2026-11-25/final-refresh-feedback/{red,green}.txt`.
+  This follow-up was not run on the signed upgrade APK above.
+
+## Signed filter and navigation stress, November 27
+
+The final local app at `64cbc505b`, SHA-256
+`ede3279300efb442f7dd7733dd87f0ba84039fc343730aeee57a7fe09c012233`,
+matched the installed package bytes on non-root Android 14. Version 130508;
+APK Signature Schemes v2 and v3 matched the pinned public signer. This was
+an in-place install over the earlier **same-version candidate**, separate
+from the public-to-candidate upgrade described above. Home showed off after
+replacement; protection was explicitly re-enabled.
+
+The only enabled list was a custom one-rule hosts file selected through the
+Android picker, not a regional list. Turning it off and tapping Apply gave
+www.iana.org two IPv4 addresses. Re-enabling it and tapping Apply gave zero
+answers with the AdAway blocking authority. The control www.ietf.org returned
+two addresses throughout. These were matching-ID DNS responses through the
+emulator's AdAway tunnel, not cached browser results. A system lookup directly
+after re-enabling on the earlier candidate had briefly returned a cached
+address; we do not promise that all client caches clear instantly.
+
+Five rounds of 40 rapid Home, More and Sources taps in portrait and landscape
+kept the exact custom source enabled. The target still returned zero addresses
+after the final round; no AdAway crash or ANR was recorded for the interval.
+Chrome rendered the Python documentation and About SQLite pages with protection
+on. Project Gutenberg returned a maintenance page on the earlier candidate;
+its normal content was not counted as a pass. One earlier landscape harness
+assertion mistakenly required an off-screen row; the final run scrolled to it.
+
+Raw UI trees, screenshots, wire answers and process history:
+`app/build/reports/audit-2026-11-25/custom-filter-stress-8b/`. The final
+local JVM suite passed 747, skipped three, and had no failures; lint found
+zero errors and 32 warnings. All 124 host checks passed. No public-artifact,
+physical phone, unlimited stress or all-controls claim follows from this test.

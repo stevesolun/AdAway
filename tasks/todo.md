@@ -115,6 +115,12 @@ The bounded beta release does not complete this ongoing audit.
   in-place upgrades from both intentionally on and intentionally off using
   the [local signed 13.5.8b candidate](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md).
   The ordinary tunnel still needs a tap to resume after package replacement.
+- [x] Verify Home replaces stale sync text after a passive refresh (POST-VPN-003;
+  focused API 34 debug red/green, including Home recreation).
+- [x] Verify Sources clears Apply only for a matching download once AdAway's
+  tunnel is established; a mid-import off/on edit cannot acknowledge missing
+  rules (POST-VPN-002/004, 48 focused Android checks). See
+  [refresh feedback](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md#refresh-feedback-follow-up).
 - Keep the remaining file reviews, untranslated guidance, workflow variants,
   and intermittent Android 11 first-DNS-query investigation in the audit.
   A physical phone is not emulated evidence; root is not a VPN beta requirement.
