@@ -1,7 +1,6 @@
 package org.adaway.ui.hosts;
 
 import android.app.Application;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -20,11 +19,11 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.PendingSourceApply;
 import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
-import org.adaway.util.Constants;
 import org.adaway.vpn.VpnServiceControls;
 
 import java.util.ArrayList;
@@ -50,9 +49,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     private static final String UNCERTAIN = "uncertain";
     private static final String DOWNLOADED_WORK = "downloaded_work";
     private static final String CHECKPOINT = "checkpoint";
-    private final SharedPreferences mPendingPreferences;
+    private final PendingSourceApply mPendingApply;
     private String mCheckpoint;
-    private boolean mAwaitingSelection;
     private boolean mCleared;
     private final SourceApplyState mApplyState;
     private final MutableLiveData<ApplyStatus> mApplyStatus =
@@ -71,9 +69,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     public HostsSourcesViewModel(@NonNull Application application, @NonNull SavedStateHandle state) {
         super(application);
         this.hostsSourceDao = AppDatabase.getInstance(application).hostsSourceDao();
-        mPendingPreferences = application.getSharedPreferences(
-                Constants.PREFS_PENDING_SOURCE_APPLY, Application.MODE_PRIVATE);
-        mCheckpoint = mPendingPreferences.getString(FINGERPRINT, null);
+        mPendingApply = ((AdAwayApplication) application).getPendingSourceApply();
+        mCheckpoint = mPendingApply.read();
         Bundle baseline = state.get(APPLY_BASELINE);
         if (baseline != null && Objects.equals(mCheckpoint, baseline.getString(CHECKPOINT))) {
             mApplyState = new SourceApplyState(baseline.getString(FINGERPRINT),
@@ -96,11 +93,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
 
     private void checkpoint(ApplyStatus status) {
         if (mCleared) return;
-        String next = mApplyState.pendingCheckpoint(mAwaitingSelection, status == ApplyStatus.RUNNING);
-        if (!Objects.equals(mCheckpoint, next)) {
-            mPendingPreferences.edit().putString(FINGERPRINT, next).apply();
-            mCheckpoint = next;
-        }
+        mCheckpoint = mPendingApply.save(mApplyState, mObservedConfiguration,
+                status == ApplyStatus.RUNNING);
     }
 
     private void publishStatus(ApplyStatus status) {
@@ -139,7 +133,6 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             }
             String configuration = SourceApplyState.fingerprint(sources);
             if (!configuration.equals(mObservedConfiguration)) {
-                mAwaitingSelection = false;
                 if (mObservedConfiguration != null) {
                     mConfigurationRevision++;
                 }
@@ -205,6 +198,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         publishStatus(ApplyStatus.RUNNING);
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
+                long selectionRevision = mPendingApply.settledSelectionRevision();
                 boolean successful = false;
                 boolean requiresTunnel = false;
                 List<HostsSource> appliedSources = null;
@@ -238,6 +232,10 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                 List<HostsSource> snapshot = appliedSources;
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (snapshot != null && revision == mConfigurationRevision) {
+                        if (!mCleared && sourceId == null) {
+                            mPendingApply.confirmSelection(selectionRevision,
+                                    SourceApplyState.fingerprint(snapshot));
+                        }
                         if (waitingForTunnel) {
                             mApplyState.downloadedSources(snapshot, sourceId);
                         } else {
@@ -271,6 +269,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         Set<Integer> next = new HashSet<>(failedSelections.getValue());
         boolean changed = succeeded ? next.removeAll(ids) : next.addAll(ids);
         if (changed || !succeeded) failedSelections.setValue(next);
+        publishStatus(mApplyStatus.getValue());
     }
 
     @UiThread
@@ -278,22 +277,31 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         if (sourceIds.isEmpty()) return;
         List<Integer> ids = new ArrayList<>(sourceIds);
         mConfigurationRevision++;
-        // The task can disappear before Room delivers the committed switch change.
-        mAwaitingSelection = true;
+        mPendingApply.beginSelection(mApplyState, mApplyStatus.getValue() == ApplyStatus.RUNNING);
         checkpoint(mApplyStatus.getValue());
         try {
             AppExecutors.getInstance().diskIO().execute(() -> {
+                boolean succeeded = false;
                 try {
                     hostsSourceDao.applyGroupSelection(ids, enabled);
+                    succeeded = true;
+                    FilterSetStore.markCustomProfile(getApplication());
                 } catch (RuntimeException error) {
                     Timber.w(error, "Could not save source selection.");
-                    AppExecutors.getInstance().mainThread().execute(() -> selectionFinished(ids, false));
-                    return;
+                } finally {
+                    String configuration = null;
+                    try {
+                        configuration = SourceApplyState.fingerprint(hostsSourceDao.getAll());
+                    } catch (RuntimeException error) {
+                        Timber.w(error, "Could not read settled source selection.");
+                    }
+                    mPendingApply.finishSelection(configuration);
                 }
-                FilterSetStore.markCustomProfile(getApplication());
-                AppExecutors.getInstance().mainThread().execute(() -> selectionFinished(ids, true));
+                boolean result = succeeded;
+                AppExecutors.getInstance().mainThread().execute(() -> selectionFinished(ids, result));
             });
         } catch (java.util.concurrent.RejectedExecutionException error) {
+            mPendingApply.cancelSelection();
             Timber.w(error, "Could not schedule source selection.");
             selectionFinished(ids, false);
         }

@@ -265,7 +265,7 @@ public class SourcesApplyStateRegressionTest {
     }
 
     @Test(timeout = 60_000)
-    public void freshTaskRetainsUnappliedSwitchUntilMatchingFullApply() {
+    public void freshTaskRetainsUnappliedSwitchUntilMatchingFullApply() throws Exception {
         sourceModel.realUpdates = true;
         selectSource(SOURCE_B, false);
         SharedPreferences checkpoint = context.getSharedPreferences(
@@ -283,13 +283,37 @@ public class SourcesApplyStateRegressionTest {
         await("Disabled selection applied", () -> onMainBoolean(() ->
                 model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
         assertEquals(0, sourceRuleCount(SOURCE_B));
-        onMain(() -> {
-            model.get().setSourceEnabled(observedSource(SOURCE_B), true);
-            // No saved bundle, and no changed Room emission to the old owner.
-            tasks[0].discard();
+        CountDownLatch diskBlocked = new CountDownLatch(1);
+        CountDownLatch releaseSelection = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            diskBlocked.countDown();
+            try {
+                assertTrue(releaseSelection.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            }
         });
+        try {
+            assertTrue(diskBlocked.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            onMain(() -> {
+                model.get().setSourceEnabled(observedSource(SOURCE_B), true);
+                tasks[0].discard();
+                SavedTask intermediate = new SavedTask(null);
+                try {
+                    HostsSourcesViewModel replacement = intermediate.model(application);
+                    assertFalse(observedSource(SOURCE_B).isEnabled());
+                    replacement.onSourcesChanged(observedSources.get());
+                    assertEquals(disabled, checkpoint.getString("fingerprint", null));
+                } finally {
+                    intermediate.discard();
+                }
+            });
+        } finally {
+            releaseSelection.countDown();
+        }
         await("Switch committed", () -> observedSource(SOURCE_B).isEnabled());
-        assertEquals(Collections.singletonMap("fingerprint", disabled), checkpoint.getAll());
+        assertEquals(disabled, checkpoint.getString("fingerprint", null));
         onMain(() -> {
             tasks[1] = new SavedTask(null);
             HostsSourcesViewModel fresh = tasks[1].model(application);
