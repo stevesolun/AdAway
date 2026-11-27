@@ -398,6 +398,18 @@ expected source ref, source and signer commits, SLSA v1 predicate, and
 GitHub-hosted runners. The release tag target must remain unchanged throughout
 verification.
 
+Each checksum sidecar must contain exactly one nonblank record naming the
+artifact's basename, without a directory prefix. The manifest envelope, signed
+payload and SBOM must be complete JSON objects without duplicate keys or trailing
+content. The SBOM must declare `bomFormat: "CycloneDX"` and a `components` array;
+this is a structural check, not full CycloneDX schema validation. Unknown options,
+repeated value-taking options and missing option values are rejected.
+
+Choose a `--report` file separate from all six inputs. A directory or an alias of
+an input file is rejected. After parsing the options and accepting the report
+path, the verifier removes any previous report before checking the artifacts and
+writes a new report only on success.
+
 ```powershell
 $Version = "<version>"
 $Channel = "<stable-or-beta>"

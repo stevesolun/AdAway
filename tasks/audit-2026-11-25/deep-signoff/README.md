@@ -9,6 +9,12 @@ Earlier evidence remains in the [arbitrary-filter checkpoint](general-filter-che
 [signed upgrade](signed-upgrade.md#final-signed-phone-candidate) and
 [verification decision](decision.md).
 
+After public 13.5.8b, the [Sources freshness checks](post8b-freshness.md)
+cover real offline/reconnect, rotation and named toolbar selection. The
+[coverage reconciliation](post8b-unmapped-controls.csv) revisits exactly the
+75 original rows without a linked test. An observed variant is not proof of
+all its click chains; remaining steps are listed per row.
+
 | File | Meaning |
 |---|---|
 | `control-oracles.csv` | 260 control/journey variants: route, action, intended effect, relevant test methods and their limits, hands-on check and open gap. Blank methods are intentional. |

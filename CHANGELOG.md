@@ -1,6 +1,17 @@
 # Changelog
 
-## [13.5.8b] - Unreleased
+## Unreleased
+
+- Sources now shows the result of **Check updates**, including when the phone
+  is offline. The result survives rotation and can be dismissed without
+  dismissing a pending Apply.
+- Refreshing one list, applying a saved set, or reopening Sources during an
+  update no longer treats a checked list as proof that its rules were applied.
+- Apply feedback in Lists, DNS Log and Discover distinguishes a requested VPN
+  start from active protection. With no blocking method configured, AdAway
+  does not report a successful download as protection.
+
+## [13.5.8b] - 2026-11-27
 
 - Returning to Home no longer asks Android to prepare the AdAway VPN. A
   scheduled filter download updates the rules without turning an off VPN on.

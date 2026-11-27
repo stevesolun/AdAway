@@ -95,13 +95,18 @@ public abstract class AdBlockModel {
 
     /** After SourceModel publishes refreshed rules, report whether protection uses them. */
     public boolean applyAfterBackgroundRefresh() throws HostErrorException {
-        if (getMethod() == AdBlockMethod.VPN) {
-            // Never prepare or start a VPN just to refresh those rows.
-            setState(R.string.status_filter_rules_updated);
-            return VpnServiceControls.isTunnelEstablished(this.context);
-        }
-        apply();
-        return true;
+        return switch (getMethod()) {
+            case UNDEFINED -> false;
+            case ROOT -> {
+                apply();
+                yield true;
+            }
+            case VPN -> {
+                // Never prepare or start a VPN just to refresh those rows.
+                setState(R.string.status_filter_rules_updated);
+                yield VpnServiceControls.isTunnelEstablished(this.context);
+            }
+        };
     }
 
     /**

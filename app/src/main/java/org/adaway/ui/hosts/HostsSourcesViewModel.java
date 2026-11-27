@@ -61,6 +61,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     private Integer mUpdateSourceId;
     private String mObservedConfiguration;
     private long mConfigurationRevision;
+    private String mAutomaticWork;
+    private long mAutomaticSelectionRevision = -1;
 
     public HostsSourcesViewModel(@NonNull Application application) {
         this(application, new SavedStateHandle());
@@ -112,6 +114,23 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         return this.hostsSourceDao.loadAll();
     }
 
+    LiveData<Integer> getMetadataCheckMessage() {
+        AdAwayApplication application = getApplication();
+        return application.getSourceModel().getMetadataCheckMessage();
+    }
+
+    @UiThread
+    void dismissMetadataCheck() {
+        AdAwayApplication application = getApplication();
+        application.getSourceModel().dismissMetadataCheck();
+    }
+
+    @UiThread
+    void checkForSourceUpdates() {
+        AdAwayApplication application = getApplication();
+        application.getSourceModel().checkForSourceUpdates();
+    }
+
     public SourceApplyState getApplyState() {
         return mApplyState;
     }
@@ -152,10 +171,15 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     @UiThread
     void observeAutomaticWork(String workId, boolean successful, String configuration,
                               String downloaded) {
+        if (workId != null && !workId.equals(mAutomaticWork)) {
+            mAutomaticWork = workId;
+            mAutomaticSelectionRevision = mPendingApply.settledSelectionRevision();
+        }
         boolean completed = mApplyState.observeAutomaticWork(
                 workId, successful, configuration, downloaded);
         ApplyStatus status = mApplyStatus.getValue();
         if (completed && status != ApplyStatus.RUNNING) {
+            if (configuration != null) reconcileAutomaticSelection(configuration);
             status = downloaded == null || acknowledgeEstablishedDownload()
                     ? ApplyStatus.SUCCEEDED : ApplyStatus.IDLE;
         }
@@ -168,13 +192,78 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     }
 
     private boolean acknowledgeEstablishedDownload() {
-        return mApplyStatus.getValue() != ApplyStatus.RUNNING && mApplyState.hasMatchingDownload()
-                && mApplyState.acknowledgeDownload(isVpnTunnelEstablished());
+        if (mApplyStatus.getValue() == ApplyStatus.RUNNING || !mApplyState.hasMatchingDownload()) {
+            return false;
+        }
+        String work = mApplyState.getDownloadedWorkToRestore();
+        if (!mApplyState.acknowledgeDownload(isVpnTunnelEstablished())) return false;
+        if (work != null && work.equals(mAutomaticWork)) {
+            reconcileAutomaticSelection(mApplyState.getAppliedConfiguration());
+        }
+        return true;
+    }
+
+    private void reconcileAutomaticSelection(String configuration) {
+        if (mCleared) return;
+        long revision = mAutomaticSelectionRevision;
+        Runnable retireGuard = mPendingApply.recordAutomaticBaseline(revision, configuration);
+        if (retireGuard == null) return;
+        String work = mAutomaticWork;
+        // A late WorkInfo and stale LiveData can agree despite a newer committed selection.
+        AppExecutors executors = AppExecutors.getInstance();
+        Runnable verify = () -> {
+            try {
+                if (!configuration.equals(SourceApplyState.fingerprint(hostsSourceDao.getAll()))) return;
+            } catch (RuntimeException error) {
+                Timber.w(error, "Could not verify automatic source selection.");
+                return;
+            }
+            retireGuard.run();
+            executors.mainThread().execute(() -> {
+                if (mCleared || !work.equals(mAutomaticWork)
+                        || mApplyStatus.getValue() == ApplyStatus.RUNNING
+                        || mApplyState.isUncertainOnRestore()
+                        || revision != mPendingApply.settledSelectionRevision()
+                        || !configuration.equals(mApplyState.getAppliedConfiguration())) return;
+                checkpoint(mApplyStatus.getValue());
+            });
+        };
+        try {
+            executors.diskIO().execute(verify);
+        } catch (java.util.concurrent.RejectedExecutionException error) {
+            Timber.w(error, "Could not schedule automatic source selection verification.");
+        }
     }
 
     boolean isVpnTunnelEstablished() {
         return PreferenceHelper.getAdBlockMethod(getApplication()) == AdBlockMethod.VPN
                 && VpnServiceControls.isTunnelEstablished(getApplication());
+    }
+
+    @UiThread
+    void beginSavedSetSelection() {
+        mConfigurationRevision++;
+        mPendingApply.beginSelection(mApplyState, mApplyStatus.getValue() == ApplyStatus.RUNNING);
+        checkpoint(mApplyStatus.getValue());
+    }
+
+    void finishSavedSetSelection(boolean committed) {
+        if (!committed) {
+            mPendingApply.cancelSelection();
+            return;
+        }
+        String configuration = null;
+        try {
+            configuration = SourceApplyState.fingerprint(hostsSourceDao.getAll());
+        } catch (RuntimeException error) {
+            Timber.w(error, "Could not read committed saved-set selection.");
+        }
+        mPendingApply.finishSelection(configuration);
+    }
+
+    @UiThread
+    void savedSetSelectionFinished() {
+        if (!mCleared) publishStatus(mApplyStatus.getValue());
     }
 
     @UiThread
@@ -199,6 +288,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 long selectionRevision = mPendingApply.settledSelectionRevision();
+                boolean imported = false;
                 boolean successful = false;
                 boolean requiresTunnel = false;
                 List<HostsSource> appliedSources = null;
@@ -207,18 +297,25 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     String configuration = SourceApplyState.fingerprint(snapshot);
                     SourceModel sourceModel = application.getSourceModel();
                     AdBlockModel adBlockModel = application.getAdBlockModel();
-                    boolean shouldApply = true;
-                    String importedConfiguration = configuration;
+                    String expectedConfiguration = configuration;
+                    String importedConfiguration;
                     if (sourceId == null) {
                         importedConfiguration = sourceModel.retrieveHostsSourcesWithReceipt();
-                        shouldApply = importedConfiguration != null;
                     } else {
-                        sourceModel.retrieveHostsSource(sourceId);
+                        expectedConfiguration = snapshot.stream()
+                                .filter(source -> source.getId() == sourceId)
+                                .findFirst()
+                                .map(source -> SourceApplyState.fingerprint(Collections.singletonList(source)))
+                                .orElse(null);
+                        importedConfiguration = sourceModel.retrieveHostsSourceWithReceipt(sourceId);
                     }
+                    imported = importedConfiguration != null;
+                    AdBlockMethod method = adBlockModel.getMethod();
+                    boolean shouldApply = imported && method != AdBlockMethod.UNDEFINED;
                     if (shouldApply) {
                         adBlockModel.apply();
-                        requiresTunnel = adBlockModel.getMethod() == AdBlockMethod.VPN;
-                        if (configuration.equals(importedConfiguration) && configuration.equals(
+                        requiresTunnel = method == AdBlockMethod.VPN;
+                        if (importedConfiguration.equals(expectedConfiguration) && configuration.equals(
                                 SourceApplyState.fingerprint(hostsSourceDao.getAll()))) {
                             appliedSources = snapshot;
                         }
@@ -228,6 +325,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     Timber.w(exception, "Failed to update and apply sources.");
                 }
                 boolean result = successful;
+                boolean rulesImported = imported;
                 boolean waitingForTunnel = requiresTunnel;
                 List<HostsSource> snapshot = appliedSources;
                 AppExecutors.getInstance().mainThread().execute(() -> {
@@ -241,7 +339,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                         } else {
                             mApplyState.appliedSources(snapshot, sourceId);
                         }
-                    } else if (result) {
+                    } else if (rulesImported) {
+                        // The import may already have replaced rules even if protection failed.
                         mApplyState.invalidate();
                     }
                     publishStatus(!result ? ApplyStatus.FAILED

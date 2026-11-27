@@ -220,9 +220,11 @@ class Controller:
         output = self.run_mutation(f"{test_case}-backup", [
             "shell", "bmgr", "backupnow", PACKAGE,
         ], timeout=180)
-        if not re.search(r"(?m)^Package org\.adaway with result:\s*Success\s*$", output) \
-                or not re.search(r"(?m)^Backup finished with result:\s*Success\s*$", output):
-            raise ProbeError("Local backupnow did not report package and overall success")
+        lines = [line.strip() for line in output.splitlines()]
+        for prefix in (f"Package {PACKAGE} with result:", "Backup finished with result:"):
+            outcomes = [line[len(prefix):].strip() for line in lines if line.startswith(prefix)]
+            if outcomes != ["Success"]:
+                raise ProbeError(f"Local backupnow requires one unambiguous success: {prefix}")
         self.drain_queue(test_case)
         self.instrument(test_case, "act")
         deadline = time.monotonic() + OBSERVATION_SECONDS

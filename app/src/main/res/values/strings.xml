@@ -186,6 +186,7 @@
 
     <!--Status Notification-->
     <string name="status_check">Checking for update</string>
+    <string name="status_source_check_failed">Could not check sources for updates</string>
     <string name="status_check_source">Checking %s source for update</string>
     <string name="status_retrieve">Retrieving sources</string>
     <string name="status_download_source">Downloading source %s</string>

@@ -26,6 +26,7 @@ import android.os.SystemClock;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.annotation.UiThread;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.sqlite.db.SupportSQLiteDatabase;
@@ -156,6 +157,7 @@ public class SourceModel {
      * The update available status.
      */
     private final MutableLiveData<Boolean> updateAvailable;
+    private final SourceUpdateCheck manualUpdateCheck;
     /**
      * The model state.
      */
@@ -241,6 +243,9 @@ public class SourceModel {
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.updateAvailable = new MutableLiveData<>();
         this.updateAvailable.postValue(false);
+        AppExecutors executors = AppExecutors.getInstance();
+        this.manualUpdateCheck = new SourceUpdateCheck(this::checkForUpdate,
+                executors.networkIO(), executors.mainThread());
         SourceUpdateService.syncPreferences(context);
     }
 
@@ -378,6 +383,20 @@ public class SourceModel {
      */
     public LiveData<Boolean> isUpdateAvailable() {
         return this.updateAvailable;
+    }
+
+    public LiveData<Integer> getMetadataCheckMessage() {
+        return this.manualUpdateCheck.getMessage();
+    }
+
+    @UiThread
+    public void dismissMetadataCheck() {
+        this.manualUpdateCheck.dismiss();
+    }
+
+    @UiThread
+    public void checkForSourceUpdates() {
+        this.manualUpdateCheck.start();
     }
 
     /** Probe one bounded page without taking a user operation lock or publishing full-check state. */
@@ -1539,15 +1558,25 @@ public class SourceModel {
 
     /**
      * Retrieve a single hosts source (download/read + parse) and synchronize entries.
-     * This is used for per-list "Update" actions in the UI.
+     * Callers that acknowledge Sources Apply must use {@link #retrieveHostsSourceWithReceipt(int)}.
      *
      * @param sourceId The source id to update.
      * @throws HostErrorException If the hosts source could not be downloaded.
      */
     public void retrieveHostsSource(int sourceId) throws HostErrorException {
+        retrieveHostsSourceWithReceipt(sourceId);
+    }
+
+    /** Fingerprint of the single row actually processed, or null if no row was eligible. */
+    @Nullable
+    public String retrieveHostsSourceWithReceipt(int sourceId) throws HostErrorException {
         beginUpdateOperation("retrieveHostsSource");
         try {
-            retrieveHostsSource(sourceId, true);
+            HostsSource source = findTargetSource(sourceId);
+            if (source == null) return null;
+            String receipt = SourceApplyState.fingerprint(Collections.singletonList(source));
+            retrieveHostsSource(source, true);
+            return receipt;
         } finally {
             finishUpdateOperation();
         }
@@ -1598,10 +1627,24 @@ public class SourceModel {
 
     private TargetedSourceUpdate retrieveHostsSource(int sourceId, boolean syncAfter)
             throws HostErrorException {
+        HostsSource source = findTargetSource(sourceId);
+        return source == null ? null : retrieveHostsSource(source, syncAfter);
+    }
+
+    @Nullable
+    private HostsSource findTargetSource(int sourceId) {
         HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
-        if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) {
+        if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) return null;
+        if (source.isEnabled() && source.getType() != URL && source.getType() != FILE) {
+            Timber.w("Hosts source type is not supported.");
             return null;
         }
+        return source;
+    }
+
+    private TargetedSourceUpdate retrieveHostsSource(HostsSource source, boolean syncAfter)
+            throws HostErrorException {
+        int sourceId = source.getId();
         postProgress(0, 1, source.getLabel(), 0, 0);
         if (!source.isEnabled()) {
             if (syncAfter) {

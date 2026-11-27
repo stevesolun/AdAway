@@ -8,6 +8,7 @@
     <string name="notification_update_app_available_title">App update available</string>
     <string name="notification_update_app_available_text">A new version of AdAway is available for download.</string>
     <!-- VPN notification -->
+    <string name="notification_configuration_vpn_requested">VPN start requested. Check Home to see whether protection is on.</string>
     <string name="notification_vpn_channel_name">VPN</string>
     <string name="notification_vpn_channel_description">VPN running notifications</string>
     <string name="notification_vpn_permission_title">VPN permission needed</string>

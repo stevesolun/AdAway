@@ -263,8 +263,10 @@ JAVA
     import org.adaway.model.adblocking.AdBlockMethod;
     import org.adaway.model.adblocking.UndefinedBlockModel;
     public class RootModel extends UndefinedBlockModel {
+      public int applyCalls;
       public RootModel(Context context) { super(context); }
       @Override public AdBlockMethod getMethod() { return AdBlockMethod.ROOT; }
+      @Override public void apply() { applyCalls++; }
     }
   JAVA
   'timber/log/Timber.java' => <<~JAVA
@@ -275,6 +277,29 @@ JAVA
     }
   JAVA
 }.each { |path, content| write.call(path, content) }
+
+write.call('org/adaway/model/adblocking/PassiveModeHostTest.java', <<~JAVA)
+  package org.adaway.model.adblocking;
+  import android.content.Context;
+  import org.adaway.model.root.RootModel;
+  import org.junit.Test;
+  import static org.junit.Assert.*;
+
+  public class PassiveModeHostTest {
+    @Test public void undefinedRefreshCannotAcknowledgeProtection() throws Exception {
+      AdBlockModel model = AdBlockModel.build(new Context(), AdBlockMethod.UNDEFINED);
+      assertFalse("No method is using the refreshed rules", model.applyAfterBackgroundRefresh());
+      assertTrue(model.isApplied().published.isEmpty());
+      assertTrue(model.getState().published.isEmpty());
+    }
+
+    @Test public void rootRefreshAppliesOnceBeforeAcknowledgingProtection() throws Exception {
+      RootModel model = (RootModel) AdBlockModel.build(new Context(), AdBlockMethod.ROOT);
+      assertTrue(model.applyAfterBackgroundRefresh());
+      assertEquals(1, model.applyCalls);
+    }
+  }
+JAVA
 
 write.call('org/adaway/vpn/VpnRuntimeStateHostTest.java', <<~JAVA)
   package org.adaway.vpn;
@@ -571,6 +596,7 @@ puts output unless output.empty?
 abort 'VPN runtime fixture compilation failed' unless status.success?
 output, status = Open3.capture2e(File.join(JAVA_HOME, 'bin/java'), '-cp', ([classes] + jars).join(':'),
                                'org.junit.runner.JUnitCore',
+                               'org.adaway.model.adblocking.PassiveModeHostTest',
                                'org.adaway.vpn.VpnRuntimeStateHostTest',
                                'org.adaway.model.vpn.VpnApplyConsentHostTest')
 File.write(File.join(BUILD, 'results.txt'), output)

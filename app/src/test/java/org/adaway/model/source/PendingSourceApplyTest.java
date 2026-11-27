@@ -2,6 +2,7 @@ package org.adaway.model.source;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -253,6 +254,66 @@ public class PendingSourceApplyTest {
         assertEquals(SourceApplyState.fingerprint(selected), fixture.values.get("selection"));
         assertEquals(SourceApplyState.fingerprint(baseline), fixture.save(state, baseline, false));
         assertTrue(fixture.restore(selected).isPending());
+    }
+
+    @Test
+    public void automaticBaselineSurvivesRemovalBeforeSettledTargetIsVerified() {
+        Fixture fixture = new Fixture();
+        List<HostsSource> baseline = rows(false);
+        List<HostsSource> selected = rows(true);
+        List<HostsSource> edited = rows(true);
+        edited.get(0).setUrl("https://source.example/edited");
+        String receipt = SourceApplyState.fingerprint(edited);
+        SourceApplyState state = fixture.restore(baseline);
+        fixture.pending.beginSelection(state, false);
+        fixture.pending.finishSelection(SourceApplyState.fingerprint(selected));
+        long revision = fixture.pending.settledSelectionRevision();
+        state.updateSources(edited);
+        state.observeAutomaticWork("worker", false, null);
+        assertTrue(state.observeAutomaticWork("worker", true, receipt));
+        Runnable verified = fixture.pending.recordAutomaticBaseline(revision, receipt);
+        assertNotNull(verified);
+        assertEquals(receipt, fixture.save(state, edited, false));
+
+        assertFalse(fixture.restore(edited).isPending());
+        assertTrue(fixture.restore(selected).isPending());
+        assertEquals(SourceApplyState.fingerprint(selected), fixture.values.get("selection"));
+        verified.run();
+        assertEquals(Collections.singletonMap("fingerprint", receipt), fixture.values);
+        fixture.pending = new PendingSourceApply(fixture.preferences);
+        assertNull(fixture.save(fixture.restore(edited), edited, false));
+    }
+
+    @Test
+    public void automaticBaselineCannotReplaceNewerOrInFlightSelection() {
+        Fixture fixture = new Fixture();
+        List<HostsSource> baseline = rows(false);
+        String applied = SourceApplyState.fingerprint(baseline);
+        SourceApplyState state = fixture.restore(baseline);
+        long earlier = fixture.pending.settledSelectionRevision();
+        assertNull(fixture.pending.recordAutomaticBaseline(earlier, "receipt"));
+        assertTrue(fixture.values.isEmpty());
+
+        fixture.pending.beginSelection(state, false);
+        long queued = fixture.pending.settledSelectionRevision();
+        assertNull(fixture.pending.recordAutomaticBaseline(earlier, "receipt"));
+        assertNull(fixture.pending.recordAutomaticBaseline(queued, "receipt"));
+        String settled = SourceApplyState.fingerprint(rows(true));
+        fixture.pending.finishSelection(settled);
+        assertNull(fixture.pending.recordAutomaticBaseline(queued, "receipt"));
+        assertNull(fixture.pending.recordAutomaticBaseline(earlier, "receipt"));
+        assertEquals(applied, fixture.pending.read());
+        assertEquals(settled, fixture.values.get("selection"));
+
+        Runnable verified = fixture.pending.recordAutomaticBaseline(
+                fixture.pending.settledSelectionRevision(), "receipt");
+        assertNotNull(verified);
+        fixture.pending.beginSelection(state, false);
+        verified.run();
+        assertEquals("unconfirmed", fixture.values.get("selection"));
+        fixture.pending.finishSelection(settled);
+        verified.run();
+        assertEquals(settled, fixture.values.get("selection"));
     }
 
     @Test

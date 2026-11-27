@@ -86,7 +86,7 @@ public final class SourceApplyState {
     }
 
     public void downloadedSources(List<HostsSource> sources, Integer sourceId) {
-        forgetDownload();
+        replaceDownload(sourceId);
         mDownloadedSources = snapshot(sources);
         mDownloadedSourceId = sourceId;
         mDownloadedConfiguration = fingerprint(mDownloadedSources);
@@ -99,7 +99,7 @@ public final class SourceApplyState {
         boolean matchedDownload = hasMatchingDownload();
         mCurrentSources = snapshot(sources);
         mCurrentConfiguration = fingerprint(mCurrentSources);
-        if (matchedDownload && !hasMatchingDownload()) forgetDownload();
+        if (matchedDownload && !hasMatchingDownload()) invalidate();
         if (mAppliedConfiguration == null) {
             mAppliedConfiguration = mCurrentConfiguration;
         }
@@ -137,7 +137,7 @@ public final class SourceApplyState {
     }
 
     private void appliedSources(Map<Integer, String> completedSources, Integer sourceId) {
-        forgetDownload();
+        replaceDownload(sourceId);
         if (sourceId == null) {
             mAcknowledgementUncertain = false;
             mTargetedChanges.clear();
@@ -180,6 +180,15 @@ public final class SourceApplyState {
         return observeAutomaticWork(workId, successful, configuration, null);
     }
 
+    private void replaceDownload(Integer sourceId) {
+        // A different row refresh cannot undo the earlier import's changes to the rules.
+        if (mDownloadedSources != null && sourceId != null && !sourceId.equals(mDownloadedSourceId)) {
+            invalidate();
+        } else {
+            forgetDownload();
+        }
+    }
+
     private void forgetDownload() {
         mDownloadedConfiguration = null;
         mDownloadedSources = null;
@@ -200,7 +209,9 @@ public final class SourceApplyState {
                 return false;
             }
         }
-        if (workId != null && !workId.equals(mLastCompletedWork)) forgetDownload();
+        if (workId != null && !workId.equals(mLastCompletedWork) && mDownloadedConfiguration != null) {
+            invalidate();
+        }
         if (successful && workId != null && !workId.equals(mLastCompletedWork)) {
             mLastCompletedWork = workId;
             if (configuration == null) {

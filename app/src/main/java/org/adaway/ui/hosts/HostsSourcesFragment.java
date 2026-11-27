@@ -56,8 +56,6 @@ import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
-import org.adaway.model.error.HostErrorException;
-import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar;
 import org.adaway.ui.home.HomeActivity;
@@ -151,6 +149,17 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 new ViewModelProvider(requireActivity()).get(SourceCategoryViewState.class);
         mAdapter = new CategorizedSourcesAdapter(this, categoryState);
         recyclerView.setAdapter(mAdapter);
+        TextView checkMessage = view.findViewById(R.id.source_metadata_check_message);
+        View checkStatus = view.findViewById(R.id.source_metadata_check_status);
+        View dismissCheck = view.findViewById(R.id.dismiss_source_metadata_check);
+        dismissCheck.setOnClickListener(v -> mViewModel.dismissMetadataCheck());
+        mViewModel.getMetadataCheckMessage().observe(lifecycleOwner, message -> {
+            checkStatus.setVisibility(message == null ? View.GONE : View.VISIBLE);
+            if (message != null) {
+                checkMessage.setText(message);
+                dismissCheck.setVisibility(message == R.string.status_check ? View.GONE : View.VISIBLE);
+            }
+        });
         View selectionError = view.findViewById(R.id.source_selection_error);
         mViewModel.getFailedSelections().observe(lifecycleOwner, failed -> {
             selectionError.setVisibility(failed.isEmpty() ? View.GONE : View.VISIBLE);
@@ -197,7 +206,7 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
     boolean handleMenuItem(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_hosts_check_updates) {
-            runCheckUpdates();
+            mViewModel.checkForSourceUpdates();
             return true;
         } else if (id == R.id.action_hosts_update_all) {
             updateAllSources();
@@ -549,22 +558,10 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         status.setVisibility(View.VISIBLE);
 
         AppExecutors executors = AppExecutors.getInstance();
-        CompletableFuture.supplyAsync(() -> {
-            // Manage can rename, delete or replace a set while a retry is waiting on disk IO.
-            if (confirmedId == null
-                    || !confirmedId.equals(FilterSetStore.getSetIdForDisplayName(appCtx, name))
-                    || !FilterSetStore.hasSetUrls(appCtx, name)) {
-                return R.string.filter_set_missing;
-            }
-            if (!enabledUrls.equals(FilterSetStore.getSetUrls(appCtx, name))) {
-                return R.string.filter_set_changed_since_preview;
-            }
-            HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
-            dao.applySourceSelections(enabledUrls);
-            FilterSetStore.setActiveProfile(appCtx, name);
-            FilterSetUpdateService.enable(appCtx);
-            return 0;
-        }, executors.diskIO()).whenCompleteAsync((refusalMessage, failure) -> {
+        HostsSourcesViewModel owner = mViewModel;
+        submitConfirmedFilterSet(appCtx, owner, name, enabledUrls, confirmedId, executors.diskIO())
+                .whenCompleteAsync((refusalMessage, failure) -> {
+            owner.savedSetSelectionFinished();
             if (failure != null) timber.log.Timber.w(failure, "Could not apply saved filter set.");
             if (!status.isAttachedToWindow() || status.getTag() != request) return;
             status.setTag(null);
@@ -579,6 +576,41 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
                 Toast.makeText(appCtx, R.string.filter_set_applied, Toast.LENGTH_SHORT).show();
             }
         }, executors.mainThread());
+    }
+
+    static CompletableFuture<Integer> submitConfirmedFilterSet(Context appCtx,
+            HostsSourcesViewModel owner, String name, Set<String> enabledUrls,
+            @Nullable String confirmedId, java.util.concurrent.Executor disk) {
+        owner.beginSavedSetSelection();
+        try {
+            return CompletableFuture.supplyAsync(() -> {
+                boolean committed = false;
+                try {
+                    // Manage can rename, delete or replace a set while a retry is waiting on disk IO.
+                    if (confirmedId == null
+                            || !confirmedId.equals(FilterSetStore.getSetIdForDisplayName(appCtx, name))
+                            || !FilterSetStore.hasSetUrls(appCtx, name)) {
+                        return R.string.filter_set_missing;
+                    }
+                    if (!enabledUrls.equals(FilterSetStore.getSetUrls(appCtx, name))) {
+                        return R.string.filter_set_changed_since_preview;
+                    }
+                    HostsSourceDao dao = AppDatabase.getInstance(appCtx).hostsSourceDao();
+                    dao.applySourceSelections(enabledUrls);
+                    committed = true;
+                    FilterSetStore.setActiveProfile(appCtx, name);
+                    FilterSetUpdateService.enable(appCtx);
+                    return 0;
+                } finally {
+                    owner.finishSavedSetSelection(committed);
+                }
+            }, disk);
+        } catch (java.util.concurrent.RejectedExecutionException error) {
+            owner.finishSavedSetSelection(false);
+            CompletableFuture<Integer> apply = new CompletableFuture<>();
+            apply.completeExceptionally(error);
+            return apply;
+        }
     }
 
     private void promptScheduleFilterSet() {
@@ -744,20 +776,6 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
             intent.putExtra(SOURCE_ID, source.getId());
         }
         startActivity(intent);
-    }
-
-    private void runCheckUpdates() {
-        Toast.makeText(requireContext(), R.string.status_check, Toast.LENGTH_SHORT).show();
-        // QA-05: capture Context before background thread to avoid IllegalStateException on navigation.
-        AdAwayApplication application = (AdAwayApplication) requireContext().getApplicationContext();
-        AppExecutors.getInstance().networkIO().execute(() -> {
-            SourceModel sourceModel = application.getSourceModel();
-            try {
-                sourceModel.checkForUpdate();
-            } catch (HostErrorException ignored) {
-                // Keep it simple: failures are handled elsewhere in the app
-            }
-        });
     }
 
     /**

@@ -32,7 +32,7 @@ public class AdAwayApplication extends Application {
      */
     private SourceModel sourceModel;
     /**
-     * The common ad block model for the whole application.
+     * Guarded by the application monitor. DNS proxies retain the selected VPN model.
      */
     private AdBlockModel adBlockModel;
     /**
@@ -97,8 +97,7 @@ public class AdAwayApplication extends Application {
      *
      * @return The common ad block model for the whole application.
      */
-    public AdBlockModel getAdBlockModel() {
-        // Check cached model
+    public synchronized AdBlockModel getAdBlockModel() {
         AdBlockMethod method = PreferenceHelper.getAdBlockMethod(this);
         if (this.adBlockModel == null || this.adBlockModel.getMethod() != method) {
             this.adBlockModel = AdBlockModel.build(this, method);
@@ -112,9 +111,9 @@ public class AdAwayApplication extends Application {
      * <p>Normal apply flows already clear the cache in {@link VpnModel#apply()}, but domain
      * checker actions can update user rules without restarting the VPN.</p>
      */
-    public void invalidateVpnRulesCache() {
-        if (this.adBlockModel instanceof VpnModel) {
-            ((VpnModel) this.adBlockModel).invalidateRulesCache();
+    public synchronized void invalidateVpnRulesCache() {
+        if (this.adBlockModel instanceof VpnModel vpnModel) {
+            vpnModel.invalidateRulesCache();
         }
     }
 
