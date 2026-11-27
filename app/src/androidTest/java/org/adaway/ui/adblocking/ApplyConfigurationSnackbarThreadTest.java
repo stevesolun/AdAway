@@ -29,6 +29,7 @@ import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar.ApplyOutcome;
 import org.adaway.ui.lists.ListsActivity;
 import org.junit.After;
@@ -212,6 +213,9 @@ public class ApplyConfigurationSnackbarThreadTest {
             assertFalse("Completion releases the operation", application.getSourceOperations().isBusy());
             if (expectedText != 0) {
                 TextView action = awaitFeedback(parent, expectedText, editDuringApply, apply);
+                if (expectedText == R.string.notification_configuration_vpn_requested) {
+                    UiEvidence.capture(application, "vpn-start-requested-protection-unconfirmed");
+                }
                 if (reject) {
                     InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> assertTrue(action.performClick()));
                     awaitFeedback(parent, R.string.notification_configuration_applied, false, action);
