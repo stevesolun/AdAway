@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <!-- Update notification -->
     <string name="notification_update_channel_name">עדכונים</string>
@@ -8,6 +8,7 @@
     <string name="notification_update_app_available_title">עדכון יישום זמין</string>
     <string name="notification_update_app_available_text">גרסה חדשה של AdAway זמינה להורדה.</string>
     <!-- VPN notification -->
+    <string name="notification_configuration_vpn_requested">נשלחה בקשה להפעלת ה־VPN. אפשר לבדוק במסך הבית אם ההגנה פעילה.</string>
     <string name="notification_vpn_channel_name">VPN</string>
     <string name="notification_vpn_channel_description">התראות ריצת VPN</string>
 </resources>

@@ -1,5 +1,6 @@
 package org.adaway.ui.adblocking;
 
+import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -7,6 +8,7 @@ import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 import androidx.annotation.UiThread;
 import androidx.lifecycle.Observer;
 
@@ -14,6 +16,7 @@ import com.google.android.material.snackbar.Snackbar;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
@@ -21,6 +24,7 @@ import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.ui.hosts.HostsSourcesViewModel;
 import org.adaway.ui.hosts.HostsSourcesViewModel.ApplyStatus;
 import org.adaway.util.AppExecutors;
+import org.adaway.vpn.VpnServiceControls;
 
 import timber.log.Timber;
 
@@ -34,6 +38,8 @@ import static com.google.android.material.snackbar.Snackbar.LENGTH_LONG;
  * @author Bruce BUJON (bruce.bujon(at)gmail(dot)com)
  */
 public class ApplyConfigurationSnackbar {
+    enum ApplyOutcome { APPLIED, VPN_REQUESTED, NO_METHOD, BUSY, FAILED }
+
     /**
      * The view to bind the snackbar to.
      */
@@ -182,14 +188,16 @@ public class ApplyConfigurationSnackbar {
      * Notify update available.
      */
     public void notifyUpdateAvailable() {
-        // Check if notify snackbar is already displayed
-        if (this.notifySnackbar.isShownOrQueued()) {
+        // An edit arriving during an explicit Apply may need another Apply.
+        if (this.applying) {
+            this.update = true;
             return;
         }
-        // Check if wait snackbar is displayed
-        if (this.applying) {
-            // Mark update available
-            this.update = true;
+        // The failure/busy banner already offers Apply; keep its explanation visible.
+        if (this.mSourceViewModel == null && this.mResultSnackbar != null
+                && this.mResultSnackbar.isShownOrQueued()) return;
+        // Check if notify snackbar is already displayed
+        if (this.notifySnackbar.isShownOrQueued()) {
             return;
         }
         // Check if update event should be skipped
@@ -213,41 +221,52 @@ public class ApplyConfigurationSnackbar {
             return;
         }
         this.applying = true;
+        this.update = false;
         showLoading();
         AdAwayApplication application =
                 (AdAwayApplication) this.view.getContext().getApplicationContext();
         SourceOperationCoordinator.Lease lease = application.getSourceOperations().tryAcquire();
         if (lease == null) {
-            endLoading(false);
+            endLoading(ApplyOutcome.BUSY);
             return;
         }
         try {
             AppExecutors.getInstance().diskIO().execute(() -> {
-                boolean successful = false;
+                ApplyOutcome outcome;
                 try (SourceOperationCoordinator.Lease ignored = lease) {
-                    SourceModel sourceModel = application.getSourceModel();
-                    AdBlockModel adBlockModel = application.getAdBlockModel();
-                    boolean shouldApply = true;
-                    if (this.syncSources) {
-                        shouldApply = sourceModel.checkAndRetrieveHostsSources();
-                    } else {
-                        sourceModel.syncHostEntries();
-                    }
-                    if (shouldApply) {
-                        adBlockModel.apply();
-                    }
-                    successful = shouldApply;
+                    outcome = applyConfiguration(application);
                 } catch (HostErrorException | RuntimeException exception) {
+                    outcome = ApplyOutcome.FAILED;
                     Timber.w(exception, "Failed to apply configuration.");
                 }
-                boolean result = successful;
+                ApplyOutcome result = outcome;
                 AppExecutors.getInstance().mainThread().execute(() -> endLoading(result));
             });
         } catch (RuntimeException exception) {
             lease.close();
-            endLoading(false);
+            endLoading(ApplyOutcome.FAILED);
             Timber.w(exception, "Failed to schedule configuration apply.");
         }
+    }
+
+    private ApplyOutcome applyConfiguration(AdAwayApplication application) throws HostErrorException {
+        SourceModel source = application.getSourceModel();
+        if (this.syncSources) {
+            if (!source.checkAndRetrieveHostsSources()) return ApplyOutcome.FAILED;
+        } else {
+            source.syncHostEntries();
+        }
+        AdBlockModel model = application.getAdBlockModel();
+        AdBlockMethod method = model.getMethod();
+        if (method == AdBlockMethod.UNDEFINED) return ApplyOutcome.NO_METHOD;
+        model.apply();
+        // VPN apply returns once Android accepts the request, before a tunnel necessarily exists.
+        return method == AdBlockMethod.VPN && !isTunnelEstablished(application)
+                ? ApplyOutcome.VPN_REQUESTED : ApplyOutcome.APPLIED;
+    }
+
+    boolean isTunnelEstablished(Context context) {
+        return VpnServiceControls.isTunnelEstablished(context);
     }
 
     private void showLoading() {
@@ -262,35 +281,38 @@ public class ApplyConfigurationSnackbar {
     }
 
     @UiThread
-    void endLoading(boolean successfulInstall) {
+    void endLoading(ApplyOutcome outcome) {
         this.applying = false;
         // Clear snackbars
         this.waitSnackbar.dismiss();
         if (!this.view.isAttachedToWindow()) {
             return;
         }
-        if (!successfulInstall) {
-            showUnapplied(false, null);
+        if (outcome == ApplyOutcome.FAILED || outcome == ApplyOutcome.BUSY) {
+            showUnapplied(outcome == ApplyOutcome.BUSY, this::apply);
             return;
         }
         if (this.update) {
-            // Ignore next update event if events should be ignored
-            if (this.ignoreEventDuringInstall) {
-                this.skipUpdate = true;
-                showApplied();
-            } else {
-                // Otherwise display update notification
+            if (!this.ignoreEventDuringInstall) {
                 notifyUpdateAvailable();
+                return;
             }
-            return;
+            this.skipUpdate = true;
         }
-        showApplied();
+        switch (outcome) {
+            case APPLIED -> showApplied();
+            case VPN_REQUESTED -> showCompletion(R.string.notification_configuration_vpn_requested);
+            case NO_METHOD -> showCompletion(R.string.leak_status_mode_unconfigured);
+        }
     }
 
     private void showApplied() {
+        showCompletion(R.string.notification_configuration_applied);
+    }
+
+    private void showCompletion(@StringRes int message) {
         // The queue holds callbacks weakly while the previous snackbar is dismissing.
-        this.mAppliedSnackbar = Snackbar.make(this.view,
-                R.string.notification_configuration_applied, LENGTH_LONG);
+        this.mAppliedSnackbar = Snackbar.make(this.view, message, LENGTH_LONG);
         this.mAppliedSnackbar.show();
     }
 
