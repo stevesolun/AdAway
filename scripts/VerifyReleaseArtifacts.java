@@ -48,6 +48,17 @@ public final class VerifyReleaseArtifacts {
     private static void run(String[] args) throws Exception {
         Options options = Options.parse(args);
         if (options.report != null) {
+            for (Path input : List.of(options.apk, options.apkSha256, options.manifest,
+                    options.manifestSha256, options.sbom, options.sbomSha256)) {
+                if (options.report.toAbsolutePath().normalize().equals(input.toAbsolutePath().normalize())
+                        || (Files.exists(options.report) && Files.exists(input)
+                        && Files.isSameFile(options.report, input))) {
+                    fail("Report path must be separate from every verification input.");
+                }
+            }
+            if (Files.isDirectory(options.report)) {
+                fail("Report path must not be a directory.");
+            }
             Files.deleteIfExists(options.report);
         }
         options.validateProvenanceOptions();
@@ -57,7 +68,7 @@ public final class VerifyReleaseArtifacts {
         verifyChecksum(options.sbom, options.sbomSha256);
         verifySbom(options.sbom);
 
-        String manifest = Files.readString(options.manifest, StandardCharsets.UTF_8);
+        Map<?, ?> manifest = Json.object(Files.readString(options.manifest, StandardCharsets.UTF_8));
         String payload = readJsonString(manifest, "payload");
         String signature = readJsonString(manifest, "signature");
         verifyManifestSignature(payload, signature, options.publicKeyBase64);
@@ -103,6 +114,7 @@ public final class VerifyReleaseArtifacts {
 
     private static String readChecksum(Path checksumFile, String expectedFileName) throws IOException {
         List<String> lines = Files.readAllLines(checksumFile, StandardCharsets.UTF_8);
+        String checksum = null;
         for (String line : lines) {
             String trimmed = line.trim();
             if (trimmed.isEmpty()) {
@@ -112,23 +124,29 @@ public final class VerifyReleaseArtifacts {
             if (!matcher.matches()) {
                 fail("Invalid checksum line in " + checksumFile + ".");
             }
-            String fileName = Path.of(matcher.group(2)).getFileName().toString();
+            if (checksum != null) {
+                fail("Expected one checksum record in " + checksumFile + ".");
+            }
+            String fileName = matcher.group(2);
             if (!expectedFileName.equals(fileName)) {
                 fail("Checksum file " + checksumFile + " points at " + fileName +
                         " instead of " + expectedFileName + ".");
             }
-            return matcher.group(1).toLowerCase(Locale.ROOT);
+            checksum = matcher.group(1).toLowerCase(Locale.ROOT);
         }
-        fail("Checksum file is empty: " + checksumFile + ".");
-        return "";
+        if (checksum == null) {
+            fail("Checksum file is empty: " + checksumFile + ".");
+        }
+        return checksum;
     }
 
     private static void verifySbom(Path sbom) throws IOException {
         String text = Files.readString(sbom, StandardCharsets.UTF_8);
-        if (!text.contains("\"bomFormat\"") || !text.contains("CycloneDX")) {
+        Map<?, ?> document = Json.object(text);
+        if (!"CycloneDX".equals(document.get("bomFormat"))) {
             fail("SBOM must be a CycloneDX document.");
         }
-        if (!text.contains("\"components\"")) {
+        if (document.get("components") != Json.ARRAY) {
             fail("SBOM must include a components array.");
         }
     }
@@ -147,7 +165,8 @@ public final class VerifyReleaseArtifacts {
     }
 
     private static ManifestPayload verifyManifestPayload(
-            String payload, String apkSha256, Options options) {
+            String signedText, String apkSha256, Options options) {
+        Map<?, ?> payload = Json.object(signedText);
         String manifestApkSha256 = normalizeSha256(readJsonString(payload, "apkSha256"));
         if (!apkSha256.equals(manifestApkSha256)) {
             fail("Manifest apkSha256 does not match the release APK.");
@@ -159,15 +178,11 @@ public final class VerifyReleaseArtifacts {
                 fail("Manifest version does not match expected version.");
             }
         }
-        Matcher code = Pattern.compile("\"versionCode\"\\s*:\\s*([1-9][0-9]*)\\s*[,}]")
-                .matcher(payload);
-        if (!code.find()) {
-            fail("Manifest versionCode must be a positive integer.");
+        Object code = payload.get("versionCode");
+        if (!(code instanceof Json.NumberToken number) || !number.text().matches("[1-9][0-9]*")) {
+            throw new IllegalArgumentException("Manifest versionCode must be a positive integer.");
         }
-        int versionCode = Integer.parseInt(code.group(1));
-        if (code.find()) {
-            fail("Manifest versionCode must occur exactly once.");
-        }
+        int versionCode = Integer.parseInt(number.text());
 
         String certSha256 = normalizeSha256(readJsonString(payload, "signingCertificateSha256"));
         if (!options.expectedCertSha256.isEmpty() &&
@@ -550,76 +565,113 @@ public final class VerifyReleaseArtifacts {
         }
     }
 
-    private static String readJsonString(String json, String field) {
-        String key = "\"" + field + "\"";
-        int keyIndex = json.indexOf(key);
-        if (keyIndex < 0) {
-            fail("JSON field is missing: " + field + ".");
-        }
-        int colon = json.indexOf(':', keyIndex + key.length());
-        if (colon < 0) {
-            fail("JSON field has no value: " + field + ".");
-        }
-        int quote = skipWhitespace(json, colon + 1);
-        if (quote >= json.length() || json.charAt(quote) != '"') {
-            fail("JSON field is not a string: " + field + ".");
-        }
-
-        StringBuilder out = new StringBuilder();
-        for (int i = quote + 1; i < json.length(); i++) {
-            char ch = json.charAt(i);
-            if (ch == '"') {
-                return out.toString();
-            }
-            if (ch != '\\') {
-                out.append(ch);
-                continue;
-            }
-            if (++i >= json.length()) {
-                fail("JSON string escape is incomplete: " + field + ".");
-            }
-            char escaped = json.charAt(i);
-            switch (escaped) {
-                case '"':
-                case '\\':
-                case '/':
-                    out.append(escaped);
-                    break;
-                case 'b':
-                    out.append('\b');
-                    break;
-                case 'f':
-                    out.append('\f');
-                    break;
-                case 'n':
-                    out.append('\n');
-                    break;
-                case 'r':
-                    out.append('\r');
-                    break;
-                case 't':
-                    out.append('\t');
-                    break;
-                case 'u':
-                    if (i + 4 >= json.length()) {
-                        fail("JSON unicode escape is incomplete: " + field + ".");
-                    }
-                    out.append((char) Integer.parseInt(json.substring(i + 1, i + 5), 16));
-                    i += 4;
-                    break;
-                default:
-                    fail("JSON string escape is unsupported: \\" + escaped + ".");
-            }
-        }
-        fail("JSON string is unterminated: " + field + ".");
-        return "";
+    private static String readJsonString(Map<?, ?> object, String field) {
+        if (object.get(field) instanceof String value) return value;
+        throw new IllegalArgumentException("Missing or non-string JSON field: " + field + ".");
     }
 
-    private static int skipWhitespace(String text, int index) {
-        while (index < text.length() && Character.isWhitespace(text.charAt(index))) {
-            index++;
+    // The verifier is launched as a single JDK source file, without a JSON library.
+    // Validate whole documents; the contents of SBOM arrays need not be retained.
+    private static final class Json {
+        static final Object ARRAY = new Object();
+        private record NumberToken(String text) {}
+        private static final Pattern NUMBER = Pattern.compile(
+                "-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?");
+        private final String text;
+        private int pos;
+
+        private Json(String text) { this.text = text; }
+
+        static Map<?, ?> object(String text) {
+            Json parser = new Json(text);
+            Object root = parser.value(0);
+            parser.space();
+            if (!(root instanceof Map<?, ?> map) || parser.pos != text.length()) {
+                throw parser.invalid();
+            }
+            return map;
         }
-        return index;
+
+        private Object value(int depth) {
+            space();
+            if (depth > 128 || pos == text.length()) throw invalid();
+            if (take('{')) {
+                Map<String, Object> fields = new HashMap<>();
+                if (!take('}')) {
+                    do {
+                        String name = string();
+                        if (fields.containsKey(name) || !take(':')) throw invalid();
+                        fields.put(name, value(depth + 1));
+                    } while (take(','));
+                    if (!take('}')) throw invalid();
+                }
+                return fields;
+            }
+            if (take('[')) {
+                if (!take(']')) {
+                    do { value(depth + 1); } while (take(','));
+                    if (!take(']')) throw invalid();
+                }
+                return ARRAY;
+            }
+            if (text.charAt(pos) == '"') return string();
+            for (String literal : List.of("true", "false", "null")) {
+                if (text.startsWith(literal, pos)) {
+                    pos += literal.length();
+                    return null; // Not a string, number, object or array.
+                }
+            }
+            Matcher number = NUMBER.matcher(text).region(pos, text.length());
+            if (!number.lookingAt()) throw invalid();
+            pos = number.end();
+            return new NumberToken(number.group());
+        }
+
+        private String string() {
+            if (!take('"')) throw invalid();
+            StringBuilder out = new StringBuilder();
+            while (pos < text.length()) {
+                char ch = text.charAt(pos++);
+                if (ch == '"') return out.toString();
+                if (ch < 0x20) throw invalid();
+                if (ch == '\\') {
+                    if (pos == text.length()) throw invalid();
+                    ch = switch (text.charAt(pos++)) {
+                        case '"', '\\', '/' -> text.charAt(pos - 1);
+                        case 'b' -> '\b';
+                        case 'f' -> '\f';
+                        case 'n' -> '\n';
+                        case 'r' -> '\r';
+                        case 't' -> '\t';
+                        case 'u' -> {
+                            if (pos + 4 > text.length()) throw invalid();
+                            String hex = text.substring(pos, pos + 4);
+                            if (!hex.matches("[0-9a-fA-F]{4}")) throw invalid();
+                            pos += 4;
+                            yield (char) Integer.parseInt(hex, 16);
+                        }
+                        default -> throw invalid();
+                    };
+                }
+                out.append(ch);
+            }
+            throw invalid();
+        }
+
+        private boolean take(char ch) {
+            space();
+            if (pos >= text.length() || text.charAt(pos) != ch) return false;
+            pos++;
+            return true;
+        }
+
+        private void space() {
+            while (pos < text.length() && " \t\r\n".indexOf(text.charAt(pos)) >= 0) pos++;
+        }
+
+        private IllegalArgumentException invalid() {
+            return new IllegalArgumentException("Invalid or ambiguous JSON at offset " + pos + ".");
+        }
     }
 
     private static byte[] decodeBase64OrPem(String value, String expectedBlock) {
@@ -751,9 +803,6 @@ public final class VerifyReleaseArtifacts {
 
         static Options parse(String[] args) {
             Map<String, String> values = new HashMap<>();
-            values.put("public-key-base64",
-                    System.getenv().getOrDefault("UPDATE_MANIFEST_PUBLIC_KEY_BASE64", ""));
-
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 if ("-h".equals(arg) || "--help".equals(arg)) {
@@ -768,11 +817,21 @@ public final class VerifyReleaseArtifacts {
                     fail("Unknown argument: " + arg);
                 }
                 String key = arg.substring(2);
-                if (i + 1 >= args.length) {
+                if (!Set.of("apk", "apk-sha256", "manifest", "manifest-sha256", "sbom",
+                        "sbom-sha256", "public-key-base64", "expected-version", "expected-channel",
+                        "expected-store", "expected-apk-url", "expected-cert-sha256", "repo",
+                        "report", "metadata-source-commit", "metadata-source-ref").contains(key)) {
+                    fail("Unknown argument: " + arg);
+                }
+                if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                     fail("Missing value for " + arg);
                 }
-                values.put(key, args[++i]);
+                if (values.put(key, args[++i]) != null) {
+                    fail("Duplicate argument: " + arg);
+                }
             }
+            values.putIfAbsent("public-key-base64",
+                    System.getenv().getOrDefault("UPDATE_MANIFEST_PUBLIC_KEY_BASE64", ""));
             return new Options(values);
         }
 

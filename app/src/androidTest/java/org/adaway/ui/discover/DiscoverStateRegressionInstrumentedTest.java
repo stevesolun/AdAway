@@ -574,9 +574,9 @@ public class DiscoverStateRegressionInstrumentedTest {
                     assertEquals(expected.getLanguage(), config.getLocales().get(0).getLanguage());
                     assertEquals(android.text.TextUtils.getLayoutDirectionFromLocale(expected),
                             item.getLayoutDirection());
-                    assertEquals(Float.parseFloat(InstrumentationRegistry.getArguments()
-                            .getString("uxFontScale")), config.fontScale, 0.02f);
                 }
+                String scale = InstrumentationRegistry.getArguments().getString("uxFontScale");
+                if (scale != null) assertEquals(Float.parseFloat(scale), config.fontScale, 0.02f);
                 assertRowTextClearsControls(item, false);
                 assertTrue(visibleScreenRect(item.findViewById(R.id.filterlistsItemSwitch), target));
             });

@@ -1,11 +1,15 @@
 package org.adaway.model.backup;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import org.adaway.util.Constants;
 import org.junit.Test;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
 import java.io.StringReader;
@@ -29,15 +33,32 @@ public class AppBackupAgentContractTest {
                 "app/src/main/res/xml/data_extraction_rules.xml");
         String fullBackupContent = readRepoFile("app/src/main/res/xml/full_backup_content.xml");
 
-        assertTrue("Declared BackupAgent must be eligible for platform backup.",
-                manifest.contains("android:allowBackup=\"true\"") &&
-                        manifest.contains(
-                                "android:backupAgent=\".model.backup.AppBackupAgent\"") &&
-                        manifest.contains("android:fullBackupOnly=\"false\""));
-        assertTrue("Manifest must keep platform backup constrained by explicit XML rules.",
-                manifest.contains("android:dataExtractionRules=\"@xml/data_extraction_rules\"") &&
-                        manifest.contains("android:fullBackupContent=\"@xml/full_backup_content\""));
+        assertApplicationBackupAttributes(manifest);
         assertBackupRootExcluded(dataExtractionRules, fullBackupContent);
+    }
+
+    private static void assertApplicationBackupAttributes(String manifest) throws Exception {
+        Element app = (Element) XPathFactory.newInstance().newXPath().evaluate(
+                "/manifest/application", parseXml(manifest), XPathConstants.NODE);
+        assertNotNull("Manifest must declare the application.", app);
+        String android = "http://schemas.android.com/apk/res/android";
+        assertEquals("true", app.getAttributeNS(android, "allowBackup"));
+        assertEquals(".model.backup.AppBackupAgent", app.getAttributeNS(android, "backupAgent"));
+        assertEquals("false", app.getAttributeNS(android, "fullBackupOnly"));
+        assertEquals("@xml/data_extraction_rules", app.getAttributeNS(android, "dataExtractionRules"));
+        assertEquals("@xml/full_backup_content", app.getAttributeNS(android, "fullBackupContent"));
+    }
+
+    @Test
+    public void manifestBackupAttributesMustBelongToApplication() throws Exception {
+        String manifest = "<manifest xmlns:a='http://schemas.android.com/apk/res/android'>"
+                + "<application a:allowBackup='true' a:backupAgent='.model.backup.AppBackupAgent'"
+                + " a:fullBackupOnly='false' a:dataExtractionRules='@xml/data_extraction_rules'"
+                + " a:fullBackupContent='@xml/full_backup_content'/></manifest>";
+        assertApplicationBackupAttributes(manifest);
+        String misplaced = manifest.replace("a:allowBackup='true'", "a:allowBackup='false'")
+                .replace("</manifest>", "<!-- android:allowBackup=\"true\" --> </manifest>");
+        assertThrows(AssertionError.class, () -> assertApplicationBackupAttributes(misplaced));
     }
 
     @Test
@@ -102,7 +123,7 @@ public class AppBackupAgentContractTest {
         Document legacyRules = parseXml(readRepoFile(
                 "app/src/main/res/xml/full_backup_content.xml"));
         String exclusion = "/exclude[@domain='sharedpref' "
-                + "and @path='pending_source_apply.xml']";
+                + "and @path='" + Constants.PREFS_PENDING_SOURCE_APPLY + ".xml']";
         for (String section : new String[]{"cloud-backup", "device-transfer"}) {
             assertTrue(section + " must explicitly exclude the local pending-Apply checkpoint.",
                     (Boolean) XPathFactory.newInstance().newXPath().evaluate(
@@ -132,7 +153,7 @@ public class AppBackupAgentContractTest {
                         source.contains("new File(this.context.getFilesDir(), RULES_FILE_NAME)"));
         assertFalse("Key-value backup must not register the local pending-Apply preferences.",
                 source.contains("PREFS_PENDING_SOURCE_APPLY")
-                        || source.contains("\"pending_source_apply\""));
+                        || source.contains("\"" + Constants.PREFS_PENDING_SOURCE_APPLY + "\""));
     }
 
     @Test

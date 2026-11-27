@@ -45,8 +45,6 @@ public final class InstrumentedTestState {
     }
 
     public static void resetForPassiveRootUi(@NonNull Context context, @NonNull String phase) {
-        context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY, Context.MODE_PRIVATE)
-                .edit().clear().apply();
         SharedPreferences prefs = context.getSharedPreferences(
                 Constants.PREFS_NAME,
                 Context.MODE_PRIVATE);
@@ -65,6 +63,10 @@ public final class InstrumentedTestState {
         resetSourceModel(context, phase + " before WorkManager reset");
         resetWorkManager(context, phase);
         resetSourceModel(context, phase + " after WorkManager reset");
+        if (!context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY, Context.MODE_PRIVATE)
+                .edit().clear().commit()) {
+            throw new AssertionError("Failed to clear pending Apply checkpoint during " + phase);
+        }
     }
 
     public static void resetWorkManager(@NonNull Context context, @NonNull String phase) {
@@ -156,7 +158,6 @@ public final class InstrumentedTestState {
         SourceModel.MultiPhaseProgressBuilder progressBuilder =
                 (SourceModel.MultiPhaseProgressBuilder) progressBuilderField.get(sourceModel);
         progressBuilder.reset();
-        getUpdateInProgress(sourceModel).set(false);
 
         Method method = SourceModel.class.getDeclaredMethod(
                 "postMultiPhaseProgress",
