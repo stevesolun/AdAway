@@ -1558,7 +1558,7 @@ public class SourceModel {
 
     /**
      * Retrieve a single hosts source (download/read + parse) and synchronize entries.
-     * This is used for per-list "Update" actions in the UI.
+     * Callers that acknowledge Sources Apply must use {@link #retrieveHostsSourceWithReceipt(int)}.
      *
      * @param sourceId The source id to update.
      * @throws HostErrorException If the hosts source could not be downloaded.

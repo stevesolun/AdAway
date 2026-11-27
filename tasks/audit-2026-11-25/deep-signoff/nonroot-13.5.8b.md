@@ -173,8 +173,8 @@ the adjacent wire JSON and `browser-results.json`, and the corresponding
   and the 15-case Discover class, including contrast checks. See
   `final-refresh-feedback/{landscape-issue.md,tap-diagnostic-result.txt,tap-scope-suite.txt}`.
 - [#28](https://github.com/stevesolun/AdAway/issues/28) remains unexplained.
-  Home's slow-startup/manual-check case failed once in the earlier full run,
-  passed three individual replays, and its whole class passed 5/5. No
+  Home's slow-startup/manual-check case failed once in the earlier full run;
+  Home passed in each of three paired replays, and its whole class passed 5/5. No
   confirmed cause, fix or new defect count. See
   `final-refresh-feedback/{complete-device-final-stable,control-replay-1,control-replay-2,control-replay-3,startup-whole-class-control}.txt`.
 - The combined full run finished in 320.586 seconds: 688 passed, 21 assumption

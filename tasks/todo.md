@@ -2,9 +2,9 @@
 
 - [x] Revalidate clean worktree, merged baseline, previous completed review run,
   and current open PRs; start `codex/full-codebase-audit` from `origin/master`.
-- [x] Inventory every repository file with hash-bound review status. At the
-  post-8b checkpoint, 2,973 files have current receipts and one is the
-  generated ledger; rerun the drift check after future edits.
+- [x] Inventory every repository file with hash-bound review status in the
+  [generated ledger](audit-2026-11-25/files.csv); follow the
+  [evidence rules](audit-2026-11-25/README.md#evidence-rules) after edits.
 - [ ] Review every file, log confirmed bugs in
   `tasks/audit-2026-11-25/bugs.csv`, and fix them with regression proof.
 - [ ] Enumerate and exercise every UI control and workflow, including cancellation,
@@ -30,16 +30,14 @@ Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
 - [x] Check that the revised release verifier still accepts the published 8b
   APK, signed manifest, checksums and software bill of materials. This was a
   local compatibility check; the original public provenance remains separate.
-- [x] Validate the new source receipt, pending selection, VPN feedback and
-  cache fixes locally: Android 14 had 708 passes, 21 skips and zero failures;
-  JVM had 774 passes, 3 skips and zero failures. Two additional opt-in
-  emulator tests passed for live DNS and tunnel restart. The public 8b tag
-  does not contain these later changes. Protected delivery is separate.
+- [x] Validate the source receipt, pending selection, VPN feedback and cache
+  batch locally; see the [recorded integration results and revision limits](audit-2026-11-25/deep-signoff/post8b-freshness.md#post-release-integration).
+  The public 8b tag does not contain these later changes. Protected delivery
+  is separate.
 - [ ] Close the highest-priority gaps in the [control-by-control handoff](audit-2026-11-25/deep-signoff/post8b-unmapped-controls.csv):
   failed or conflicting individual subscriptions, saved profile confirmations
   (empty, missing or changed lists), and scheduled/notification outcomes.
-  The 75 previously unlinked controls have 51 observed variants, 2 component
-  tests only, 20 without an end-to-end result and 2 externally blocked.
+  Use the handoff's per-control evidence and remaining-step dispositions.
   Physical-phone testing is deferred; a retailer challenge is not a DNS verdict.
 
 The bounded beta release does not complete this ongoing audit.

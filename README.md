@@ -478,12 +478,24 @@ private network addresses or silently bypass a required system proxy.
 
 ### Source Update Feedback
 
+**Sources → ⋮ → Check updates** checks source freshness without importing rules
+or applying protection. It shows whether updates are available, no update was
+found, or the check failed (including when offline). The status survives rotation
+and leaving or reopening Sources while the app process remains alive. Repeated
+taps share an in-progress check. Once it finishes, **Close** dismisses the result
+without dismissing a pending **Apply**; use **Check updates** again to retry.
+
 In VPN mode, automatic refreshes, including scheduled updates and downloads after
 subscribing or saving a source, refresh the rules without turning an off VPN on. Home reports
 **Filter rules updated** when a background refresh succeeds, even if protection is
 off. Returning to Home does not request VPN consent or enable protection. To enable
 it, use the protection switch and approve Android's consent dialog when requested;
 canceling the dialog cancels the enable request.
+
+In Discover, Custom Rules and DNS Log, **Apply** reports **VPN start requested**
+if Android accepts the request before the tunnel is established. Check Home to
+see whether protection is on. If no blocking method is configured, Apply reports
+**Protection method: not configured**.
 
 A successful import or **Update all** clears the Sources **Apply** prompt only for
 the selection actually imported and, in VPN mode, after AdAway's tunnel is
@@ -498,8 +510,8 @@ When another update already owns the operation, Sources reports that it is busy
 instead of reporting a download failure.
 
 Closing AdAway or removing its task does not clear **Apply** for a checked source
-whose rules have not been imported. Reopening an already-applied selection does
-not create a new prompt.
+whose rules have not been imported, including selections made through a saved
+filter set. Reopening an already-applied selection does not create a new prompt.
 
 When Home reports a failed source download, tap **Sources** to inspect each source's
 error, correct or disable the failing source, then apply again. A source failure does

@@ -52,6 +52,14 @@ device-settings journey above, airplane mode and orientation were restored.
 
 ## Post-release integration
 
+This batch was recorded at `165f2ad28`, before `a40205704` moved manual-check
+ownership to the application model and added cross-activity coalescing coverage.
+The APK hashes and execution counts below belong to that earlier batch, not the
+later source revision. The later changes have separate hash-bound source reviews
+in [post8b-source-review.csv](../post8b-source-review.csv) and
+[post8b-integration-review.csv](../post8b-integration-review.csv); those reviews
+are not runtime results.
+
 The first full run of this branch completed 729 Android cases: 707 passed,
 21 skipped, one failed. The duplicate-check test released the first response
 before the second popup action was known to have run and counted two requests.
@@ -72,7 +80,7 @@ Debug APK SHA-256: `6a5c57138433b6b334e7b6432b814a9264c1f7463d8d71fa942416ec7871
 Test APK SHA-256: `c8a73b9930f49ccd68b17efa27612bcb5ab7568aebfb786ead651a54ebaf45e2`.
 These are development builds, not replacements for the signed public beta.
 
-The final full Android 14 result XML has 729 unique cases: **708 passed,
+The final full Android 14 result XML for this batch has 729 unique cases: **708 passed,
 21 skipped, zero failures or errors** (`final-full-device.xml`). The JVM
 suite recorded 774 passed, 3 skipped and no failures; Android lint reported
 0 errors and 32 warnings. The separate host-tool suite passed all 136 tests.
