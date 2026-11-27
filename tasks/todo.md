@@ -2,8 +2,9 @@
 
 - [x] Revalidate clean worktree, merged baseline, previous completed review run,
   and current open PRs; start `codex/full-codebase-audit` from `origin/master`.
-- [ ] Inventory every repository file with hash-bound review status; preserve
-  pending/stale coverage rather than infer review from passing tests.
+- [x] Inventory every repository file with hash-bound review status. At the
+  post-8b checkpoint, 2,973 files have current receipts and one is the
+  generated ledger; rerun the drift check after future edits.
 - [ ] Review every file, log confirmed bugs in
   `tasks/audit-2026-11-25/bugs.csv`, and fix them with regression proof.
 - [ ] Enumerate and exercise every UI control and workflow, including cancellation,
@@ -16,10 +17,31 @@ Current evidence and lane ownership: `tasks/audit-2026-11-25/README.md`.
 
 Historical 13.5.5b candidate results and limits: [November validation](audit-2026-11-25/validation.md#candidate-1355b).
 Protected merge and beta delivery: [publication follow-up](audit-2026-11-25/validation.md#publication-follow-up).
-Verified publication: [13.5.7b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.7b).
+Verified publication: [13.5.8b](https://github.com/stevesolun/AdAway/releases/tag/v13.5.8b).
 For later builds, see [GitHub Releases](https://github.com/stevesolun/AdAway/releases).
 Post-release file and interaction checks: [post-beta review](audit-2026-11-25/validation.md#post-beta-review).
 Finding and fix status: [bug register](audit-2026-11-25/bugs.csv).
+
+### After the 13.5.8b release
+
+- [x] Reproduce the missing Sources check result while offline. Verify error,
+  retry, rotation, duplicate taps and the unchanged-list path. Also exercise
+  real Android airplane mode. [Tested journeys](audit-2026-11-25/deep-signoff/post8b-freshness.md).
+- [x] Check that the revised release verifier still accepts the published 8b
+  APK, signed manifest, checksums and software bill of materials. This was a
+  local compatibility check; the original public provenance remains separate.
+- [x] Validate the new source receipt, pending selection, VPN feedback and
+  cache fixes locally: Android 14 had 708 passes, 21 skips and zero failures;
+  JVM had 774 passes, 3 skips and zero failures. Two additional opt-in
+  emulator tests passed for live DNS and tunnel restart. The public 8b tag
+  does not contain these later changes. Protected delivery is separate.
+- [ ] Close the highest-priority gaps in the [control-by-control handoff](audit-2026-11-25/deep-signoff/post8b-unmapped-controls.csv):
+  failed or conflicting individual subscriptions, saved profile confirmations
+  (empty, missing or changed lists), and scheduled/notification outcomes.
+  The 75 previously unlinked controls have 51 observed variants, 2 component
+  tests only, 20 without an end-to-end result and 2 externally blocked.
+  Physical-phone testing is deferred; a retailer challenge is not a DNS verdict.
+
 The bounded beta release does not complete this ongoing audit.
 
 - [x] Merge the protected non-root audit baseline (#19; six required checks)
@@ -109,7 +131,7 @@ The bounded beta release does not complete this ongoing audit.
   manifest and install the exact published APK over 13.5.6b through the app.
   [Public upgrade and verification](audit-2026-11-25/deep-signoff/public-13.5.7b.md).
 
-### Next Android beta: 13.5.8b
+### Published Android beta: 13.5.8b
 
 - [ ] Address passive VPN ownership and post-update guidance without overriding
   an intentional off setting or another VPN. See [issue #25](https://github.com/stevesolun/AdAway/issues/25).
@@ -124,12 +146,20 @@ The bounded beta release does not complete this ongoing audit.
   tunnel is established; a mid-import off/on edit cannot acknowledge missing
   rules (POST-VPN-002/004, 48 focused Android checks). See
   [refresh feedback](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md#refresh-feedback-follow-up).
-- [ ] Complete protected delivery using the [release procedure](../RELEASING.md).
+- [x] Publish 13.5.8b (130508) from [PR #30](https://github.com/stevesolun/AdAway/pull/30),
+  merge `4d97be128`. The [independent verifier](https://github.com/stevesolun/AdAway/actions/runs/46079576784)
+  verified the signed manifest and six attested assets. Public APK SHA-256:
+  `41ef4318bc5b77d87ea95005c4effaef46c4c7feceef58149c58d7ded6240fec`.
+  On a non-root Android 14 emulator, opening this APK in Android's file picker
+  and confirming Update replaced public 13.5.7b in place. Home showed off;
+  one tap restored protection. The public [release notes](https://github.com/stevesolun/AdAway/releases/tag/v13.5.8b)
+  record the retained Disconnect list, fresh-task Apply, DNS control and two browser checks.
+  This was a system-installer check, not a repeat of the 7b app-initiated update.
 - Keep the remaining file reviews, untranslated guidance, workflow variants,
   and intermittent Android 11 first-DNS-query investigation in the audit.
   A physical phone is not emulated evidence; root is not a VPN beta requirement.
 
-### 13.5.8b (130508): isolated beta handoff, not published
+### Historical 13.5.8b candidate handoff (before publication)
 
 - [x] Record the protected refresh fixes: wait for the tunnel on manual Apply,
   keep targeted acknowledgements scoped, and invalidate VPN decisions even on
@@ -149,9 +179,10 @@ The bounded beta release does not complete this ongoing audit.
 - [x] Reconcile the combined Android run: 688 passed, 21 skipped, no failures
   (709 total). Keep the intermittent
   Home startup failure [#28](https://github.com/stevesolun/AdAway/issues/28)
-  open: one full-run failure, three individual passes, whole class 5/5, no
-  confirmed cause. The combined changes are local, not a protected merge or a
-  release. Public beta remains 13.5.7b; full audit remains open.
+  open: one full-run failure, the Home method passed in three paired replays,
+  whole class 5/5, no confirmed cause. At this checkpoint 13.5.7b was public;
+  the 709 cases belonged to the local candidate. The later hosted run for PR #30
+  recorded 689 passed, 21 skipped and no failures (710 total). The full audit remains open.
 
 # v13.4.5 - Agentic Loop + Domain Checker Actions (Superseded)
 
