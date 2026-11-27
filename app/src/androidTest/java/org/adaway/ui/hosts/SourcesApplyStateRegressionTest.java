@@ -41,9 +41,11 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 import androidx.work.ExistingWorkPolicy;
+import androidx.work.ListenableWorker;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
+import androidx.work.testing.TestListenableWorkerBuilder;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -63,6 +65,7 @@ import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
+import org.adaway.ui.home.VpnLeakStatusObserver;
 import org.adaway.util.AppExecutors;
 import org.junit.After;
 import org.junit.Before;
@@ -225,6 +228,47 @@ public class SourcesApplyStateRegressionTest {
             assertTrue(uncertain.getApplyState().isPending());
             third.discard();
         });
+    }
+
+    @Test
+    public void returningSourcesViewResamplesTunnelWithoutAnotherRoomOrWorkEvent() {
+        AtomicBoolean established = new AtomicBoolean();
+        AtomicReference<HostsSourcesViewModel> retained = new AtomicReference<>();
+        AtomicReference<SavedTask> replacement = new AtomicReference<>();
+        List<HostsSource> rows = observedSources.get();
+        try {
+            onMain(() -> {
+                HostsSourcesViewModel model = new HostsSourcesViewModel(application) {
+                    @Override boolean isVpnTunnelEstablished() { return established.get(); }
+                };
+                retained.set(model);
+                model.onSourcesChanged(rows);
+                model.observeAutomaticWork("off", false, null, null);
+                model.observeAutomaticWork("off", true, null, SourceApplyState.fingerprint(rows));
+                SavedTask oldView = new SavedTask(null);
+                oldView.lifecycle.addObserver(new VpnLeakStatusObserver(context, model::onVpnStateChanged));
+                oldView.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START);
+                oldView.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP);
+                oldView.discard();
+                established.set(true);
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            onMain(() -> {
+                assertTrue("Stopped view must cancel queued refresh", retained.get().getApplyState().isPending());
+                SavedTask next = new SavedTask(null);
+                replacement.set(next);
+                next.lifecycle.addObserver(new VpnLeakStatusObserver(context, retained.get()::onVpnStateChanged));
+                next.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START);
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            onMain(() -> {
+                assertFalse(retained.get().getApplyState().isPending());
+                assertEquals(HostsSourcesViewModel.ApplyStatus.SUCCEEDED,
+                        retained.get().getApplyStatus().getValue());
+            });
+        } finally {
+            onMain(() -> { if (replacement.get() != null) replacement.get().discard(); });
+        }
     }
 
     // A new registry and store cannot retain the old ViewModel as activity.recreate() can.
@@ -460,6 +504,7 @@ public class SourcesApplyStateRegressionTest {
 
         WorkInfo completed = waitForSuccessfulWork(manager, request);
         assertNull(completed.getOutputData().getString(SourceUpdateService.APPLIED_CONFIGURATION));
+        assertNull(completed.getOutputData().getString(SourceUpdateService.DOWNLOADED_CONFIGURATION));
         waitForStatus(recreated, HostsSourcesViewModel.ApplyStatus.SUCCEEDED);
         waitForText(recreated, R.string.notification_configuration_changed);
         assertTrue(onMainBoolean(() -> retained.getApplyState().isPending()));
@@ -704,6 +749,39 @@ public class SourcesApplyStateRegressionTest {
         return value.get();
     }
 
+    @Test(timeout = 60_000)
+    public void restoredSelectionCannotAcknowledgeDifferentImportWithTunnel() throws Exception {
+        assertDifferentImportHasNoReceipt(true);
+    }
+
+    @Test(timeout = 60_000)
+    public void restoredSelectionCannotAcknowledgeDifferentImportWithoutTunnel() throws Exception {
+        assertDifferentImportHasNoReceipt(false);
+    }
+
+    private void assertDifferentImportHasNoReceipt(boolean established) throws Exception {
+        adBlockModel.backgroundEstablished = established;
+        var sources = database.hostsSourceDao();
+        inject("sourceModel", new SourceModel(context) {
+            @Override
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
+                sources.setSourceEnabled(SOURCE_B, false);
+                try {
+                    return super.retrieveHostsSourcesWithReceipt();
+                } finally {
+                    sources.setSourceEnabled(SOURCE_B, true);
+                }
+            }
+        });
+        assertEquals(1, sourceRuleCount(SOURCE_B));
+        ListenableWorker.Result result = TestListenableWorkerBuilder
+                .from(context, SourceUpdateService.HostsSourcesImmediateUpdateWorker.class)
+                .build().doWork();
+        assertTrue(database.hostsSourceDao().getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        assertEquals(ListenableWorker.Result.success(), result);
+    }
+
     private void seedSource(int sourceId) {
         HostsSource source = new HostsSource();
         source.setId(sourceId);
@@ -768,9 +846,9 @@ public class SourcesApplyStateRegressionTest {
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+        public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
             int count = fullUpdates.incrementAndGet();
-            if (realUpdates) return super.checkAndRetrieveHostsSources();
+            if (realUpdates) return super.retrieveHostsSourcesWithReceipt();
             if (failUpdate.get()) {
                 database.hostsSourceDao().updateDownloadError(SOURCE_A, "Download failed");
                 throw new HostErrorException(HostError.DOWNLOAD_FAILED);
@@ -779,7 +857,7 @@ public class SourcesApplyStateRegressionTest {
             database.hostsSourceDao().clearDownloadError(SOURCE_B);
             database.hostsSourceDao().updateSkippedCount(SOURCE_A, count);
             database.hostEntryDao().sync();
-            return true;
+            return SourceApplyState.fingerprint(database.hostsSourceDao().getAll());
         }
 
         @Override
@@ -790,6 +868,13 @@ public class SourcesApplyStateRegressionTest {
     }
 
     private static final class ControlledAdBlockModel extends AdBlockModel {
+        private Boolean backgroundEstablished;
+
+        @Override
+        public boolean applyAfterBackgroundRefresh() throws HostErrorException {
+            return backgroundEstablished != null ? backgroundEstablished : super.applyAfterBackgroundRefresh();
+        }
+
         private final AtomicInteger applyCount = new AtomicInteger();
         private final CountDownLatch entered = new CountDownLatch(1);
         private final CountDownLatch completed = new CountDownLatch(1);

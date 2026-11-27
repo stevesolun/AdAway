@@ -47,6 +47,7 @@ public final class SourceUpdateService {
      */
     public static final String WORK_NAME_NOW = "HostsUpdateWorkNow";
     public static final String APPLIED_CONFIGURATION = "applied_source_configuration";
+    public static final String DOWNLOADED_CONFIGURATION = "downloaded_source_configuration";
 
     /**
      * Private constructor.
@@ -227,22 +228,20 @@ public final class SourceUpdateService {
             try (SourceOperationCoordinator.Lease ignored =
                          application.getSourceOperations().acquire()) {
                 HostsSourceDao sources = AppDatabase.getInstance(application).hostsSourceDao();
-                String configuration = SourceApplyState.fingerprint(sources.getAll());
                 SourceModel sourceModel = application.getSourceModel();
-                if (!sourceModel.checkAndRetrieveHostsSources()) {
+                String configuration = sourceModel.retrieveHostsSourcesWithReceipt();
+                if (configuration == null) {
                     return retry();
                 }
                 AdBlockModel adBlockModel = application.getAdBlockModel();
-                if (!adBlockModel.applyAfterBackgroundRefresh()) {
-                    // Rules were downloaded, but there is no active protection to acknowledge.
-                    return success();
-                }
+                boolean applied = adBlockModel.applyAfterBackgroundRefresh();
                 // Do not acknowledge edits made while this update was in flight.
                 if (!configuration.equals(SourceApplyState.fingerprint(sources.getAll()))) {
                     return success();
                 }
                 return success(new Data.Builder()
-                        .putString(APPLIED_CONFIGURATION, configuration).build());
+                        .putString(applied ? APPLIED_CONFIGURATION : DOWNLOADED_CONFIGURATION,
+                                configuration).build());
             } catch (HostErrorException exception) {
                 Timber.e(exception, "Failed to update/apply during immediate update-all.");
                 return retry();

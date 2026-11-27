@@ -18,8 +18,8 @@ import org.adaway.util.Constants;
 
 import timber.log.Timber;
 
-/** Re-sample both sources of tunnel truth while the Home view is visible. */
-final class VpnLeakStatusObserver extends ConnectivityManager.NetworkCallback
+/** Re-sample service status and VPN connectivity while the observing view is visible. */
+public final class VpnLeakStatusObserver extends ConnectivityManager.NetworkCallback
         implements DefaultLifecycleObserver, SharedPreferences.OnSharedPreferenceChangeListener {
     private final ConnectivityManager connectivity;
     private final SharedPreferences preferences;
@@ -29,7 +29,7 @@ final class VpnLeakStatusObserver extends ConnectivityManager.NetworkCallback
     private boolean started;
     private boolean registered;
 
-    VpnLeakStatusObserver(Context context, Runnable refresh) {
+    public VpnLeakStatusObserver(Context context, Runnable refresh) {
         this.connectivity = context.getSystemService(ConnectivityManager.class);
         this.preferences = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
         this.statusKey = context.getString(R.string.pref_vpn_service_status_key);

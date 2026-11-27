@@ -54,11 +54,14 @@ import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.ui.adblocking.ApplyConfigurationSnackbar;
 import org.adaway.ui.home.HomeActivity;
+import org.adaway.ui.home.VpnLeakStatusObserver;
 import org.adaway.ui.source.SourceEditActivity;
 import org.adaway.util.AppExecutors;
 
@@ -114,17 +117,22 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         this.mViewModel.getApplyStatus().observe(lifecycleOwner,
                 status -> applySnackbar.refreshSourceState());
         this.mViewModel.getHostsSources().observe(lifecycleOwner, this.mViewModel::onSourcesChanged);
+        if (PreferenceHelper.getAdBlockMethod(requireContext()) == AdBlockMethod.VPN) {
+            lifecycleOwner.getLifecycle().addObserver(
+                    new VpnLeakStatusObserver(requireContext(), this.mViewModel::onVpnStateChanged));
+        }
         WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData(SourceUpdateService.WORK_NAME_NOW)
                 .observe(lifecycleOwner, work -> {
                     // REPLACE creates a single update-now request, not an apply chain.
                     if (work == null) return;
                     WorkInfo info = work.size() == 1 ? work.get(0) : null;
+                    boolean succeeded = info != null && info.getState() == WorkInfo.State.SUCCEEDED;
                     this.mViewModel.observeAutomaticWork(info == null ? null : info.getId().toString(),
-                            info != null && info.getState() == WorkInfo.State.SUCCEEDED,
-                            info != null && info.getState() == WorkInfo.State.SUCCEEDED
-                                    ? info.getOutputData().getString(
-                                            SourceUpdateService.APPLIED_CONFIGURATION) : null);
+                            succeeded, succeeded ? info.getOutputData().getString(
+                                    SourceUpdateService.APPLIED_CONFIGURATION) : null,
+                            succeeded ? info.getOutputData().getString(
+                                    SourceUpdateService.DOWNLOADED_CONFIGURATION) : null);
                 });
         
         /*

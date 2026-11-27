@@ -5,6 +5,10 @@
 - Returning to Home no longer asks Android to prepare the AdAway VPN. A
   scheduled filter download updates the rules without turning an off VPN on.
   Previously, just opening Home could interrupt another authorized VPN.
+- Home reports when a background filter refresh finishes, even when the VPN
+  is off. Sources only clears Apply for the selection that was actually
+  imported and is in use; edits made during a download stay pending when
+  their rules are missing.
 
 ## [13.5.7b] - 2026-11-26
 

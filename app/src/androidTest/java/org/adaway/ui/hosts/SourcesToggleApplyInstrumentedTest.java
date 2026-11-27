@@ -28,6 +28,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.RuleKind;
@@ -583,9 +584,10 @@ public class SourcesToggleApplyInstrumentedTest {
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() {
-            AppDatabase.getInstance(this.context).hostEntryDao().sync();
-            return true;
+        public String retrieveHostsSourcesWithReceipt() {
+            AppDatabase database = AppDatabase.getInstance(this.context);
+            database.hostEntryDao().sync();
+            return SourceApplyState.fingerprint(database.hostsSourceDao().getAll());
         }
     }
 

@@ -15,12 +15,15 @@ import org.adaway.AdAwayApplication;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.util.AppExecutors;
+import org.adaway.vpn.VpnServiceControls;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +45,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     private static final String APPLY_BASELINE = "sources_apply_baseline";
     private static final String FINGERPRINT = "fingerprint";
     private static final String UNCERTAIN = "uncertain";
+    private static final String DOWNLOADED_WORK = "downloaded_work";
     private final SourceApplyState mApplyState;
     private final MutableLiveData<ApplyStatus> mApplyStatus =
             new MutableLiveData<>(ApplyStatus.IDLE);
@@ -61,12 +65,16 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         this.hostsSourceDao = AppDatabase.getInstance(application).hostsSourceDao();
         Bundle baseline = state.get(APPLY_BASELINE);
         mApplyState = baseline == null ? new SourceApplyState() : new SourceApplyState(
-                baseline.getString(FINGERPRINT), baseline.getBoolean(UNCERTAIN));
+                baseline.getString(FINGERPRINT), baseline.getBoolean(UNCERTAIN),
+                baseline.getString(DOWNLOADED_WORK));
         state.setSavedStateProvider(APPLY_BASELINE, () -> {
             Bundle saved = new Bundle();
             saved.putString(FINGERPRINT, mApplyState.getAppliedConfiguration());
             saved.putBoolean(UNCERTAIN, mApplyState.isUncertainOnRestore()
                     || mApplyStatus.getValue() == ApplyStatus.RUNNING);
+            if (mApplyStatus.getValue() != ApplyStatus.RUNNING) {
+                saved.putString(DOWNLOADED_WORK, mApplyState.getDownloadedWorkToRestore());
+            }
             return saved;
         });
     }
@@ -103,14 +111,40 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             }
         }
         mApplyState.updateSources(sources);
-        mApplyStatus.setValue(mApplyStatus.getValue());
+        mApplyStatus.setValue(acknowledgeEstablishedDownload()
+                ? ApplyStatus.SUCCEEDED : mApplyStatus.getValue());
     }
 
     @UiThread
     public void observeAutomaticWork(String workId, boolean successful, String configuration) {
-        boolean completed = mApplyState.observeAutomaticWork(workId, successful, configuration);
-        mApplyStatus.setValue(completed && mApplyStatus.getValue() != ApplyStatus.RUNNING
-                ? ApplyStatus.SUCCEEDED : mApplyStatus.getValue());
+        observeAutomaticWork(workId, successful, configuration, null);
+    }
+
+    @UiThread
+    void observeAutomaticWork(String workId, boolean successful, String configuration,
+                              String downloaded) {
+        boolean completed = mApplyState.observeAutomaticWork(workId, successful, configuration, downloaded);
+        ApplyStatus status = mApplyStatus.getValue();
+        if (completed && status != ApplyStatus.RUNNING) {
+            status = downloaded == null || acknowledgeEstablishedDownload()
+                    ? ApplyStatus.SUCCEEDED : ApplyStatus.IDLE;
+        }
+        mApplyStatus.setValue(status);
+    }
+
+    @UiThread
+    void onVpnStateChanged() {
+        if (acknowledgeEstablishedDownload()) mApplyStatus.setValue(ApplyStatus.SUCCEEDED);
+    }
+
+    private boolean acknowledgeEstablishedDownload() {
+        return mApplyStatus.getValue() != ApplyStatus.RUNNING && mApplyState.hasMatchingDownload()
+                && mApplyState.acknowledgeDownload(isVpnTunnelEstablished());
+    }
+
+    boolean isVpnTunnelEstablished() {
+        return PreferenceHelper.getAdBlockMethod(getApplication()) == AdBlockMethod.VPN
+                && VpnServiceControls.isTunnelEstablished(getApplication());
     }
 
     @UiThread

@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.work.Constraints;
+import androidx.work.Data;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
@@ -19,6 +20,7 @@ import androidx.work.testing.TestListenableWorkerBuilder;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
+import org.adaway.db.AppDatabase;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.vpn.VpnModel;
@@ -70,8 +72,8 @@ public class SourceUpdateServiceWorkManagerTest {
     public void immediateWorkerRetriesWhenRetrievalDoesNotComplete() throws Exception {
         assertImmediateWorkerRetries(new SourceModel(context) {
             @Override
-            public boolean checkAndRetrieveHostsSources() {
-                return false;
+            public String retrieveHostsSourcesWithReceipt() {
+                return null;
             }
         });
     }
@@ -80,7 +82,7 @@ public class SourceUpdateServiceWorkManagerTest {
     public void immediateWorkerRetriesWhenAnotherUpdateOwnsTheGate() throws Exception {
         assertImmediateWorkerRetries(new SourceModel(context) {
             @Override
-            public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
                 throw new HostErrorException(HostError.UPDATE_IN_PROGRESS);
             }
         });
@@ -113,9 +115,9 @@ public class SourceUpdateServiceWorkManagerTest {
             assertTrue(prefs.edit().putBoolean(daily, true).commit());
             sourceField.set(app, new SourceModel(app) {
                 @Override public boolean checkForUpdate() { return true; }
-                @Override public boolean checkAndRetrieveHostsSources() {
+                @Override public String retrieveHostsSourcesWithReceipt() {
                     downloads[0]++;
-                    return true;
+                    return SourceApplyState.fingerprint(AppDatabase.getInstance(app).hostsSourceDao().getAll());
                 }
             });
             blocker.set(app, new VpnModel(app) {
@@ -125,8 +127,11 @@ public class SourceUpdateServiceWorkManagerTest {
             });
             assertEquals(ListenableWorker.Result.success(), TestListenableWorkerBuilder.from(app,
                     SourceUpdateService.HostsSourcesUpdateWorker.class).build().doWork());
-            // In particular, success has no APPLIED_CONFIGURATION receipt for an off tunnel.
-            assertEquals(ListenableWorker.Result.success(), TestListenableWorkerBuilder.from(app,
+            String downloaded = SourceApplyState.fingerprint(
+                    AppDatabase.getInstance(app).hostsSourceDao().getAll());
+            assertEquals(ListenableWorker.Result.success(new Data.Builder()
+                    .putString(SourceUpdateService.DOWNLOADED_CONFIGURATION, downloaded).build()),
+                    TestListenableWorkerBuilder.from(app,
                     SourceUpdateService.HostsSourcesImmediateUpdateWorker.class).build().doWork());
             assertEquals(2, downloads[0]);
             assertEquals(VpnStatus.STOPPED, PreferenceHelper.getVpnServiceStatus(app));

@@ -446,7 +446,7 @@ public class Generation304MigrationTest {
                         "progressBuilder.setComplete(false); " +
                         "postMultiPhaseProgress(progressBuilder.build(), true); " +
                         "postIdleAfterTerminal(); " +
-                        "return false; }"));
+                        "return null; }"));
         assertTrue("Stopped update workers must not publish a partial generation.",
                 sourceModel.indexOf("if (progressBuilder.isStopped()) { " +
                         "cleanupGeneration(writableDb, importGeneration);") <

@@ -460,8 +460,90 @@ public class SourceApplyStateTest {
         assertFalse(restored.isPending());
     }
 
+    @Test
+    public void stableDownloadWaitsForEstablishmentAndIsConsumedOnlyOnce() {
+        SourceApplyState state = observingEmptySources();
+        List<HostsSource> rows = Collections.singletonList(source(2));
+        state.updateSources(rows);
+        String downloaded = SourceApplyState.fingerprint(rows);
+        assertTrue(state.observeAutomaticWork("download", true, null, downloaded));
+        assertFalse(state.acknowledgeDownload(false));
+        assertTrue(state.isPending());
+        assertTrue(state.acknowledgeDownload(true));
+        assertEquals(downloaded, state.getAppliedConfiguration());
+        assertFalse(state.isPending());
+        assertFalse(state.observeAutomaticWork("download", true, null, downloaded));
+        assertFalse(state.acknowledgeDownload(true));
+    }
+
+    @Test
+    public void networkWorkAndRoomMayArriveInAnyOrder() {
+        for (String order : Arrays.asList("NWR", "NRW", "WNR", "WRN", "RNW", "RWN")) {
+            SourceApplyState state = observingEmptySources();
+            List<HostsSource> rows = Collections.singletonList(source(2));
+            String downloaded = SourceApplyState.fingerprint(rows);
+            boolean established = false;
+            for (int i = 0; i < order.length(); i++) {
+                switch (order.charAt(i)) {
+                    case 'N': established = true; break;
+                    case 'W': state.observeAutomaticWork("download", true, null, downloaded); break;
+                    case 'R': state.updateSources(rows); break;
+                }
+                assertEquals(order, i == 2, state.acknowledgeDownload(established));
+            }
+            assertEquals(order, downloaded, state.getAppliedConfiguration());
+        }
+    }
+
+    @Test
+    public void changedSelectionOrLaterTargetedApplyRetiresTheDownload() {
+        List<HostsSource> rows = Arrays.asList(source(2), source(3));
+        String downloaded = SourceApplyState.fingerprint(rows);
+        SourceApplyState state = observingEmptySources();
+        state.updateSources(rows);
+        state.observeAutomaticWork("first", true, null, downloaded);
+        rows.get(1).setEnabled(false);
+        state.updateSources(rows);
+        assertFalse(state.acknowledgeDownload(true));
+        rows.get(1).setEnabled(true);
+        state.updateSources(rows);
+        assertFalse("An observed edit cannot resurrect the old receipt", state.acknowledgeDownload(true));
+        state.observeAutomaticWork("second", true, null, downloaded);
+        state.appliedSources(rows, 2);
+        assertFalse("A targeted apply cannot confirm both rows", state.acknowledgeDownload(true));
+        assertTrue(state.isPending());
+        state.appliedSources(rows, null);
+        assertFalse(state.isPending());
+    }
+
+    @Test
+    public void restoredTaskOnlyReplaysItsOwnDownloadedWorkAndChecksCurrentTunnel() {
+        List<HostsSource> rows = Collections.singletonList(source(2));
+        String downloaded = SourceApplyState.fingerprint(rows);
+        SourceApplyState state = observingEmptySources();
+        state.updateSources(rows);
+        state.observeAutomaticWork("off", true, null, downloaded);
+
+        SourceApplyState restored = restore(state);
+        restored.updateSources(rows);
+        assertFalse(restored.acknowledgeDownload(true));
+        assertTrue(restored.observeAutomaticWork("off", true, null, downloaded));
+        assertFalse("Foreground alone is not a tunnel", restored.acknowledgeDownload(false));
+        assertTrue(restored.acknowledgeDownload(true));
+        assertFalse(restored.isPending());
+
+        restored = restore(state);
+        restored.updateSources(rows);
+        assertFalse(restored.observeAutomaticWork("other", true, null, downloaded));
+        assertFalse(restored.acknowledgeDownload(true));
+        assertTrue(restored.isPending());
+        state.observeAutomaticWork("replacement", false, null, null);
+        assertFalse(state.acknowledgeDownload(true));
+    }
+
     private static SourceApplyState restore(SourceApplyState state) {
-        return new SourceApplyState(state.getAppliedConfiguration(), state.isUncertainOnRestore());
+        return new SourceApplyState(state.getAppliedConfiguration(), state.isUncertainOnRestore(),
+                state.getDownloadedWorkToRestore());
     }
 
     private static SourceApplyState observingEmptySources() {
