@@ -18,6 +18,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.android.material.appbar.MaterialToolbar;
 
 import org.adaway.R;
+import org.adaway.testing.VisibleTextAction;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.util.AppExecutors;
 
@@ -68,35 +69,7 @@ final class ScheduleRegressionTestSupport {
     }
 
     static void clickText(String expected) {
-        waitFor("clickable text: " + expected, () -> {
-            AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation()
-                    .getUiAutomation().getRootInActiveWindow();
-            if (root == null) return false;
-            List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByText(expected);
-            try {
-                for (AccessibilityNodeInfo match : matches) {
-                    if (!matchesText(match, expected)) continue;
-                    AccessibilityNodeInfo current = AccessibilityNodeInfo.obtain(match);
-                    try {
-                        while (current != null) {
-                            if (current.isClickable()
-                                    && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                                return true;
-                            }
-                            AccessibilityNodeInfo parent = current.getParent();
-                            current.recycle();
-                            current = parent;
-                        }
-                    } finally {
-                        if (current != null) current.recycle();
-                    }
-                }
-                return false;
-            } finally {
-                for (AccessibilityNodeInfo match : matches) match.recycle();
-                root.recycle();
-            }
-        });
+        VisibleTextAction.click(expected);
     }
 
     private static boolean matchesText(AccessibilityNodeInfo node, String expected) {

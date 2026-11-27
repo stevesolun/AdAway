@@ -1545,9 +1545,19 @@ public class SourceModel {
      * @throws HostErrorException If the hosts source could not be downloaded.
      */
     public void retrieveHostsSource(int sourceId) throws HostErrorException {
+        retrieveHostsSourceWithReceipt(sourceId);
+    }
+
+    /** Fingerprint of the single row actually processed, or null if no row was eligible. */
+    @Nullable
+    public String retrieveHostsSourceWithReceipt(int sourceId) throws HostErrorException {
         beginUpdateOperation("retrieveHostsSource");
         try {
-            retrieveHostsSource(sourceId, true);
+            HostsSource source = findTargetSource(sourceId);
+            if (source == null) return null;
+            String receipt = SourceApplyState.fingerprint(Collections.singletonList(source));
+            retrieveHostsSource(source, true);
+            return receipt;
         } finally {
             finishUpdateOperation();
         }
@@ -1598,10 +1608,24 @@ public class SourceModel {
 
     private TargetedSourceUpdate retrieveHostsSource(int sourceId, boolean syncAfter)
             throws HostErrorException {
+        HostsSource source = findTargetSource(sourceId);
+        return source == null ? null : retrieveHostsSource(source, syncAfter);
+    }
+
+    @Nullable
+    private HostsSource findTargetSource(int sourceId) {
         HostsSource source = this.hostsSourceDao.getById(sourceId).orElse(null);
-        if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) {
+        if (source == null || source.getId() == HostsSource.USER_SOURCE_ID) return null;
+        if (source.isEnabled() && source.getType() != URL && source.getType() != FILE) {
+            Timber.w("Hosts source type is not supported.");
             return null;
         }
+        return source;
+    }
+
+    private TargetedSourceUpdate retrieveHostsSource(HostsSource source, boolean syncAfter)
+            throws HostErrorException {
+        int sourceId = source.getId();
         postProgress(0, 1, source.getLabel(), 0, 0);
         if (!source.isEnabled()) {
             if (syncAfter) {

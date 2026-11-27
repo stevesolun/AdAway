@@ -101,6 +101,8 @@ public class SourcesApplyStateRegressionTest {
     private AdAwayApplication application;
     private AppDatabase database;
     private SourceModel originalSourceModel;
+    private boolean replacedSourceModel;
+    private boolean replacedAdBlockModel;
     private ControlledSourceModel sourceModel;
     private ControlledAdBlockModel adBlockModel;
     private ActivityScenario<HomeActivity> scenario;
@@ -127,7 +129,9 @@ public class SourcesApplyStateRegressionTest {
         sourceModel = new ControlledSourceModel(context);
         adBlockModel = new ControlledAdBlockModel(context);
         inject("sourceModel", sourceModel);
+        replacedSourceModel = true;
         inject("adBlockModel", adBlockModel);
+        replacedAdBlockModel = true;
         sourceRows = database.hostsSourceDao().loadAll();
         sourceObserver = sources -> {
             observedSources.set(sources);
@@ -156,10 +160,8 @@ public class SourcesApplyStateRegressionTest {
             }
         });
         if (scenario != null) scenario.close();
-        if (application != null) {
-            inject("adBlockModel", null);
-            inject("sourceModel", originalSourceModel);
-        }
+        if (replacedAdBlockModel) inject("adBlockModel", null);
+        if (replacedSourceModel) inject("sourceModel", originalSourceModel);
         if (database != null) resetFixture();
         if (context != null) {
             InstrumentedTestState.resetForPassiveRootUi(context,
@@ -1033,6 +1035,118 @@ public class SourcesApplyStateRegressionTest {
     }
 
     @Test(timeout = 60_000)
+    public void singleRowRefreshCannotAcknowledgeDifferentImportedSelection() throws Exception {
+        var sources = database.hostsSourceDao();
+        inject("sourceModel", new SourceModel(context) {
+            // Exercise the same real disabled-row cleanup on the pre-receipt app for red/green.
+            @Override public void retrieveHostsSource(int id) throws HostErrorException {
+                sources.setSourceEnabled(id, false);
+                try {
+                    super.retrieveHostsSource(id);
+                } finally {
+                    sources.setSourceEnabled(id, true);
+                }
+            }
+
+            @Override public String retrieveHostsSourceWithReceipt(int id) throws HostErrorException {
+                sources.setSourceEnabled(id, false);
+                try {
+                    return super.retrieveHostsSourceWithReceipt(id);
+                } finally {
+                    sources.setSourceEnabled(id, true);
+                }
+            }
+        });
+        List<HostsSource> initial = sources.getAll();
+        assertEquals(1, sourceRuleCount(SOURCE_B));
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application));
+            model.get().onSourcesChanged(initial);
+            model.get().updateSources(SOURCE_B);
+        });
+        await("Targeted import completed", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        List<HostsSource> restored = sources.getAll();
+        assertEquals(SourceApplyState.fingerprint(initial), SourceApplyState.fingerprint(restored));
+        assertTrue(sources.getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        assertEquals(1, sourceRuleCount(SOURCE_A));
+        assertEquals(1, adBlockModel.applyCount.get());
+        onMain(() -> {
+            model.get().onSourcesChanged(restored);
+            assertTrue("Equal endpoints cannot confirm the omitted row", model.get().getApplyState().isPending());
+        });
+    }
+
+    @Test(timeout = 60_000)
+    public void failedProtectionAfterFullImportKeepsUndoPendingInFreshTask() {
+        assertUnprotectedImportRemainsPending(null, ROOT);
+    }
+
+    @Test(timeout = 60_000)
+    public void failedProtectionAfterRowImportKeepsUndoPendingInFreshTask() {
+        assertUnprotectedImportRemainsPending(SOURCE_B, ROOT);
+    }
+
+    @Test(timeout = 60_000)
+    public void undefinedMethodCannotConfirmManualImport() {
+        assertUnprotectedImportRemainsPending(null, AdBlockMethod.UNDEFINED);
+    }
+
+    private void assertUnprotectedImportRemainsPending(Integer sourceId, AdBlockMethod method) {
+        PreferenceHelper.setAbBlockMethod(context, method);
+        adBlockModel.method = method;
+        adBlockModel.failApply.set(method != AdBlockMethod.UNDEFINED);
+        sourceModel.realUpdates = true;
+        SavedTask[] task = new SavedTask[1];
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        try {
+            onMain(() -> {
+                task[0] = new SavedTask(null);
+                model.set(task[0].model(application));
+                model.get().onSourcesChanged(observedSources.get());
+                assertFalse(model.get().getApplyState().isPending());
+            });
+            assertEquals(1, sourceRuleCount(SOURCE_B));
+            selectSource(SOURCE_B, false);
+            onMain(() -> {
+                model.get().onSourcesChanged(observedSources.get());
+                model.get().updateSources(sourceId);
+            });
+            await("Protection decision after import", () -> onMainBoolean(() ->
+                    model.get().getApplyStatus().getValue() != HostsSourcesViewModel.ApplyStatus.RUNNING));
+            assertTrue(onMainBoolean(() ->
+                    model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.FAILED));
+            assertEquals(method == AdBlockMethod.UNDEFINED ? 0 : 1, adBlockModel.applyCount.get());
+            assertEquals(0, sourceRuleCount(SOURCE_B));
+
+            selectSource(SOURCE_B, true);
+            assertEquals(0, sourceRuleCount(SOURCE_B));
+            onMain(() -> {
+                model.get().onSourcesChanged(observedSources.get());
+                task[0].discard();
+                task[0] = new SavedTask(null);
+                model.set(task[0].model(application));
+                model.get().onSourcesChanged(observedSources.get());
+                assertTrue("Undo did not restore the imported rules", model.get().getApplyState().isPending());
+            });
+            PreferenceHelper.setAbBlockMethod(context, ROOT);
+            adBlockModel.method = ROOT;
+            adBlockModel.failApply.set(false);
+            onMain(() -> model.get().updateSources(null));
+            await("Matching retry applied", () -> onMainBoolean(() ->
+                    model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+            assertTrue(sourceRuleCount(SOURCE_B) > 0);
+            assertFalse(onMainBoolean(() -> model.get().getApplyState().isPending()));
+            assertTrue(context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY,
+                    Context.MODE_PRIVATE).getAll().isEmpty());
+        } finally {
+            onMain(() -> { if (task[0] != null) task[0].discard(); });
+        }
+    }
+
+    @Test(timeout = 60_000)
     public void manualRestoredSelectionCannotAcknowledgeDifferentImportWithTunnel() throws Exception {
         PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
         adBlockModel.method = AdBlockMethod.VPN;
@@ -1180,9 +1294,9 @@ public class SourcesApplyStateRegressionTest {
         }
 
         @Override
-        public void retrieveHostsSource(int sourceId) throws HostErrorException {
+        public String retrieveHostsSourceWithReceipt(int sourceId) throws HostErrorException {
             targetedUpdates.incrementAndGet();
-            super.retrieveHostsSource(sourceId);
+            return super.retrieveHostsSourceWithReceipt(sourceId);
         }
     }
 
@@ -1196,6 +1310,7 @@ public class SourcesApplyStateRegressionTest {
         }
 
         private final AtomicInteger applyCount = new AtomicInteger();
+        private final AtomicBoolean failApply = new AtomicBoolean();
         private final CountDownLatch entered = new CountDownLatch(1);
         private final CountDownLatch completed = new CountDownLatch(1);
         private volatile CountDownLatch release = new CountDownLatch(0);
@@ -1225,6 +1340,7 @@ public class SourcesApplyStateRegressionTest {
                 if (!release.await(30, TimeUnit.SECONDS)) {
                     throw new HostErrorException(HostError.COPY_FAIL);
                 }
+                if (failApply.get()) throw new HostErrorException(HostError.COPY_FAIL);
                 applied.postValue(true);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();

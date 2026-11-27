@@ -535,6 +535,62 @@ public class SourceApplyStateTest {
     }
 
     @Test
+    public void abandonedManualDownloadCannotRestoreSupersededBaseline() {
+        for (Integer sourceId : Arrays.asList(null, 2)) {
+            SourceApplyState state = new SourceApplyState();
+            List<HostsSource> rows = Collections.singletonList(source(2));
+            state.updateSources(rows);
+            rows.get(0).setEnabled(false);
+            state.updateSources(rows);
+            state.downloadedSources(rows, sourceId);
+
+            // The import removed this source's rules; undoing the switch cannot restore them.
+            rows.get(0).setEnabled(true);
+            state.updateSources(rows);
+            assertFalse(state.acknowledgeDownload(true));
+            assertTrue("Undo is not proof that the old rules are installed", state.isPending());
+            SourceApplyState reopened = SourceApplyState.fromPendingCheckpoint(
+                    state.pendingCheckpoint(false, false));
+            reopened.updateSources(rows);
+            assertTrue(reopened.isPending());
+            reopened.appliedSources(rows, null);
+            assertFalse(reopened.isPending());
+        }
+    }
+
+    @Test
+    public void unrelatedWorkObservationCannotSilentlyClearManualTunnelWait() {
+        SourceApplyState state = observingEmptySources();
+        List<HostsSource> rows = Collections.singletonList(source(2));
+        state.updateSources(rows);
+        state.appliedSources(rows, null);
+        state.downloadedSources(rows, null);
+        assertFalse(state.observeAutomaticWork("queued", false, null));
+        assertTrue("Queued work is not a tunnel acknowledgement", state.isPending());
+    }
+
+    @Test
+    public void laterRowRefreshCannotEraseAnUnconfirmedImportForAnotherRow() {
+        for (boolean waitForTunnel : Arrays.asList(false, true)) {
+            SourceApplyState state = new SourceApplyState();
+            List<HostsSource> rows = Arrays.asList(source(2), source(3));
+            state.updateSources(rows);
+            rows.get(1).setEnabled(false);
+            state.updateSources(rows);
+            state.downloadedSources(rows, 3);
+            if (waitForTunnel) {
+                state.downloadedSources(rows, 2);
+                assertTrue(state.acknowledgeDownload(true));
+            } else {
+                state.appliedSources(rows, 2);
+            }
+            rows.get(1).setEnabled(true);
+            state.updateSources(rows);
+            assertTrue("Refreshing row 2 did not restore row 3's rules", state.isPending());
+        }
+    }
+
+    @Test
     public void manualDownloadRetainsAnImmutableSelectionSnapshot() {
         SourceApplyState state = observingEmptySources();
         HostsSource source = source(2);

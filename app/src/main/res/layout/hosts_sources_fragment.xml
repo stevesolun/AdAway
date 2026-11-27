@@ -11,6 +11,34 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <LinearLayout
+            android:id="@+id/source_metadata_check_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="4dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/source_metadata_check_message"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:accessibilityLiveRegion="polite"
+                android:paddingVertical="8dp" />
+
+            <ImageButton
+                android:id="@+id/dismiss_source_metadata_check"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/button_close"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                app:tint="?attr/colorControlNormal" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/source_selection_error"
             android:layout_width="match_parent"

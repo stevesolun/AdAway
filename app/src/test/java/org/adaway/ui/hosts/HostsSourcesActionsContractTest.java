@@ -38,7 +38,8 @@ public class HostsSourcesActionsContractTest {
                         fragment.contains("runUpdateSources(null)") &&
                         fragment.contains("this.mViewModel.updateSources(source == null ? null : source.getId())") &&
                         viewModel.contains("importedConfiguration = sourceModel.retrieveHostsSourcesWithReceipt();") &&
-                        viewModel.contains("shouldApply = importedConfiguration != null;") &&
+                        viewModel.contains("imported = importedConfiguration != null;") &&
+                        viewModel.contains("shouldApply = imported && method != AdBlockMethod.UNDEFINED;") &&
                         viewModel.contains("if (shouldApply) {") &&
                         viewModel.contains("adBlockModel.apply();"));
         assertTrue("Update all must show source-specific running feedback.",

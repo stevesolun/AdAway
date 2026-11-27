@@ -57,6 +57,7 @@
 
     <!--Status Notification-->
     <string name="status_check">בדיקת עדכונים</string>
+    <string name="status_source_check_failed">לא ניתן לבדוק אם יש עדכונים למקורות</string>
     <string name="status_check_source">בדיקת עדכון במקור %s </string>
     <string name="status_retrieve">אחזור מקורות</string>
     <string name="status_download_source">מוריד את מקור %s</string>

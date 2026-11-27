@@ -52,6 +52,23 @@ public final class PendingSourceApply {
         return pendingSelections == 0 ? selectionRevision : -1;
     }
 
+    /** Keep the guard until the caller verifies the receipt against committed rows. */
+    public synchronized Runnable recordAutomaticBaseline(long revision, String receipt) {
+        String target = preferences.getString(SELECTION, null);
+        if (revision < 0 || revision != settledSelectionRevision() || receipt == null
+                || target == null || UNCONFIRMED.equals(target) || receipt.equals(target)) return null;
+        preferences.edit().putString(FINGERPRINT, receipt).apply();
+        return () -> {
+            synchronized (PendingSourceApply.this) {
+                if (revision == settledSelectionRevision() && receipt.equals(read())
+                        && target.equals(preferences.getString(SELECTION, null))) {
+                    // The verified baseline remains available even if its view has been cleared.
+                    preferences.edit().remove(SELECTION).apply();
+                }
+            }
+        };
+    }
+
     public synchronized void confirmSelection(long revision, String configuration) {
         if (configuration != null && revision >= 0 && revision == selectionRevision
                 && pendingSelections == 0
