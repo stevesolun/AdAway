@@ -43,6 +43,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.ListType;
@@ -538,12 +539,14 @@ public class HomeLaunchNavigationStateInstrumentedTest {
     }
 
     private static final class TestSourceModel extends SourceModel {
+        private final AppDatabase database;
         private final AtomicInteger retrievalCount = new AtomicInteger();
         private final MutableLiveData<FilterOperationState> operationState =
                 new MutableLiveData<>(FilterOperationState.idle());
 
         private TestSourceModel(Context context) {
             super(context);
+            this.database = AppDatabase.getInstance(context);
         }
 
         @Override
@@ -552,10 +555,10 @@ public class HomeLaunchNavigationStateInstrumentedTest {
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() {
+        public String retrieveHostsSourcesWithReceipt() {
             this.retrievalCount.incrementAndGet();
             this.operationState.postValue(terminalState(FilterOperationState.Phase.COMPLETE));
-            return true;
+            return SourceApplyState.fingerprint(database.hostsSourceDao().getAll());
         }
     }
 

@@ -16,3 +16,6 @@
 /third_party/maven/**/*.aar binary
 /third_party/maven/**/*.module binary
 /third_party/maven/**/*.pom binary
+
+# The release report binds the launched verifier to the exact committed bytes.
+/scripts/VerifyReleaseArtifacts.java text eol=lf

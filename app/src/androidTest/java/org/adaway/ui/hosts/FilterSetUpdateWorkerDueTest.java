@@ -70,7 +70,7 @@ public class FilterSetUpdateWorkerDueTest {
 
             FilterSetUpdateWorker first = worker(app);
             int[] fetches = {0};
-            int[] applies = {0};
+            int[] refreshes = {0};
             sources.set(app, new SourceModel(app) {
                 @Override public boolean checkAndRetrieveHostsSources() {
                     throw new AssertionError("A scoped schedule must not fetch all sources");
@@ -82,13 +82,20 @@ public class FilterSetUpdateWorkerDueTest {
                     if (++fetches[0] == 1) first.stop(WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY);
                 }
             });
-            blocker.set(app, new VpnModel(app) {
-                @Override public void apply() { applies[0]++; }
-            });
+            VpnModel vpn = new VpnModel(app) {
+                @Override public boolean applyAfterBackgroundRefresh() throws HostErrorException {
+                    refreshes[0]++;
+                    return super.applyAfterBackgroundRefresh();
+                }
+                @Override public void apply() {
+                    throw new AssertionError("A scheduled refresh must never request VPN enable");
+                }
+            };
+            blocker.set(app, vpn);
 
             Result stopped = first.doWork();
             assertTrue(first.isStopped());
-            assertEquals("Stopped retrieval must not start VPN apply", 0, applies[0]);
+            assertEquals("Stopped retrieval must not finalize the refresh", 0, refreshes[0]);
             assertEquals(Result.retry(), stopped);
             assertEquals(OVERDUE, FilterSetStore.getLastRun(app, SET));
             assertEquals(OVERDUE, urls.getLong("last_run_url_" + ENABLED, -1));
@@ -97,7 +104,9 @@ public class FilterSetUpdateWorkerDueTest {
             long beforeRetry = System.currentTimeMillis();
             assertEquals(Result.success(), worker(app).doWork());
             assertEquals(2, fetches[0]);
-            assertEquals(1, applies[0]);
+            assertEquals(1, refreshes[0]);
+            assertEquals(org.adaway.db.entity.ListType.BLOCKED,
+                    vpn.getEntry("fresh-success.example").getType());
             long completed = FilterSetStore.getLastRun(app, SET);
             assertTrue(completed >= beforeRetry && completed <= System.currentTimeMillis());
             assertEquals(completed, urls.getLong("last_run_url_" + ENABLED, -1));

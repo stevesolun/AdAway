@@ -155,7 +155,7 @@ public class FilterSetUpdateWorker extends Worker {
             if (isStopped()) {
                 return Result.retry();
             }
-            adBlockModel.apply();
+            adBlockModel.applyAfterBackgroundRefresh();
         } catch (HostErrorException e) {
             Timber.w(e, "Failed scheduled source update");
             return Result.retry();

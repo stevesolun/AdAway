@@ -133,8 +133,8 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                     activity -> activity.findViewById(R.id.filterlistsRecyclerView) != null);
             reloadSeededDirectory(scenario);
             setSearchQuery(scenario, SEARCH_QUERY);
-            waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_SAFE_NAME);
-            waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_UNSUPPORTED_NAME);
+            waitForRow(scenario, VISIBLE_SAFE_NAME, null);
+            waitForRow(scenario, VISIBLE_UNSUPPORTED_NAME, null);
             // Drop the stale URL on disk; the visible row has already cached it in memory.
             assertTrue(prefs.edit().remove("listUrl_" + VISIBLE_SAFE_ID).commit());
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
@@ -167,7 +167,8 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
             assertEquals(VISIBLE_SAFE_URL, subscribed.getFilterListSelectedUrl());
             waitForText(scenario, R.id.filterlistsSubscribeAllStatus,
                     "Last subscription: Added 1 | Already 0 | No URL 0 | Unsupported 1");
-            waitForRecyclerRowText(scenario, R.id.filterlistsItemStatus, "Subscribed");
+            waitForRow(scenario, VISIBLE_SAFE_NAME, context.getString(R.string.filterlists_subscribe_done));
+            waitForRow(scenario, VISIBLE_UNSUPPORTED_NAME, "Limited support: browser semantics skipped");
             UiEvidence.capture(context, "discover-subscription-history");
 
             assertEquals(1, dependencies.updateEnqueued.get());
@@ -196,7 +197,7 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
                             .getByUrl(HIDDEN_SAFE_URL)
                             .isPresent());
             setSwitchChecked(scenario, R.id.filterlistsShowSubscribedSwitch, false);
-            waitForRecyclerRowText(scenario, R.id.filterlistsItemName, VISIBLE_SAFE_NAME);
+            waitForRow(scenario, VISIBLE_SAFE_NAME, null);
             waitForViewEnabled(scenario, R.id.filterlistsSubscribeVisibleButton, false);
             waitForViewEnabled(scenario, R.id.filterlistsRemoveVisibleButton, false);
         }
@@ -391,19 +392,23 @@ public class FilterListsVisibleBulkActionsInstrumentedTest {
         });
     }
 
-    private static void waitForRecyclerRowText(ActivityScenario<HomeActivity> scenario, int viewId,
-            String expectedText) throws Exception {
+    private static void waitForRow(ActivityScenario<HomeActivity> scenario, String expectedName,
+            String expectedStatus) throws Exception {
         AtomicInteger nextScrollPosition = new AtomicInteger(0);
-        waitForCondition("row text " + expectedText, scenario, activity -> {
+        waitForCondition("row " + expectedName + (expectedStatus == null ? "" : ": " + expectedStatus),
+                scenario, activity -> {
             RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
             if (recycler == null) {
                 return false;
             }
             for (int i = 0; i < recycler.getChildCount(); i++) {
                 View child = recycler.getChildAt(i);
-                TextView text = child.findViewById(viewId);
-                if (text != null && text.getText() != null
-                        && text.getText().toString().contains(expectedText)) {
+                if (recycler.getChildAdapterPosition(child) == RecyclerView.NO_POSITION) continue;
+                TextView name = child.findViewById(R.id.filterlistsItemName);
+                if (!name.isShown() || !expectedName.contentEquals(name.getText())) continue;
+                TextView status = child.findViewById(R.id.filterlistsItemStatus);
+                if (expectedStatus == null
+                        || (status.isShown() && expectedStatus.contentEquals(status.getText()))) {
                     return true;
                 }
             }

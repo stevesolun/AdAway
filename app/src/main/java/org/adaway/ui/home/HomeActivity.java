@@ -143,7 +143,7 @@ public class HomeActivity extends AppCompatActivity {
         super.onResume();
         checkFirstStep();
         HomeViewModel model = new ViewModelProvider(this).get(HomeViewModel.class);
-        model.reconcileProtectionOnResume();
+        model.reconcileVpnProtection();
         model.resumeDeferredOperations();
     }
 

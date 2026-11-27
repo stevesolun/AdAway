@@ -68,6 +68,12 @@ public class VpnModel extends AdBlockModel {
         setState(R.string.status_vpn_configuration_updated);
     }
 
+    @Override
+    public boolean applyAfterBackgroundRefresh() throws HostErrorException {
+        invalidateRulesCache();
+        return super.applyAfterBackgroundRefresh();
+    }
+
     /**
      * Clear cached rule lookups after the runtime rule table changes.
      */

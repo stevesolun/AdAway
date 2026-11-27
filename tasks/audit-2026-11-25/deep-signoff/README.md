@@ -2,8 +2,10 @@
 
 This is the frozen discovery inventory, **not** a release or journey pass list. In particular, PU-03 describes the defect as found. See [startup journeys](../deep-startup-journeys.csv) and [startup bug](../deep-start-bugs.csv) for the later fix and its separate execution evidence.
 
-For what actually ran and what is still open, see the
-[arbitrary-filter checkpoint](general-filter-checkpoint.md),
+For the later outcomes and remaining limits, see the
+[public 13.5.7b verification](public-13.5.7b.md) and
+[13.5.8b candidate evidence](nonroot-13.5.8b.md).
+Earlier evidence remains in the [arbitrary-filter checkpoint](general-filter-checkpoint.md),
 [signed upgrade](signed-upgrade.md#final-signed-phone-candidate) and
 [verification decision](decision.md).
 

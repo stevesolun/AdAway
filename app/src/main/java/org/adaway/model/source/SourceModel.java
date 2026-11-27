@@ -622,6 +622,12 @@ public class SourceModel {
      * @throws HostErrorException If the hosts sources could not be downloaded.
      */
     public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+        return retrieveHostsSourcesWithReceipt() != null;
+    }
+
+    /** Returns the selection used by the completed import, or null if it was stopped. */
+    @Nullable
+    public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
         beginUpdateOperation("checkAndRetrieveHostsSources");
         SupportSQLiteDatabase writableDb = null;
         final SqlUpdateDeduper[] sqlDeduperRef = new SqlUpdateDeduper[1];
@@ -644,6 +650,7 @@ public class SourceModel {
 
         // Get all sources and categorize
         List<HostsSource> all = this.hostsSourceDao.getAll();
+        String importedConfiguration = SourceApplyState.fingerprint(all);
         List<HostsSource> enabledUrlSources = new ArrayList<>();
         List<HostsSource> enabledFileSources = new ArrayList<>();
         List<Integer> disabledSourceIds = new ArrayList<>();
@@ -684,7 +691,7 @@ public class SourceModel {
             this.updateAvailable.postValue(false);
             postProgress(0, 0, null, 10000, 100);
             postMultiPhaseProgress(MultiPhaseProgress.idle());
-            return true;
+            return importedConfiguration;
         }
 
         // Initialize progress tracking
@@ -983,7 +990,7 @@ public class SourceModel {
             progressBuilder.setComplete(false);
             postMultiPhaseProgress(progressBuilder.build(), true);
             postIdleAfterTerminal();
-            return false;
+            return null;
         }
 
         if (totalFailed == 0
@@ -1008,7 +1015,7 @@ public class SourceModel {
             progressBuilder.setComplete(true);
             postMultiPhaseProgress(progressBuilder.build(), true);
             postIdleAfterTerminal();
-            return true;
+            return importedConfiguration;
         }
 
         progressBuilder.setFinalizing(true);
@@ -1060,7 +1067,7 @@ public class SourceModel {
         progressBuilder.setComplete(true);
         postMultiPhaseProgress(progressBuilder.build(), true);
         postIdleAfterTerminal();
-        return true;
+        return importedConfiguration;
         } finally {
             stopPipelineWorkers();
             for (DownloadResult download : downloads) {

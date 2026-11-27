@@ -11,6 +11,7 @@ import java.util.TreeMap;
 
 /** Tracks source configuration, excluding download and presentation metadata. */
 public final class SourceApplyState {
+    private static final String UNCONFIRMED = "unconfirmed";
     private String mCurrentConfiguration;
     private String mAppliedConfiguration;
     private Map<Integer, String> mCurrentSources;
@@ -18,6 +19,10 @@ public final class SourceApplyState {
     // Partial completions while we have a fingerprint but not its matching Room rows.
     private final Map<Integer, String> mTargetedChanges = new TreeMap<>();
     private String mLastCompletedWork;
+    private String mDownloadedConfiguration;
+    private Map<Integer, String> mDownloadedSources;
+    private Integer mDownloadedSourceId;
+    private String mRestoredDownloadWork;
     private boolean mWorkObserved;
     private boolean mAcknowledgementUncertain;
 
@@ -26,24 +31,75 @@ public final class SourceApplyState {
     }
 
     public SourceApplyState(String appliedConfiguration, boolean uncertain) {
+        this(appliedConfiguration, uncertain, null);
+    }
+
+    public SourceApplyState(String appliedConfiguration, boolean uncertain, String downloadedWork) {
         mAppliedConfiguration = appliedConfiguration;
         mAcknowledgementUncertain = uncertain;
+        mRestoredDownloadWork = downloadedWork;
     }
 
     public String getAppliedConfiguration() {
         return mAppliedConfiguration;
     }
 
+    /** New tasks have no saved state or worker receipt. Keep only outstanding local guidance. */
+    public static SourceApplyState fromPendingCheckpoint(String checkpoint) {
+        return UNCONFIRMED.equals(checkpoint)
+                ? new SourceApplyState(null, true) : new SourceApplyState(checkpoint, false);
+    }
+
+    public String pendingCheckpoint(boolean awaitingSelection, boolean running) {
+        if (running || isUncertainOnRestore() || (awaitingSelection && mAppliedConfiguration == null)) {
+            return UNCONFIRMED;
+        }
+        // Wait for Room before deciding a restored fingerprint is no longer needed.
+        return awaitingSelection || mCurrentConfiguration == null || isPending()
+                ? mAppliedConfiguration : null;
+    }
+
     public boolean isUncertainOnRestore() {
-        return mAcknowledgementUncertain || !mTargetedChanges.isEmpty();
+        return mAcknowledgementUncertain || !mTargetedChanges.isEmpty()
+                || mDownloadedSources != null;
+    }
+
+    public String getDownloadedWorkToRestore() {
+        // Restore from this worker's immutable output, not from arbitrary historical success.
+        return mDownloadedSources != null ? null
+                : mDownloadedConfiguration != null ? mLastCompletedWork : mRestoredDownloadWork;
+    }
+
+    public boolean hasMatchingDownload() {
+        return mDownloadedConfiguration != null
+                && mDownloadedConfiguration.equals(mCurrentConfiguration);
+    }
+
+    public boolean acknowledgeDownload(boolean tunnelEstablished) {
+        if (!tunnelEstablished || !hasMatchingDownload()) return false;
+        if (mDownloadedSources == null) {
+            applied(mDownloadedConfiguration);
+        } else {
+            appliedSources(mDownloadedSources, mDownloadedSourceId);
+        }
+        return true;
+    }
+
+    public void downloadedSources(List<HostsSource> sources, Integer sourceId) {
+        forgetDownload();
+        mDownloadedSources = snapshot(sources);
+        mDownloadedSourceId = sourceId;
+        mDownloadedConfiguration = fingerprint(mDownloadedSources);
     }
 
     public void updateSources(List<HostsSource> sources) {
         if (sources == null) {
             return;
         }
+        boolean matchedDownload = hasMatchingDownload();
         mCurrentSources = snapshot(sources);
         mCurrentConfiguration = fingerprint(mCurrentSources);
+        if (matchedDownload && !hasMatchingDownload()) forgetDownload();
         if (mAppliedConfiguration == null) {
             mAppliedConfiguration = mCurrentConfiguration;
         }
@@ -54,11 +110,12 @@ public final class SourceApplyState {
 
     public boolean isPending() {
         return mCurrentConfiguration != null
-                && (mAcknowledgementUncertain
+                && (mAcknowledgementUncertain || mDownloadedConfiguration != null
                     || !mCurrentConfiguration.equals(mAppliedConfiguration));
     }
 
     public void invalidate() {
+        forgetDownload();
         mAcknowledgementUncertain = true;
         mAppliedSources = null;
         mTargetedChanges.clear();
@@ -66,6 +123,7 @@ public final class SourceApplyState {
 
     public void applied(String configuration) {
         if (configuration != null) {
+            forgetDownload();
             mTargetedChanges.clear();
             mAcknowledgementUncertain = false;
             mAppliedConfiguration = configuration;
@@ -75,7 +133,11 @@ public final class SourceApplyState {
     }
 
     public void appliedSources(List<HostsSource> sources, Integer sourceId) {
-        Map<Integer, String> completedSources = snapshot(sources);
+        appliedSources(snapshot(sources), sourceId);
+    }
+
+    private void appliedSources(Map<Integer, String> completedSources, Integer sourceId) {
+        forgetDownload();
         if (sourceId == null) {
             mAcknowledgementUncertain = false;
             mTargetedChanges.clear();
@@ -115,16 +177,35 @@ public final class SourceApplyState {
     }
 
     public boolean observeAutomaticWork(String workId, boolean successful, String configuration) {
+        return observeAutomaticWork(workId, successful, configuration, null);
+    }
+
+    private void forgetDownload() {
+        mDownloadedConfiguration = null;
+        mDownloadedSources = null;
+        mDownloadedSourceId = null;
+        mRestoredDownloadWork = null;
+    }
+
+    public boolean observeAutomaticWork(String workId, boolean successful, String configuration,
+                                        String downloaded) {
         // A new screen must not replay historical success over a later manual apply.
         if (!mWorkObserved) {
             mWorkObserved = true;
-            mLastCompletedWork = successful ? workId : null;
-            return false;
+            boolean restoring = successful && downloaded != null && workId != null
+                    && workId.equals(mRestoredDownloadWork);
+            mRestoredDownloadWork = null;
+            if (!restoring) {
+                mLastCompletedWork = successful ? workId : null;
+                return false;
+            }
         }
+        if (workId != null && !workId.equals(mLastCompletedWork)) forgetDownload();
         if (successful && workId != null && !workId.equals(mLastCompletedWork)) {
             mLastCompletedWork = workId;
             if (configuration == null) {
                 invalidate();
+                mDownloadedConfiguration = downloaded;
             } else {
                 applied(configuration);
             }

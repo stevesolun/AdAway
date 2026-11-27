@@ -1,6 +1,19 @@
 # Changelog
 
-## [13.5.7b] - Unreleased
+## [13.5.8b] - Unreleased
+
+- Returning to Home no longer asks Android to prepare the AdAway VPN. A
+  scheduled filter download updates the rules without turning an off VPN on.
+  Previously, just opening Home could interrupt another authorized VPN.
+- Home reports when a background filter refresh finishes, even when the VPN
+  is off. Sources only clears Apply for the selection that was actually
+  imported and is in use; edits made during a download stay pending when
+  their rules are missing.
+- Closing and reopening AdAway no longer hides Apply for a newly enabled
+  filter with no loaded rules. Refreshing one source leaves other pending
+  changes alone.
+
+## [13.5.7b] - 2026-11-26
 
 - Discover shows removed filters disappearing from Show subscribed without
   waiting for the rule rebuild. The last subscription result is labeled as

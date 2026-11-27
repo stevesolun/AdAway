@@ -21,6 +21,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
@@ -30,6 +31,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
+import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
@@ -126,9 +128,16 @@ public class VpnLifecycleInstrumentedTest {
             assertTrue(VpnServiceControls.start(this.context));
             waitForForegroundTunnel(this.context.getSystemService(ActivityManager.class));
             waitForLeakText(home, R.string.leak_status_mode_vpn_running);
+            home.onActivity(activity -> assertTrue(
+                    ((CompoundButton) activity.findViewById(R.id.protectionSwitch)).isChecked()));
+            assertTrue("An established VPN may acknowledge refreshed rules",
+                    ((AdAwayApplication) this.context.getApplicationContext()).getAdBlockModel()
+                            .applyAfterBackgroundRefresh());
             VpnServiceControls.stop(this.context);
             waitUntilStopped();
             waitForLeakText(home, R.string.leak_status_mode_vpn_stopped);
+            home.onActivity(activity -> assertFalse(
+                    ((CompoundButton) activity.findViewById(R.id.protectionSwitch)).isChecked()));
         }
     }
 
@@ -157,6 +166,8 @@ public class VpnLifecycleInstrumentedTest {
         assertTrue(VpnServiceControls.start(this.context));
         waitUntilStatus(VpnStatus.WAITING_FOR_NETWORK, LIFECYCLE_TIMEOUT_MS);
         assertTrue("Keep the user's request while waiting", VpnServiceControls.isStarted(this.context));
+        assertTrue("Home must preserve a live waiting request", VpnServiceControls.isEnabled(this.context));
+        assertFalse("Waiting is not protected", VpnServiceControls.isTunnelEstablished(this.context));
         String expected = this.context.getString(R.string.vpn_notification_title,
                 this.context.getString(R.string.vpn_notification_waiting_for_net));
         String actual = null;

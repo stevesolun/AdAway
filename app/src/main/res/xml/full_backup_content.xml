@@ -3,4 +3,5 @@
     <exclude
         domain="root"
         path="." />
+    <exclude domain="sharedpref" path="pending_source_apply.xml" />
 </full-backup-content>

@@ -72,6 +72,8 @@ public class ApplyConfigurationSnackbar {
     private ApplyStatus mLastSourceStatus;
     @Nullable
     private Snackbar mResultSnackbar;
+    @Nullable
+    private Snackbar mAppliedSnackbar;
 
     /**
      * Constructor.
@@ -286,7 +288,10 @@ public class ApplyConfigurationSnackbar {
     }
 
     private void showApplied() {
-        Snackbar.make(this.view, R.string.notification_configuration_applied, LENGTH_LONG).show();
+        // The queue holds callbacks weakly while the previous snackbar is dismissing.
+        this.mAppliedSnackbar = Snackbar.make(this.view,
+                R.string.notification_configuration_applied, LENGTH_LONG);
+        this.mAppliedSnackbar.show();
     }
 
     @UiThread

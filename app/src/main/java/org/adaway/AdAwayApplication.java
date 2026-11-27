@@ -10,6 +10,7 @@ import org.adaway.helper.NotificationHelper;
 import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
+import org.adaway.model.source.PendingSourceApply;
 import org.adaway.model.source.SiteCompatibilityAllowlist;
 import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
@@ -39,6 +40,7 @@ public class AdAwayApplication extends Application {
      */
     private UpdateModel updateModel;
     private final SourceOperationCoordinator sourceOperations = new SourceOperationCoordinator();
+    private PendingSourceApply pendingSourceApply;
 
     @Override
     public void onCreate() {
@@ -80,6 +82,14 @@ public class AdAwayApplication extends Application {
 
     public SourceOperationCoordinator getSourceOperations() {
         return this.sourceOperations;
+    }
+
+    public synchronized PendingSourceApply getPendingSourceApply() {
+        if (this.pendingSourceApply == null) {
+            this.pendingSourceApply = new PendingSourceApply(
+                    getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY, MODE_PRIVATE));
+        }
+        return this.pendingSourceApply;
     }
 
     /**

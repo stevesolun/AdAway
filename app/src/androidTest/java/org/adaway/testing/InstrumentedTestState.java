@@ -45,6 +45,8 @@ public final class InstrumentedTestState {
     }
 
     public static void resetForPassiveRootUi(@NonNull Context context, @NonNull String phase) {
+        context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY, Context.MODE_PRIVATE)
+                .edit().clear().apply();
         SharedPreferences prefs = context.getSharedPreferences(
                 Constants.PREFS_NAME,
                 Context.MODE_PRIVATE);

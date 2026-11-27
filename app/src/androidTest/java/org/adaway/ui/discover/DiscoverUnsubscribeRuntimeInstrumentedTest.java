@@ -170,6 +170,8 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
                 assertEquals(2, recycler.getAdapter().getItemCount());
                 RecyclerView.ViewHolder holder = recycler.findViewHolderForAdapterPosition(0);
                 assertNotNull(holder);
+                TextView name = holder.itemView.findViewById(R.id.filterlistsItemName);
+                assertEquals("First removal test", name.getText().toString());
                 MaterialCheckBox selected = holder.itemView
                         .findViewById(R.id.filterlistsItemSelectionCheckBox);
                 selected.setChecked(true);
@@ -178,10 +180,20 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
             try {
                 assertTrue(sourceModel.syncEntered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
                 UiEvidence.capture(application, "discover-removal-during-rebuild");
-                scenario.onActivity(activity -> {
-                    RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
-                    assertEquals("Committed removal must not wait for rule synchronization",
-                            1, recycler.getAdapter().getItemCount());
+                waitFor("surviving subscription to be bound during rebuild", () -> {
+                    AtomicBoolean bound = new AtomicBoolean();
+                    scenario.onActivity(activity -> {
+                        RecyclerView recycler = activity.findViewById(R.id.filterlistsRecyclerView);
+                        assertEquals("Committed removal must not wait for rule synchronization",
+                                1, recycler.getAdapter().getItemCount());
+                        RecyclerView.ViewHolder only = recycler.findViewHolderForAdapterPosition(0);
+                        if (only == null || recycler.hasPendingAdapterUpdates()) return;
+                        TextView name = only.itemView.findViewById(R.id.filterlistsItemName);
+                        assertTrue(name.isShown());
+                        assertEquals("Second removal test", name.getText().toString());
+                        bound.set(true);
+                    });
+                    return bound.get();
                 });
             } finally {
                 sourceModel.releaseSync.countDown();
@@ -421,9 +433,9 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
         public OkHttpClient getHttpClientForUi() { return client; }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() {
+        public String retrieveHostsSourcesWithReceipt() {
             networkRequests.incrementAndGet();
-            return false;
+            return null;
         }
 
         @Override

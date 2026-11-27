@@ -329,7 +329,10 @@ Use the tagged release artifact boundary report, not the regular CI source-only
 report, when running `verify-release-readiness.ps1`. The final readiness check
 expects all generated proof reports to describe the same source commit as the APK:
 artifact/smoke `Artifact source commit` must equal UX/license `Source commit`.
-`Tooling source commit` identifies each verifier checkout and may differ. It also
+`Tooling source commit` identifies the checkout containing the unchanged,
+tracked Java verifier, not the directory from which it was invoked. A standalone
+class or untracked or modified source reports `not-provided` instead of guessing.
+The two tooling revisions may differ. The readiness check also
 expects the generated `verify-release-artifacts` report with
 `Checksum verification: passed`, `Manifest signature: passed`,
 `Manifest payload: passed`, `APK identity: verified`, `Artifact provenance: verified`,

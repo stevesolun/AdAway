@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.work.Constraints;
+import androidx.work.Data;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
@@ -19,9 +20,14 @@ import androidx.work.testing.TestListenableWorkerBuilder;
 
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
+import org.adaway.db.AppDatabase;
+import org.adaway.helper.PreferenceHelper;
+import org.adaway.model.adblocking.AdBlockMethod;
+import org.adaway.model.vpn.VpnModel;
 import org.adaway.model.error.HostError;
 import org.adaway.model.error.HostErrorException;
 import org.adaway.util.Constants;
+import org.adaway.vpn.VpnStatus;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,25 +42,38 @@ import java.util.stream.Collectors;
 public class SourceUpdateServiceWorkManagerTest {
     private Context context;
     private WorkManager workManager;
+    private Field sourceField;
+    private Object originalSources;
 
     @Before
     public void setUp() throws Exception {
         context = ApplicationProvider.getApplicationContext();
         workManager = WorkManager.getInstance(context);
         resetWorkManager();
+        // Scheduling assertions enqueue real work. Don't let a network probe outlive its test.
+        sourceField = AdAwayApplication.class.getDeclaredField("sourceModel");
+        sourceField.setAccessible(true);
+        originalSources = sourceField.get(context.getApplicationContext());
+        sourceField.set(context.getApplicationContext(), new SourceModel(context) {
+            @Override public boolean checkForUpdate() { return false; }
+        });
     }
 
     @After
     public void tearDown() throws Exception {
-        resetWorkManager();
+        try {
+            resetWorkManager();
+        } finally {
+            if (sourceField != null) sourceField.set(context.getApplicationContext(), originalSources);
+        }
     }
 
     @Test
     public void immediateWorkerRetriesWhenRetrievalDoesNotComplete() throws Exception {
         assertImmediateWorkerRetries(new SourceModel(context) {
             @Override
-            public boolean checkAndRetrieveHostsSources() {
-                return false;
+            public String retrieveHostsSourcesWithReceipt() {
+                return null;
             }
         });
     }
@@ -63,25 +82,65 @@ public class SourceUpdateServiceWorkManagerTest {
     public void immediateWorkerRetriesWhenAnotherUpdateOwnsTheGate() throws Exception {
         assertImmediateWorkerRetries(new SourceModel(context) {
             @Override
-            public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
                 throw new HostErrorException(HostError.UPDATE_IN_PROGRESS);
             }
         });
     }
 
     private void assertImmediateWorkerRetries(SourceModel sourceModel) throws Exception {
-        AdAwayApplication application = (AdAwayApplication) context.getApplicationContext();
-        Field field = AdAwayApplication.class.getDeclaredField("sourceModel");
-        field.setAccessible(true);
-        Object original = field.get(application);
+        sourceField.set(context.getApplicationContext(), sourceModel);
+        SourceUpdateService.HostsSourcesImmediateUpdateWorker worker =
+                TestListenableWorkerBuilder.from(context,
+                        SourceUpdateService.HostsSourcesImmediateUpdateWorker.class).build();
+        assertEquals(ListenableWorker.Result.retry(), worker.doWork());
+    }
+
+    @Test
+    public void dailyAndQueuedRefreshDoNotEnableStoppedVpnOrClaimProtectionApplied() throws Exception {
+        AdAwayApplication app = (AdAwayApplication) context.getApplicationContext();
+        AdBlockMethod method = PreferenceHelper.getAdBlockMethod(app);
+        VpnStatus status = PreferenceHelper.getVpnServiceStatus(app);
+        org.junit.Assume.assumeTrue("Do not disturb an active service", status == VpnStatus.STOPPED);
+        SharedPreferences prefs = app.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
+        String daily = app.getString(R.string.pref_automatic_update_daily_key);
+        boolean hadDaily = prefs.contains(daily);
+        boolean previousDaily = prefs.getBoolean(daily, false);
+        Field blocker = AdAwayApplication.class.getDeclaredField("adBlockModel");
+        blocker.setAccessible(true);
+        Object previousBlocker = blocker.get(app);
+        int[] downloads = {0};
         try {
-            field.set(application, sourceModel);
-            SourceUpdateService.HostsSourcesImmediateUpdateWorker worker =
-                    TestListenableWorkerBuilder.from(context,
-                            SourceUpdateService.HostsSourcesImmediateUpdateWorker.class).build();
-            assertEquals(ListenableWorker.Result.retry(), worker.doWork());
+            PreferenceHelper.setAbBlockMethod(app, AdBlockMethod.VPN);
+            assertTrue(prefs.edit().putBoolean(daily, true).commit());
+            sourceField.set(app, new SourceModel(app) {
+                @Override public boolean checkForUpdate() { return true; }
+                @Override public String retrieveHostsSourcesWithReceipt() {
+                    downloads[0]++;
+                    return SourceApplyState.fingerprint(AppDatabase.getInstance(app).hostsSourceDao().getAll());
+                }
+            });
+            blocker.set(app, new VpnModel(app) {
+                @Override public void apply() {
+                    throw new AssertionError("A rule download must not request VPN enable");
+                }
+            });
+            assertEquals(ListenableWorker.Result.success(), TestListenableWorkerBuilder.from(app,
+                    SourceUpdateService.HostsSourcesUpdateWorker.class).build().doWork());
+            String downloaded = SourceApplyState.fingerprint(
+                    AppDatabase.getInstance(app).hostsSourceDao().getAll());
+            assertEquals(ListenableWorker.Result.success(new Data.Builder()
+                    .putString(SourceUpdateService.DOWNLOADED_CONFIGURATION, downloaded).build()),
+                    TestListenableWorkerBuilder.from(app,
+                    SourceUpdateService.HostsSourcesImmediateUpdateWorker.class).build().doWork());
+            assertEquals(2, downloads[0]);
+            assertEquals(VpnStatus.STOPPED, PreferenceHelper.getVpnServiceStatus(app));
         } finally {
-            field.set(application, original);
+            blocker.set(app, previousBlocker);
+            PreferenceHelper.setAbBlockMethod(app, method);
+            SharedPreferences.Editor editor = prefs.edit();
+            if (hadDaily) editor.putBoolean(daily, previousDaily); else editor.remove(daily);
+            assertTrue(editor.commit());
         }
     }
 

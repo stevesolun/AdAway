@@ -47,10 +47,11 @@ The 5,000-input result above was not obtained on this follow-up.
 
 ## Android backup notification
 
-[Issue #20](https://github.com/stevesolun/AdAway/issues/20): the previous build
-queued AdAway for none of ten real schedule/set edits. The follow-up queued
-all ten in Android's local backup manager. All five negative controls stayed
-unqueued on both builds. Reconfirming an unchanged URL schedule now also keeps
+[Issue #20](https://github.com/stevesolun/AdAway/issues/20): no pending request was
+observed after ten real schedule/set edits on the previous build. The follow-up
+queued all ten in Android's local backup manager. The five negative controls
+were absent from the sampled queue snapshots on both builds; the samples do
+not establish absence between observations. Reconfirming an unchanged URL schedule keeps
 its last-run timestamp: [15 red/green cases](nov26-backup-queue-results.csv).
 Sixteen focused unit tests and 19 connected regression tests passed in the
 isolated change. A pending request is not proof of OS timing or cloud delivery.
@@ -65,12 +66,18 @@ continues independently of the Android release.
 The [file-by-file receipts](../deep-nov26-archive-receipts.csv) cover 354
 archived files and one historical evidence record. The detailed reviewer CSVs
 are retained locally in `app/build/reports/audit-2026-11-25/archive-followup/`.
-Each index entry identifies its original file and CSV row. These are static
-assessments, not executed platform tests or authorization to ship this code.
-Untriaged findings remain open; 61 archive files remain outside the completed
-reviews. The [follow-up evidence receipt](../deep-nov26-followup-files.csv)
-itself also remains unreviewed; see [the audit inventory](../files.csv) for
-current file review status.
+All 354 archive entries match the subject hashes at their cited
+CSV rows. The historical QA entry (index row 71) is different: `archive-support.csv`
+row 2 reviewed `deep-nov26-handoff-files.csv` at `fb1bada98` (hash `e9caff98...`).
+Row 71 records the later version at `cdd535a52` (hash `b5a6e8fd...`).
+Only the assessment in row 22 changed: both schedule states used the same
+local backup transport. These are static assessments, not platform tests or
+authorization to ship the archived code.
+
+At this handoff, 61 archive files and the
+[follow-up evidence receipt](../deep-nov26-followup-files.csv) still awaited
+review, and untriaged findings remained open. See the
+[audit inventory](../files.csv) for current file review status.
 
 | Local detailed receipt | File rows | SHA-256 |
 | --- | ---: | --- |

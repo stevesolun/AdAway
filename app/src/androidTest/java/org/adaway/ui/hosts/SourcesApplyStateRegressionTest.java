@@ -12,12 +12,16 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcel;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -41,9 +45,11 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 import androidx.work.ExistingWorkPolicy;
+import androidx.work.ListenableWorker;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
+import androidx.work.testing.TestListenableWorkerBuilder;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -53,6 +59,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.RuleKind;
+import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
@@ -62,8 +69,11 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
+import org.adaway.ui.home.VpnLeakStatusObserver;
 import org.adaway.util.AppExecutors;
+import org.adaway.util.Constants;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -158,7 +168,7 @@ public class SourcesApplyStateRegressionTest {
     }
 
     @Test(timeout = 90_000)
-    public void pendingApplySurvivesMoreThenSourcesOnSameActivity() {
+    public void pendingApplySurvivesMoreThenSourcesOnSameActivity() throws Exception {
         HomeActivity activity = launchSources();
         AtomicReference<HostsSourcesFragment> first = new AtomicReference<>();
         onMain(() -> {
@@ -186,8 +196,37 @@ public class SourcesApplyStateRegressionTest {
         waitForText(activity, R.string.notification_configuration_changed);
         assertFalse(database.hostsSourceDao().getById(SOURCE_A).orElseThrow().isEnabled());
         assertEquals(0, adBlockModel.applyCount.get());
-        clickApplyAction(activity);
-        waitForText(activity, R.string.notification_configuration_applied);
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+        CountDownLatch collected = new CountDownLatch(1);
+        AtomicBoolean collectionScheduled = new AtomicBoolean();
+        Runnable collectQueuedFeedback = () -> {
+            System.gc();
+            System.runFinalization();
+            System.gc();
+            collected.countDown();
+        };
+        Observer<HostsSourcesViewModel.ApplyStatus> collectOnCompletion = status -> {
+            if (status == HostsSourcesViewModel.ApplyStatus.SUCCEEDED
+                    && collectionScheduled.compareAndSet(false, true)) {
+                // Let construction unwind, then collect during the outgoing banner's animation.
+                mainHandler.postDelayed(collectQueuedFeedback, 100);
+            }
+        };
+        onMain(() -> viewModelOnMain(activity).getApplyStatus().observeForever(collectOnCompletion));
+        try {
+            adBlockModel.blockApply();
+            clickApplyAction(activity);
+            waitForText(activity, R.string.sources_apply_installing);
+            adBlockModel.releaseApply();
+            assertTrue("Queued feedback collection",
+                    collected.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            waitForText(activity, R.string.notification_configuration_applied);
+        } finally {
+            onMain(() -> {
+                viewModelOnMain(activity).getApplyStatus().removeObserver(collectOnCompletion);
+                mainHandler.removeCallbacks(collectQueuedFeedback);
+            });
+        }
         waitForTextAbsent(activity, R.string.notification_configuration_changed);
         assertEquals(1, adBlockModel.applyCount.get());
     }
@@ -225,6 +264,239 @@ public class SourcesApplyStateRegressionTest {
             assertTrue(uncertain.getApplyState().isPending());
             third.discard();
         });
+    }
+
+    @Test(timeout = 60_000)
+    public void freshTaskRetainsUnappliedSwitchUntilMatchingFullApply() throws Exception {
+        sourceModel.realUpdates = true;
+        selectSource(SOURCE_B, false);
+        SharedPreferences checkpoint = context.getSharedPreferences(
+                Constants.PREFS_PENDING_SOURCE_APPLY, Context.MODE_PRIVATE);
+        String disabled = SourceApplyState.fingerprint(observedSources.get());
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        SavedTask[] tasks = new SavedTask[3];
+        onMain(() -> {
+            tasks[0] = new SavedTask(null);
+            model.set(tasks[0].model(application));
+            model.get().onSourcesChanged(observedSources.get());
+            assertFalse(model.get().getApplyState().isPending());
+            model.get().updateSources(null);
+        });
+        await("Disabled selection applied", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        CountDownLatch diskBlocked = new CountDownLatch(1);
+        CountDownLatch releaseSelection = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            diskBlocked.countDown();
+            try {
+                assertTrue(releaseSelection.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            }
+        });
+        try {
+            assertTrue(diskBlocked.await(TIMEOUT_MS, TimeUnit.MILLISECONDS));
+            onMain(() -> {
+                model.get().setSourceEnabled(observedSource(SOURCE_B), true);
+                tasks[0].discard();
+                SavedTask intermediate = new SavedTask(null);
+                try {
+                    HostsSourcesViewModel replacement = intermediate.model(application);
+                    assertFalse(observedSource(SOURCE_B).isEnabled());
+                    replacement.onSourcesChanged(observedSources.get());
+                    assertEquals(disabled, checkpoint.getString("fingerprint", null));
+                } finally {
+                    intermediate.discard();
+                }
+            });
+        } finally {
+            releaseSelection.countDown();
+        }
+        await("Switch committed", () -> observedSource(SOURCE_B).isEnabled());
+        assertEquals(disabled, checkpoint.getString("fingerprint", null));
+        onMain(() -> {
+            tasks[1] = new SavedTask(null);
+            HostsSourcesViewModel fresh = tasks[1].model(application);
+            assertNotSame(model.get(), fresh);
+            model.set(fresh);
+            fresh.observeAutomaticWork("historical", true,
+                    SourceApplyState.fingerprint(observedSources.get()));
+            fresh.onSourcesChanged(observedSources.get());
+            assertTrue("Checking a source did not import it", fresh.getApplyState().isPending());
+            fresh.updateSources(SOURCE_A);
+        });
+        await("Other row updated", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        onMain(() -> {
+            assertTrue("A row refresh is not Update all", model.get().getApplyState().isPending());
+            model.get().updateSources(null);
+        });
+        await("Full apply confirmed", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.SUCCEEDED));
+        assertTrue(sourceRuleCount(SOURCE_B) > 0);
+        assertTrue(checkpoint.getAll().isEmpty());
+        onMain(() -> {
+            assertFalse(model.get().getApplyState().isPending());
+            tasks[1].discard();
+            tasks[2] = new SavedTask(null);
+            HostsSourcesViewModel clean = tasks[2].model(application);
+            assertNotSame(model.get(), clean);
+            clean.onSourcesChanged(observedSources.get());
+            assertFalse("Confirmed selection should reopen quietly", clean.getApplyState().isPending());
+            tasks[2].discard();
+        });
+    }
+
+    @Test(timeout = 90_000)
+    public void removedTaskShowsPendingSelectionUntilApplyThenReopensQuietly() {
+        // Exercise real task removal and rendering, with local source data and a controlled
+        // apply model. This checks the Sources journey, not a live VPN or signed APK.
+        sourceModel.realUpdates = true;
+        HomeActivity original = launchSources();
+        clickSourceSwitch(original, SOURCE_B, true);
+        waitForText(original, R.string.notification_configuration_changed);
+        clickApplyAction(original);
+        waitForText(original, R.string.notification_configuration_applied);
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+
+        clickSourceSwitch(original, SOURCE_B, false);
+        await("Checked source committed", () -> observedSource(SOURCE_B).isEnabled());
+        waitForText(original, R.string.notification_configuration_changed);
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        HostsSourcesViewModel oldModel = viewModel(original);
+        int oldTaskId = original.getTaskId();
+        removeSourcesTask(original);
+
+        HomeActivity pending = launchSources();
+        assertTrue("Task removal must create a new task", oldTaskId != pending.getTaskId());
+        assertNotSame(oldModel, viewModel(pending));
+        waitForText(pending, R.string.notification_configuration_changed);
+        assertSourceSwitch(pending, SOURCE_B, true);
+        assertEquals("Checking and reopening must not import", 0, sourceRuleCount(SOURCE_B));
+        assertEquals("Reopening must not apply automatically", 1, adBlockModel.applyCount.get());
+        UiEvidence.capture(context, "removed-task-checked-source-still-needs-apply");
+
+        clickApplyAction(pending);
+        waitForText(pending, R.string.notification_configuration_applied);
+        waitForTextAbsent(pending, R.string.notification_configuration_changed);
+        assertTrue("Apply imports the checked source", sourceRuleCount(SOURCE_B) > 0);
+        assertTrue(context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY,
+                Context.MODE_PRIVATE).getAll().isEmpty());
+        UiEvidence.capture(context, "removed-task-matching-source-applied");
+        HostsSourcesViewModel appliedModel = viewModel(pending);
+        int pendingTaskId = pending.getTaskId();
+        removeSourcesTask(pending);
+
+        HomeActivity settled = launchSources();
+        assertTrue("Settled reopen must also use a new task",
+                pendingTaskId != settled.getTaskId());
+        assertNotSame(appliedModel, viewModel(settled));
+        assertSourceSwitch(settled, SOURCE_B, true);
+        waitForTextAbsent(settled, R.string.notification_configuration_changed);
+        assertFalse(onMainBoolean(() -> viewModelOnMain(settled).getApplyState().isPending()));
+        assertTrue(sourceRuleCount(SOURCE_B) > 0);
+        assertEquals(2, adBlockModel.applyCount.get());
+        UiEvidence.capture(context, "removed-task-settled-selection-reopens-quietly");
+    }
+
+    @Test(timeout = 60_000)
+    public void manualVpnApplyWaitsForTunnelAfterSuccessfulLocalImport() {
+        assertManualVpnAcknowledgement(null);
+    }
+
+    @Test(timeout = 60_000)
+    public void targetedManualVpnApplyRetainsUnrelatedPendingSelection() {
+        assertManualVpnAcknowledgement(SOURCE_A);
+    }
+
+    private void assertManualVpnAcknowledgement(Integer sourceId) {
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
+        adBlockModel.method = AdBlockMethod.VPN;
+        sourceModel.realUpdates = true;
+        AtomicBoolean established = new AtomicBoolean();
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application) {
+                @Override boolean isVpnTunnelEstablished() { return established.get(); }
+            });
+            model.get().onSourcesChanged(observedSources.get());
+        });
+        if (sourceId != null) selectSource(SOURCE_A, false);
+        selectSource(SOURCE_B, false);
+        onMain(() -> {
+            model.get().onSourcesChanged(observedSources.get());
+            model.get().updateSources(sourceId);
+        });
+        await("Manual import waiting for tunnel", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.IDLE));
+        assertEquals(1, adBlockModel.applyCount.get());
+        onMain(() -> {
+            assertTrue(model.get().getApplyState().isPending());
+            assertTrue(model.get().getApplyState().hasMatchingDownload());
+            model.get().onVpnStateChanged();
+            assertEquals(HostsSourcesViewModel.ApplyStatus.IDLE,
+                    model.get().getApplyStatus().getValue());
+            established.set(true);
+            model.get().onVpnStateChanged();
+            assertEquals(HostsSourcesViewModel.ApplyStatus.SUCCEEDED,
+                    model.get().getApplyStatus().getValue());
+            assertEquals(sourceId != null, model.get().getApplyState().isPending());
+        });
+        if (sourceId != null) {
+            selectSource(SOURCE_B, true);
+            onMain(() -> {
+                model.get().onSourcesChanged(observedSources.get());
+                assertFalse(model.get().getApplyState().isPending());
+            });
+            assertEquals(1, sourceModel.targetedUpdates.get());
+            assertEquals(0, sourceModel.fullUpdates.get());
+        } else {
+            assertEquals(1, sourceModel.fullUpdates.get());
+        }
+    }
+
+    @Test
+    public void returningSourcesViewResamplesTunnelWithoutAnotherRoomOrWorkEvent() {
+        AtomicBoolean established = new AtomicBoolean();
+        AtomicReference<HostsSourcesViewModel> retained = new AtomicReference<>();
+        AtomicReference<SavedTask> replacement = new AtomicReference<>();
+        List<HostsSource> rows = observedSources.get();
+        try {
+            onMain(() -> {
+                HostsSourcesViewModel model = new HostsSourcesViewModel(application) {
+                    @Override boolean isVpnTunnelEstablished() { return established.get(); }
+                };
+                retained.set(model);
+                model.onSourcesChanged(rows);
+                model.observeAutomaticWork("off", false, null, null);
+                model.observeAutomaticWork("off", true, null, SourceApplyState.fingerprint(rows));
+                SavedTask oldView = new SavedTask(null);
+                oldView.lifecycle.addObserver(new VpnLeakStatusObserver(context, model::onVpnStateChanged));
+                oldView.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START);
+                oldView.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP);
+                oldView.discard();
+                established.set(true);
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            onMain(() -> {
+                assertTrue("Stopped view must cancel queued refresh", retained.get().getApplyState().isPending());
+                SavedTask next = new SavedTask(null);
+                replacement.set(next);
+                next.lifecycle.addObserver(new VpnLeakStatusObserver(context, retained.get()::onVpnStateChanged));
+                next.lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START);
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            onMain(() -> {
+                assertFalse(retained.get().getApplyState().isPending());
+                assertEquals(HostsSourcesViewModel.ApplyStatus.SUCCEEDED,
+                        retained.get().getApplyStatus().getValue());
+            });
+        } finally {
+            onMain(() -> { if (replacement.get() != null) replacement.get().discard(); });
+        }
     }
 
     // A new registry and store cannot retain the old ViewModel as activity.recreate() can.
@@ -460,6 +732,7 @@ public class SourcesApplyStateRegressionTest {
 
         WorkInfo completed = waitForSuccessfulWork(manager, request);
         assertNull(completed.getOutputData().getString(SourceUpdateService.APPLIED_CONFIGURATION));
+        assertNull(completed.getOutputData().getString(SourceUpdateService.DOWNLOADED_CONFIGURATION));
         waitForStatus(recreated, HostsSourcesViewModel.ApplyStatus.SUCCEEDED);
         waitForText(recreated, R.string.notification_configuration_changed);
         assertTrue(onMainBoolean(() -> retained.getApplyState().isPending()));
@@ -556,6 +829,37 @@ public class SourcesApplyStateRegressionTest {
         return activity;
     }
 
+    private void removeSourcesTask(HomeActivity activity) {
+        onMain(activity::finishAndRemoveTask);
+        await("Removed Sources task destroyed", () -> onMainBoolean(activity::isDestroyed));
+        scenario.close();
+        scenario = null;
+    }
+
+    private void assertSourceSwitch(HomeActivity activity, int sourceId, boolean checked) {
+        await("Rendered source switch " + sourceId, () -> onMainBoolean(() -> {
+            CompoundButton toggle = sourceSwitch(activity, sourceId);
+            return toggle != null && toggle.isShown() && toggle.isChecked() == checked;
+        }));
+    }
+
+    private void clickSourceSwitch(HomeActivity activity, int sourceId, boolean checked) {
+        assertSourceSwitch(activity, sourceId, checked);
+        onMain(() -> sourceSwitch(activity, sourceId).performClick());
+        assertSourceSwitch(activity, sourceId, !checked);
+    }
+
+    private static CompoundButton sourceSwitch(HomeActivity activity, int sourceId) {
+        RecyclerView list = activity.findViewById(R.id.hosts_sources_list);
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View row = list.getChildAt(i);
+            if (hasText(row, "Apply regression source " + sourceId)) {
+                return row.findViewById(R.id.sourceSwitch);
+            }
+        }
+        return null;
+    }
+
     private static WorkInfo waitForSuccessfulWork(WorkManager manager, OneTimeWorkRequest request)
             throws Exception {
         long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
@@ -648,7 +952,21 @@ public class SourcesApplyStateRegressionTest {
     }
 
     private void waitForText(HomeActivity activity, int resource) {
-        await(context.getString(resource), () -> hasText(activity, resource));
+        try {
+            await(context.getString(resource), () -> hasText(activity, resource));
+        } catch (AssertionError failure) {
+            AtomicReference<String> state = new AtomicReference<>();
+            onMain(() -> {
+                HostsSourcesViewModel model = viewModelOnMain(activity);
+                TextView snackbar = activity.findViewById(
+                        com.google.android.material.R.id.snackbar_text);
+                state.set("applyStatus=" + model.getApplyStatus().getValue()
+                        + ", pending=" + model.getApplyState().isPending()
+                        + ", snackbar=" + (snackbar == null ? "absent"
+                        : snackbar.getText() + " (shown=" + snackbar.isShown() + ")"));
+            });
+            throw new AssertionError(failure.getMessage() + "; " + state.get(), failure);
+        }
     }
 
     private void waitForTextAbsent(HomeActivity activity, int resource) {
@@ -702,6 +1020,85 @@ public class SourcesApplyStateRegressionTest {
         AtomicBoolean value = new AtomicBoolean();
         onMain(() -> value.set(ready.getAsBoolean()));
         return value.get();
+    }
+
+    @Test(timeout = 60_000)
+    public void restoredSelectionCannotAcknowledgeDifferentImportWithTunnel() throws Exception {
+        assertDifferentImportHasNoReceipt(true);
+    }
+
+    @Test(timeout = 60_000)
+    public void restoredSelectionCannotAcknowledgeDifferentImportWithoutTunnel() throws Exception {
+        assertDifferentImportHasNoReceipt(false);
+    }
+
+    @Test(timeout = 60_000)
+    public void manualRestoredSelectionCannotAcknowledgeDifferentImportWithTunnel() throws Exception {
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
+        adBlockModel.method = AdBlockMethod.VPN;
+        var sources = database.hostsSourceDao();
+        inject("sourceModel", new SourceModel(context) {
+            @Override
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
+                sources.setSourceEnabled(SOURCE_B, false);
+                try {
+                    return super.retrieveHostsSourcesWithReceipt();
+                } finally {
+                    sources.setSourceEnabled(SOURCE_B, true);
+                }
+            }
+        });
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        List<HostsSource> initialRows = sources.getAll();
+        assertEquals(1, sourceRuleCount(SOURCE_B));
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application) {
+                @Override boolean isVpnTunnelEstablished() { return true; }
+            });
+            model.get().onSourcesChanged(initialRows);
+            model.get().updateSources(null);
+        });
+        await("Manual import completed", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() != HostsSourcesViewModel.ApplyStatus.RUNNING));
+        assertEquals(1, adBlockModel.applyCount.get());
+        assertTrue(sources.getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        System.out.println("Manual import receipt evidence: source " + SOURCE_B
+                + " enabled=true, importedRuleCount=0, controlledTunnelEstablished=true");
+        List<HostsSource> finalRows = sources.getAll();
+        onMain(() -> {
+            // A returning view can observe only the restored selection, as with the worker race.
+            model.get().onSourcesChanged(finalRows);
+            System.out.println("Manual import receipt evidence: applyStatus="
+                    + model.get().getApplyStatus().getValue() + ", pending="
+                    + model.get().getApplyState().isPending());
+            assertTrue("An established tunnel cannot acknowledge a selection omitted from the import",
+                    model.get().getApplyState().isPending());
+            assertFalse(model.get().getApplyState().hasMatchingDownload());
+        });
+    }
+
+    private void assertDifferentImportHasNoReceipt(boolean established) throws Exception {
+        adBlockModel.backgroundEstablished = established;
+        var sources = database.hostsSourceDao();
+        inject("sourceModel", new SourceModel(context) {
+            @Override
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
+                sources.setSourceEnabled(SOURCE_B, false);
+                try {
+                    return super.retrieveHostsSourcesWithReceipt();
+                } finally {
+                    sources.setSourceEnabled(SOURCE_B, true);
+                }
+            }
+        });
+        assertEquals(1, sourceRuleCount(SOURCE_B));
+        ListenableWorker.Result result = TestListenableWorkerBuilder
+                .from(context, SourceUpdateService.HostsSourcesImmediateUpdateWorker.class)
+                .build().doWork();
+        assertTrue(database.hostsSourceDao().getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        assertEquals(ListenableWorker.Result.success(), result);
     }
 
     private void seedSource(int sourceId) {
@@ -768,9 +1165,9 @@ public class SourcesApplyStateRegressionTest {
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+        public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
             int count = fullUpdates.incrementAndGet();
-            if (realUpdates) return super.checkAndRetrieveHostsSources();
+            if (realUpdates) return super.retrieveHostsSourcesWithReceipt();
             if (failUpdate.get()) {
                 database.hostsSourceDao().updateDownloadError(SOURCE_A, "Download failed");
                 throw new HostErrorException(HostError.DOWNLOAD_FAILED);
@@ -779,7 +1176,7 @@ public class SourcesApplyStateRegressionTest {
             database.hostsSourceDao().clearDownloadError(SOURCE_B);
             database.hostsSourceDao().updateSkippedCount(SOURCE_A, count);
             database.hostEntryDao().sync();
-            return true;
+            return SourceApplyState.fingerprint(database.hostsSourceDao().getAll());
         }
 
         @Override
@@ -790,6 +1187,14 @@ public class SourcesApplyStateRegressionTest {
     }
 
     private static final class ControlledAdBlockModel extends AdBlockModel {
+        private Boolean backgroundEstablished;
+        private AdBlockMethod method = ROOT;
+
+        @Override
+        public boolean applyAfterBackgroundRefresh() throws HostErrorException {
+            return backgroundEstablished != null ? backgroundEstablished : super.applyAfterBackgroundRefresh();
+        }
+
         private final AtomicInteger applyCount = new AtomicInteger();
         private final CountDownLatch entered = new CountDownLatch(1);
         private final CountDownLatch completed = new CountDownLatch(1);
@@ -809,7 +1214,7 @@ public class SourcesApplyStateRegressionTest {
 
         @Override
         public AdBlockMethod getMethod() {
-            return ROOT;
+            return method;
         }
 
         @Override

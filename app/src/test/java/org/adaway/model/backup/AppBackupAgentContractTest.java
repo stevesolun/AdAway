@@ -1,5 +1,6 @@
 package org.adaway.model.backup;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -95,6 +96,25 @@ public class AppBackupAgentContractTest {
     }
 
     @Test
+    public void pendingSourceApplyCheckpointExcludedFromEveryPlatformBackupMode() throws Exception {
+        Document extractionRules = parseXml(readRepoFile(
+                "app/src/main/res/xml/data_extraction_rules.xml"));
+        Document legacyRules = parseXml(readRepoFile(
+                "app/src/main/res/xml/full_backup_content.xml"));
+        String exclusion = "/exclude[@domain='sharedpref' "
+                + "and @path='pending_source_apply.xml']";
+        for (String section : new String[]{"cloud-backup", "device-transfer"}) {
+            assertTrue(section + " must explicitly exclude the local pending-Apply checkpoint.",
+                    (Boolean) XPathFactory.newInstance().newXPath().evaluate(
+                            "/data-extraction-rules/" + section + exclusion,
+                            extractionRules, XPathConstants.BOOLEAN));
+        }
+        assertTrue("Legacy full backup must explicitly exclude the local pending-Apply checkpoint.",
+                (Boolean) XPathFactory.newInstance().newXPath().evaluate(
+                        "/full-backup-content" + exclusion, legacyRules, XPathConstants.BOOLEAN));
+    }
+
+    @Test
     public void backupAgentRegistersPreferencesAndRulesHelpers() throws Exception {
         String source = readRepoFile(
                 "app/src/main/java/org/adaway/model/backup/AppBackupAgent.java");
@@ -110,6 +130,9 @@ public class AppBackupAgentContractTest {
                 source.contains("private static final String RULES_FILE_NAME = " +
                         "\"rules-backup.json\"") &&
                         source.contains("new File(this.context.getFilesDir(), RULES_FILE_NAME)"));
+        assertFalse("Key-value backup must not register the local pending-Apply preferences.",
+                source.contains("PREFS_PENDING_SOURCE_APPLY")
+                        || source.contains("\"pending_source_apply\""));
     }
 
     @Test

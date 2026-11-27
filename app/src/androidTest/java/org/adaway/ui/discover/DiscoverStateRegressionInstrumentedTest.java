@@ -483,7 +483,7 @@ public class DiscoverStateRegressionInstrumentedTest {
             scenario.onActivity(activity -> {
                 View selection = row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox);
                 assertTrue("First row selection must be on screen",
-                        selection.getGlobalVisibleRect(target));
+                        visibleScreenRect(selection, target));
             });
             tapCenter(target);
             waitForUi(scenario, "tapped filter checkbox selected", activity -> ((MaterialCheckBox)
@@ -500,12 +500,11 @@ public class DiscoverStateRegressionInstrumentedTest {
             waitForUi(scenario, "visible Discover selection controls", activity -> {
                 View check = activity.findViewById(R.id.filterlistsItemSelectionCheckBox);
                 ChipGroup group = activity.findViewById(R.id.tagChipGroup);
-                return check != null && check.getGlobalVisibleRect(checkbox)
-                        && activity.findViewById(R.id.filterlistsSubscribeVisibleButton)
-                                .getGlobalVisibleRect(selected)
-                        && activity.findViewById(R.id.filterlistsSubscribeAllButton).getGlobalVisibleRect(all)
+                return check != null && visibleScreenRect(check, checkbox)
+                        && visibleScreenRect(activity.findViewById(R.id.filterlistsSubscribeVisibleButton), selected)
+                        && visibleScreenRect(activity.findViewById(R.id.filterlistsSubscribeAllButton), all)
                         && group.getCheckedChipId() != View.NO_ID
-                        && group.findViewById(group.getCheckedChipId()).getGlobalVisibleRect(chip);
+                        && visibleScreenRect(group.findViewById(group.getCheckedChipId()), chip);
             });
             scenario.onActivity(activity -> {
                 assertTrue(activity.findViewById(R.id.filterlistsSubscribeAllButton).isEnabled());
@@ -527,7 +526,7 @@ public class DiscoverStateRegressionInstrumentedTest {
                 RecyclerView list = activity.findViewById(R.id.filterlistsRecyclerView);
                 MaterialCheckBox box = row(activity, 0).findViewById(R.id.filterlistsItemSelectionCheckBox);
                 return !list.hasPendingAdapterUpdates() && !list.isAnimating() && box.isChecked()
-                        && box.getGlobalVisibleRect(checkbox)
+                        && visibleScreenRect(box, checkbox)
                         && activity.findViewById(R.id.filterlistsSubscribeVisibleButton).isEnabled()
                         && activity.findViewById(R.id.filterlistsRemoveVisibleButton).isEnabled();
             });
@@ -579,7 +578,7 @@ public class DiscoverStateRegressionInstrumentedTest {
                             .getString("uxFontScale")), config.fontScale, 0.02f);
                 }
                 assertRowTextClearsControls(item, false);
-                assertTrue(item.findViewById(R.id.filterlistsItemSwitch).getGlobalVisibleRect(target));
+                assertTrue(visibleScreenRect(item.findViewById(R.id.filterlistsItemSwitch), target));
             });
             tapCenter(target);
             waitFor("cached row subscribed to correct URL", () -> sourceDao.getByUrl(URL_A).isPresent());
@@ -627,6 +626,15 @@ public class DiscoverStateRegressionInstrumentedTest {
                 .sorted((a, b) -> Integer.compare(counts.get(b), counts.get(a)))
                 .limit(2).collect(java.util.stream.Collectors.toList());
         return colors.size() < 2 ? 1 : ColorUtils.calculateContrast(colors.get(0), colors.get(1));
+    }
+
+    private static boolean visibleScreenRect(View view, Rect target) {
+        if (!view.getGlobalVisibleRect(target)) return false;
+        // Input injection and screenshots use display coordinates, including any cutout offset.
+        int[] origin = new int[2];
+        view.getRootView().getLocationOnScreen(origin);
+        target.offset(origin[0], origin[1]);
+        return true;
     }
 
     private static void tapCenter(Rect target) {

@@ -71,6 +71,15 @@ public final class VpnServiceControls {
         return PreferenceHelper.getVpnServiceStatus(context).isStarted();
     }
 
+    /** Passive Home switch state, including a live service still waiting for a tunnel. */
+    public static boolean isEnabled(Context context) {
+        VpnStatus status = PreferenceHelper.getVpnServiceStatus(context);
+        if (status == RUNNING) {
+            return checkAdAwayNetworkVpnCapability(context) || isVpnServiceRunning(context);
+        }
+        return status.isStarted() && status != VpnStatus.STOPPING && isVpnServiceRunning(context);
+    }
+
     static boolean isVpnServiceRunning(Context context) {
         return findRunningVpnService(context) != null;
     }

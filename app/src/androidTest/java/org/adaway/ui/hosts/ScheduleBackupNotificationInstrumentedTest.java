@@ -101,11 +101,11 @@ public class ScheduleBackupNotificationInstrumentedTest {
                 assertFalse(FilterSetStore.hasSet(context, CREATED_SET));
                 FilterSetStore.saveScheduledSet(context, CREATED_SET, Collections.singleton(URL),
                         SCHEDULE_WEEKLY, 4, 17, 23);
-                assertSet(context, CREATED_SET, SCHEDULE_WEEKLY, 17, 23);
+                assertSet(context, CREATED_SET, SCHEDULE_WEEKLY, 4, 17, 23);
                 break;
             case "setTime":
                 FilterSetStore.setSchedule(context, SET, SCHEDULE_WEEKLY, 4, 17, 24);
-                assertSet(context, SET, SCHEDULE_WEEKLY, 17, 24);
+                assertSet(context, SET, SCHEDULE_WEEKLY, 4, 17, 24);
                 break;
             case "global":
                 FilterSetStore.setGlobalSchedule(context, SCHEDULE_WEEKLY, 5, 8, 16);
@@ -186,7 +186,7 @@ public class ScheduleBackupNotificationInstrumentedTest {
                 break;
             case "setOff":
                 FilterSetStore.setSchedule(context, SET, SCHEDULE_OFF);
-                assertSet(context, SET, SCHEDULE_OFF, 17, 23);
+                assertSet(context, SET, SCHEDULE_OFF, 4, 17, 23);
                 break;
             case "membership":
                 Set<String> urls = new HashSet<>(Arrays.asList(URL, SECOND_URL));
@@ -197,7 +197,7 @@ public class ScheduleBackupNotificationInstrumentedTest {
                 String id = FilterSetStore.getSetIdForDisplayName(context, SET);
                 assertTrue(FilterSetStore.renameSet(context, SET, RENAMED_SET));
                 assertFalse(FilterSetStore.hasSet(context, SET));
-                assertSet(context, RENAMED_SET, SCHEDULE_WEEKLY, 17, 23);
+                assertSet(context, RENAMED_SET, SCHEDULE_WEEKLY, 4, 17, 23);
                 assertEquals(id, FilterSetStore.getSetIdForDisplayName(context, RENAMED_SET));
                 break;
             case "delete":
@@ -223,10 +223,12 @@ public class ScheduleBackupNotificationInstrumentedTest {
         }
     }
 
-    private static void assertSet(Context context, String name, int cadence, int hour, int minute) {
+    private static void assertSet(Context context, String name, int cadence, int weekday, int hour,
+            int minute) {
         assertTrue(FilterSetStore.hasSet(context, name));
         assertEquals(Collections.singleton(URL), FilterSetStore.getSetUrls(context, name));
         assertEquals(cadence, FilterSetStore.getSchedule(context, name));
+        assertEquals(weekday, FilterSetStore.getScheduleWeekdayIso(context, name));
         assertEquals(hour, FilterSetStore.getScheduleHour(context, name));
         assertEquals(minute, FilterSetStore.getScheduleMinute(context, name));
     }

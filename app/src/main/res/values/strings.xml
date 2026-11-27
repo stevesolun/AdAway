@@ -192,6 +192,7 @@
     <string name="status_read_source">Reading source %s</string>
     <string name="status_parse_source">Parsing %s source</string>
     <string name="status_sync_database">Syncing rule database</string>
+    <string name="status_filter_rules_updated">Filter rules updated</string>
     <string name="status_revert">Reverting to default hosts file</string>
     <string name="status_revert_done">Default hosts file restored</string>
 
