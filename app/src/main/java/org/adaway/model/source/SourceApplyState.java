@@ -19,6 +19,8 @@ public final class SourceApplyState {
     private final Map<Integer, String> mTargetedChanges = new TreeMap<>();
     private String mLastCompletedWork;
     private String mDownloadedConfiguration;
+    private Map<Integer, String> mDownloadedSources;
+    private Integer mDownloadedSourceId;
     private String mRestoredDownloadWork;
     private boolean mWorkObserved;
     private boolean mAcknowledgementUncertain;
@@ -42,12 +44,14 @@ public final class SourceApplyState {
     }
 
     public boolean isUncertainOnRestore() {
-        return mAcknowledgementUncertain || !mTargetedChanges.isEmpty();
+        return mAcknowledgementUncertain || !mTargetedChanges.isEmpty()
+                || mDownloadedSources != null;
     }
 
     public String getDownloadedWorkToRestore() {
         // Restore from this worker's immutable output, not from arbitrary historical success.
-        return mDownloadedConfiguration != null ? mLastCompletedWork : mRestoredDownloadWork;
+        return mDownloadedSources != null ? null
+                : mDownloadedConfiguration != null ? mLastCompletedWork : mRestoredDownloadWork;
     }
 
     public boolean hasMatchingDownload() {
@@ -56,8 +60,19 @@ public final class SourceApplyState {
 
     public boolean acknowledgeDownload(boolean tunnelEstablished) {
         if (!tunnelEstablished || !hasMatchingDownload()) return false;
-        applied(mDownloadedConfiguration);
+        if (mDownloadedSources == null) {
+            applied(mDownloadedConfiguration);
+        } else {
+            appliedSources(mDownloadedSources, mDownloadedSourceId);
+        }
         return true;
+    }
+
+    public void downloadedSources(List<HostsSource> sources, Integer sourceId) {
+        forgetDownload();
+        mDownloadedSources = snapshot(sources);
+        mDownloadedSourceId = sourceId;
+        mDownloadedConfiguration = fingerprint(mDownloadedSources);
     }
 
     public void updateSources(List<HostsSource> sources) {
@@ -78,7 +93,7 @@ public final class SourceApplyState {
 
     public boolean isPending() {
         return mCurrentConfiguration != null
-                && (mAcknowledgementUncertain
+                && (mAcknowledgementUncertain || mDownloadedConfiguration != null
                     || !mCurrentConfiguration.equals(mAppliedConfiguration));
     }
 
@@ -101,8 +116,11 @@ public final class SourceApplyState {
     }
 
     public void appliedSources(List<HostsSource> sources, Integer sourceId) {
+        appliedSources(snapshot(sources), sourceId);
+    }
+
+    private void appliedSources(Map<Integer, String> completedSources, Integer sourceId) {
         forgetDownload();
-        Map<Integer, String> completedSources = snapshot(sources);
         if (sourceId == null) {
             mAcknowledgementUncertain = false;
             mTargetedChanges.clear();
@@ -147,6 +165,8 @@ public final class SourceApplyState {
 
     private void forgetDownload() {
         mDownloadedConfiguration = null;
+        mDownloadedSources = null;
+        mDownloadedSourceId = null;
         mRestoredDownloadWork = null;
     }
 

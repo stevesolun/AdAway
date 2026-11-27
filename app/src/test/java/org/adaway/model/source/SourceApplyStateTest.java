@@ -3,6 +3,7 @@ package org.adaway.model.source;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.adaway.db.entity.HostsSource;
@@ -474,6 +475,99 @@ public class SourceApplyStateTest {
         assertFalse(state.isPending());
         assertFalse(state.observeAutomaticWork("download", true, null, downloaded));
         assertFalse(state.acknowledgeDownload(true));
+    }
+
+    @Test
+    public void manualDownloadWaitsForEstablishmentAndIsConsumedOnlyOnce() {
+        SourceApplyState state = observingEmptySources();
+        List<HostsSource> rows = Collections.singletonList(source(2));
+        state.updateSources(rows);
+        String baseline = state.getAppliedConfiguration();
+        state.downloadedSources(rows, null);
+
+        assertFalse(state.acknowledgeDownload(false));
+        assertEquals(baseline, state.getAppliedConfiguration());
+        assertTrue(state.isPending());
+        assertTrue(state.acknowledgeDownload(true));
+        assertEquals(SourceApplyState.fingerprint(rows), state.getAppliedConfiguration());
+        assertFalse(state.isPending());
+        assertFalse(state.acknowledgeDownload(true));
+    }
+
+    @Test
+    public void targetedManualDownloadAcknowledgesOnlyItsOwnSelectionAfterEstablishment() {
+        SourceApplyState state = new SourceApplyState();
+        HostsSource a = source(2);
+        HostsSource b = source(3);
+        List<HostsSource> rows = Arrays.asList(a, b);
+        state.updateSources(rows);
+        a.setAllowEnabled(true);
+        b.setRedirectEnabled(true);
+        state.updateSources(rows);
+        String baseline = state.getAppliedConfiguration();
+        state.downloadedSources(rows, a.getId());
+
+        assertFalse(state.acknowledgeDownload(false));
+        assertEquals(baseline, state.getAppliedConfiguration());
+        assertTrue(state.isPending());
+        assertTrue(state.acknowledgeDownload(true));
+        assertTrue("Unrelated selections still need an apply", state.isPending());
+        b.setRedirectEnabled(false);
+        state.updateSources(rows);
+        assertFalse(state.isPending());
+    }
+
+    @Test
+    public void changedSelectionRetiresManualDownloadEvenWhenRestored() {
+        for (Integer sourceId : Arrays.asList(null, 2)) {
+            SourceApplyState state = observingEmptySources();
+            List<HostsSource> rows = Collections.singletonList(source(2));
+            state.updateSources(rows);
+            state.downloadedSources(rows, sourceId);
+            rows.get(0).setEnabled(false);
+            state.updateSources(rows);
+            assertFalse(state.acknowledgeDownload(true));
+            rows.get(0).setEnabled(true);
+            state.updateSources(rows);
+            assertFalse("An edit cannot resurrect a manual receipt", state.acknowledgeDownload(true));
+            assertTrue(state.isPending());
+        }
+    }
+
+    @Test
+    public void manualDownloadRetainsAnImmutableSelectionSnapshot() {
+        SourceApplyState state = observingEmptySources();
+        HostsSource source = source(2);
+        List<HostsSource> rows = Collections.singletonList(source);
+        state.updateSources(rows);
+        String downloaded = SourceApplyState.fingerprint(rows);
+        state.downloadedSources(rows, null);
+        source.setEnabled(false);
+
+        assertTrue(state.acknowledgeDownload(true));
+        assertEquals(downloaded, state.getAppliedConfiguration());
+        state.updateSources(rows);
+        assertTrue(state.isPending());
+    }
+
+    @Test
+    public void restoredManualDownloadCannotBorrowAnEarlierAutomaticWorkReceipt() {
+        SourceApplyState state = observingEmptySources();
+        List<HostsSource> rows = Collections.singletonList(source(2));
+        state.updateSources(rows);
+        String configuration = SourceApplyState.fingerprint(rows);
+        assertTrue(state.observeAutomaticWork("earlier", true, configuration));
+        state.downloadedSources(rows, null);
+
+        assertTrue("The unchanged selection still needs an established tunnel", state.isPending());
+        assertTrue(state.isUncertainOnRestore());
+        assertNull(state.getDownloadedWorkToRestore());
+        SourceApplyState restored = restore(state);
+        restored.updateSources(rows);
+        assertTrue(restored.isPending());
+        assertFalse(restored.observeAutomaticWork("earlier", true, null, configuration));
+        assertFalse(restored.acknowledgeDownload(true));
+        assertTrue(restored.isPending());
     }
 
     @Test

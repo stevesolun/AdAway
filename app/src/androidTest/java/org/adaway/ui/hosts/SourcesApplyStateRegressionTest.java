@@ -55,6 +55,7 @@ import org.adaway.db.AppDatabase;
 import org.adaway.db.entity.HostListItem;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.db.entity.RuleKind;
+import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostError;
@@ -228,6 +229,62 @@ public class SourcesApplyStateRegressionTest {
             assertTrue(uncertain.getApplyState().isPending());
             third.discard();
         });
+    }
+
+    @Test(timeout = 60_000)
+    public void manualVpnApplyWaitsForTunnelAfterSuccessfulLocalImport() {
+        assertManualVpnAcknowledgement(null);
+    }
+
+    @Test(timeout = 60_000)
+    public void targetedManualVpnApplyRetainsUnrelatedPendingSelection() {
+        assertManualVpnAcknowledgement(SOURCE_A);
+    }
+
+    private void assertManualVpnAcknowledgement(Integer sourceId) {
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
+        adBlockModel.method = AdBlockMethod.VPN;
+        sourceModel.realUpdates = true;
+        AtomicBoolean established = new AtomicBoolean();
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application) {
+                @Override boolean isVpnTunnelEstablished() { return established.get(); }
+            });
+            model.get().onSourcesChanged(observedSources.get());
+        });
+        if (sourceId != null) selectSource(SOURCE_A, false);
+        selectSource(SOURCE_B, false);
+        onMain(() -> {
+            model.get().onSourcesChanged(observedSources.get());
+            model.get().updateSources(sourceId);
+        });
+        await("Manual import waiting for tunnel", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() == HostsSourcesViewModel.ApplyStatus.IDLE));
+        assertEquals(1, adBlockModel.applyCount.get());
+        onMain(() -> {
+            assertTrue(model.get().getApplyState().isPending());
+            assertTrue(model.get().getApplyState().hasMatchingDownload());
+            model.get().onVpnStateChanged();
+            assertEquals(HostsSourcesViewModel.ApplyStatus.IDLE,
+                    model.get().getApplyStatus().getValue());
+            established.set(true);
+            model.get().onVpnStateChanged();
+            assertEquals(HostsSourcesViewModel.ApplyStatus.SUCCEEDED,
+                    model.get().getApplyStatus().getValue());
+            assertEquals(sourceId != null, model.get().getApplyState().isPending());
+        });
+        if (sourceId != null) {
+            selectSource(SOURCE_B, true);
+            onMain(() -> {
+                model.get().onSourcesChanged(observedSources.get());
+                assertFalse(model.get().getApplyState().isPending());
+            });
+            assertEquals(1, sourceModel.targetedUpdates.get());
+            assertEquals(0, sourceModel.fullUpdates.get());
+        } else {
+            assertEquals(1, sourceModel.fullUpdates.get());
+        }
     }
 
     @Test
@@ -869,6 +926,7 @@ public class SourcesApplyStateRegressionTest {
 
     private static final class ControlledAdBlockModel extends AdBlockModel {
         private Boolean backgroundEstablished;
+        private AdBlockMethod method = ROOT;
 
         @Override
         public boolean applyAfterBackgroundRefresh() throws HostErrorException {
@@ -894,7 +952,7 @@ public class SourcesApplyStateRegressionTest {
 
         @Override
         public AdBlockMethod getMethod() {
-            return ROOT;
+            return method;
         }
 
         @Override

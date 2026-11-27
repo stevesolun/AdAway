@@ -28,7 +28,10 @@ production = %w[
   org/adaway/vpn/VpnServiceControls.java
   org/adaway/vpn/VpnStatus.java
   org/adaway/model/vpn/VpnModel.java
+  org/adaway/model/OperationStatus.java
+  org/adaway/model/adblocking/AdBlockModel.java
   org/adaway/model/adblocking/AdBlockMethod.java
+  org/adaway/model/adblocking/UndefinedBlockModel.java
   org/adaway/model/error/HostError.java
   org/adaway/model/error/HostErrorException.java
   org/adaway/broadcast/Command.java
@@ -204,13 +207,13 @@ JAVA
     package androidx.lifecycle;
     public class LiveData<T> {
       protected T value;
+      public final java.util.List<T> published = new java.util.ArrayList<>();
       public T getValue() { return value; }
     }
   JAVA
   'androidx/lifecycle/MutableLiveData.java' => <<~JAVA,
     package androidx.lifecycle;
     public class MutableLiveData<T> extends LiveData<T> {
-      public final java.util.List<T> published = new java.util.ArrayList<>();
       public void postValue(T value) { this.value = value; published.add(value); }
     }
   JAVA
@@ -240,7 +243,8 @@ JAVA
     import org.adaway.db.entity.HostEntry;
     public class HostEntryDao {
       public int lookups;
-      public HostEntry resolveEntry(String host) { lookups++; return new HostEntry(); }
+      public HostEntry result = new HostEntry();
+      public HostEntry resolveEntry(String host) { lookups++; return result; }
     }
   JAVA
   'org/adaway/db/AppDatabase.java' => <<~JAVA,
@@ -253,26 +257,14 @@ JAVA
       public HostEntryDao hostEntryDao() { return dao; }
     }
   JAVA
-  'org/adaway/model/adblocking/AdBlockModel.java' => <<~JAVA,
-    package org.adaway.model.adblocking;
+  'org/adaway/model/root/RootModel.java' => <<~JAVA,
+    package org.adaway.model.root;
     import android.content.Context;
-    import androidx.lifecycle.MutableLiveData;
-    import org.adaway.model.error.HostErrorException;
-    public abstract class AdBlockModel {
-      protected final Context context;
-      protected final MutableLiveData<Boolean> applied = new MutableLiveData<>();
-      private final MutableLiveData<String> state = new MutableLiveData<>();
-      protected AdBlockModel(Context context) { this.context = context; }
-      public MutableLiveData<Boolean> isApplied() { return applied; }
-      public MutableLiveData<String> getState() { return state; }
-      protected void setState(int id, Object... details) { state.postValue(context.getString(id, details)); }
-      public abstract AdBlockMethod getMethod();
-      public abstract void apply() throws HostErrorException;
-      public abstract void revert();
-      public abstract boolean isRecordingLogs();
-      public abstract void setRecordingLogs(boolean recording);
-      public abstract java.util.List<String> getLogs();
-      public abstract void clearLogs();
+    import org.adaway.model.adblocking.AdBlockMethod;
+    import org.adaway.model.adblocking.UndefinedBlockModel;
+    public class RootModel extends UndefinedBlockModel {
+      public RootModel(Context context) { super(context); }
+      @Override public AdBlockMethod getMethod() { return AdBlockMethod.ROOT; }
     }
   JAVA
   'timber/log/Timber.java' => <<~JAVA
@@ -441,6 +433,7 @@ write.call('org/adaway/model/vpn/VpnApplyConsentHostTest.java', <<~JAVA)
   import android.os.Build;
   import org.adaway.R;
   import org.adaway.db.dao.HostEntryDao;
+  import org.adaway.db.entity.HostEntry;
   import org.adaway.model.error.HostErrorException;
   import org.adaway.vpn.VpnStatus;
   import org.junit.Test;
@@ -507,10 +500,49 @@ write.call('org/adaway/model/vpn/VpnApplyConsentHostTest.java', <<~JAVA)
       model.getEntry("example.test");
       assertEquals(2, dao.lookups);
       assertEquals(Boolean.TRUE, model.isApplied().getValue());
-      assertEquals(Integer.toString(R.string.status_vpn_configuration_updated), model.getState().getValue());
+      assertEquals(Integer.toString(R.string.status_vpn_configuration_updated),
+          model.getState().getValue().resolve(context));
       assertEquals(1, context.prepareCalls);
       assertEquals(1, context.launches);
       assertEquals(1, context.heartbeatStarts);
+    }
+
+    @Test public void passiveRefreshRetiresCachedRulesWithoutPreparingOrStartingVpn() throws Exception {
+      Build.VERSION.SDK_INT = 31;
+      for (VpnStatus status : new VpnStatus[]{VpnStatus.STOPPED, VpnStatus.WAITING_FOR_NETWORK,
+          VpnStatus.RUNNING}) {
+        for (boolean ownVpn : new boolean[]{false, true}) {
+          Context context = new Context();
+          context.status = status;
+          context.consent = false;
+          NetworkCapabilities caps = new NetworkCapabilities();
+          caps.vpn = true;
+          caps.ownerUid = ownVpn ? context.getApplicationInfo().uid : 99999;
+          context.connectivity.networks.put(new Network(), caps);
+          HostEntryDao dao = new HostEntryDao();
+          VpnModel model = new VpnModel(context, dao);
+          HostEntry disabledSourceResult = model.getEntry("reenabled-source.test");
+          dao.result = new HostEntry();
+          assertSame(disabledSourceResult, model.getEntry("reenabled-source.test"));
+          assertEquals(1, dao.lookups);
+          int appliedPublications = model.isApplied().published.size();
+
+          assertEquals(status == VpnStatus.RUNNING && ownVpn, model.applyAfterBackgroundRefresh());
+
+          assertSame(dao.result, model.getEntry("reenabled-source.test"));
+          assertSame(dao.result, model.getEntry("reenabled-source.test"));
+          assertEquals(2, dao.lookups);
+          assertEquals(Integer.toString(R.string.status_filter_rules_updated),
+              model.getState().getValue().resolve(context));
+          assertEquals(appliedPublications, model.isApplied().published.size());
+          assertEquals(status, context.status);
+          assertEquals(0, context.statusWrites);
+          assertEquals(0, context.prepareCalls);
+          assertEquals(0, context.launches);
+          assertEquals(0, context.heartbeatStarts);
+          assertEquals(0, context.heartbeatStops);
+        }
+      }
     }
 
     @Test public void authorizedButRejectedLaunchDoesNotPublishAppliedOrSuccessState() {

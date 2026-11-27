@@ -96,7 +96,6 @@ public abstract class AdBlockModel {
     /** After SourceModel publishes refreshed rules, report whether protection uses them. */
     public boolean applyAfterBackgroundRefresh() throws HostErrorException {
         if (getMethod() == AdBlockMethod.VPN) {
-            // Publishing runtime rows already invalidates the live VPN lookup cache.
             // Never prepare or start a VPN just to refresh those rows.
             setState(R.string.status_filter_rules_updated);
             return VpnServiceControls.isTunnelEstablished(this.context);

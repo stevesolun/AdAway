@@ -169,6 +169,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
         try {
             AppExecutors.getInstance().networkIO().execute(() -> {
                 boolean successful = false;
+                boolean requiresTunnel = false;
                 List<HostsSource> appliedSources = null;
                 try (SourceOperationCoordinator.Lease ignored = lease) {
                     List<HostsSource> snapshot = hostsSourceDao.getAll();
@@ -183,6 +184,7 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     }
                     if (shouldApply) {
                         adBlockModel.apply();
+                        requiresTunnel = adBlockModel.getMethod() == AdBlockMethod.VPN;
                         if (configuration.equals(
                                 SourceApplyState.fingerprint(hostsSourceDao.getAll()))) {
                             appliedSources = snapshot;
@@ -193,14 +195,21 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     Timber.w(exception, "Failed to update and apply sources.");
                 }
                 boolean result = successful;
+                boolean waitingForTunnel = requiresTunnel;
                 List<HostsSource> snapshot = appliedSources;
                 AppExecutors.getInstance().mainThread().execute(() -> {
                     if (snapshot != null && revision == mConfigurationRevision) {
-                        mApplyState.appliedSources(snapshot, sourceId);
+                        if (waitingForTunnel) {
+                            mApplyState.downloadedSources(snapshot, sourceId);
+                        } else {
+                            mApplyState.appliedSources(snapshot, sourceId);
+                        }
                     } else if (result) {
                         mApplyState.invalidate();
                     }
-                    mApplyStatus.setValue(result ? ApplyStatus.SUCCEEDED : ApplyStatus.FAILED);
+                    mApplyStatus.setValue(!result ? ApplyStatus.FAILED
+                            : waitingForTunnel ? ApplyStatus.IDLE : ApplyStatus.SUCCEEDED);
+                    if (result && waitingForTunnel) onVpnStateChanged();
                 });
             });
         } catch (RuntimeException exception) {
