@@ -276,11 +276,14 @@ public class HomeUpdateSignalErrorInstrumentedTest {
         try (ActivityScenario<HomeActivity> scenario = ActivityScenario.launch(HomeActivity.class)) {
             scenario.onActivity(activity -> source.setValue(new OperationStatus(R.string.status_sync_database)));
             waitForTextView(scenario, R.id.stateTextView, context.getString(R.string.status_sync_database));
+            UiEvidence.capture(context, "home-passive-refresh-syncing");
             assertFalse(vpn.applyAfterBackgroundRefresh());
             String expected = context.getString(R.string.status_filter_rules_updated);
             waitForTextView(scenario, R.id.stateTextView, expected);
+            UiEvidence.capture(context, "home-passive-refresh-finished-protection-off");
             scenario.recreate();
             waitForTextView(scenario, R.id.stateTextView, expected);
+            UiEvidence.capture(context, "home-passive-refresh-finished-after-recreation");
         } finally {
             InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                 source.setValue(oldSource);

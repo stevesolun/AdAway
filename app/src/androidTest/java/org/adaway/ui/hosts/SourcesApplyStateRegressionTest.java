@@ -816,6 +816,52 @@ public class SourcesApplyStateRegressionTest {
         assertDifferentImportHasNoReceipt(false);
     }
 
+    @Test(timeout = 60_000)
+    public void manualRestoredSelectionCannotAcknowledgeDifferentImportWithTunnel() throws Exception {
+        PreferenceHelper.setAbBlockMethod(context, AdBlockMethod.VPN);
+        adBlockModel.method = AdBlockMethod.VPN;
+        var sources = database.hostsSourceDao();
+        inject("sourceModel", new SourceModel(context) {
+            @Override
+            public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
+                sources.setSourceEnabled(SOURCE_B, false);
+                try {
+                    return super.retrieveHostsSourcesWithReceipt();
+                } finally {
+                    sources.setSourceEnabled(SOURCE_B, true);
+                }
+            }
+        });
+        AtomicReference<HostsSourcesViewModel> model = new AtomicReference<>();
+        List<HostsSource> initialRows = sources.getAll();
+        assertEquals(1, sourceRuleCount(SOURCE_B));
+        onMain(() -> {
+            model.set(new HostsSourcesViewModel(application) {
+                @Override boolean isVpnTunnelEstablished() { return true; }
+            });
+            model.get().onSourcesChanged(initialRows);
+            model.get().updateSources(null);
+        });
+        await("Manual import completed", () -> onMainBoolean(() ->
+                model.get().getApplyStatus().getValue() != HostsSourcesViewModel.ApplyStatus.RUNNING));
+        assertEquals(1, adBlockModel.applyCount.get());
+        assertTrue(sources.getById(SOURCE_B).orElseThrow().isEnabled());
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        System.out.println("Manual import receipt evidence: source " + SOURCE_B
+                + " enabled=true, importedRuleCount=0, controlledTunnelEstablished=true");
+        List<HostsSource> finalRows = sources.getAll();
+        onMain(() -> {
+            // A returning view can observe only the restored selection, as with the worker race.
+            model.get().onSourcesChanged(finalRows);
+            System.out.println("Manual import receipt evidence: applyStatus="
+                    + model.get().getApplyStatus().getValue() + ", pending="
+                    + model.get().getApplyState().isPending());
+            assertTrue("An established tunnel cannot acknowledge a selection omitted from the import",
+                    model.get().getApplyState().isPending());
+            assertFalse(model.get().getApplyState().hasMatchingDownload());
+        });
+    }
+
     private void assertDifferentImportHasNoReceipt(boolean established) throws Exception {
         adBlockModel.backgroundEstablished = established;
         var sources = database.hostsSourceDao();

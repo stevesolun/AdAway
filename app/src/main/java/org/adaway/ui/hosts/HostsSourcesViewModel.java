@@ -177,15 +177,17 @@ public class HostsSourcesViewModel extends AndroidViewModel {
                     SourceModel sourceModel = application.getSourceModel();
                     AdBlockModel adBlockModel = application.getAdBlockModel();
                     boolean shouldApply = true;
+                    String importedConfiguration = configuration;
                     if (sourceId == null) {
-                        shouldApply = sourceModel.checkAndRetrieveHostsSources();
+                        importedConfiguration = sourceModel.retrieveHostsSourcesWithReceipt();
+                        shouldApply = importedConfiguration != null;
                     } else {
                         sourceModel.retrieveHostsSource(sourceId);
                     }
                     if (shouldApply) {
                         adBlockModel.apply();
                         requiresTunnel = adBlockModel.getMethod() == AdBlockMethod.VPN;
-                        if (configuration.equals(
+                        if (configuration.equals(importedConfiguration) && configuration.equals(
                                 SourceApplyState.fingerprint(hostsSourceDao.getAll()))) {
                             appliedSources = snapshot;
                         }

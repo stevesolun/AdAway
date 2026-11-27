@@ -33,6 +33,7 @@ import org.adaway.helper.PreferenceHelper;
 import org.adaway.model.adblocking.AdBlockMethod;
 import org.adaway.model.adblocking.AdBlockModel;
 import org.adaway.model.error.HostErrorException;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.model.source.SourceModel;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.ui.home.HomeActivity;
@@ -345,7 +346,7 @@ public class SourcesUpdateAllInstrumentedTest {
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() throws HostErrorException {
+        public String retrieveHostsSourcesWithReceipt() throws HostErrorException {
             this.updateAllCount.incrementAndGet();
             try {
                 if (!this.allowCompletion.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
@@ -357,7 +358,8 @@ public class SourcesUpdateAllInstrumentedTest {
                         interruptedException);
             }
             AppDatabase.getInstance(this.context).hostEntryDao().sync();
-            return true;
+            return SourceApplyState.fingerprint(
+                    AppDatabase.getInstance(this.context).hostsSourceDao().getAll());
         }
 
         private void releaseUpdate() {
