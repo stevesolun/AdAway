@@ -55,7 +55,8 @@ public final class SourceApplyState {
     }
 
     public boolean hasMatchingDownload() {
-        return mDownloadedConfiguration != null && mDownloadedConfiguration.equals(mCurrentConfiguration);
+        return mDownloadedConfiguration != null
+                && mDownloadedConfiguration.equals(mCurrentConfiguration);
     }
 
     public boolean acknowledgeDownload(boolean tunnelEstablished) {

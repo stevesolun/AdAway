@@ -47,10 +47,11 @@ The 5,000-input result above was not obtained on this follow-up.
 
 ## Android backup notification
 
-[Issue #20](https://github.com/stevesolun/AdAway/issues/20): the previous build
-queued AdAway for none of ten real schedule/set edits. The follow-up queued
-all ten in Android's local backup manager. All five negative controls stayed
-unqueued on both builds. Reconfirming an unchanged URL schedule now also keeps
+[Issue #20](https://github.com/stevesolun/AdAway/issues/20): no pending request was
+observed after ten real schedule/set edits on the previous build. The follow-up
+queued all ten in Android's local backup manager. The five negative controls
+were absent from the sampled queue snapshots on both builds; the samples do
+not establish absence between observations. Reconfirming an unchanged URL schedule keeps
 its last-run timestamp: [15 red/green cases](nov26-backup-queue-results.csv).
 Sixteen focused unit tests and 19 connected regression tests passed in the
 isolated change. A pending request is not proof of OS timing or cloud delivery.

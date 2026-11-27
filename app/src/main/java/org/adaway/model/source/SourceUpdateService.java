@@ -213,7 +213,8 @@ public final class SourceUpdateService {
     }
 
     /**
-     * One-time worker that always updates all enabled sources and applies immediately.
+     * One-time worker that refreshes all enabled sources using
+     * {@link AdBlockModel#applyAfterBackgroundRefresh()} for protection handling.
      */
     public static class HostsSourcesImmediateUpdateWorker extends Worker {
         public HostsSourcesImmediateUpdateWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {

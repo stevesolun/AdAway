@@ -404,8 +404,10 @@ public final class VerifyReleaseArtifacts {
         command[0] = "git";
         System.arraycopy(args, 0, command, 1, args.length);
         ProcessBuilder builder = new ProcessBuilder(command)
-                .directory(source.getParent().toFile()).redirectError(ProcessBuilder.Redirect.DISCARD);
-        for (String variable : List.of("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")) {
+                .directory(source.getParent().toFile())
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
+        for (String variable : List.of(
+                "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")) {
             builder.environment().remove(variable);
         }
         return builder;

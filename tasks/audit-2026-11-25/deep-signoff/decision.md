@@ -2,14 +2,17 @@
 
 The reviewed base [PR #15](https://github.com/stevesolun/AdAway/pull/15)
 merged with all six required checks passing. The following local evidence is
-for the subsequent deep-QA changes. It is not yet evidence of public delivery.
+for the subsequent deep-QA changes. Public delivery was verified later in the
+[13.5.7b release record](public-13.5.7b.md).
 
 **November 26 phone candidate:** The [signed arbitrary-filter upgrade](restored-phone-release.md)
 and [Android 11 offline recovery](vpn-network-recovery.md#consolidated-signed-ota)
 were run on the same private APK. The Android [platform restore](platform-restore.md)
 and [interrupted scheduled update](scheduled-due.md) have separate before/after
-evidence. The [public app-initiated installer journey](app-update-journey.md)
-remains partial; an Android package update over USB is not proof of that path.
+evidence. The [app-initiated installer checkpoint](app-update-journey.md)
+was partial; see the [later public updater journey](public-13.5.7b.md#public-updater-on-android-14)
+for its separately observed outcome. An Android package update over USB is not
+proof of that path.
 
 **Consolidated app commit `9968265d4`:** API 34 covered 698 distinct methods.
 The two initial shards recorded 673 passes, 21 assumption skips and four

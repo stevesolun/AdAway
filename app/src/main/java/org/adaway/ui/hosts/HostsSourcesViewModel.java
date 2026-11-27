@@ -123,7 +123,8 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     @UiThread
     void observeAutomaticWork(String workId, boolean successful, String configuration,
                               String downloaded) {
-        boolean completed = mApplyState.observeAutomaticWork(workId, successful, configuration, downloaded);
+        boolean completed = mApplyState.observeAutomaticWork(
+                workId, successful, configuration, downloaded);
         ApplyStatus status = mApplyStatus.getValue();
         if (completed && status != ApplyStatus.RUNNING) {
             status = downloaded == null || acknowledgeEstablishedDownload()

@@ -338,8 +338,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-rea
 
 The readiness verifier requires all proof reports to describe the same source commit
 as the artifact: artifact/smoke `Artifact source commit` must match UX/license
-`Source commit`. Each report's separate `Tooling source commit` may differ from
-the APK commit and from the other verifier's checkout.
+`Source commit`. See the [release identity requirements](RELEASING.md#stable-releases)
+for the separate verifier tooling identity.
 It also requires the artifact verifier and physical smoke report to
 describe the same release tag, APK name, APK SHA-256, and signing certificate
 digest; do not combine proof reports from different release attempts. The
@@ -438,7 +438,7 @@ waiting for a network, disconnected, or has no blocking rules loaded. Check the
 2. Use the search box or filter by tag / language.
 3. Use the switch on the row to subscribe. Tapping the row itself opens the
    source editor or a compatibility explanation; Back leaves the selection unchanged.
-4. After subscribing, the list is enabled and downloading and applying starts automatically.
+4. After subscribing, the list is enabled and downloading starts automatically.
    See [Source Update Feedback](#source-update-feedback).
 
 For a batch, check the rows you want, then use **Subscribe selected** or
@@ -466,7 +466,7 @@ not how many sources are currently subscribed.
 1. Open the **Sources** tab.
 2. Tap **+**, then **Add custom source**.
 3. Enter the public HTTPS URL of a DNS-compatible filter; the name is optional.
-4. Save with the toolbar checkmark. The enabled source downloads and applies automatically.
+4. Save with the toolbar checkmark. The enabled source downloads automatically.
    See [Source Update Feedback](#source-update-feedback).
 
 The region or publisher does not matter; see the
@@ -478,11 +478,22 @@ private network addresses or silently bypass a required system proxy.
 
 ### Source Update Feedback
 
-A successful automatic import or **Update all** clears the Sources **Apply** prompt
-for the configuration it applied. Download metadata alone does not bring the prompt
-back. Later selection or URL changes can still need **Apply**; updating one source
-does not acknowledge pending changes to other sources. If a Sources update/apply
-fails, its failure message keeps an **Apply** action that retries the same operation.
+In VPN mode, automatic refreshes, including scheduled updates and downloads after
+subscribing or saving a source, refresh the rules without turning an off VPN on. Home reports
+**Filter rules updated** when a background refresh succeeds, even if protection is
+off. Returning to Home does not request VPN consent or enable protection. To enable
+it, use the protection switch and approve Android's consent dialog when requested;
+canceling the dialog cancels the enable request.
+
+A successful import or **Update all** clears the Sources **Apply** prompt only for
+the selection actually imported and, in VPN mode, after AdAway's tunnel is
+established. A completed download can leave **Apply** pending while the VPN is off
+or starting; a matching download is acknowledged once the tunnel is established.
+Selection or URL changes made during or after a download stay pending if they were
+not included in the completed import. Download metadata alone does not bring the
+prompt back, and updating one source does not acknowledge pending changes to other
+sources. If a Sources update/apply fails, its failure message keeps an **Apply**
+action that retries the same operation.
 When another update already owns the operation, Sources reports that it is busy
 instead of reporting a download failure.
 

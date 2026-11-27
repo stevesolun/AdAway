@@ -119,7 +119,8 @@ public class HostsSourcesFragment extends Fragment implements HostsSourcesViewCa
         this.mViewModel.getHostsSources().observe(lifecycleOwner, this.mViewModel::onSourcesChanged);
         if (PreferenceHelper.getAdBlockMethod(requireContext()) == AdBlockMethod.VPN) {
             lifecycleOwner.getLifecycle().addObserver(
-                    new VpnLeakStatusObserver(requireContext(), this.mViewModel::onVpnStateChanged));
+                    new VpnLeakStatusObserver(requireContext(),
+                            this.mViewModel::onVpnStateChanged));
         }
         WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData(SourceUpdateService.WORK_NAME_NOW)

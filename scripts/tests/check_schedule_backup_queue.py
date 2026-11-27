@@ -3,6 +3,12 @@
 
 Requires installed debug/test APKs and an already enabled, selected local backup
 transport on a disposable emulator. This script does not configure a transport.
+Pass --disposable-fixture to acknowledge that each seed clears application state.
+Emulator identity, enabled backup and LocalTransport selection are rechecked before
+each mutation; an unconfirmed prerequisite stops the batch.
+
+A negative result means the package was absent from sampled idle queue snapshots
+during the post-act observation window, not that no request was ever enqueued.
 """
 
 import argparse

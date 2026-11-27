@@ -108,6 +108,9 @@ The bounded beta release does not complete this ongoing audit.
 - [x] Publish the signed beta from the merged commit. Verify the public APK and
   manifest and install the exact published APK over 13.5.6b through the app.
   [Public upgrade and verification](audit-2026-11-25/deep-signoff/public-13.5.7b.md).
+
+### Next Android beta: 13.5.8b
+
 - [ ] Address passive VPN ownership and post-update guidance without overriding
   an intentional off setting or another VPN. See [issue #25](https://github.com/stevesolun/AdAway/issues/25).
 - [x] Fix the passive-ownership part: the competing VPN stayed connected
@@ -121,6 +124,7 @@ The bounded beta release does not complete this ongoing audit.
   tunnel is established; a mid-import off/on edit cannot acknowledge missing
   rules (POST-VPN-002/004, 48 focused Android checks). See
   [refresh feedback](audit-2026-11-25/deep-signoff/nonroot-13.5.8b.md#refresh-feedback-follow-up).
+- [ ] Complete protected delivery using the [release procedure](../RELEASING.md).
 - Keep the remaining file reviews, untranslated guidance, workflow variants,
   and intermittent Android 11 first-DNS-query investigation in the audit.
   A physical phone is not emulated evidence; root is not a VPN beta requirement.
