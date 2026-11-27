@@ -12,7 +12,6 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.SavedStateHandle;
 
 import org.adaway.AdAwayApplication;
-import org.adaway.R;
 import org.adaway.db.AppDatabase;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
@@ -58,7 +57,6 @@ public class HostsSourcesViewModel extends AndroidViewModel {
             new MutableLiveData<>(ApplyStatus.IDLE);
     private final MutableLiveData<Set<Integer>> failedSelections =
             new MutableLiveData<>(Collections.emptySet());
-    private final MutableLiveData<Integer> metadataCheckMessage = new MutableLiveData<>();
     @Nullable
     private Integer mUpdateSourceId;
     private String mObservedConfiguration;
@@ -117,34 +115,20 @@ public class HostsSourcesViewModel extends AndroidViewModel {
     }
 
     LiveData<Integer> getMetadataCheckMessage() {
-        return metadataCheckMessage;
+        AdAwayApplication application = getApplication();
+        return application.getSourceModel().getMetadataCheckMessage();
     }
 
     @UiThread
     void dismissMetadataCheck() {
-        if (!Objects.equals(metadataCheckMessage.getValue(), R.string.status_check)) {
-            metadataCheckMessage.setValue(null);
-        }
+        AdAwayApplication application = getApplication();
+        application.getSourceModel().dismissMetadataCheck();
     }
 
     @UiThread
     void checkForSourceUpdates() {
-        if (Objects.equals(metadataCheckMessage.getValue(), R.string.status_check)) return;
-        metadataCheckMessage.setValue(R.string.status_check);
         AdAwayApplication application = getApplication();
-        AppExecutors.getInstance().networkIO().execute(() -> {
-            int message;
-            try {
-                message = application.getSourceModel().checkForUpdate()
-                        ? R.string.status_update_available : R.string.status_no_update_found;
-            } catch (HostErrorException e) {
-                message = e.getError().getMessageKey();
-            } catch (RuntimeException e) {
-                Timber.w(e, "Could not complete the manual source update check.");
-                message = R.string.status_source_check_failed;
-            }
-            metadataCheckMessage.postValue(message);
-        });
+        application.getSourceModel().checkForSourceUpdates();
     }
 
     public SourceApplyState getApplyState() {

@@ -26,6 +26,7 @@ import android.os.SystemClock;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.annotation.UiThread;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.sqlite.db.SupportSQLiteDatabase;
@@ -156,6 +157,7 @@ public class SourceModel {
      * The update available status.
      */
     private final MutableLiveData<Boolean> updateAvailable;
+    private final SourceUpdateCheck manualUpdateCheck;
     /**
      * The model state.
      */
@@ -241,6 +243,9 @@ public class SourceModel {
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.updateAvailable = new MutableLiveData<>();
         this.updateAvailable.postValue(false);
+        AppExecutors executors = AppExecutors.getInstance();
+        this.manualUpdateCheck = new SourceUpdateCheck(this::checkForUpdate,
+                executors.networkIO(), executors.mainThread());
         SourceUpdateService.syncPreferences(context);
     }
 
@@ -378,6 +383,20 @@ public class SourceModel {
      */
     public LiveData<Boolean> isUpdateAvailable() {
         return this.updateAvailable;
+    }
+
+    public LiveData<Integer> getMetadataCheckMessage() {
+        return this.manualUpdateCheck.getMessage();
+    }
+
+    @UiThread
+    public void dismissMetadataCheck() {
+        this.manualUpdateCheck.dismiss();
+    }
+
+    @UiThread
+    public void checkForSourceUpdates() {
+        this.manualUpdateCheck.start();
     }
 
     /** Probe one bounded page without taking a user operation lock or publishing full-check state. */

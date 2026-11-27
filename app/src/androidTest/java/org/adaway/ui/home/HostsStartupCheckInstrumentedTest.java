@@ -13,6 +13,7 @@ import android.view.inspector.WindowInspector;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import androidx.lifecycle.ViewModelProvider;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -31,6 +32,7 @@ import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.testing.InstrumentedTestState;
 import org.adaway.testing.UiEvidence;
 import org.adaway.testing.VisibleTextAction;
+import org.adaway.ui.hosts.HostsSourcesViewModel;
 import org.adaway.ui.prefs.PrefsActivity;
 import org.adaway.ui.prefs.PrefsUpdateFragment;
 import org.junit.After;
@@ -121,6 +123,8 @@ public class HostsStartupCheckInstrumentedTest {
     @After public void tearDown() throws Exception {
         release.countDown();
         awaitIdle();
+        InstrumentationRegistry.getInstrumentation()
+                .runOnMainSync(app.getSourceModel()::dismissMetadataCheck);
         swap(SourceModel.class, app.getSourceModel(), "cachedHeadClient", oldHead);
         swap(SourceModel.class, app.getSourceModel(), "cachedHttpClient", oldBody);
         swap(AdAwayApplication.class, app, "adBlockModel", oldBlock);
@@ -239,12 +243,16 @@ public class HostsStartupCheckInstrumentedTest {
 
     @Test public void offlineSourcesCheckExplainsFailureAndRetryUsesRestoredConnection() throws Exception {
         SourceModel online = app.getSourceModel();
+        AtomicBoolean disconnected = new AtomicBoolean(true);
         Context offline = new ContextWrapper(app) {
             @Override public Object getSystemService(String name) {
-                return CONNECTIVITY_SERVICE.equals(name) ? null : super.getSystemService(name);
+                return CONNECTIVITY_SERVICE.equals(name) && disconnected.get()
+                        ? null : super.getSystemService(name);
             }
         };
-        swap(AdAwayApplication.class, app, "sourceModel", new SourceModel(offline));
+        SourceModel sourceModel = new SourceModel(offline);
+        swap(SourceModel.class, sourceModel, "cachedHeadClient", online.getHttpClientForUi());
+        swap(AdAwayApplication.class, app, "sourceModel", sourceModel);
         try (ActivityScenario<HomeActivity> home = ActivityScenario.launch(launcher())) {
             home.onActivity(a -> a.findViewById(R.id.nav_sources).performClick());
             clickSourcesCheck(home);
@@ -253,7 +261,7 @@ public class HostsStartupCheckInstrumentedTest {
             assertSourceMessage(home, R.string.error_no_connection_message);
             UiEvidence.capture(app, "offline-source-check-after-rotation");
             assertEquals(0, heads.get());
-            swap(AdAwayApplication.class, app, "sourceModel", online);
+            disconnected.set(false);
             clickSourcesCheck(home);
             assertSourceMessage(home, R.string.status_update_available);
             UiEvidence.capture(app, "source-check-success-after-retry");
@@ -298,6 +306,43 @@ public class HostsStartupCheckInstrumentedTest {
             assertSourceMessage(home, R.string.status_update_available);
             assertEquals(1, heads.get());
             assertNoImport();
+        }
+    }
+
+    @Test public void closingAndReopeningActivityJoinsPendingManualCheck() throws Exception {
+        holdFirst = true;
+        AtomicReference<HostsSourcesViewModel> originalViewModel = new AtomicReference<>();
+        try {
+            try (ActivityScenario<HomeActivity> home = ActivityScenario.launch(launcher())) {
+                home.onActivity(a -> {
+                    a.findViewById(R.id.nav_sources).performClick();
+                    originalViewModel.set(new ViewModelProvider(a).get(HostsSourcesViewModel.class));
+                });
+                clickSourcesCheck(home);
+                assertTrue("Manual check must reach the test source", entered.await(10, TimeUnit.SECONDS));
+                assertSourceMessage(home, R.string.status_check);
+            }
+            try (ActivityScenario<HomeActivity> reopened = ActivityScenario.launch(launcher())) {
+                reopened.onActivity(a -> {
+                    a.findViewById(R.id.nav_sources).performClick();
+                    assertNotSame(originalViewModel.get(), new ViewModelProvider(a)
+                            .get(HostsSourcesViewModel.class));
+                });
+                assertSourceMessage(reopened, R.string.status_check);
+                clickSourcesCheck(reopened);
+                assertSourceMessage(reopened, R.string.status_check);
+                release.countDown();
+                assertSourceMessage(reopened, R.string.status_update_available);
+                assertEquals(1, heads.get());
+                assertNoImport();
+            }
+            try (ActivityScenario<HomeActivity> completed = ActivityScenario.launch(launcher())) {
+                completed.onActivity(a -> a.findViewById(R.id.nav_sources).performClick());
+                assertSourceMessage(completed, R.string.status_update_available);
+                assertEquals(1, heads.get());
+            }
+        } finally {
+            release.countDown();
         }
     }
 
@@ -497,6 +542,15 @@ public class HostsStartupCheckInstrumentedTest {
             SystemClock.sleep(10);
         }
         assertFalse("Startup work must release the source operation", app.getSourceOperations().isBusy());
+        deadline = SystemClock.elapsedRealtime() + 10000;
+        while (Integer.valueOf(R.string.status_check).equals(
+                app.getSourceModel().getMetadataCheckMessage().getValue())
+                && SystemClock.elapsedRealtime() < deadline) {
+            SystemClock.sleep(10);
+        }
+        assertNotEquals("Manual check must finish before fixture cleanup",
+                Integer.valueOf(R.string.status_check),
+                app.getSourceModel().getMetadataCheckMessage().getValue());
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
