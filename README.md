@@ -497,6 +497,10 @@ action that retries the same operation.
 When another update already owns the operation, Sources reports that it is busy
 instead of reporting a download failure.
 
+Closing AdAway or removing its task does not clear **Apply** for a checked source
+whose rules have not been imported. Reopening an already-applied selection does
+not create a new prompt.
+
 When Home reports a failed source download, tap **Sources** to inspect each source's
 error, correct or disable the failing source, then apply again. A source failure does
 not necessarily mean the device is offline. See the [changelog](CHANGELOG.md) for
@@ -576,6 +580,8 @@ saved filter sets, and global and per-source schedules. After Android restores t
 backup, AdAway reconciles the restored schedules with its background worker.
 Changing a saved set or schedule requests a future backup; Android decides
 when to run it. Confirming an unchanged schedule does not reset its last run.
+The pending-Apply reminder stays on this device: its checkpoint stores no source
+URLs and is excluded from Android backup and device transfer.
 
 ### Force English Locale
 

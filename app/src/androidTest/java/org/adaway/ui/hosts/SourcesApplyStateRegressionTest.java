@@ -21,6 +21,7 @@ import android.os.Parcel;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -68,6 +69,7 @@ import org.adaway.model.source.SourceModel;
 import org.adaway.model.source.SourceOperationCoordinator;
 import org.adaway.model.source.SourceUpdateService;
 import org.adaway.testing.InstrumentedTestState;
+import org.adaway.testing.UiEvidence;
 import org.adaway.ui.home.HomeActivity;
 import org.adaway.ui.home.VpnLeakStatusObserver;
 import org.adaway.util.AppExecutors;
@@ -346,6 +348,58 @@ public class SourcesApplyStateRegressionTest {
             assertFalse("Confirmed selection should reopen quietly", clean.getApplyState().isPending());
             tasks[2].discard();
         });
+    }
+
+    @Test(timeout = 90_000)
+    public void removedTaskShowsPendingSelectionUntilApplyThenReopensQuietly() {
+        // Exercise real task removal and rendering, with local source data and a controlled
+        // apply model. This checks the Sources journey, not a live VPN or signed APK.
+        sourceModel.realUpdates = true;
+        HomeActivity original = launchSources();
+        clickSourceSwitch(original, SOURCE_B, true);
+        waitForText(original, R.string.notification_configuration_changed);
+        clickApplyAction(original);
+        waitForText(original, R.string.notification_configuration_applied);
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+
+        clickSourceSwitch(original, SOURCE_B, false);
+        await("Checked source committed", () -> observedSource(SOURCE_B).isEnabled());
+        waitForText(original, R.string.notification_configuration_changed);
+        assertEquals(0, sourceRuleCount(SOURCE_B));
+        HostsSourcesViewModel oldModel = viewModel(original);
+        int oldTaskId = original.getTaskId();
+        removeSourcesTask(original);
+
+        HomeActivity pending = launchSources();
+        assertTrue("Task removal must create a new task", oldTaskId != pending.getTaskId());
+        assertNotSame(oldModel, viewModel(pending));
+        waitForText(pending, R.string.notification_configuration_changed);
+        assertSourceSwitch(pending, SOURCE_B, true);
+        assertEquals("Checking and reopening must not import", 0, sourceRuleCount(SOURCE_B));
+        assertEquals("Reopening must not apply automatically", 1, adBlockModel.applyCount.get());
+        UiEvidence.capture(context, "removed-task-checked-source-still-needs-apply");
+
+        clickApplyAction(pending);
+        waitForText(pending, R.string.notification_configuration_applied);
+        waitForTextAbsent(pending, R.string.notification_configuration_changed);
+        assertTrue("Apply imports the checked source", sourceRuleCount(SOURCE_B) > 0);
+        assertTrue(context.getSharedPreferences(Constants.PREFS_PENDING_SOURCE_APPLY,
+                Context.MODE_PRIVATE).getAll().isEmpty());
+        UiEvidence.capture(context, "removed-task-matching-source-applied");
+        HostsSourcesViewModel appliedModel = viewModel(pending);
+        int pendingTaskId = pending.getTaskId();
+        removeSourcesTask(pending);
+
+        HomeActivity settled = launchSources();
+        assertTrue("Settled reopen must also use a new task",
+                pendingTaskId != settled.getTaskId());
+        assertNotSame(appliedModel, viewModel(settled));
+        assertSourceSwitch(settled, SOURCE_B, true);
+        waitForTextAbsent(settled, R.string.notification_configuration_changed);
+        assertFalse(onMainBoolean(() -> viewModelOnMain(settled).getApplyState().isPending()));
+        assertTrue(sourceRuleCount(SOURCE_B) > 0);
+        assertEquals(2, adBlockModel.applyCount.get());
+        UiEvidence.capture(context, "removed-task-settled-selection-reopens-quietly");
     }
 
     @Test(timeout = 60_000)
@@ -773,6 +827,37 @@ public class SourcesApplyStateRegressionTest {
         await("Initial source row", () -> onMainBoolean(() ->
                 hasText(activity.getWindow().getDecorView(), "Apply regression source " + SOURCE_A)));
         return activity;
+    }
+
+    private void removeSourcesTask(HomeActivity activity) {
+        onMain(activity::finishAndRemoveTask);
+        await("Removed Sources task destroyed", () -> onMainBoolean(activity::isDestroyed));
+        scenario.close();
+        scenario = null;
+    }
+
+    private void assertSourceSwitch(HomeActivity activity, int sourceId, boolean checked) {
+        await("Rendered source switch " + sourceId, () -> onMainBoolean(() -> {
+            CompoundButton toggle = sourceSwitch(activity, sourceId);
+            return toggle != null && toggle.isShown() && toggle.isChecked() == checked;
+        }));
+    }
+
+    private void clickSourceSwitch(HomeActivity activity, int sourceId, boolean checked) {
+        assertSourceSwitch(activity, sourceId, checked);
+        onMain(() -> sourceSwitch(activity, sourceId).performClick());
+        assertSourceSwitch(activity, sourceId, !checked);
+    }
+
+    private static CompoundButton sourceSwitch(HomeActivity activity, int sourceId) {
+        RecyclerView list = activity.findViewById(R.id.hosts_sources_list);
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View row = list.getChildAt(i);
+            if (hasText(row, "Apply regression source " + sourceId)) {
+                return row.findViewById(R.id.sourceSwitch);
+            }
+        }
+        return null;
     }
 
     private static WorkInfo waitForSuccessfulWork(WorkManager manager, OneTimeWorkRequest request)
