@@ -433,9 +433,9 @@ public class DiscoverUnsubscribeRuntimeInstrumentedTest {
         public OkHttpClient getHttpClientForUi() { return client; }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() {
+        public String retrieveHostsSourcesWithReceipt() {
             networkRequests.incrementAndGet();
-            return false;
+            return null;
         }
 
         @Override

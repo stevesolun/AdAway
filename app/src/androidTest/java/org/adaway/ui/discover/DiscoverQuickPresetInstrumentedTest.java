@@ -24,6 +24,7 @@ import androidx.work.WorkManager;
 import org.adaway.AdAwayApplication;
 import org.adaway.R;
 import org.adaway.db.AppDatabase;
+import org.adaway.model.source.SourceApplyState;
 import org.adaway.db.dao.HostsSourceDao;
 import org.adaway.db.entity.HostsSource;
 import org.adaway.model.adblocking.AdBlockMethod;
@@ -342,16 +343,18 @@ public class DiscoverQuickPresetInstrumentedTest {
     }
 
     private static final class RecordingSourceModel extends SourceModel {
+        private final AppDatabase database;
         final AtomicInteger updateCount = new AtomicInteger();
 
         RecordingSourceModel(Context context) {
             super(context);
+            this.database = AppDatabase.getInstance(context);
         }
 
         @Override
-        public boolean checkAndRetrieveHostsSources() {
+        public String retrieveHostsSourcesWithReceipt() {
             updateCount.incrementAndGet();
-            return true;
+            return SourceApplyState.fingerprint(database.hostsSourceDao().getAll());
         }
     }
 
